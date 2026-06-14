@@ -778,7 +778,7 @@ export struct GalleryListContent {
           .rowsGap(galleryListMode() === 'Thumb' ? 6 : 8)
           .width('100%')
           .height('100%')
-          .padding({ left: 8, right: 8, top: this.requestUrl.length > 0 ? 96 : 70, bottom: 0 })
+          .padding({ left: 8, right: 8, top: 0, bottom: 0 })
           .onAppear(() => {
             if (this.initialScrollOffset > 0) {
               this.listScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });

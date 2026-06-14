@@ -95,7 +95,7 @@ export struct AppTopBar {
       .margin({ left: 12 })
     }
     .width('100%')
-    .height(60)
+    .height(62)
     .padding({ left: 14, right: 16 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor(APP_THEME_COLOR)

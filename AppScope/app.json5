@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.xjs.ehviewer.harmonyos",
     "vendor": "xiaojieonly",
-    "versionCode": 21,
-    "versionName": "0.1.20",
+    "versionCode": 22,
+    "versionName": "0.1.21",
     "icon": "$media:app_icon",
     "label": "$string:app_name"
   }

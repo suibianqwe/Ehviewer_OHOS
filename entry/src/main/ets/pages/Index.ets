@@ -137,6 +137,7 @@ struct Index {
           .id('current-route-' + this.activeRoute)
           .width('100%')
           .height('100%')
+          .backgroundColor('#F3F5F7')
           if (this.outgoingRouteVisible) {
             Column() {
               this.RoutePane(this.outgoingRoute)
@@ -144,11 +145,13 @@ struct Index {
             .id('outgoing-route-' + this.outgoingRoute)
             .width('100%')
             .height('100%')
+            .backgroundColor('#F3F5F7')
             .opacity(this.outgoingRouteOpacity)
           }
         }
         .layoutWeight(1)
         .height('100%')
+        .backgroundColor('#F3F5F7')
       }
       .width('100%')
       .layoutWeight(1)
@@ -240,6 +243,7 @@ struct Index {
     }
     .width('100%')
     .height('100%')
+    .backgroundColor('#F3F5F7')
   }
 
   @Builder
@@ -322,5 +326,6 @@ struct Index {
     }
     .width('100%')
     .height('100%')
+    .backgroundColor('#F3F5F7')
   }
 }
