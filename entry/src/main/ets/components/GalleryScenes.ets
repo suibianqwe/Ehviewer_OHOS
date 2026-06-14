@@ -18,7 +18,6 @@ import { CacheClearResult, readerImageCache } from '../services/ReaderImageCache
 import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
 import { MigrationTask, migrationTasks } from '../services/MigrationStatus';
 import { FilterRule, FILTER_MODE_TITLE, FILTER_MODE_UPLOADER, FILTER_MODE_TAG, FILTER_MODE_TAG_NAMESPACE, ehFilterStore } from '../services/EhFilterStore';
-import { nextFloatingToolbarOffset } from '../shared/EhShared';
 import { FloatingToolbar } from './NavigationComponents';
 import { APP_THEME_COLOR, LANGUAGE_REVISION_KEY, themeSurfaceColor } from '../shared/EhShared';
 import { EhBackupBundle, DrawerItem, SettingsHeaderItem, SettingsRowItem, SessionMode, SettingsPanel, DRAWER_ITEMS, SETTINGS_HEADERS, STATUS_BAR_HEIGHT_KEY, ON_OFF_OPTIONS, shouldUseChineseUi, uiText, uiValue, uiStatusText, uiPageText, zhText, setActiveBackHandler, runActiveBackHandler, createEmptyGallery, createEmptyDownloadInfo, createDetailFromGallery, createEmptyDetail, createEmptyPreview, createEmptyPage, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneStringArray, cloneRequiredStringArray, cloneGalleryInfo, cloneGalleryInfos, padTwo, applyGalleryFilters, cloneGalleryTagGroups, cloneGalleryComments, cloneGalleryPreviews, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, cloneTopListItem, cloneTopListBucket, cloneTopListInfo, cloneTopListDetail, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, saveDownloadsQuietly, filterDownloadItems, downloadItemMatches, sortDownloadItems, nextDownloadStatusFilter, nextDownloadLabelFilter, nextDownloadSortMode, nextStringOption, nextDownloadState, nextDownloadLabel, downloadLabelName, downloadStateLabel, downloadStateColor, downloadProgressText, downloadSizeText, downloadImageUrlForPage, downloadThreadLimit, downloadPageIndexes, downloadQueueSummary, parseHistoryMaxSize, routeTitle, routeSubtitle, launchRouteFromSetting, settingsPanelTitle, settingsRowsForPanel, optionSettingsRow, textSettingsRow, staticSettingsRow, settingEntryValue, cloneStringOptions, settingMigrationMessage, nextOption, isValidProxyPortText, formatNetworkDiagnostics, listModeForRoute, routeUsesKeyword, usesGallerySearchToolbar, usesEmbeddedToolbar, defaultKeywordForRoute, gallerySearchTitle, currentGallerySite, effectiveListSite, gallerySiteName, galleryListFailureMessage, shouldRetryGalleryListOnE, withGalleryListMessage, readerPageReferer, readerDisplayImageUrl, cacheReaderImageForPage, cacheThumbnailImage, cloneGalleryPageWithCache, readerLocalImageSource, readerZoomSize, readerFullImageWidth, readerFullImageHeight, readerImageFit, readerShortUrl, readerPreloadCount, readerIsRightToLeft, categoryName, categoryColor, ratingText, galleryDisplayTitle, showGalleryPages, galleryListMode, galleryThumbWidth, galleryThumbHeight, galleryRowHeight, galleryTagPreview, detailTitleFontSize, detailTitleMaxLines, detailHeadingFontSize, readerShowProgress, readerShowClock, readerClockText, padTimeNumber, topListChipColor } from '../shared/EhShared';
@@ -717,7 +716,6 @@ export struct GalleryListContent {
   onSelectGallery: (gallery: GalleryInfo) => void = () => {};
   initialScrollOffset: number = 0;
   onScrollUpdate: (offset: number) => void = () => {};
-  @State toolbarOffsetY: number = 0;
   private listScroller: Scroller = new Scroller();
   private loadMorePending: boolean = false;
 
@@ -731,11 +729,6 @@ export struct GalleryListContent {
       // Reset local guard after one frame so rapid scroll events don't queue duplicates
       setTimeout(() => { this.loadMorePending = false; }, 500);
     }
-  }
-
-  private updateToolbarForScroll(scrollOffset: number): void {
-    const offset = this.listScroller.currentOffset().yOffset;
-    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, offset, this.requestUrl.length > 0 ? 88 : 62);
   }
 
   build() {
@@ -756,9 +749,19 @@ export struct GalleryListContent {
         } else {
           Scroll(this.listScroller) {
             Column() {
-              Blank()
+              SearchBarCard({
+                keyword: this.keyword,
+                title: this.searchTitle,
+                searchActive: this.searchActive,
+                filterActive: this.filterActive,
+                requestUrl: this.requestUrl,
+                onKeywordChange: this.onKeywordChange,
+                onMenu: this.onMenu,
+                onToggleSearch: this.onToggleSearch,
+                onSearch: this.onSearch
+              })
                 .width('100%')
-                .height((this.requestUrl.length > 0 ? 88 : 62) + 8)
+                .margin({ bottom: 8 })
 
               Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
                 ForEach(this.galleries, (gallery: GalleryInfo) => {
@@ -789,14 +792,8 @@ export struct GalleryListContent {
               this.listScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
             }
           })
-          .onDidScroll((scrollOffset: number, scrollState: ScrollState) => {
-            this.updateToolbarForScroll(scrollOffset);
-          })
           .onScrollStop(() => {
             const offset = this.listScroller.currentOffset().yOffset;
-            if (offset <= 4) {
-              this.toolbarOffsetY = 0;
-            }
             this.onScrollUpdate(offset);
           })
           .onReachEnd(() => {
@@ -804,18 +801,20 @@ export struct GalleryListContent {
           })
         }
 
-        FloatingToolbar({ offsetY: this.toolbarOffsetY, barHeight: this.requestUrl.length > 0 ? 88 : 62 }) {
-          SearchBarCard({
-            keyword: this.keyword,
-            title: this.searchTitle,
-            searchActive: this.searchActive,
-            filterActive: this.filterActive,
-            requestUrl: this.requestUrl,
-            onKeywordChange: this.onKeywordChange,
-            onMenu: this.onMenu,
-            onToggleSearch: this.onToggleSearch,
-            onSearch: this.onSearch
-          })
+        if (this.galleries.length === 0) {
+          FloatingToolbar({ barHeight: this.requestUrl.length > 0 ? 88 : 62 }) {
+            SearchBarCard({
+              keyword: this.keyword,
+              title: this.searchTitle,
+              searchActive: this.searchActive,
+              filterActive: this.filterActive,
+              requestUrl: this.requestUrl,
+              onKeywordChange: this.onKeywordChange,
+              onMenu: this.onMenu,
+              onToggleSearch: this.onToggleSearch,
+              onSearch: this.onSearch
+            })
+          }
         }
       }
       .width('100%')
