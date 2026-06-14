@@ -14,9 +14,9 @@ import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, getAbilityContext, launch
 @Entry
 @Component
 struct Index {
-  @State activeRoute: GalleryRoute = GalleryRoute.Session;
-  @State drawerOpen: boolean = false;
-  @State outgoingRoute: GalleryRoute = GalleryRoute.Session;
+  @State activeRoute: GalleryRoute = GalleryRoute.Home;
+  @State drawerOpen: boolean = true;
+  @State outgoingRoute: GalleryRoute = GalleryRoute.Home;
   @State outgoingRouteVisible: boolean = false;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeight: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
@@ -41,7 +41,8 @@ struct Index {
   aboutToAppear(): void {
     const context = getAbilityContext();
     if (context === undefined) {
-      this.activeRoute = GalleryRoute.Session;
+      this.activeRoute = GalleryRoute.Home;
+      this.drawerOpen = true;
       return;
     }
 
