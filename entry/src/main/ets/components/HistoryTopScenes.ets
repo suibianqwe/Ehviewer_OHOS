@@ -992,7 +992,7 @@ export struct TopListScene {
               lists: this.topList.lists,
               selectedIndex: this.selectedIndex,
               info: this.currentInfo(),
-              toolbarHeight: 70,
+              toolbarVisibleHeight: Math.max(0, 62 + this.toolbarOffsetY),
               renderVersion: this.renderVersion,
               onSelectList: (index: number) => {
                 if (this.selectedIndex === index) {
@@ -1170,7 +1170,7 @@ export struct TopListBoard {
   @Prop lists: TopListInfo[] = [];
   @Prop selectedIndex: number = 0;
   @Prop info: TopListInfo = createEmptyTopListInfo();
-  @Prop toolbarHeight: number = 70;
+  @Prop toolbarVisibleHeight: number = 62;
   @Prop renderVersion: number = 0;
   onSelectList: (index: number) => void = () => {};
   onOpenBucket: (bucket: TopListBucket) => void = () => {};
@@ -1187,19 +1187,12 @@ export struct TopListBoard {
       onSelect: this.onSelectList
     })
       .width('100%')
-      .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+      .padding({ left: 0, right: 0, top: this.toolbarVisibleHeight, bottom: 8 })
       .backgroundColor('#F3F5F7')
   }
 
   build() {
     List({ space: 10, scroller: this.boardScroller }) {
-      ListItem() {
-        Column() {
-        }
-        .height(this.toolbarHeight)
-        .width('100%')
-      }
-
       ListItemGroup({ header: this.TabsHeader() }) {
         ForEach(this.info.buckets, (bucket: TopListBucket) => {
           ListItem() {
@@ -1216,7 +1209,7 @@ export struct TopListBoard {
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 12, right: 12, bottom: 14 })
+    .padding({ left: 12, right: 12, bottom: 0 })
     .sticky(StickyStyle.Header)
     .onAppear(() => {
       if (this.initialScrollOffset > 0) {

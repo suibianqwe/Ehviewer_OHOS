@@ -753,7 +753,7 @@ export struct SettingsScene {
       return true;
     }
     if (key === 'version') {
-      this.statusText = 'Version: HarmonyOS port target 6.1.0 / API 6.1.1 (24), app version 0.1.25.';
+      this.statusText = 'Version: HarmonyOS port target 6.1.0 / API 6.1.1 (24), app version 0.1.26.';
       return true;
     }
     if (key === 'check_for_updates') {
@@ -1320,10 +1320,11 @@ export struct SettingsHomePanel {
       }
       .width('100%')
       .layoutWeight(1)
-      .padding({ left: 12, right: 12, top: 10, bottom: 14 })
+      .padding({ left: 12, right: 12, top: 0, bottom: 0 })
     }
     .width('100%')
     .height('100%')
+    .backgroundColor('#F3F5F7')
   }
 }
 
@@ -1537,10 +1538,11 @@ export struct SettingsDetailPanel {
       }
       .width('100%')
       .layoutWeight(1)
-      .padding({ left: 12, right: 12, top: 10, bottom: 14 })
+      .padding({ left: 12, right: 12, top: 0, bottom: 0 })
     }
     .width('100%')
     .height('100%')
+    .backgroundColor('#F3F5F7')
   }
 }
 
@@ -1597,10 +1599,11 @@ export struct SettingsOptionPanel {
       }
       .width('100%')
       .layoutWeight(1)
-      .padding({ left: 12, right: 12, top: 10, bottom: 14 })
+      .padding({ left: 12, right: 12, top: 0, bottom: 0 })
     }
     .width('100%')
     .height('100%')
+    .backgroundColor('#F3F5F7')
   }
 }
 
