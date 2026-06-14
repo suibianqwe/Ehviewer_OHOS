@@ -715,8 +715,10 @@ export struct GalleryListContent {
   onSelectGallery: (gallery: GalleryInfo) => void = () => {};
   initialScrollOffset: number = 0;
   onScrollUpdate: (offset: number) => void = () => {};
+  @State toolbarVisible: boolean = true;
   private listScroller: Scroller = new Scroller();
   private loadMorePending: boolean = false;
+  private lastScrollOffset: number = 0;
 
   private triggerLoadMoreIfNear(last: number): void {
     if (this.isLoadingMore || this.loadMorePending) {
@@ -730,28 +732,32 @@ export struct GalleryListContent {
     }
   }
 
+  private updateToolbarForScroll(offset: number): void {
+    if (offset <= 4) {
+      this.toolbarVisible = true;
+    } else if (offset > this.lastScrollOffset + 8) {
+      this.toolbarVisible = false;
+    } else if (offset < this.lastScrollOffset - 8) {
+      this.toolbarVisible = true;
+    }
+    this.lastScrollOffset = Math.max(0, offset);
+  }
+
   build() {
     Stack({ alignContent: Alignment.BottomEnd }) {
-      Column() {
-        SearchBarCard({
-          keyword: this.keyword,
-          title: this.searchTitle,
-          searchActive: this.searchActive,
-          filterActive: this.filterActive,
-          requestUrl: this.requestUrl,
-          onKeywordChange: this.onKeywordChange,
-          onMenu: this.onMenu,
-          onToggleSearch: this.onToggleSearch,
-          onSearch: this.onSearch
-        })
-
+      Stack({ alignContent: Alignment.TopStart }) {
         if (this.galleries.length === 0) {
-          GalleryListStateView({
-            statusText: this.statusText,
-            requestUrl: this.requestUrl,
-            onRefresh: this.onRefresh
-          })
-            .layoutWeight(1)
+          Column() {
+            GalleryListStateView({
+              statusText: this.statusText,
+              requestUrl: this.requestUrl,
+              onRefresh: this.onRefresh
+            })
+              .layoutWeight(1)
+          }
+          .width('100%')
+          .height('100%')
+          .padding({ top: this.requestUrl.length > 0 ? 88 : 62 })
         } else {
           Grid(this.listScroller) {
             ForEach(this.galleries, (gallery: GalleryInfo) => {
@@ -770,21 +776,43 @@ export struct GalleryListContent {
           .columnsGap(galleryListMode() === 'Thumb' ? 6 : 8)
           .rowsGap(galleryListMode() === 'Thumb' ? 6 : 8)
           .width('100%')
-          .layoutWeight(1)
-          .padding({ left: 8, right: 8, top: 8, bottom: 0 })
+          .height('100%')
+          .padding({ left: 8, right: 8, top: this.requestUrl.length > 0 ? 96 : 70, bottom: 0 })
           .onAppear(() => {
             if (this.initialScrollOffset > 0) {
               this.listScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
+              this.lastScrollOffset = this.initialScrollOffset;
             }
           })
           .onScrollStop(() => {
-            this.onScrollUpdate(this.listScroller.currentOffset().yOffset);
+            const offset = this.listScroller.currentOffset().yOffset;
+            this.updateToolbarForScroll(offset);
+            this.onScrollUpdate(offset);
           })
           .onScrollIndex((first: number, last: number) => {
+            this.updateToolbarForScroll(this.listScroller.currentOffset().yOffset);
             this.triggerLoadMoreIfNear(last);
           })
         }
 
+        FloatingToolbar({ visible: this.toolbarVisible, barHeight: this.requestUrl.length > 0 ? 88 : 62 }) {
+          SearchBarCard({
+            keyword: this.keyword,
+            title: this.searchTitle,
+            searchActive: this.searchActive,
+            filterActive: this.filterActive,
+            requestUrl: this.requestUrl,
+            onKeywordChange: this.onKeywordChange,
+            onMenu: this.onMenu,
+            onToggleSearch: this.onToggleSearch,
+            onSearch: this.onSearch
+          })
+        }
+      }
+      .width('100%')
+      .height('100%')
+
+      Column() {
         if (this.isLoadingMore) {
           Row() {
             LoadingProgress().width(20).height(20).color('#9BB8CB')
@@ -815,6 +843,26 @@ export struct GalleryListContent {
     .width('100%')
     .height('100%')
     .backgroundColor('#F3F5F7')
+  }
+}
+
+@Component
+export struct FloatingToolbar {
+  visible: boolean = true;
+  barHeight: number = 62;
+  @BuilderParam content: () => void = this.EmptyContent;
+
+  @Builder
+  private EmptyContent() {
+  }
+
+  build() {
+    Column() {
+      this.content()
+    }
+    .width('100%')
+    .translate({ y: this.visible ? 0 : -this.barHeight })
+    .animation({ duration: 180, curve: Curve.EaseOut })
   }
 }
 
