@@ -104,24 +104,27 @@ export const favoritesListFixture: string = `
     </div>
     <table class="itg gltm">
       <tr>
+        <td class="gl1m glcat"><div>Artist CG</div></td>
         <td class="gl2m">
-          <div class="glthumb">
-            <table><tr><td><img data-src="https://ehgt.org/fav/thumb.jpg" style="height:120px;width:90px" /></td></tr></table>
-            <div><div></div><div><div>31 pages</div></div></div>
+          <div class="glthumb" id="it1">
+            <div><img data-src="https://ehgt.org/fav/thumb.jpg" style="height:120px;width:90px" /></div>
+            <div>
+              <div><div>2026-06-08</div><div>favorite-user</div></div>
+              <div><div class="ir irg" style="background-position:-16px -21px"></div><div>31 pages</div></div>
+            </div>
           </div>
+          <div class="glcut" id="ic1"></div>
           <div id="posted_4392268" style="background-color:rgba(240,160,0,0.25)">2026-06-08 07:15</div>
         </td>
         <td class="gl3m glname">
           <a href="https://e-hentai.org/g/4392268/aff56437fd/"><div class="glink">Favorite Fixture Gallery</div></a>
         </td>
-        <td class="gl4m">
-          <div class="cn ct3">Artist CG</div>
-          <div class="glhide">
-            <div><a href="https://e-hentai.org/uploader/favorite-user">favorite-user</a></div>
-            <div>31 pages</div>
-          </div>
-          <div class="ir irg" style="background-position:-16px -21px"></div>
+        <td class="gl4m"><div class="ir irg" style="background-position:-16px -21px"></div></td>
+        <td class="gl5m">
+          <div><a href="https://e-hentai.org/uploader/favorite-user">favorite-user</a></div>
+          <div>31 pages</div>
         </td>
+        <td class="gl6m"><div></div></td>
       </tr>
     </table>
   </body>

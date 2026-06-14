@@ -750,7 +750,7 @@ export struct SettingsScene {
       return true;
     }
     if (key === 'version') {
-      this.statusText = 'Version: HarmonyOS port target 6.1.0 / API 6.1.1 (24), app version 0.1.5.';
+      this.statusText = 'Version: HarmonyOS port target 6.1.0 / API 6.1.1 (24), app version 0.1.6.';
       return true;
     }
     if (key === 'check_for_updates') {
@@ -1333,22 +1333,12 @@ export struct SettingsHomePanel {
       .alignItems(VerticalAlign.Center)
       .backgroundColor('#2F6F8F')
 
-      if (this.statusText.length > 0) {
-        Row() {
-          Text(uiStatusText(this.statusText))
-            .fontSize(11)
-            .fontColor('#40566F')
-            .layoutWeight(1)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-        .width('100%')
-        .height(28)
-        .padding({ left: 14, right: 14 })
-        .backgroundColor('#EAF3F8')
-      }
-
       List({ space: 8 }) {
+        if (this.statusText.length > 0) {
+          ListItem() {
+            SettingsStatusBlock({ statusText: this.statusText })
+          }
+        }
         ForEach(SETTINGS_HEADERS, (item: SettingsHeaderItem) => {
           ListItem() {
             SettingsHeaderRow({
@@ -1416,6 +1406,29 @@ export struct SettingsHeaderRow {
 }
 
 @Component
+export struct SettingsStatusBlock {
+  @Prop statusText: string = '';
+
+  build() {
+    Row() {
+      SymbolGlyph($r('sys.symbol.info_circle'))
+        .fontSize(20)
+        .fontColor(['#2F6F8F'])
+        .margin({ right: 10 })
+      Text(uiStatusText(this.statusText))
+        .fontSize(13)
+        .fontColor('#40566F')
+        .lineHeight(19)
+        .layoutWeight(1)
+    }
+    .width('100%')
+    .padding(14)
+    .backgroundColor('#EAF3F8')
+    .borderRadius(6)
+  }
+}
+
+@Component
 export struct SettingsDetailPanel {
   panel: SettingsPanel = SettingsPanel.Eh;
   @Prop signedIn: boolean = false;
@@ -1437,16 +1450,12 @@ export struct SettingsDetailPanel {
         onBack: this.onBack
       })
 
-      if (this.statusText.length > 0) {
-        Text(uiStatusText(this.statusText))
-          .fontSize(12)
-          .fontColor('#0A6B45')
-          .width('100%')
-          .padding({ left: 14, right: 14, top: 8, bottom: 8 })
-          .backgroundColor('#F0FBF6')
-      }
-
       List({ space: 8 }) {
+        if (this.statusText.length > 0) {
+          ListItem() {
+            SettingsStatusBlock({ statusText: this.statusText })
+          }
+        }
         if (this.panel === SettingsPanel.Eh) {
           ListItem() {
             SettingsActionRow({

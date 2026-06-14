@@ -176,10 +176,18 @@ function parseThumb(row: string): string {
 
 function parseCategory(row: string): number {
   const category = /class=["'][^"']*(?:\bcn\b|\bcs\b)[^"']*["'][^>]*>([^<]+)</i.exec(row);
-  if (category === null) {
-    return GalleryCategory.Unknown;
+  if (category !== null) {
+    return categoryNameToValue(cleanText(category[1]));
   }
-  return categoryNameToValue(cleanText(category[1]));
+
+  const minimalCategory = findClassBlock(row, 'gl1m');
+  if (minimalCategory.length > 0) {
+    const text = cleanText(minimalCategory);
+    if (text.length > 0) {
+      return categoryNameToValue(text);
+    }
+  }
+  return GalleryCategory.Unknown;
 }
 
 function parseUploader(row: string): string {
@@ -198,6 +206,15 @@ function parseUploader(row: string): string {
   const gl3eChildren = childDivs(gl3e);
   if (gl3eChildren.length > 3) {
     return parseFirstLinkText(gl3eChildren[3]);
+  }
+
+  const gl5m = findClassBlock(row, 'gl5m');
+  const gl5mChildren = childDivs(gl5m);
+  for (let i = 0; i < gl5mChildren.length; i++) {
+    const fromGl5m = parseFirstLinkText(gl5mChildren[i]);
+    if (fromGl5m.length > 0) {
+      return fromGl5m;
+    }
   }
   return '';
 }
@@ -281,6 +298,18 @@ function parseItemPages(row: string): number {
   const gl5tPages = PAGE_COUNT_PATTERN.exec(gl5t);
   if (gl5tPages !== null) {
     return parseIntSafe(gl5tPages[1], 0);
+  }
+
+  const gl5m = findClassBlock(row, 'gl5m');
+  const gl5mPages = PAGE_COUNT_PATTERN.exec(gl5m);
+  if (gl5mPages !== null) {
+    return parseIntSafe(gl5mPages[1], 0);
+  }
+
+  const glthumb = findClassBlock(row, 'glthumb');
+  const glthumbPages = PAGE_COUNT_PATTERN.exec(glthumb);
+  if (glthumbPages !== null) {
+    return parseIntSafe(glthumbPages[1], 0);
   }
 
   const pages = PAGE_COUNT_PATTERN.exec(row);
