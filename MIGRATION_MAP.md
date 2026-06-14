@@ -34,6 +34,7 @@
 | `entry/src/main/ets/services/EhHttpClient.ets` | HarmonyOS HTTP wrapper using `@ohos.net.http`, password sign-in, gallery list pagination, detail loading and image-page loading |
 | `entry/src/main/ets/services/EhCookieStore.ets` | Cookie header store backed by HarmonyOS preferences with explicit exception handling |
 | `entry/src/main/ets/services/EhSettingsStore.ets` | HarmonyOS preferences-backed store for migrated Settings values |
+| `entry/src/main/ets/services/EhWindowPrivacy.ets` | HarmonyOS window privacy bridge for the original secure-screen setting |
 | `entry/src/main/ets/services/EhSpiderInfoStore.ets` | HarmonyOS preferences-backed SpiderInfo slice for reader showKey and page token reuse |
 | `entry/src/main/ets/services/EhHistoryStore.ets` | HarmonyOS preferences-backed history list replacing the first slice of Android `EhDB` history DAO |
 | `entry/src/main/ets/services/EhDownloadStore.ets` | HarmonyOS preferences-backed download queue replacing the first slice of Android `DownloadInfo` and `DownloadManager` state |

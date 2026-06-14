@@ -18,6 +18,7 @@ import { CacheClearResult, readerImageCache } from '../services/ReaderImageCache
 import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
 import { MigrationTask, migrationTasks } from '../services/MigrationStatus';
 import { FilterRule, FILTER_MODE_TITLE, FILTER_MODE_UPLOADER, FILTER_MODE_TAG, FILTER_MODE_TAG_NAMESPACE, ehFilterStore } from '../services/EhFilterStore';
+import { applyWindowPrivacyMode } from '../services/EhWindowPrivacy';
 import { LANGUAGE_REVISION_KEY, notifyLanguageChanged } from '../shared/EhShared';
 import { EhBackupBundle, DrawerItem, SettingsHeaderItem, SettingsRowItem, SessionMode, SettingsPanel, DRAWER_ITEMS, SETTINGS_HEADERS, STATUS_BAR_HEIGHT_KEY, ON_OFF_OPTIONS, shouldUseChineseUi, uiText, uiValue, uiStatusText, uiPageText, zhText, setActiveBackHandler, runActiveBackHandler, createEmptyGallery, createEmptyDownloadInfo, createDetailFromGallery, createEmptyDetail, createEmptyPreview, createEmptyPage, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneStringArray, cloneRequiredStringArray, cloneGalleryInfo, cloneGalleryInfos, padTwo, applyGalleryFilters, cloneGalleryTagGroups, cloneGalleryComments, cloneGalleryPreviews, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, cloneTopListItem, cloneTopListBucket, cloneTopListInfo, cloneTopListDetail, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, saveDownloadsQuietly, filterDownloadItems, downloadItemMatches, sortDownloadItems, nextDownloadStatusFilter, nextDownloadLabelFilter, nextDownloadSortMode, nextStringOption, nextDownloadState, nextDownloadLabel, downloadLabelName, downloadStateLabel, downloadStateColor, downloadProgressText, downloadSizeText, downloadImageUrlForPage, downloadThreadLimit, downloadPageIndexes, downloadQueueSummary, parseHistoryMaxSize, routeTitle, routeSubtitle, launchRouteFromSetting, settingsPanelTitle, settingsRowsForPanel, optionSettingsRow, textSettingsRow, staticSettingsRow, settingEntryValue, cloneStringOptions, settingMigrationMessage, nextOption, isValidProxyPortText, formatNetworkDiagnostics, listModeForRoute, routeUsesKeyword, usesGallerySearchToolbar, usesEmbeddedToolbar, defaultKeywordForRoute, gallerySearchTitle, currentGallerySite, effectiveListSite, gallerySiteName, galleryListFailureMessage, shouldRetryGalleryListOnE, withGalleryListMessage, readerPageReferer, readerDisplayImageUrl, cacheReaderImageForPage, cacheThumbnailImage, cloneGalleryPageWithCache, readerLocalImageSource, readerZoomSize, readerFullImageWidth, readerFullImageHeight, readerImageFit, readerShortUrl, readerPreloadCount, readerIsRightToLeft, categoryName, categoryColor, ratingText, galleryDisplayTitle, showGalleryPages, galleryListMode, galleryThumbWidth, galleryThumbHeight, galleryRowHeight, galleryTagPreview, detailTitleFontSize, detailTitleMaxLines, detailHeadingFontSize, readerShowProgress, readerShowClock, readerClockText, padTimeNumber, topListChipColor } from '../shared/EhShared';import { FilterPanel, MigrationScene } from './DownloadMigrationScenes';
 @Component
@@ -629,6 +630,11 @@ export struct SettingsScene {
     if (key === 'app_language') {
       notifyLanguageChanged();
     }
+    if (key === 'enable_secure') {
+      applyWindowPrivacyMode(value === 'On', (status: string) => {
+        this.statusText = status;
+      });
+    }
     const context = getAbilityContext();
     if (context === undefined) {
       this.statusText = isNetworkSettingKey(key) ? 'Saved network setting in memory: ' + key + ' = ' + value +
@@ -744,7 +750,7 @@ export struct SettingsScene {
       return true;
     }
     if (key === 'version') {
-      this.statusText = 'Version: HarmonyOS port target 6.1.0 / API 6.1.1 (24), app version 0.1.2.';
+      this.statusText = 'Version: HarmonyOS port target 6.1.0 / API 6.1.1 (24), app version 0.1.3.';
       return true;
     }
     if (key === 'check_for_updates') {

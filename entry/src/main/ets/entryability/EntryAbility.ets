@@ -2,6 +2,7 @@ import { UIAbility } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { preferences } from '@kit.ArkData';
 import { userAuth } from '@kit.UserAuthenticationKit';
+import { applyWindowPrivacyMode, WINDOW_PRIVACY_STATUS_KEY } from '../services/EhWindowPrivacy';
 
 const SETTINGS_PREF_NAME: string = 'ehviewer_settings';
 const SETTINGS_VALUES_KEY: string = 'values';
@@ -25,6 +26,7 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate<number>(STATUS_BAR_HEIGHT_KEY, 0);
     AppStorage.setOrCreate<window.Window | undefined>(MAIN_WINDOW_KEY, undefined);
     AppStorage.setOrCreate<number>(LANGUAGE_REVISION_KEY, 0);
+    AppStorage.setOrCreate<string>(WINDOW_PRIVACY_STATUS_KEY, '');
     stage.loadContent('pages/Index', (error) => {
       if (error.code) {
         console.error(`Failed to load the main page. code=${error.code}, message=${error.message}`);
@@ -45,6 +47,7 @@ export default class EntryAbility extends UIAbility {
           AppStorage.set<number>(STATUS_BAR_HEIGHT_KEY, data.area.topRect.height);
         }
       });
+      this.applyPersistedSecureScreen();
     }).catch(() => {});
   }
 
@@ -58,10 +61,37 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
+    this.applyPersistedSecureScreen();
     if (this.authPending) {
       return;
     }
     this.checkAndPromptBiometricLock();
+  }
+
+  private applyPersistedSecureScreen(): void {
+    preferences.getPreferences(this.context, { name: SETTINGS_PREF_NAME }).then((prefs) => {
+      return prefs.get(SETTINGS_VALUES_KEY, '');
+    }).then((raw) => {
+      let enabled = false;
+      if (typeof raw === 'string' && raw.length > 0) {
+        try {
+          const entries = JSON.parse(raw) as SettingEntry[];
+          if (Array.isArray(entries)) {
+            for (let i = 0; i < entries.length; i++) {
+              if (entries[i].key === 'enable_secure') {
+                enabled = entries[i].value === 'On';
+                break;
+              }
+            }
+          }
+        } catch (error) {
+          enabled = false;
+        }
+      }
+      applyWindowPrivacyMode(enabled);
+    }).catch(() => {
+      applyWindowPrivacyMode(false);
+    });
   }
 
   private checkAndPromptBiometricLock(): void {

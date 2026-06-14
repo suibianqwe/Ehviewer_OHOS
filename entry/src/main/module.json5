@@ -46,8 +46,10 @@
       },
       {
         "name": "ohos.permission.ACCESS_BIOMETRIC"
+      },
+      {
+        "name": "ohos.permission.PRIVACY_WINDOW"
       }
     ]
   }
 }
-
