@@ -18,9 +18,9 @@ struct Index {
   @State drawerOpen: boolean = true;
   @State outgoingRoute: GalleryRoute = GalleryRoute.Home;
   @State outgoingRouteVisible: boolean = false;
+  @State outgoingRouteOpacity: number = 0;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeight: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
-  private routeSwitchTimer: number = -1;
   private routeCleanupTimer: number = -1;
 
   onBackPress(): boolean {
@@ -56,10 +56,6 @@ struct Index {
   }
 
   aboutToDisappear(): void {
-    if (this.routeSwitchTimer >= 0) {
-      clearTimeout(this.routeSwitchTimer);
-      this.routeSwitchTimer = -1;
-    }
     if (this.routeCleanupTimer >= 0) {
       clearTimeout(this.routeCleanupTimer);
       this.routeCleanupTimer = -1;
@@ -88,10 +84,6 @@ struct Index {
   }
 
   private fadeToRoute(route: GalleryRoute, drawerOpen?: boolean): void {
-    if (this.routeSwitchTimer >= 0) {
-      clearTimeout(this.routeSwitchTimer);
-      this.routeSwitchTimer = -1;
-    }
     if (this.routeCleanupTimer >= 0) {
       clearTimeout(this.routeCleanupTimer);
       this.routeCleanupTimer = -1;
@@ -102,11 +94,12 @@ struct Index {
       this.drawerOpen = drawerOpen;
     }
     this.outgoingRouteVisible = true;
-    this.routeSwitchTimer = setTimeout(() => {
-      this.outgoingRouteVisible = false;
-      this.routeSwitchTimer = -1;
-    }, 0);
+    this.outgoingRouteOpacity = 1;
+    this.getUIContext().animateTo({ duration: 180, curve: Curve.EaseInOut }, () => {
+      this.outgoingRouteOpacity = 0;
+    });
     this.routeCleanupTimer = setTimeout(() => {
+      this.outgoingRouteVisible = false;
       this.routeCleanupTimer = -1;
     }, 220);
   }
@@ -138,14 +131,20 @@ struct Index {
         }
 
         Stack() {
-          this.RoutePane(this.activeRoute)
+          Column() {
+            this.ActiveRoutePane()
+          }
+          .id('current-route-' + this.activeRoute)
+          .width('100%')
+          .height('100%')
           if (this.outgoingRouteVisible) {
             Column() {
               this.RoutePane(this.outgoingRoute)
             }
+            .id('outgoing-route-' + this.outgoingRoute)
             .width('100%')
             .height('100%')
-            .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+            .opacity(this.outgoingRouteOpacity)
           }
         }
         .layoutWeight(1)
@@ -159,6 +158,88 @@ struct Index {
     .padding({ top: this.getUIContext().px2vp(this.statusBarHeight) })
     .backgroundColor('#F3F5F7')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
+  }
+
+  @Builder
+  private ActiveRoutePane() {
+    Column() {
+      if (!usesEmbeddedToolbar(this.activeRoute)) {
+        AppToolbar({
+          title: routeTitle(this.activeRoute),
+          subtitle: routeSubtitle(this.activeRoute),
+          onMenu: () => {
+            this.toggleDrawer();
+          }
+        })
+      }
+
+      Column() {
+        if (this.activeRoute === GalleryRoute.Home) {
+          HomeGalleryScene({
+            onMenu: () => {
+              this.toggleDrawer();
+            }
+          })
+        } else if (this.activeRoute === GalleryRoute.Subscription) {
+          SubscriptionGalleryScene({
+            onMenu: () => {
+              this.toggleDrawer();
+            }
+          })
+        } else if (this.activeRoute === GalleryRoute.WhatsHot) {
+          HotGalleryScene({
+            onMenu: () => {
+              this.toggleDrawer();
+            }
+          })
+        } else if (this.activeRoute === GalleryRoute.TopLists) {
+          TopListScene({
+            onMenu: () => {
+              this.toggleDrawer();
+            }
+          })
+        } else if (this.activeRoute === GalleryRoute.Favorites) {
+          FavoriteGalleryScene({
+            onMenu: () => {
+              this.toggleDrawer();
+            }
+          })
+        } else if (this.activeRoute === GalleryRoute.History) {
+          HistoryScene({
+            onMenu: () => {
+              this.toggleDrawer();
+            }
+          })
+        } else if (this.activeRoute === GalleryRoute.Downloads) {
+          DownloadScene({
+            onMenu: () => {
+              this.toggleDrawer();
+            }
+          })
+        } else if (this.activeRoute === GalleryRoute.Session) {
+          SessionScene({
+            onSignedIn: () => {
+              this.fadeToRoute(this.routeAfterSignIn(), true);
+            }
+          })
+        } else if (this.activeRoute === GalleryRoute.Migration) {
+          MigrationScene()
+        } else {
+          SettingsScene({
+            onMenu: () => {
+              this.toggleDrawer();
+            },
+            onSignedIn: () => {
+              this.fadeToRoute(this.routeAfterSignIn(), false);
+            }
+          })
+        }
+      }
+      .layoutWeight(1)
+      .width('100%')
+    }
+    .width('100%')
+    .height('100%')
   }
 
   @Builder
