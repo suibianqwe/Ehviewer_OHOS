@@ -750,7 +750,7 @@ export struct SettingsScene {
       return true;
     }
     if (key === 'version') {
-      this.statusText = 'Version: HarmonyOS port target 6.1.0 / API 6.1.1 (24), app version 0.1.6.';
+      this.statusText = 'Version: HarmonyOS port target 6.1.0 / API 6.1.1 (24), app version 0.1.7.';
       return true;
     }
     if (key === 'check_for_updates') {

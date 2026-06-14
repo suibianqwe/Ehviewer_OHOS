@@ -82,7 +82,7 @@ function splitTableRows(body: string): string[] {
 function splitThumbnailRows(body: string): string[] {
   const starts: number[] = [];
   const rows: string[] = [];
-  const pattern = /<div[^>]+class=["'][^"']*\b(?:gl1t|gl1c|gl1e|gl3t)\b[^"']*["'][^>]*>/gi;
+  const pattern = /<div[^>]+class=["'][^"']*\b(?:gl1t|gl1c|gl1e)\b[^"']*["'][^>]*>/gi;
   let match: RegExpExecArray | null = pattern.exec(body);
   while (match !== null) {
     starts.push(match.index);
@@ -142,9 +142,9 @@ function parseGalleryInfo(row: string): GalleryInfo | null {
 }
 
 function parseTitle(row: string): string {
-  const linkTitle = /<div[^>]+class=["'][^"']*\bglink\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(row);
+  const linkTitle = /<([a-z0-9]+)[^>]+class=["'][^"']*\bglink\b[^"']*["'][^>]*>([\s\S]*?)<\/\1>/i.exec(row);
   if (linkTitle !== null) {
-    return cleanText(linkTitle[1]);
+    return cleanText(linkTitle[2]);
   }
 
   const thumbnailTitle = /<div[^>]+class=["'][^"']*\bgl4t\b[^"']*\bglname\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(row);
