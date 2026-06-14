@@ -854,7 +854,7 @@ export struct TopListScene {
   }
 
   private updateToolbarForScroll(scrollOffset: number, contentOffset: number): void {
-    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, contentOffset, this.requestUrl.length > 0 ? 88 : 62);
+    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, contentOffset, 62);
   }
 
   build() {
@@ -988,17 +988,20 @@ export struct TopListScene {
           .padding({ top: this.requestUrl.length > 0 ? 88 : 62 })
         } else {
           Column() {
-            TopListTabs({
+            TopListBoard({
               lists: this.topList.lists,
               selectedIndex: this.selectedIndex,
-              onSelect: (index: number) => {
-                this.selectedIndex = index;
-              }
-            })
-              .margin({ left: 12, right: 12, bottom: 8 })
-
-            TopListBoard({
               info: this.currentInfo(),
+              toolbarHeight: 70,
+              renderVersion: this.renderVersion,
+              onSelectList: (index: number) => {
+                if (this.selectedIndex === index) {
+                  return;
+                }
+                this.selectedIndex = index;
+                this.topListScrollOffset = 0;
+                this.renderVersion++;
+              },
               onOpenBucket: (bucket: TopListBucket) => {
                 this.openBucket(bucket);
               },
@@ -1015,14 +1018,12 @@ export struct TopListScene {
           }
           .width('100%')
           .height('100%')
-          .padding({ top: this.requestUrl.length > 0 ? 96 : 70 })
         }
 
-        FloatingToolbar({ offsetY: this.toolbarOffsetY, barHeight: this.requestUrl.length > 0 ? 88 : 62 }) {
+        FloatingToolbar({ offsetY: this.toolbarOffsetY, barHeight: 62 }) {
           TopListHeader({
-            title: this.topList.title.length === 0 ? uiText('Top Lists') : this.topList.title,
-            statusText: this.statusText,
-            requestUrl: this.requestUrl,
+            title: '排行',
+            requestUrl: '',
             onMenu: this.onMenu,
             onRefresh: () => {
               this.loadTopList();
@@ -1154,7 +1155,7 @@ export struct TopListTabs {
             .onClick(() => {
               this.onSelect(index);
             })
-        }, (info: TopListInfo) => info.kind.toString())
+        }, (info: TopListInfo, index: number) => info.kind.toString() + ':' + index.toString() + ':' + this.selectedIndex.toString())
       }
       .padding({ left: 2, right: 2 })
     }
@@ -1166,30 +1167,57 @@ export struct TopListTabs {
 
 @Component
 export struct TopListBoard {
+  @Prop lists: TopListInfo[] = [];
+  @Prop selectedIndex: number = 0;
   @Prop info: TopListInfo = createEmptyTopListInfo();
+  @Prop toolbarHeight: number = 70;
+  @Prop renderVersion: number = 0;
+  onSelectList: (index: number) => void = () => {};
   onOpenBucket: (bucket: TopListBucket) => void = () => {};
   onOpenItem: (item: TopListItem, info: TopListInfo) => void = () => {};
   initialScrollOffset: number = 0;
   onScrollUpdate: (offset: number, scrollOffset: number) => void = () => {};
   private boardScroller: Scroller = new Scroller();
 
+  @Builder
+  private TabsHeader() {
+    TopListTabs({
+      lists: this.lists,
+      selectedIndex: this.selectedIndex,
+      onSelect: this.onSelectList
+    })
+      .width('100%')
+      .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+      .backgroundColor('#F3F5F7')
+  }
+
   build() {
     List({ space: 10, scroller: this.boardScroller }) {
-      ForEach(this.info.buckets, (bucket: TopListBucket) => {
-        ListItem() {
-          TopListBucketCard({
-            bucket: bucket,
-            info: this.info,
-            canOpenBucket: this.info.kind === TopListKind.Gallery,
-            onOpenBucket: this.onOpenBucket,
-            onOpenItem: this.onOpenItem
-          })
+      ListItem() {
+        Column() {
         }
-      }, (bucket: TopListBucket) => bucket.title)
+        .height(this.toolbarHeight)
+        .width('100%')
+      }
+
+      ListItemGroup({ header: this.TabsHeader() }) {
+        ForEach(this.info.buckets, (bucket: TopListBucket) => {
+          ListItem() {
+            TopListBucketCard({
+              bucket: bucket,
+              info: this.info,
+              canOpenBucket: this.info.kind === TopListKind.Gallery,
+              onOpenBucket: this.onOpenBucket,
+              onOpenItem: this.onOpenItem
+            })
+          }
+        }, (bucket: TopListBucket) => this.selectedIndex.toString() + ':' + bucket.title)
+      }
     }
     .width('100%')
     .height('100%')
     .padding({ left: 12, right: 12, bottom: 14 })
+    .sticky(StickyStyle.Header)
     .onAppear(() => {
       if (this.initialScrollOffset > 0) {
         this.boardScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
