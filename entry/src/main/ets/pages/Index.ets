@@ -67,12 +67,11 @@ struct Index {
 
   private loadSessionRoute(context: common.UIAbilityContext): void {
     ehCookieStore.load(context).then(() => {
-      const signedIn = ehCookieStore.hasCookies();
-      this.activeRoute = signedIn ? this.routeAfterSignIn() : GalleryRoute.Session;
-      this.drawerOpen = signedIn;
+      this.activeRoute = this.routeAfterSignIn();
+      this.drawerOpen = true;
     }).catch(() => {
-      this.activeRoute = GalleryRoute.Session;
-      this.drawerOpen = false;
+      this.activeRoute = this.routeAfterSignIn();
+      this.drawerOpen = true;
     });
   }
 
