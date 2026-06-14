@@ -125,19 +125,15 @@ export struct DrawerPanel {
       .width('100%')
 
       Column() {
-        Text(uiText('Downloads'))
-          .fontSize(12)
-          .fontColor('#667085')
         Text(uiStatusText(this.downloadSummary))
           .fontSize(11)
           .fontColor('#98A2B3')
-          .margin({ top: 2 })
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
       }
       .alignItems(HorizontalAlign.Start)
       .width('100%')
-      .padding({ left: 14, right: 14, top: 8, bottom: 8 })
+      .padding({ left: 14, right: 14, top: 7, bottom: 7 })
       .backgroundColor('#F8FAFC')
     }
     .width(248)
