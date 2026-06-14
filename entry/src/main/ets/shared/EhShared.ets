@@ -31,6 +31,8 @@ export interface EhBackupBundle {
   filterRules: FilterRule[];
 }
 
+export const LANGUAGE_REVISION_KEY: string = 'ehviewer_language_revision';
+
 export interface DrawerItem {
   route: GalleryRoute;
   title: string;
@@ -93,6 +95,11 @@ export const SETTINGS_HEADERS: SettingsHeaderItem[] = [
   { panel: SettingsPanel.Advanced, title: 'Advanced', icon: 'A', summary: 'Network, cache, hosts and diagnostics' },
   { panel: SettingsPanel.About, title: 'About', icon: 'I', summary: 'Version, license and migration status' }
 ];
+
+export function notifyLanguageChanged(): void {
+  const current = AppStorage.get<number>(LANGUAGE_REVISION_KEY);
+  AppStorage.setOrCreate<number>(LANGUAGE_REVISION_KEY, current === undefined ? 1 : current + 1);
+}
 
 export function shouldUseChineseUi(): boolean {
   const language = ehSettingsStore.getValue('app_language', 'System');
@@ -1344,7 +1351,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       staticSettingsRow('latest_release', 'Latest release', 'GitHub releases URL from original settings', 'Link', 'url'),
       staticSettingsRow('issue_help', 'Issue help', 'Issue guide URL from original settings', 'Link', 'url'),
       staticSettingsRow('license', 'License', 'Open-source license view', 'GPL', 'activity'),
-      staticSettingsRow('version', 'Version', 'HarmonyOS port workspace version', '0.1.1', 'version'),
+      staticSettingsRow('version', 'Version', 'HarmonyOS port workspace version', '0.1.2', 'version'),
       staticSettingsRow('check_for_updates', 'Check for updates', 'Original AppUpdater entry', 'Open', 'action'),
       optionSettingsRow('close_auto_updates', 'Close automatic updates', 'Disable startup update check', entries, ON_OFF_OPTIONS),
       staticSettingsRow('donate', 'Donate', 'Original donation entry', 'Not migrated', 'url')

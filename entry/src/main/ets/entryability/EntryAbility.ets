@@ -7,6 +7,7 @@ const SETTINGS_PREF_NAME: string = 'ehviewer_settings';
 const SETTINGS_VALUES_KEY: string = 'values';
 const STATUS_BAR_HEIGHT_KEY: string = 'statusBarHeight';
 const MAIN_WINDOW_KEY: string = 'mainWindow';
+const LANGUAGE_REVISION_KEY: string = 'ehviewer_language_revision';
 
 interface SettingEntry {
   key: string;
@@ -23,6 +24,7 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate('abilityContext', this.context);
     AppStorage.setOrCreate<number>(STATUS_BAR_HEIGHT_KEY, 0);
     AppStorage.setOrCreate<window.Window | undefined>(MAIN_WINDOW_KEY, undefined);
+    AppStorage.setOrCreate<number>(LANGUAGE_REVISION_KEY, 0);
     stage.loadContent('pages/Index', (error) => {
       if (error.code) {
         console.error(`Failed to load the main page. code=${error.code}, message=${error.message}`);

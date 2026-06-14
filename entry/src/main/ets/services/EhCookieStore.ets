@@ -41,15 +41,26 @@ export class EhCookieStore {
   }
 
   getCookieHeader(): string {
+    return this.buildCookieHeader(true);
+  }
+
+  getEditableCookieHeader(): string {
+    return this.buildCookieHeader(false);
+  }
+
+  private buildCookieHeader(includeContentWarning: boolean): string {
     const pairs: string[] = [];
     let hasContentWarning = false;
     for (let i = 0; i < this.cookies.length; i++) {
       if (this.cookies[i].name === KEY_CONTENT_WARNING) {
         hasContentWarning = true;
       }
+      if (!includeContentWarning && this.cookies[i].name === KEY_CONTENT_WARNING) {
+        continue;
+      }
       pairs.push(this.cookies[i].name + '=' + this.cookies[i].value);
     }
-    if (!hasContentWarning) {
+    if (includeContentWarning && !hasContentWarning) {
       pairs.push(KEY_CONTENT_WARNING + '=' + CONTENT_WARNING_NOT_SHOW);
     }
     return pairs.join('; ');

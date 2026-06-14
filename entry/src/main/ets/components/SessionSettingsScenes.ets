@@ -18,6 +18,7 @@ import { CacheClearResult, readerImageCache } from '../services/ReaderImageCache
 import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
 import { MigrationTask, migrationTasks } from '../services/MigrationStatus';
 import { FilterRule, FILTER_MODE_TITLE, FILTER_MODE_UPLOADER, FILTER_MODE_TAG, FILTER_MODE_TAG_NAMESPACE, ehFilterStore } from '../services/EhFilterStore';
+import { LANGUAGE_REVISION_KEY, notifyLanguageChanged } from '../shared/EhShared';
 import { EhBackupBundle, DrawerItem, SettingsHeaderItem, SettingsRowItem, SessionMode, SettingsPanel, DRAWER_ITEMS, SETTINGS_HEADERS, STATUS_BAR_HEIGHT_KEY, ON_OFF_OPTIONS, shouldUseChineseUi, uiText, uiValue, uiStatusText, uiPageText, zhText, setActiveBackHandler, runActiveBackHandler, createEmptyGallery, createEmptyDownloadInfo, createDetailFromGallery, createEmptyDetail, createEmptyPreview, createEmptyPage, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneStringArray, cloneRequiredStringArray, cloneGalleryInfo, cloneGalleryInfos, padTwo, applyGalleryFilters, cloneGalleryTagGroups, cloneGalleryComments, cloneGalleryPreviews, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, cloneTopListItem, cloneTopListBucket, cloneTopListInfo, cloneTopListDetail, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, saveDownloadsQuietly, filterDownloadItems, downloadItemMatches, sortDownloadItems, nextDownloadStatusFilter, nextDownloadLabelFilter, nextDownloadSortMode, nextStringOption, nextDownloadState, nextDownloadLabel, downloadLabelName, downloadStateLabel, downloadStateColor, downloadProgressText, downloadSizeText, downloadImageUrlForPage, downloadThreadLimit, downloadPageIndexes, downloadQueueSummary, parseHistoryMaxSize, routeTitle, routeSubtitle, launchRouteFromSetting, settingsPanelTitle, settingsRowsForPanel, optionSettingsRow, textSettingsRow, staticSettingsRow, settingEntryValue, cloneStringOptions, settingMigrationMessage, nextOption, isValidProxyPortText, formatNetworkDiagnostics, listModeForRoute, routeUsesKeyword, usesGallerySearchToolbar, usesEmbeddedToolbar, defaultKeywordForRoute, gallerySearchTitle, currentGallerySite, effectiveListSite, gallerySiteName, galleryListFailureMessage, shouldRetryGalleryListOnE, withGalleryListMessage, readerPageReferer, readerDisplayImageUrl, cacheReaderImageForPage, cacheThumbnailImage, cloneGalleryPageWithCache, readerLocalImageSource, readerZoomSize, readerFullImageWidth, readerFullImageHeight, readerImageFit, readerShortUrl, readerPreloadCount, readerIsRightToLeft, categoryName, categoryColor, ratingText, galleryDisplayTitle, showGalleryPages, galleryListMode, galleryThumbWidth, galleryThumbHeight, galleryRowHeight, galleryTagPreview, detailTitleFontSize, detailTitleMaxLines, detailHeadingFontSize, readerShowProgress, readerShowClock, readerClockText, padTimeNumber, topListChipColor } from '../shared/EhShared';import { FilterPanel, MigrationScene } from './DownloadMigrationScenes';
 @Component
 export struct SessionScene {
@@ -35,14 +36,15 @@ export struct SessionScene {
   @State webCookieCaptured: boolean = false;
   @State webUrl: string = EhUrl.URL_SIGN_IN;
   @State statusText: string = 'Sign in with an E-Hentai forum account';
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   onSignedIn: () => void = () => {};
 
   aboutToAppear(): void {
-    this.cookieInput = ehCookieStore.getCookieHeader();
+    this.cookieInput = ehCookieStore.getEditableCookieHeader();
     const context = getAbilityContext();
     if (context !== undefined) {
       ehCookieStore.load(context).then(() => {
-        this.cookieInput = ehCookieStore.getCookieHeader();
+        this.cookieInput = ehCookieStore.getEditableCookieHeader();
         this.syncCookieFieldsFromInput(this.cookieInput, false);
         this.statusText = ehCookieStore.hasCookies() ? 'Persisted Cookie loaded' : 'No Cookie saved';
       }).catch((error: Error) => {
@@ -91,7 +93,7 @@ export struct SessionScene {
       }
 
       ehCookieStore.save(context).then(() => {
-        this.cookieInput = ehCookieStore.getCookieHeader();
+        this.cookieInput = ehCookieStore.getEditableCookieHeader();
         this.statusText = result.message;
         this.onSignedIn();
       }).catch((error: Error) => {
@@ -123,7 +125,7 @@ export struct SessionScene {
     const cookieHeader = collectWebCookies(url);
     if (cookieHeader.length > 0) {
       ehCookieStore.setCookieHeader(cookieHeader);
-      this.cookieInput = ehCookieStore.getCookieHeader();
+      this.cookieInput = ehCookieStore.getEditableCookieHeader();
     }
     if (!hasLoginCookie(cookieHeader)) {
       this.statusText = cookieHeader.length > 0 ? 'Web verification Cookie captured; waiting for login...' :
@@ -140,7 +142,7 @@ export struct SessionScene {
     this.webCookieCaptured = true;
     ehCookieStore.setCookieHeader(cookieHeader);
     ehCookieStore.save(context).then(() => {
-      this.cookieInput = ehCookieStore.getCookieHeader();
+      this.cookieInput = ehCookieStore.getEditableCookieHeader();
       this.statusText = 'Web Cookie captured';
       this.onSignedIn();
     }).catch((error: Error) => {
@@ -162,7 +164,7 @@ export struct SessionScene {
     }
     ehCookieStore.setCookieHeader(cookieHeader);
     ehCookieStore.save(context).then(() => {
-      this.cookieInput = ehCookieStore.getCookieHeader();
+      this.cookieInput = ehCookieStore.getEditableCookieHeader();
       this.statusText = ehCookieStore.hasCookies() ? 'Cookie saved' : 'Empty Cookie saved';
       if (ehCookieStore.hasCookies()) {
         this.onSignedIn();
@@ -533,6 +535,7 @@ export struct SettingsScene {
   @State filterRules: FilterRule[] = [];
   @State filterNewText: string = '';
   @State filterNewMode: number = FILTER_MODE_TITLE;
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   private webViewController: webview.WebviewController = new webview.WebviewController();
   private client: EhHttpClient = new EhHttpClient();
   onMenu: () => void = () => {};
@@ -622,6 +625,9 @@ export struct SettingsScene {
     this.themeName = settingEntryValue(this.settingEntries, 'theme', 'Light');
     if (key === this.optionKey) {
       this.optionValue = value;
+    }
+    if (key === 'app_language') {
+      notifyLanguageChanged();
     }
     const context = getAbilityContext();
     if (context === undefined) {
@@ -738,7 +744,7 @@ export struct SettingsScene {
       return true;
     }
     if (key === 'version') {
-      this.statusText = 'Version: HarmonyOS port target 6.1.0 / API 6.1.1 (24), app version 0.1.1.';
+      this.statusText = 'Version: HarmonyOS port target 6.1.0 / API 6.1.1 (24), app version 0.1.2.';
       return true;
     }
     if (key === 'check_for_updates') {
@@ -924,16 +930,23 @@ export struct SettingsScene {
           this.signedIn = ehCookieStore.hasCookies();
         }
 
+        let languageChanged = false;
         if (Array.isArray(bundle.settings)) {
           for (let i = 0; i < bundle.settings.length; i++) {
             const e = bundle.settings[i] as SettingEntry;
             if (typeof e.key === 'string' && typeof e.value === 'string') {
+              if (e.key === 'app_language' && ehSettingsStore.getValue('app_language', 'System') !== e.value) {
+                languageChanged = true;
+              }
               ehSettingsStore.setValue(e.key, e.value);
             }
           }
           saves.push(ehSettingsStore.save(context));
           this.settingEntries = ehSettingsStore.getEntries();
           this.themeName = settingEntryValue(this.settingEntries, 'theme', 'Light');
+          if (languageChanged) {
+            notifyLanguageChanged();
+          }
         }
 
         if (Array.isArray(bundle.history)) {

@@ -9,7 +9,7 @@ import { FavoriteGalleryScene, HomeGalleryScene, HotGalleryScene, SubscriptionGa
 import { HistoryScene, TopListScene } from '../components/HistoryTopScenes';
 import { DownloadScene, MigrationScene } from '../components/DownloadMigrationScenes';
 import { SessionScene, SettingsScene } from '../components/SessionSettingsScenes';
-import { STATUS_BAR_HEIGHT_KEY, getAbilityContext, launchRouteFromSetting, routeSubtitle, routeTitle, runActiveBackHandler, usesEmbeddedToolbar } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, getAbilityContext, launchRouteFromSetting, routeSubtitle, routeTitle, runActiveBackHandler, usesEmbeddedToolbar } from '../shared/EhShared';
 
 @Entry
 @Component
@@ -17,6 +17,7 @@ struct Index {
   @State activeRoute: GalleryRoute = GalleryRoute.Session;
   @State drawerOpen: boolean = false;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeight: number = 0;
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
   onBackPress(): boolean {
     if (runActiveBackHandler()) {
