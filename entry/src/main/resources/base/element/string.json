@@ -1,0 +1,17 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "EhViewer HarmonyOS entry module"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "EhViewer"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "EhViewer"
+    }
+  ]
+}
+

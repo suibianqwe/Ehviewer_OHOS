@@ -1,0 +1,9 @@
+{
+  "name": "entry",
+  "version": "2.0.1",
+  "description": "EhViewer HarmonyOS entry module.",
+  "main": "",
+  "author": "xiaojieonly/Ehviewer_CN_SXJ contributors",
+  "license": "GPL-3.0-or-later",
+  "dependencies": {}
+}

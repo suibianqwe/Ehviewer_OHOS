@@ -1,0 +1,10 @@
+/.appanalyzer/
+/.hvigor/
+/.idea/
+/build/
+/entry/build/
+/oh_modules/
+/entry/oh_modules/
+*.iml
+*.hap
+*.app
