@@ -5,6 +5,7 @@ import { picker } from '@kit.CoreFileKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
 import { webview } from '@kit.ArkWeb';
+import { i18n } from '@kit.LocalizationKit';
 import { GalleryCategory, GalleryComment, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite, GalleryTagGroup, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
 import { DownloadDirectoryScanResult, RestoredDownloadGallery, ehDownloadFileStore } from '../services/EhDownloadFileStore';
@@ -94,8 +95,24 @@ export const SETTINGS_HEADERS: SettingsHeaderItem[] = [
 ];
 
 export function shouldUseChineseUi(): boolean {
-  const language = ehSettingsStore.getValue('app_language', 'zh-CN');
-  return language === 'zh-CN' || language === 'System';
+  const language = ehSettingsStore.getValue('app_language', 'System');
+  if (language === 'zh-CN') {
+    return true;
+  }
+  if (language === 'English') {
+    return false;
+  }
+  return isSystemChineseLanguage();
+}
+
+function isSystemChineseLanguage(): boolean {
+  try {
+    const systemLanguage = i18n.System.getSimplifiedLanguage();
+    const supportedLanguages: Array<string> = ['zh-Hans'];
+    return i18n.I18NUtil.getBestMatchLocale(systemLanguage, supportedLanguages) === 'zh-Hans';
+  } catch (error) {
+    return false;
+  }
 }
 
 export function uiText(text: string): string {
@@ -349,7 +366,7 @@ export function zhText(text: string): string {
     case 'Off': return '关';
     case 'System': return '跟随系统';
     case 'English': return '英语';
-    case 'Japanese': return '日语';
+    case 'zh-CN': return '简体中文';
     case 'Portrait': return '竖屏';
     case 'Landscape': return '横屏';
     case 'Left to right': return '从左到右';
@@ -1301,7 +1318,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       staticSettingsRow('clear_download_path_cache', 'Clear download path cache', 'Refresh cached file path and size lookups', 'Run', 'action'),
       staticSettingsRow('clear_memory_cache', 'Clear memory cache', 'Drop reader image and page caches', 'Run', 'action'),
       optionSettingsRow('read_cache_size', 'Read cache size', 'Reader cache budget', entries, ['40 MB', '80 MB', '160 MB', '320 MB', '640 MB']),
-      optionSettingsRow('app_language', 'App language', 'Language override', entries, ['zh-CN', 'System', 'English', 'Japanese']),
+      optionSettingsRow('app_language', 'App language', 'Language override', entries, ['System', 'English', 'zh-CN']),
       optionSettingsRow('proxy', 'Proxy', 'System proxy or direct connection', entries, ['System', 'Off', 'HTTP', 'SOCKS']),
       staticSettingsRow('network_diagnostics', 'Network diagnostics', 'Test E, EX, forums and repo connectivity with current settings', 'Run', 'action'),
     ];
@@ -1327,7 +1344,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       staticSettingsRow('latest_release', 'Latest release', 'GitHub releases URL from original settings', 'Link', 'url'),
       staticSettingsRow('issue_help', 'Issue help', 'Issue guide URL from original settings', 'Link', 'url'),
       staticSettingsRow('license', 'License', 'Open-source license view', 'GPL', 'activity'),
-      staticSettingsRow('version', 'Version', 'HarmonyOS port workspace version', '0.1.0', 'version'),
+      staticSettingsRow('version', 'Version', 'HarmonyOS port workspace version', '0.1.1', 'version'),
       staticSettingsRow('check_for_updates', 'Check for updates', 'Original AppUpdater entry', 'Open', 'action'),
       optionSettingsRow('close_auto_updates', 'Close automatic updates', 'Disable startup update check', entries, ON_OFF_OPTIONS),
       staticSettingsRow('donate', 'Donate', 'Original donation entry', 'Not migrated', 'url')
