@@ -812,20 +812,16 @@ export struct GalleryListContent {
       .width('100%')
       .height('100%')
 
-      Column() {
-        if (this.isLoadingMore) {
-          Row() {
-            LoadingProgress().width(20).height(20).color('#9BB8CB')
-            Text(uiText('Loading...')).fontSize(12).fontColor('#9BB8CB').margin({ left: 6 })
-          }
-          .width('100%')
-          .height(36)
-          .justifyContent(FlexAlign.Center)
-          .backgroundColor('#F3F5F7')
+      if (this.isLoadingMore) {
+        Row() {
+          LoadingProgress().width(20).height(20).color('#9BB8CB')
+          Text(uiText('Loading...')).fontSize(12).fontColor('#9BB8CB').margin({ left: 6 })
         }
+        .width('100%')
+        .height(36)
+        .justifyContent(FlexAlign.Center)
+        .backgroundColor('#F3F5F7')
       }
-      .width('100%')
-      .height('100%')
 
       QuickActionColumn({
         expanded: this.actionsExpanded,
