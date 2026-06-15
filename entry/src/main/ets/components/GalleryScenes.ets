@@ -735,8 +735,11 @@ export struct GalleryListContent {
   }
 
   private galleryCardPreferredWidth(): number {
-    if (galleryListMode() !== 'Thumb') {
-      return galleryListMode() === 'Extended' ? 520 : 440;
+    if (galleryListMode() === 'Extended') {
+      return 340;
+    }
+    if (galleryListMode() === 'Detail') {
+      return 300;
     }
     const value = galleryThumbWidth();
     if (value <= 70) {
@@ -763,7 +766,7 @@ export struct GalleryListContent {
     }
     const columns = this.galleryColumnCount();
     const gap = this.galleryCardGap();
-    return Math.floor((availableWidth - gap * (columns - 1)) / columns);
+    return Math.max(this.galleryCardMinWidth(), Math.floor((availableWidth - gap * (columns - 1)) / columns));
   }
 
   private galleryColumnCount(): number {
@@ -774,6 +777,16 @@ export struct GalleryListContent {
     const preferred = this.galleryCardPreferredWidth();
     const gap = this.galleryCardGap();
     return Math.max(1, Math.floor((availableWidth + gap) / (preferred + gap)));
+  }
+
+  private galleryCardMinWidth(): number {
+    if (galleryListMode() === 'Extended') {
+      return 300;
+    }
+    if (galleryListMode() === 'Detail') {
+      return 260;
+    }
+    return 104;
   }
 
   private galleryCardRightMargin(index: number): number {
