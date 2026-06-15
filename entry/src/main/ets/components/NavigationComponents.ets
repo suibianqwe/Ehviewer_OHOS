@@ -1,38 +1,451 @@
-﻿import { common } from '@kit.AbilityKit';
-import { window } from '@kit.ArkUI';
-import { pasteboard } from '@kit.BasicServicesKit';
-import { picker } from '@kit.CoreFileKit';
-import { fileIo as fs } from '@kit.CoreFileKit';
-import { util } from '@kit.ArkTS';
-import { webview } from '@kit.ArkWeb';
-import { GalleryCategory, GalleryComment, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite, GalleryTagGroup, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
+import { GalleryRoute } from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
-import { DownloadDirectoryScanResult, RestoredDownloadGallery, ehDownloadFileStore } from '../services/EhDownloadFileStore';
-import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
-import { ehHistoryStore } from '../services/EhHistoryStore';
-import { ehSettingsStore, SettingEntry, defaultSettingEntries } from '../services/EhSettingsStore';
-import { EhHttpClient, GalleryDetailLoadResult, GalleryListLoadResult, GalleryPageLoadResult, NetworkDiagnosticResult, RateGalleryResult, SignInResult, ToggleFavoriteResult, TopListLoadResult } from '../services/EhHttpClient';
-import { EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder } from '../services/EhUrl';
-import { galleryPageCache } from '../services/GalleryPageCache';
-import { CacheClearResult, readerImageCache } from '../services/ReaderImageCache';
-import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
-import { MigrationTask, migrationTasks } from '../services/MigrationStatus';
-import { FilterRule, FILTER_MODE_TITLE, FILTER_MODE_UPLOADER, FILTER_MODE_TAG, FILTER_MODE_TAG_NAMESPACE, ehFilterStore } from '../services/EhFilterStore';
-import { APP_THEME_COLOR, LANGUAGE_REVISION_KEY, themeSurfaceColor } from '../shared/EhShared';
-import { EhBackupBundle, DrawerItem, SettingsHeaderItem, SettingsRowItem, SessionMode, SettingsPanel, DRAWER_ITEMS, SETTINGS_HEADERS, STATUS_BAR_HEIGHT_KEY, ON_OFF_OPTIONS, shouldUseChineseUi, uiText, uiValue, uiStatusText, uiPageText, zhText, setActiveBackHandler, runActiveBackHandler, createEmptyGallery, createEmptyDownloadInfo, createDetailFromGallery, createEmptyDetail, createEmptyPreview, createEmptyPage, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneStringArray, cloneRequiredStringArray, cloneGalleryInfo, cloneGalleryInfos, padTwo, applyGalleryFilters, cloneGalleryTagGroups, cloneGalleryComments, cloneGalleryPreviews, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, cloneTopListItem, cloneTopListBucket, cloneTopListInfo, cloneTopListDetail, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, saveDownloadsQuietly, filterDownloadItems, downloadItemMatches, sortDownloadItems, nextDownloadStatusFilter, nextDownloadLabelFilter, nextDownloadSortMode, nextStringOption, nextDownloadState, nextDownloadLabel, downloadLabelName, downloadStateLabel, downloadStateColor, downloadProgressText, downloadSizeText, downloadImageUrlForPage, downloadThreadLimit, downloadPageIndexes, downloadQueueSummary, parseHistoryMaxSize, routeTitle, routeSubtitle, launchRouteFromSetting, settingsPanelTitle, settingsRowsForPanel, optionSettingsRow, textSettingsRow, staticSettingsRow, settingEntryValue, cloneStringOptions, settingMigrationMessage, nextOption, isValidProxyPortText, formatNetworkDiagnostics, listModeForRoute, routeUsesKeyword, usesGallerySearchToolbar, usesEmbeddedToolbar, defaultKeywordForRoute, gallerySearchTitle, currentGallerySite, effectiveListSite, gallerySiteName, galleryListFailureMessage, shouldRetryGalleryListOnE, withGalleryListMessage, readerPageReferer, readerDisplayImageUrl, cacheReaderImageForPage, cacheThumbnailImage, cloneGalleryPageWithCache, readerLocalImageSource, readerZoomSize, readerFullImageWidth, readerFullImageHeight, readerImageFit, readerShortUrl, readerPreloadCount, readerIsRightToLeft, categoryName, categoryColor, ratingText, galleryDisplayTitle, showGalleryPages, galleryListMode, galleryThumbWidth, galleryThumbHeight, galleryRowHeight, galleryTagPreview, detailTitleFontSize, detailTitleMaxLines, detailHeadingFontSize, readerShowProgress, readerShowClock, readerClockText, padTimeNumber, topListChipColor } from '../shared/EhShared';
+import { ehDownloadStore } from '../services/EhDownloadStore';
+import {
+  APP_THEME_COLOR,
+  LANGUAGE_REVISION_KEY,
+  STATUS_BAR_HEIGHT_KEY,
+  themeSurfaceColor,
+  downloadQueueSummary,
+  getAbilityContext,
+  uiText,
+  uiStatusText,
+  DrawerItem,
+  DRAWER_ITEMS,
+} from '../shared/EhShared';
+
+// ===================================================================
+// EhDrawer  -- slide-in navigation drawer (HarmonyOS style)
+// ===================================================================
+@Component
+export struct EhDrawer {
+  @Prop activeRoute: GalleryRoute = GalleryRoute.Home;
+  @Prop statusBarHeight: number = 0;
+  onSelect: (route: GalleryRoute) => void = () => {};
+
+  @State signedIn: boolean = false;
+  @State downloadSummary: string = '';
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+  private downloadRefreshTimer: number = -1;
+
+  aboutToAppear(): void {
+    this.signedIn = ehCookieStore.hasCookies();
+    this.refreshDownloadSummary();
+    const ctx = getAbilityContext();
+    if (ctx !== undefined) {
+      ehDownloadStore.load(ctx).then(() => {
+        this.refreshDownloadSummary();
+      }).catch(() => {});
+    }
+    this.downloadRefreshTimer = setInterval(() => {
+      this.refreshDownloadSummary();
+    }, 1500);
+  }
+
+  aboutToDisappear(): void {
+    if (this.downloadRefreshTimer >= 0) {
+      clearInterval(this.downloadRefreshTimer);
+      this.downloadRefreshTimer = -1;
+    }
+  }
+
+  private refreshDownloadSummary(): void {
+    this.downloadSummary = downloadQueueSummary(ehDownloadStore.getItems());
+  }
+
+  build() {
+    Column() {
+      // ---- Header ----
+      Column() {
+        // status bar spacer
+        Column()
+          .height(this.statusBarHeight)
+          .width('100%')
+
+        Row() {
+          // Avatar
+          Text(this.signedIn ? 'EH' : '?')
+            .fontSize(22)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(APP_THEME_COLOR)
+            .textAlign(TextAlign.Center)
+            .width(52)
+            .height(52)
+            .backgroundColor($r('app.color.surface'))
+            .borderRadius(26)
+
+          Column() {
+            Text('EhViewer')
+              .fontSize(17)
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.on_primary'))
+
+            Text(this.signedIn ? uiText('Signed in') : uiText('Guest mode'))
+              .fontSize(13)
+              .fontColor('rgba(255,255,255,0.72)')
+              .margin({ top: 3 })
+          }
+          .alignItems(HorizontalAlign.Start)
+          .margin({ left: 14 })
+          .layoutWeight(1)
+        }
+        .width('100%')
+        .padding({ left: 20, right: 20, top: 16, bottom: 20 })
+        .alignItems(VerticalAlign.Center)
+      }
+      .width('100%')
+      .backgroundColor(APP_THEME_COLOR)
+
+      // ---- Nav items ----
+      List() {
+        ForEach(DRAWER_ITEMS, (item: DrawerItem) => {
+          ListItem() {
+            DrawerNavItem({
+              item: item,
+              selected: item.route === this.activeRoute,
+              onTap: () => { this.onSelect(item.route); }
+            })
+          }
+        }, (item: DrawerItem) => item.route + ':' + this.activeRoute.toString())
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .divider({ strokeWidth: 0.5, color: $r('app.color.divider'), startMargin: 56, endMargin: 0 })
+
+      // ---- Footer: download summary ----
+      if (this.downloadSummary.length > 0) {
+        Row() {
+          SymbolGlyph($r('sys.symbol.arrow_down_circle'))
+            .fontSize(16)
+            .fontColor([$r('app.color.secondary_text')])
+          Text(uiStatusText('Downloads: ' + this.downloadSummary))
+            .fontSize(12)
+            .fontColor($r('app.color.secondary_text'))
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .layoutWeight(1)
+            .margin({ left: 6 })
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 10, bottom: 10 })
+        .backgroundColor($r('app.color.surface_variant'))
+      }
+    }
+    .width(264)
+    .height('100%')
+    .backgroundColor($r('app.color.surface'))
+  }
+}
+
+// ===================================================================
+// DrawerNavItem  -- a single row in the drawer list
+// ===================================================================
+@Component
+struct DrawerNavItem {
+  item: DrawerItem = { route: GalleryRoute.Home, title: '', icon: '', subtitle: '' };
+  selected: boolean = false;
+  onTap: () => void = () => {};
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+
+  // Map old letter icons to sys.symbol
+  private symbolForRoute(route: GalleryRoute): Resource {
+    switch (route) {
+      case GalleryRoute.Home:         return $r('sys.symbol.house');
+      case GalleryRoute.Subscription: return $r('sys.symbol.star');
+      case GalleryRoute.WhatsHot:     return $r('sys.symbol.flame');
+      case GalleryRoute.TopLists:     return $r('sys.symbol.list_number');
+      case GalleryRoute.Favorites:    return $r('sys.symbol.heart');
+      case GalleryRoute.History:      return $r('sys.symbol.clock');
+      case GalleryRoute.Downloads:    return $r('sys.symbol.arrow_down_circle');
+      case GalleryRoute.Settings:     return $r('sys.symbol.gearshape');
+      default:                        return $r('sys.symbol.circle');
+    }
+  }
+
+  build() {
+    Row() {
+      // Selection indicator
+      Column()
+        .width(3)
+        .height(28)
+        .borderRadius(2)
+        .backgroundColor(this.selected ? APP_THEME_COLOR : Color.Transparent)
+        .margin({ right: 10 })
+
+      // Icon badge
+      Column() {
+        SymbolGlyph(this.symbolForRoute(this.item.route))
+          .fontSize(20)
+          .fontColor([this.selected ? APP_THEME_COLOR : $r('app.color.secondary_text')])
+      }
+      .width(38)
+      .height(38)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+      .backgroundColor(this.selected ? $r('app.color.selected_bg') : Color.Transparent)
+      .borderRadius(10)
+
+      Column() {
+        Text(uiText(this.item.title))
+          .fontSize(15)
+          .fontWeight(this.selected ? FontWeight.Medium : FontWeight.Normal)
+          .fontColor(this.selected ? APP_THEME_COLOR : $r('app.color.primary_text'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+        Text(uiText(this.item.subtitle))
+          .fontSize(11)
+          .fontColor($r('app.color.secondary_text'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .margin({ top: 1 })
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+      .margin({ left: 10 })
+    }
+    .width('100%')
+    .height(60)
+    .padding({ left: 8, right: 16 })
+    .backgroundColor(this.selected ? $r('app.color.selected_bg_light') : Color.Transparent)
+    .alignItems(VerticalAlign.Center)
+    .onClick(() => { this.onTap(); })
+  }
+}
+
+// ===================================================================
+// EhNavBar  -- top app bar used by list pages
+//   Supports: immersive (extends under status bar), scroll-hide,
+//             search mode and action mode
+// ===================================================================
+@Component
+export struct EhNavBar {
+  @Prop statusBarHeight: number = 0;  // in vp
+  @Prop title: string = '';
+  @Prop subtitle: string = '';
+  @Prop searchMode: boolean = false;
+  @Prop keyword: string = '';
+  @Prop filterActive: boolean = false;
+  @Prop showClear: boolean = false;
+  @Prop canClear: boolean = false;
+  // translate offset injected by parent for scroll-hide; 0 = visible, negative = hidden
+  @Prop translateY: number = 0;
+  onMenu: () => void = () => {};
+  onSearch: () => void = () => {};
+  onKeywordChange: (value: string) => void = () => {};
+  onRefresh: () => void = () => {};
+  onClear: () => void = () => {};
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+
+  private barBodyHeight(): number {
+    return 56;
+  }
+
+  private totalHeight(): number {
+    return this.statusBarHeight + this.barBodyHeight();
+  }
+
+  build() {
+    Column() {
+      // Status bar spacer (colour-matched)
+      Column()
+        .height(this.statusBarHeight)
+        .width('100%')
+        .backgroundColor(APP_THEME_COLOR)
+
+      // Main bar row
+      Row() {
+        // Hamburger / menu button
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r('sys.symbol.open_sidebar'))
+            .fontSize(22)
+            .fontColor([Color.White])
+        }
+        .width(40)
+        .height(40)
+        .backgroundColor('rgba(255,255,255,0.14)')
+        .flexShrink(0)
+        .onClick(() => { this.onMenu(); })
+
+        if (this.searchMode) {
+          // Search input
+          Stack({ alignContent: Alignment.BottomStart }) {
+            TextInput({
+              text: this.keyword,
+              placeholder: this.title.length === 0 ? uiText('Search galleries') : uiText(this.title)
+            })
+              .height(38)
+              .width('100%')
+              .backgroundColor(themeSurfaceColor())
+              .borderRadius(19)
+              .placeholderColor('rgba(255,255,255,0.5)')
+              .fontColor(Color.White)
+              .caretColor(Color.White)
+              .padding({ left: 16, right: 42 })
+              .onChange((v: string) => { this.onKeywordChange(v); })
+              .onSubmit(() => { this.onSearch(); })
+
+            if (this.filterActive) {
+              Text(uiText('Filter'))
+                .fontSize(9)
+                .fontColor(Color.White)
+                .backgroundColor('rgba(255,255,255,0.25)')
+                .padding({ left: 5, right: 5, top: 1, bottom: 1 })
+                .borderRadius(3)
+                .margin({ left: 10, bottom: 5 })
+            }
+          }
+          .height(38)
+          .layoutWeight(1)
+          .margin({ left: 10 })
+
+          // Search confirm
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.magnifyingglass'))
+              .fontSize(20)
+              .fontColor([Color.White])
+          }
+          .width(40)
+          .height(40)
+          .backgroundColor('rgba(255,255,255,0.14)')
+          .flexShrink(0)
+          .margin({ left: 8 })
+          .onClick(() => { this.onSearch(); })
+
+        } else {
+          // Title text
+          Column() {
+            Text(uiText(this.title))
+              .fontSize(19)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(Color.White)
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+            if (this.subtitle.length > 0) {
+              Text(uiText(this.subtitle))
+                .fontSize(12)
+                .fontColor('rgba(255,255,255,0.7)')
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .margin({ top: 1 })
+            }
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          .margin({ left: 12 })
+
+          // Refresh button
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.play_arrow_triangle_2_circlepath'))
+              .fontSize(20)
+              .fontColor([Color.White])
+          }
+          .width(40)
+          .height(40)
+          .backgroundColor('rgba(255,255,255,0.14)')
+          .flexShrink(0)
+          .margin({ left: 6 })
+          .onClick(() => { this.onRefresh(); })
+
+          // Optional clear button
+          if (this.showClear) {
+            Button({ type: ButtonType.Circle, stateEffect: true }) {
+              SymbolGlyph($r('sys.symbol.trash'))
+                .fontSize(19)
+                .fontColor([Color.White])
+            }
+            .width(40)
+            .height(40)
+            .enabled(this.canClear)
+            .backgroundColor(this.canClear ? 'rgba(220,60,50,0.75)' : 'rgba(255,255,255,0.10)')
+            .flexShrink(0)
+            .margin({ left: 6 })
+            .onClick(() => { this.onClear(); })
+          }
+        }
+      }
+      .width('100%')
+      .height(this.barBodyHeight())
+      .padding({ left: 12, right: 12 })
+      .alignItems(VerticalAlign.Center)
+      .backgroundColor(APP_THEME_COLOR)
+    }
+    .width('100%')
+    .translate({ y: this.translateY })
+    .animation({ duration: 200, curve: Curve.EaseOut })
+    .zIndex(10)
+  }
+}
+
+// ===================================================================
+// EhSubNavBar  -- back-arrow top bar for sub-pages (detail, settings)
+// ===================================================================
+@Component
+export struct EhSubNavBar {
+  @Prop statusBarHeight: number = 0;
+  @Prop title: string = '';
+  onBack: () => void = () => {};
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+
+  build() {
+    Column() {
+      Column()
+        .height(this.statusBarHeight)
+        .width('100%')
+        .backgroundColor(APP_THEME_COLOR)
+
+      Row() {
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r('sys.symbol.chevron_left'))
+            .fontSize(22)
+            .fontColor([Color.White])
+        }
+        .width(40)
+        .height(40)
+        .backgroundColor('rgba(255,255,255,0.14)')
+        .flexShrink(0)
+        .onClick(() => { this.onBack(); })
+
+        Text(uiText(this.title))
+          .fontSize(19)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(Color.White)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .layoutWeight(1)
+          .margin({ left: 12 })
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 12, right: 16 })
+      .alignItems(VerticalAlign.Center)
+      .backgroundColor(APP_THEME_COLOR)
+    }
+    .width('100%')
+    .zIndex(10)
+  }
+}
+
+// ===================================================================
+// Legacy shims -- kept so older code that still imports these still
+// compiles until we migrate each caller
+// ===================================================================
 @Component
 export struct AppToolbar {
   title: string = '';
   subtitle: string = '';
   onMenu: () => void = () => {};
+  @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeight: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
   build() {
-    AppTopBar({
+    EhNavBar({
+      statusBarHeight: 0,
       title: this.title,
       subtitle: this.subtitle,
-      symbol: $r('sys.symbol.open_sidebar'),
-      onAction: this.onMenu
+      onMenu: this.onMenu,
+      onRefresh: () => {}
     })
   }
 }
@@ -41,67 +454,37 @@ export struct AppToolbar {
 export struct AppSubToolbar {
   title: string = '';
   onBack: () => void = () => {};
+  @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeight: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
   build() {
-    AppTopBar({
+    EhSubNavBar({
+      statusBarHeight: 0,
       title: this.title,
-      subtitle: '',
-      symbol: $r('sys.symbol.chevron_left'),
-      onAction: this.onBack
+      onBack: this.onBack
     })
   }
 }
 
 @Component
-export struct AppTopBar {
-  title: string = '';
-  subtitle: string = '';
-  symbol: Resource = $r('sys.symbol.open_sidebar');
-  onAction: () => void = () => {};
+export struct DrawerPanel {
+  @Prop activeRoute: GalleryRoute = GalleryRoute.Home;
+  onSelect: (route: GalleryRoute) => void = () => {};
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
   build() {
-    Row() {
-      Button({ type: ButtonType.Circle, stateEffect: true }) {
-        SymbolGlyph(this.symbol)
-          .fontSize(20)
-          .fontColor([Color.White])
-      }
-      .width(38)
-      .height(38)
-      .backgroundColor('rgba(255,255,255,0.15)')
-      .onClick(() => {
-        this.onAction();
-      })
-
-      Column() {
-        Text(uiText(this.title))
-          .fontSize(18)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(Color.White)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-        if (this.subtitle.length > 0) {
-          Text(uiText(this.subtitle))
-            .fontSize(11)
-            .fontColor('rgba(255,255,255,0.7)')
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .margin({ top: 2 })
-        }
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-      .margin({ left: 12 })
-    }
-    .width('100%')
-    .height(62)
-    .padding({ left: 14, right: 16 })
-    .alignItems(VerticalAlign.Center)
-    .backgroundColor(APP_THEME_COLOR)
+    EhDrawer({
+      activeRoute: this.activeRoute,
+      statusBarHeight: 0,
+      onSelect: this.onSelect
+    })
   }
 }
 
+// ===================================================================
+// FloatingToolbar / FloatingToolbarHost -- used by History & TopList scenes
+// These provide scroll-hiding toolbar overlay behavior
+// ===================================================================
 @Component
 export struct FloatingToolbar {
   @Prop visible: boolean = true;
@@ -110,8 +493,7 @@ export struct FloatingToolbar {
   @BuilderParam content: () => void = this.EmptyContent;
 
   @Builder
-  private EmptyContent() {
-  }
+  private EmptyContent() {}
 
   private toolbarOffset(): number {
     if (this.offsetY !== 0) {
@@ -126,6 +508,7 @@ export struct FloatingToolbar {
     }
     .width('100%')
     .translate({ y: this.toolbarOffset() })
+    .animation({ duration: 200, curve: Curve.EaseOut })
     .zIndex(10)
   }
 }
@@ -147,29 +530,32 @@ export struct FloatingToolbarHost {
   onSearch: () => void = () => {};
   onRefresh: () => void = () => {};
   onClear: () => void = () => {};
+  @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
+
+  private statusBarVp(): number {
+    // We don't have getUIContext() here easily, use a reasonable default
+    return 0;
+  }
 
   @Builder
-  private EmptyContent() {
-  }
+  private EmptyContent() {}
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       this.content()
       FloatingToolbar({ offsetY: this.toolbarOffsetY, barHeight: this.toolbarHeight }) {
         if (this.kind === 'search') {
-          GallerySearchToolbar({
+          LegacySearchBar({
             keyword: this.keyword,
             title: this.title,
             filterActive: this.filterActive,
-            requestUrl: this.requestUrl,
             onKeywordChange: this.onKeywordChange,
             onMenu: this.onMenu,
             onSearch: this.onSearch
           })
         } else {
-          ActionTitleToolbar({
+          LegacyActionBar({
             title: this.title,
-            requestUrl: this.requestUrl,
             showClear: this.showClear,
             canClear: this.canClear,
             onMenu: this.onMenu,
@@ -184,6 +570,121 @@ export struct FloatingToolbarHost {
   }
 }
 
+// Legacy search bar used by FloatingToolbarHost
+@Component
+struct LegacySearchBar {
+  @Prop keyword: string = '';
+  @Prop title: string = '';
+  @Prop filterActive: boolean = false;
+  onKeywordChange: (value: string) => void = () => {};
+  onMenu: () => void = () => {};
+  onSearch: () => void = () => {};
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+
+  build() {
+    Row() {
+      Button({ type: ButtonType.Circle, stateEffect: true }) {
+        SymbolGlyph($r('sys.symbol.open_sidebar'))
+          .fontSize(22).fontColor([Color.White])
+      }
+      .width(40).height(40)
+      .backgroundColor('rgba(255,255,255,0.14)')
+      .flexShrink(0)
+      .onClick(() => { this.onMenu(); })
+
+      TextInput({ text: this.keyword, placeholder: uiText(this.title.length > 0 ? this.title : 'Search') })
+        .height(38)
+        .layoutWeight(1)
+        .backgroundColor(themeSurfaceColor())
+        .borderRadius(19)
+        .fontColor(Color.White)
+        .caretColor(Color.White)
+        .placeholderColor('rgba(255,255,255,0.5)')
+        .padding({ left: 14, right: 14 })
+        .margin({ left: 10 })
+        .onChange((v: string) => { this.onKeywordChange(v); })
+
+      Button({ type: ButtonType.Circle, stateEffect: true }) {
+        SymbolGlyph($r('sys.symbol.magnifyingglass'))
+          .fontSize(20).fontColor([Color.White])
+      }
+      .width(40).height(40)
+      .backgroundColor('rgba(255,255,255,0.14)')
+      .flexShrink(0)
+      .margin({ left: 8 })
+      .onClick(() => { this.onSearch(); })
+    }
+    .width('100%')
+    .height(62)
+    .padding({ left: 12, right: 12 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor(APP_THEME_COLOR)
+  }
+}
+
+// Legacy action bar used by FloatingToolbarHost
+@Component
+struct LegacyActionBar {
+  @Prop title: string = '';
+  @Prop showClear: boolean = false;
+  @Prop canClear: boolean = false;
+  onMenu: () => void = () => {};
+  onRefresh: () => void = () => {};
+  onClear: () => void = () => {};
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+
+  build() {
+    Row() {
+      Button({ type: ButtonType.Circle, stateEffect: true }) {
+        SymbolGlyph($r('sys.symbol.open_sidebar'))
+          .fontSize(22).fontColor([Color.White])
+      }
+      .width(40).height(40)
+      .backgroundColor('rgba(255,255,255,0.14)')
+      .flexShrink(0)
+      .onClick(() => { this.onMenu(); })
+
+      Text(uiText(this.title))
+        .fontSize(18)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(Color.White)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .layoutWeight(1)
+        .margin({ left: 12 })
+
+      Button({ type: ButtonType.Circle, stateEffect: true }) {
+        SymbolGlyph($r('sys.symbol.play_arrow_triangle_2_circlepath'))
+          .fontSize(20).fontColor([Color.White])
+      }
+      .width(40).height(40)
+      .backgroundColor('rgba(255,255,255,0.14)')
+      .flexShrink(0)
+      .margin({ left: 6 })
+      .onClick(() => { this.onRefresh(); })
+
+      if (this.showClear) {
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r('sys.symbol.trash'))
+            .fontSize(19).fontColor([Color.White])
+        }
+        .width(40).height(40)
+        .enabled(this.canClear)
+        .backgroundColor(this.canClear ? 'rgba(220,60,50,0.75)' : 'rgba(255,255,255,0.10)')
+        .flexShrink(0)
+        .margin({ left: 6 })
+        .onClick(() => { this.onClear(); })
+      }
+    }
+    .width('100%')
+    .height(62)
+    .padding({ left: 12, right: 12 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor(APP_THEME_COLOR)
+  }
+}
+
+// Legacy aliases kept for source compatibility
 @Component
 export struct GallerySearchToolbar {
   @Prop keyword: string = '';
@@ -195,70 +696,14 @@ export struct GallerySearchToolbar {
   onSearch: () => void = () => {};
 
   build() {
-    Column() {
-      Row() {
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.open_sidebar'))
-            .fontSize(20)
-            .fontColor([Color.White])
-        }
-        .width(38)
-        .height(38)
-        .backgroundColor('rgba(255,255,255,0.15)')
-        .flexShrink(0)
-        .onClick(() => {
-          this.onMenu();
-        })
-
-        Stack({ alignContent: Alignment.BottomStart }) {
-          TextInput({ text: this.keyword, placeholder: this.title.length === 0 ? uiText('Search galleries') : uiText(this.title) })
-            .height(38)
-            .width('100%')
-            .backgroundColor(themeSurfaceColor())
-            .borderRadius(19)
-            .placeholderColor('rgba(47,111,143,0.5)')
-            .fontColor('#17202A')
-            .caretColor(APP_THEME_COLOR)
-            .padding({ left: 16, right: 16 })
-            .onChange((value: string) => {
-              this.onKeywordChange(value);
-            })
-          if (this.filterActive) {
-            Text(uiText('Filter mode'))
-              .fontSize(9)
-              .fontColor(Color.White)
-              .backgroundColor('rgba(255,255,255,0.3)')
-              .padding({ left: 5, right: 5, top: 2, bottom: 2 })
-              .borderRadius(4)
-              .margin({ left: 10, bottom: 6 })
-          }
-        }
-        .height(38)
-        .layoutWeight(1)
-        .margin({ left: 10 })
-
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.magnifyingglass'))
-            .fontSize(18)
-            .fontColor([Color.White])
-        }
-        .width(38)
-        .height(38)
-        .backgroundColor('rgba(255,255,255,0.15)')
-        .flexShrink(0)
-        .margin({ left: 10 })
-        .onClick(() => {
-          this.onSearch();
-        })
-      }
-      .width('100%')
-      .height(62)
-      .padding({ left: 14, right: 14 })
-      .alignItems(VerticalAlign.Center)
-
-    }
-    .width('100%')
-    .backgroundColor(APP_THEME_COLOR)
+    LegacySearchBar({
+      keyword: this.keyword,
+      title: this.title,
+      filterActive: this.filterActive,
+      onKeywordChange: this.onKeywordChange,
+      onMenu: this.onMenu,
+      onSearch: this.onSearch
+    })
   }
 }
 
@@ -273,236 +718,60 @@ export struct ActionTitleToolbar {
   onClear: () => void = () => {};
 
   build() {
-    Column() {
-      Row() {
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.open_sidebar'))
-            .fontSize(20)
-            .fontColor([Color.White])
-        }
-        .width(38)
-        .height(38)
-        .backgroundColor('rgba(255,255,255,0.15)')
-        .flexShrink(0)
-        .onClick(() => {
-          this.onMenu();
-        })
-
-        Text(uiText(this.title))
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(Color.White)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .layoutWeight(1)
-          .margin({ left: 12, right: 10 })
-
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.play_arrow_triangle_2_circlepath'))
-            .fontSize(18)
-            .fontColor([Color.White])
-        }
-        .width(38)
-        .height(38)
-        .backgroundColor('rgba(255,255,255,0.15)')
-        .flexShrink(0)
-        .onClick(() => {
-          this.onRefresh();
-        })
-
-        if (this.showClear) {
-          Button({ type: ButtonType.Circle, stateEffect: true }) {
-            SymbolGlyph($r('sys.symbol.trash'))
-              .fontSize(17)
-              .fontColor([Color.White])
-          }
-          .width(38)
-          .height(38)
-          .backgroundColor(this.canClear ? 'rgba(220,60,50,0.78)' : 'rgba(255,255,255,0.1)')
-          .flexShrink(0)
-          .margin({ left: 8 })
-          .enabled(this.canClear)
-          .onClick(() => {
-            this.onClear();
-          })
-        }
-      }
-      .width('100%')
-      .height(62)
-      .padding({ left: 14, right: 14 })
-      .alignItems(VerticalAlign.Center)
-
-    }
-    .width('100%')
-    .backgroundColor(APP_THEME_COLOR)
+    LegacyActionBar({
+      title: this.title,
+      showClear: this.showClear,
+      canClear: this.canClear,
+      onMenu: this.onMenu,
+      onRefresh: this.onRefresh,
+      onClear: this.onClear
+    })
   }
 }
 
 @Component
-export struct DrawerPanel {
-  @Prop activeRoute: GalleryRoute = GalleryRoute.Home;
-  onSelect: (route: GalleryRoute) => void = () => {};
-  @State signedIn: boolean = false;
-  @State downloadSummary: string = 'Downloads: idle';
+export struct AppTopBar {
+  title: string = '';
+  subtitle: string = '';
+  symbol: Resource = $r('sys.symbol.open_sidebar');
+  onAction: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
-  private downloadRefreshTimer: number = -1;
-
-  aboutToAppear(): void {
-    this.signedIn = ehCookieStore.hasCookies();
-    this.refreshDownloadSummary();
-    const context = getAbilityContext();
-    if (context !== undefined) {
-      ehDownloadStore.load(context).then(() => {
-        this.refreshDownloadSummary();
-      }).catch(() => {
-        this.downloadSummary = 'Downloads: unavailable';
-      });
-    }
-    this.downloadRefreshTimer = setInterval(() => {
-      this.refreshDownloadSummary();
-    }, 1000);
-  }
-
-  aboutToDisappear(): void {
-    if (this.downloadRefreshTimer >= 0) {
-      clearInterval(this.downloadRefreshTimer);
-      this.downloadRefreshTimer = -1;
-    }
-  }
-
-  private refreshDownloadSummary(): void {
-    this.downloadSummary = 'Downloads: ' + downloadQueueSummary(ehDownloadStore.getItems());
-  }
-
-  build() {
-    Column() {
-      DrawerHeader({ signedIn: this.signedIn })
-
-      List({ space: 2 }) {
-        ForEach(DRAWER_ITEMS, (item: DrawerItem) => {
-          ListItem() {
-            DrawerRow({
-              item: item,
-              selected: item.route === this.activeRoute,
-              onTapItem: () => {
-                this.onSelect(item.route);
-              }
-            })
-          }
-        }, (item: DrawerItem) => item.route + ':' + this.activeRoute)
-      }
-      .layoutWeight(1)
-      .width('100%')
-
-      Column() {
-        Text(uiStatusText(this.downloadSummary))
-          .fontSize(11)
-          .fontColor('#98A2B3')
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-      }
-      .alignItems(HorizontalAlign.Start)
-      .width('100%')
-      .padding({ left: 14, right: 14, top: 7, bottom: 7 })
-      .backgroundColor('#F8FAFC')
-    }
-    .width(248)
-    .height('100%')
-    .backgroundColor(Color.White)
-  }
-}
-
-@Component
-export struct DrawerHeader {
-  signedIn: boolean = false;
-
-  build() {
-    Column() {
-      Row() {
-        Column() {
-          Text(this.signedIn ? 'EH' : '?')
-            .fontSize(20)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#2F6F8F')
-            .textAlign(TextAlign.Center)
-            .width(52)
-            .height(52)
-            .backgroundColor(Color.White)
-            .borderRadius(26)
-        }
-        .justifyContent(FlexAlign.Center)
-        .alignItems(HorizontalAlign.Center)
-
-        Column() {
-          Text('EhViewer')
-            .fontSize(16)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(Color.White)
-          Text(this.signedIn ? uiText('Signed in') : uiText('Guest mode'))
-            .fontSize(12)
-            .fontColor('rgba(255,255,255,0.7)')
-            .margin({ top: 3 })
-        }
-        .alignItems(HorizontalAlign.Start)
-        .margin({ left: 14 })
-      }
-      .width('100%')
-      .padding({ left: 20, right: 20, top: 24, bottom: 20 })
-      .alignItems(VerticalAlign.Center)
-    }
-    .width('100%')
-    .backgroundColor(APP_THEME_COLOR)
-  }
-}
-
-@Component
-export struct DrawerRow {
-  item: DrawerItem = { route: GalleryRoute.Home, title: '', icon: '', subtitle: '' };
-  selected: boolean = false;
-  onTapItem: () => void = () => {};
 
   build() {
     Row() {
-      Column()
-        .width(3)
-        .height(32)
-        .borderRadius(2)
-        .backgroundColor(this.selected ? '#2F6F8F' : 'transparent')
-        .margin({ right: 10 })
-
-      Text(this.item.icon)
-        .fontSize(14)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.selected ? '#2F6F8F' : '#6B8FAA')
-        .textAlign(TextAlign.Center)
-        .width(34)
-        .height(34)
-        .backgroundColor(this.selected ? '#D6EBF5' : '#F4F7FA')
-        .borderRadius(10)
+      Button({ type: ButtonType.Circle, stateEffect: true }) {
+        SymbolGlyph(this.symbol)
+          .fontSize(22)
+          .fontColor([Color.White])
+      }
+      .width(40).height(40)
+      .backgroundColor('rgba(255,255,255,0.14)')
+      .onClick(() => { this.onAction(); })
 
       Column() {
-        Text(uiText(this.item.title))
-          .fontSize(14)
-          .fontWeight(this.selected ? FontWeight.Bold : FontWeight.Normal)
-          .fontColor(this.selected ? '#2F6F8F' : '#2D3A45')
+        Text(uiText(this.title))
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(Color.White)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(uiText(this.item.subtitle))
-          .fontSize(11)
-          .fontColor('#98A2B3')
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .margin({ top: 1 })
+        if (this.subtitle.length > 0) {
+          Text(uiText(this.subtitle))
+            .fontSize(12)
+            .fontColor('rgba(255,255,255,0.7)')
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .margin({ top: 1 })
+        }
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
-      .margin({ left: 10 })
+      .margin({ left: 12 })
     }
     .width('100%')
-    .padding({ left: 8, right: 14, top: 8, bottom: 8 })
-    .backgroundColor(this.selected ? '#F0F8FC' : Color.White)
-    .onClick(() => {
-      this.onTapItem();
-    })
+    .height(62)
+    .padding({ left: 12, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor(APP_THEME_COLOR)
   }
 }

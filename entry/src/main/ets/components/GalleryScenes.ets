@@ -20,6 +20,7 @@ import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
 import { MigrationTask, migrationTasks } from '../services/MigrationStatus';
 import { FilterRule, FILTER_MODE_TITLE, FILTER_MODE_UPLOADER, FILTER_MODE_TAG, FILTER_MODE_TAG_NAMESPACE, ehFilterStore } from '../services/EhFilterStore';
 import { LANGUAGE_REVISION_KEY, APP_THEME_COLOR, themeSurfaceColor } from '../shared/EhShared';
+import { EhNavBar } from '../components/NavigationComponents';
 import { EhBackupBundle, DrawerItem, SettingsHeaderItem, SettingsRowItem, SessionMode, SettingsPanel, DRAWER_ITEMS, SETTINGS_HEADERS, STATUS_BAR_HEIGHT_KEY, ON_OFF_OPTIONS, shouldUseChineseUi, uiText, uiValue, uiStatusText, uiPageText, zhText, setActiveBackHandler, runActiveBackHandler, createEmptyGallery, createEmptyDownloadInfo, createDetailFromGallery, createEmptyDetail, createEmptyPreview, createEmptyPage, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneStringArray, cloneRequiredStringArray, cloneGalleryInfo, cloneGalleryInfos, padTwo, applyGalleryFilters, cloneGalleryTagGroups, cloneGalleryComments, cloneGalleryPreviews, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, cloneTopListItem, cloneTopListBucket, cloneTopListInfo, cloneTopListDetail, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, saveDownloadsQuietly, filterDownloadItems, downloadItemMatches, sortDownloadItems, nextDownloadStatusFilter, nextDownloadLabelFilter, nextDownloadSortMode, nextStringOption, nextDownloadState, nextDownloadLabel, downloadLabelName, downloadStateLabel, downloadStateColor, downloadProgressText, downloadSizeText, downloadImageUrlForPage, downloadThreadLimit, downloadPageIndexes, downloadQueueSummary, parseHistoryMaxSize, routeTitle, routeSubtitle, launchRouteFromSetting, settingsPanelTitle, settingsRowsForPanel, optionSettingsRow, textSettingsRow, staticSettingsRow, settingEntryValue, cloneStringOptions, settingMigrationMessage, nextOption, isValidProxyPortText, formatNetworkDiagnostics, listModeForRoute, routeUsesKeyword, usesGallerySearchToolbar, usesEmbeddedToolbar, defaultKeywordForRoute, gallerySearchTitle, currentGallerySite, effectiveListSite, gallerySiteName, galleryListFailureMessage, shouldRetryGalleryListOnE, withGalleryListMessage, readerPageReferer, readerDisplayImageUrl, cacheReaderImageForPage, cacheThumbnailImage, cloneGalleryPageWithCache, readerLocalImageSource, readerZoomSize, readerFullImageWidth, readerFullImageHeight, readerImageFit, readerShortUrl, readerPreloadCount, readerIsRightToLeft, categoryName, categoryColor, ratingText, galleryDisplayTitle, showGalleryPages, galleryListMode, galleryThumbWidth, galleryThumbHeight, galleryRowHeight, galleryTagPreview, detailTitleFontSize, detailTitleMaxLines, detailHeadingFontSize, readerShowProgress, readerShowClock, readerClockText, padTimeNumber, topListChipColor } from '../shared/EhShared';
 
 interface GalleryListSceneCache {
@@ -818,6 +819,31 @@ export struct GalleryListContent {
   private listScroller: Scroller = new Scroller();
   private loadMorePending: boolean = false;
   private restoredScroll: boolean = false;
+  @State toolbarOffsetY: number = 0;
+  private lastScrollY: number = 0;
+  private barHeight: number = 56; // matches EhNavBar body height
+  @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
+  
+  private statusBarVp(): number {
+    return this.getUIContext().px2vp(this.statusBarHeightPx);
+  }
+  
+  private totalBarHeight(): number {
+    return this.statusBarVp() + this.barHeight;
+  }
+  
+  private handleScrollMove(yOffset: number): void {
+    const delta = yOffset - this.lastScrollY;
+    this.lastScrollY = yOffset;
+    // Hide toolbar when scrolling down, show when scrolling up or at top
+    if (yOffset <= 0) {
+      this.toolbarOffsetY = 0;
+      return;
+    }
+    let newOffset = this.toolbarOffsetY - delta;
+    newOffset = Math.max(-this.totalBarHeight(), Math.min(0, newOffset));
+    this.toolbarOffsetY = newOffset;
+  }
 
   private triggerLoadMoreIfNear(last: number): void {
     if (this.isLoadingMore || this.loadMorePending) {
@@ -862,7 +888,7 @@ export struct GalleryListContent {
   }
 
   private contentTopPadding(): number {
-    return 62 + this.galleryContentPadding();
+    return this.totalBarHeight() + this.galleryContentPadding();
   }
 
   private galleryCardPreferredWidth(): number {
@@ -938,24 +964,20 @@ export struct GalleryListContent {
   }
 
   build() {
-    HdsNavigation() {
+    Stack({ alignContent: Alignment.TopStart }) {
       Refresh({ refreshing: $$this.refreshing }) {
-      Scroll(this.listScroller) {
-        Column() {
+        Scroll(this.listScroller) {
           Column() {
-          if (this.galleries.length === 0) {
-          Column() {
-            GalleryListStateView({
-              statusText: this.statusText,
-              requestUrl: this.requestUrl,
-              onRefresh: this.onRefresh
-            })
-              .layoutWeight(1)
-          }
-          .width('100%')
-          .height('100%')
-          .padding({ top: this.contentTopPadding() })
-        } else {
+            if (this.galleries.length === 0) {
+              GalleryListStateView({
+                statusText: this.statusText,
+                requestUrl: this.requestUrl,
+                onRefresh: this.onRefresh
+              })
+              .width('100%')
+              .constraintSize({ minHeight: '100%' })
+              .padding({ top: this.contentTopPadding() })
+            } else {
               Column() {
                 Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
                   ForEach(this.galleries, (gallery: GalleryInfo, index: number) => {
@@ -975,169 +997,111 @@ export struct GalleryListContent {
                   }, (gallery: GalleryInfo) => gallery.gid.toString())
                 }
                 .width('100%')
-                .padding({ left: this.galleryContentPadding(), right: this.galleryContentPadding(), bottom: 0 })
+                .padding({ left: this.galleryContentPadding(), right: this.galleryContentPadding() })
               }
               .width('100%')
               .padding({ top: this.contentTopPadding() })
-          }
+            }
 
+            if (this.isLoadingMore) {
+              Row() {
+                LoadingProgress().width(20).height(20).color('#9BB8CB')
+                Text(uiText('Loading...')).fontSize(12).fontColor('#9BB8CB').margin({ left: 6 })
+              }
+              .width('100%')
+              .height(40)
+              .justifyContent(FlexAlign.Center)
+            }
+
+            QuickActionColumn({
+              expanded: this.actionsExpanded,
+              filterActive: this.filterActive,
+              canJump: this.canJump,
+              canRandom: this.canRandom,
+              onToggle: this.onToggleActions,
+              onFilter: this.onFilter,
+              onJump: this.onJump,
+              onRefresh: this.onRefresh,
+              onRandom: this.onRandom
+            })
+          }
+          .width('100%')
+          .constraintSize({ minHeight: '100%' })
         }
+        .scrollable(ScrollDirection.Vertical)
+        .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.None)
         .width('100%')
         .height('100%')
-
-      if (this.isLoadingMore) {
-        Row() {
-          LoadingProgress().width(20).height(20).color('#9BB8CB')
-          Text(uiText('Loading...')).fontSize(12).fontColor('#9BB8CB').margin({ left: 6 })
-        }
-        .width('100%')
-        .height(36)
-        .justifyContent(FlexAlign.Center)
-        .backgroundColor('#F3F5F7')
+        .onAppear(() => {
+          if (!this.restoredScroll && this.initialScrollOffset > 0) {
+            this.restoredScroll = true;
+            setTimeout(() => {
+              this.listScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
+            }, 80);
+          }
+        })
+        .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
+          const yOff = this.listScroller.currentOffset().yOffset;
+          this.handleScrollMove(yOff);
+          this.onScrollUpdate(yOff);
+          this.triggerLoadMoreByOffset(yOff);
+        })
+        .onScrollStop(() => {
+          const yOff = this.listScroller.currentOffset().yOffset;
+          this.onScrollUpdate(yOff);
+          // Snap toolbar fully visible or fully hidden
+          if (this.toolbarOffsetY < -this.totalBarHeight() / 2) {
+            this.getUIContext().animateTo({ duration: 180, curve: Curve.EaseOut }, () => {
+              this.toolbarOffsetY = -this.totalBarHeight();
+            });
+          } else {
+            this.getUIContext().animateTo({ duration: 180, curve: Curve.EaseOut }, () => {
+              this.toolbarOffsetY = 0;
+            });
+          }
+        })
+        .onReachEnd(() => {
+          this.triggerLoadMoreIfNear(this.galleries.length);
+        })
       }
+      .refreshOffset(80)
+      .pullToRefresh(true)
+      .onRefreshing(() => {
+        this.refreshFromPull();
+      })
+      .width('100%')
+      .height('100%')
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.updateContentWidth(newArea.width as number);
+        const h = newArea.height as number;
+        if (h > 0 && !Number.isNaN(h)) {
+          this.viewportHeight = h;
+        }
+      })
+      .backgroundColor($r('app.color.page_background'))
 
-      QuickActionColumn({
-        expanded: this.actionsExpanded,
+      // Floating EhNavBar overlays the scroll content
+      EhNavBar({
+        statusBarHeight: this.statusBarVp(),
+        title: this.sceneTitle,
+        searchMode: this.searchMode(),
+        keyword: this.keyword,
         filterActive: this.filterActive,
-        canJump: this.canJump,
-        canRandom: this.canRandom,
-        onToggle: this.onToggleActions,
-        onFilter: this.onFilter,
-        onJump: this.onJump,
-        onRefresh: this.onRefresh,
-        onRandom: this.onRandom
+        translateY: this.toolbarOffsetY,
+        onMenu: () => { this.onMenu(); },
+        onSearch: () => { this.onSearch(); },
+        onKeywordChange: (v: string) => { this.onKeywordChange(v); },
+        onRefresh: () => { this.onRefresh(); }
       })
     }
     .width('100%')
+    .height('100%')
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
   }
-  .scrollable(ScrollDirection.Vertical)
-  .scrollBar(BarState.Off)
-  .edgeEffect(EdgeEffect.Spring)
-  .width('100%')
-  .height('100%')
-  .onAppear(() => {
-    if (!this.restoredScroll && this.initialScrollOffset > 0) {
-      this.restoredScroll = true;
-      setTimeout(() => {
-        this.listScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
-      }, 0);
-    }
-  })
-  .onScrollStop(() => {
-    const offset = this.listScroller.currentOffset().yOffset;
-    this.onScrollUpdate(offset);
-    this.triggerLoadMoreByOffset(offset);
-  })
-  .onDidScroll((scrollOffset: number, scrollState: ScrollState) => {
-    const offset = this.listScroller.currentOffset().yOffset;
-    this.onScrollUpdate(offset);
-    this.triggerLoadMoreByOffset(offset);
-  })
-  .onReachEnd(() => {
-    this.triggerLoadMoreIfNear(this.galleries.length);
-  })
-}
-.refreshOffset(64)
-.pullToRefresh(true)
-.onRefreshing(() => {
-  this.refreshFromPull();
-})
-.width('100%')
-.height('100%')
-.onAreaChange((oldArea: Area, newArea: Area) => {
-  this.updateContentWidth(newArea.width as number);
-  const height = newArea.height as number;
-  if (height > 0 && !Number.isNaN(height)) {
-    this.viewportHeight = height;
-  }
-})
-.backgroundColor('#F3F5F7')
-    }
-    .titleBar({
-      content: {
-        bottomBuilder: {
-          builder: (): void => this.SearchToolbarContent(),
-          height: 62,
-          showType: BottomBuilderShowType.DIRECTLY_SHOW
-        }
-      },
-      enableComponentSafeArea: true,
-    })
-    .hideBackButton(true)
-    .titleMode(HdsNavigationTitleMode.MINI)
-    .bindToScrollable([this.listScroller])
-    .dynamicHideTitleBar({
-      hideTitleArea: true,
-      hideBottomBuilder: true,
-      hideStatusBar: false,
-      mode: HideMode.SCROLL_UP_TO
-    })
-  }
-  @Builder
-  private SearchToolbarContent() {
-    Column() {
-      Row() {
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.open_sidebar'))
-            .fontSize(20)
-            .fontColor([Color.White])
-        }
-        .width(38)
-        .height(38)
-        .backgroundColor('rgba(255,255,255,0.15)')
-        .flexShrink(0)
-        .onClick(() => {
-          this.onMenu();
-        })
 
-        Stack({ alignContent: Alignment.BottomStart }) {
-          TextInput({ text: this.keyword, placeholder: this.searchTitle.length === 0 ? uiText('Search galleries') : uiText(this.searchTitle) })
-            .height(38)
-            .width('100%')
-            .backgroundColor(themeSurfaceColor())
-            .borderRadius(19)
-            .placeholderColor('rgba(47,111,143,0.5)')
-            .fontColor('#17202A')
-            .caretColor('#2F6F8F')
-            .padding({ left: 16, right: 16 })
-            .onChange((value: string) => {
-              this.onKeywordChange(value);
-            })
-          if (this.filterActive) {
-            Text(uiText('Filter mode'))
-              .fontSize(9)
-              .fontColor(Color.White)
-              .backgroundColor('rgba(255,255,255,0.3)')
-              .padding({ left: 5, right: 5, top: 2, bottom: 2 })
-              .borderRadius(4)
-              .margin({ left: 10, bottom: 6 })
-          }
-        }
-        .height(38)
-        .layoutWeight(1)
-        .margin({ left: 10 })
-
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.magnifyingglass'))
-            .fontSize(18)
-            .fontColor([Color.White])
-        }
-        .width(38)
-        .height(38)
-        .backgroundColor('rgba(255,255,255,0.15)')
-        .flexShrink(0)
-        .margin({ left: 10 })
-        .onClick(() => {
-          this.onSearch();
-        })
-      }
-      .width('100%')
-      .height(62)
-      .padding({ left: 14, right: 14 })
-      .alignItems(VerticalAlign.Center)
-    }
-    .width('100%')
-    .backgroundColor('#2F6F8F')
+  private searchMode(): boolean {
+    return this.listMode === 'Search' || this.listMode === 'Favorites';
   }
 }
 

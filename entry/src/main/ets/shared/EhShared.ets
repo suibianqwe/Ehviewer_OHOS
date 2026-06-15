@@ -558,6 +558,7 @@ export function runActiveBackHandler(): boolean {
   return activeBackHandler !== null && activeBackHandler();
 }
 export const STATUS_BAR_HEIGHT_KEY: string = 'statusBarHeight';
+export const BOTTOM_NAV_HEIGHT_KEY: string = 'bottomNavHeight';
 
 export function createEmptyGallery(): GalleryInfo {
   return {
