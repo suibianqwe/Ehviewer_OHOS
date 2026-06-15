@@ -714,6 +714,7 @@ export struct GalleryListContent {
   onSelectGallery: (gallery: GalleryInfo) => void = () => {};
   initialScrollOffset: number = 0;
   onScrollUpdate: (offset: number) => void = () => {};
+  @State contentWidth: number = 0;
   private listScroller: Scroller = new Scroller();
   private loadMorePending: boolean = false;
 
@@ -731,6 +732,36 @@ export struct GalleryListContent {
 
   private toolbarHeight(): number {
     return this.requestUrl.length > 0 ? 88 : 62;
+  }
+
+  private thumbCardPreferredWidth(): number {
+    const value = galleryThumbWidth();
+    if (value <= 70) {
+      return 116;
+    }
+    if (value >= 104) {
+      return 164;
+    }
+    return 136;
+  }
+
+  private thumbCardGap(): number {
+    return 8;
+  }
+
+  private thumbContentPadding(): number {
+    return 8;
+  }
+
+  private thumbCardWidth(): number {
+    const availableWidth = Math.max(0, this.contentWidth - this.thumbContentPadding() * 2);
+    if (availableWidth <= 0) {
+      return this.thumbCardPreferredWidth();
+    }
+    const preferred = this.thumbCardPreferredWidth();
+    const gap = this.thumbCardGap();
+    const columns = Math.max(1, Math.floor((availableWidth + gap) / (preferred + gap)));
+    return Math.floor((availableWidth - gap * (columns - 1)) / columns);
   }
 
   build() {
@@ -767,8 +798,8 @@ export struct GalleryListContent {
                 ForEach(this.galleries, (gallery: GalleryInfo) => {
                   if (galleryListMode() === 'Thumb') {
                     GalleryThumbCard({ gallery: gallery })
-                      .width(120)
-                      .margin({ right: 6, bottom: 6 })
+                      .width(this.thumbCardWidth())
+                      .margin({ right: this.thumbCardGap(), bottom: this.thumbCardGap() })
                       .onClick(() => { this.onSelectGallery(gallery); })
                   } else {
                     GalleryListRow({ gallery: gallery })
@@ -779,7 +810,7 @@ export struct GalleryListContent {
                 }, (gallery: GalleryInfo) => gallery.gid.toString() + ':' + this.renderVersion.toString())
               }
               .width('100%')
-              .padding({ left: 8, right: 8, bottom: 0 })
+              .padding({ left: this.thumbContentPadding(), right: this.thumbContentPadding(), bottom: 0 })
             }
             .width('100%')
             .padding({ top: this.toolbarHeight() })
@@ -788,6 +819,9 @@ export struct GalleryListContent {
           .scrollBar(BarState.Off)
           .width('100%')
           .height('100%')
+          .onAreaChange((oldArea: Area, newArea: Area) => {
+            this.contentWidth = Number(newArea.width);
+          })
           .onAppear(() => {
             if (this.initialScrollOffset > 0) {
               this.listScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
