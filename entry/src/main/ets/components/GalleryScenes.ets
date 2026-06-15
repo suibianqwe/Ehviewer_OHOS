@@ -39,6 +39,16 @@ interface GalleryListSceneCache {
 }
 
 const galleryListSceneCache: Map<string, GalleryListSceneCache> = new Map();
+
+function updateGalleryListScrollCache(key: string, offset: number, toolbarOffsetY: number): void {
+  const cache = galleryListSceneCache.get(key);
+  if (cache === undefined) {
+    return;
+  }
+  cache.listScrollOffset = offset;
+  cache.toolbarOffsetY = toolbarOffsetY;
+}
+
 @Component
 export struct HomeGalleryScene {
   onMenu: () => void = () => {};
@@ -137,6 +147,7 @@ export struct GalleryListScene {
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   private listScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
+  private lastToolbarUpdateOffset: number = 0;
 
   private cacheKey(): string {
     const mode = this.useForcedMode ? this.forcedMode.toString() : listModeForRoute(this.sourceRoute).toString();
@@ -189,11 +200,17 @@ export struct GalleryListScene {
   }
 
   private updateToolbarForScroll(offset: number): void {
+    if (Math.abs(offset - this.lastToolbarUpdateOffset) < 3) {
+      this.listScrollOffset = offset;
+      updateGalleryListScrollCache(this.cacheKey(), this.listScrollOffset, this.toolbarOffsetY);
+      return;
+    }
     const delta = offset - this.listScrollOffset;
     this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, delta, offset,
       this.requestUrl.length > 0 ? 88 : 62);
     this.listScrollOffset = offset;
-    this.saveListCache();
+    this.lastToolbarUpdateOffset = offset;
+    updateGalleryListScrollCache(this.cacheKey(), this.listScrollOffset, this.toolbarOffsetY);
   }
 
   aboutToAppear(): void {
@@ -299,8 +316,6 @@ export struct GalleryListScene {
     }
     const nextPage = this.pageIndex + 1;
     this.isLoadingMore = true;
-    this.renderVersion++;
-    this.saveListCache();
 
     const request = this.nextUrl.length > 0 ? this.client.loadGalleryListUrl(this.absoluteListUrl(this.nextUrl), this.activeSite) :
       this.loadRoutePageWithFallback(nextPage);
@@ -312,7 +327,6 @@ export struct GalleryListScene {
         // Empty page = reached the end even if we don't know total
         this.statusText = uiText('All pages loaded');
         this.isLoadingMore = false;
-        this.renderVersion++;
         this.saveListCache();
         return;
       }
@@ -327,12 +341,10 @@ export struct GalleryListScene {
       this.resultCount = result.resultCount;
       this.statusText = result.ok ? result.message : galleryListFailureMessage(result, this.activeSite);
       this.isLoadingMore = false;
-      this.renderVersion++;
       this.saveListCache();
     }).catch((error: Error) => {
       this.statusText = 'Load more failed: ' + error.message;
       this.isLoadingMore = false;
-      this.renderVersion++;
       this.saveListCache();
     });
   }
@@ -994,7 +1006,7 @@ export struct GalleryListContent {
                         .animation({ duration: 220, curve: Curve.EaseInOut })
                         .onClick(() => { this.onSelectGallery(gallery); })
                     }
-                  }, (gallery: GalleryInfo) => gallery.gid.toString() + ':' + this.renderVersion.toString())
+                  }, (gallery: GalleryInfo) => gallery.gid.toString())
                 }
                 .width('100%')
                 .padding({ left: this.galleryContentPadding(), right: this.galleryContentPadding(), bottom: 0 })
