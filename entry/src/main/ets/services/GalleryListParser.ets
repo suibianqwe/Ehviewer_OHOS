@@ -13,6 +13,7 @@ export interface GalleryListParseResult {
   displayMode: GalleryListDisplayMode;
   pages: number;
   nextPage: number;
+  nextUrl: string;
   resultCount: string;
   galleries: GalleryInfo[];
   warning: string;
@@ -53,6 +54,7 @@ export function parseGalleryList(body: string): GalleryListParseResult {
     displayMode: displayMode,
     pages: parsePages(body),
     nextPage: parseNextPage(body),
+    nextUrl: parseNextUrl(body),
     resultCount: parseResultCount(body),
     galleries: galleries,
     warning: galleries.length === 0 ? parseWarning(body) : ''
@@ -644,8 +646,26 @@ function parsePages(body: string): number {
 }
 
 function parseNextPage(body: string): number {
-  const match = NEXT_PAGE_PATTERN.exec(body);
+  const nextUrl = parseNextUrl(body);
+  const match = NEXT_PAGE_PATTERN.exec(nextUrl.length > 0 ? nextUrl : body);
   return match === null ? -1 : parseIntSafe(match[1], -1);
+}
+
+function parseNextUrl(body: string): string {
+  const anchorPattern = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+  let match: RegExpExecArray | null = anchorPattern.exec(body);
+  while (match !== null) {
+    const anchor = match[0];
+    const id = parseAttribute(anchor, 'id').toLowerCase();
+    const href = parseAttribute(anchor, 'href');
+    const text = cleanText(match[2]).toLowerCase();
+    if (href.length > 0 && href !== '#' && href.indexOf('javascript:') !== 0 &&
+      (id === 'unext' || text === '>' || text === 'next')) {
+      return href;
+    }
+    match = anchorPattern.exec(body);
+  }
+  return '';
 }
 
 function parseResultCount(body: string): string {

@@ -29,6 +29,7 @@ interface GalleryListSceneCache {
   activeSite: GallerySite;
   pageIndex: number;
   totalPages: number;
+  nextUrl: string;
   resultCount: string;
   galleries: GalleryInfo[];
   hasFirstRefresh: boolean;
@@ -114,6 +115,7 @@ export struct GalleryListScene {
   @State activeSite: GallerySite = GallerySite.E;
   @State pageIndex: number = 0;
   @State totalPages: number = 0;
+  @State nextUrl: string = '';
   @State resultCount: string = '';
   @State galleries: GalleryInfo[] = [];
   @State hasFirstRefresh: boolean = false;
@@ -152,6 +154,7 @@ export struct GalleryListScene {
     this.activeSite = cache.activeSite;
     this.pageIndex = cache.pageIndex;
     this.totalPages = cache.totalPages;
+    this.nextUrl = cache.nextUrl;
     this.resultCount = cache.resultCount;
     this.galleries = cloneGalleryInfos(cache.galleries);
     this.hasFirstRefresh = cache.hasFirstRefresh;
@@ -169,6 +172,7 @@ export struct GalleryListScene {
       activeSite: this.activeSite,
       pageIndex: this.pageIndex,
       totalPages: this.totalPages,
+      nextUrl: this.nextUrl,
       resultCount: this.resultCount,
       galleries: cloneGalleryInfos(this.galleries),
       hasFirstRefresh: this.hasFirstRefresh,
@@ -236,13 +240,30 @@ export struct GalleryListScene {
     this.loadRemote(0);
   }
 
-  private loadRemote(pageIndex: number): void {
+  private absoluteListUrl(url: string): string {
+    if (url.indexOf('http://') === 0 || url.indexOf('https://') === 0) {
+      return url;
+    }
+    if (url.indexOf('//') === 0) {
+      return 'https:' + url;
+    }
+    const host = EhUrl.getHost(this.activeSite);
+    if (url.indexOf('/') === 0) {
+      return host.substring(0, host.length - 1) + url;
+    }
+    return host + url;
+  }
+
+  private loadRemote(pageIndex: number, preserveExisting: boolean = false): void {
     this.pageIndex = pageIndex;
     this.statusText = 'Loading...';
-    this.resultCount = '';
-    this.galleries = [];
+    if (!preserveExisting) {
+      this.resultCount = '';
+      this.galleries = [];
+    }
+    this.nextUrl = '';
     this.isLoadingMore = false;
-    if (pageIndex === 0) {
+    if (pageIndex === 0 && !preserveExisting) {
       this.resetListScroll();
     }
     this.renderVersion++;
@@ -255,6 +276,7 @@ export struct GalleryListScene {
       this.galleries = applyGalleryFilters(cloneGalleryInfos(result.galleries));
       this.statusText = result.ok ? result.message : galleryListFailureMessage(result, this.activeSite);
       this.totalPages = result.pages;
+      this.nextUrl = result.nextUrl;
       this.resultCount = result.resultCount;
       this.renderVersion++;
       this.saveListCache();
@@ -271,7 +293,7 @@ export struct GalleryListScene {
       return;
     }
     // Only stop if we have confirmed total page count AND already at the last page
-    if (this.totalPages > 0 && this.pageIndex >= this.totalPages - 1) {
+    if (this.nextUrl.length === 0 && this.totalPages > 0 && this.pageIndex >= this.totalPages - 1) {
       this.statusText = uiText('All pages loaded');
       return;
     }
@@ -280,7 +302,10 @@ export struct GalleryListScene {
     this.renderVersion++;
     this.saveListCache();
 
-    this.loadRoutePageWithFallback(nextPage).then((result: GalleryListLoadResult) => {
+    const request = this.nextUrl.length > 0 ? this.client.loadGalleryListUrl(this.absoluteListUrl(this.nextUrl), this.activeSite) :
+      this.loadRoutePageWithFallback(nextPage);
+
+    request.then((result: GalleryListLoadResult) => {
       this.requestUrl = result.url;
       const newGalleries = applyGalleryFilters(cloneGalleryInfos(result.galleries));
       if (newGalleries.length === 0) {
@@ -298,6 +323,7 @@ export struct GalleryListScene {
       if (result.pages > 0) {
         this.totalPages = result.pages;
       }
+      this.nextUrl = result.nextUrl;
       this.resultCount = result.resultCount;
       this.statusText = result.ok ? result.message : galleryListFailureMessage(result, this.activeSite);
       this.isLoadingMore = false;
@@ -735,7 +761,7 @@ export struct GalleryListScene {
             this.applySearch();
           },
           onRefresh: () => {
-            this.loadRemote(0);
+            this.loadRemote(0, this.galleries.length > 0);
           },
           onLoadMore: () => {
             this.loadAppendPage();
@@ -797,6 +823,7 @@ export struct GalleryListContent {
   onScrollUpdate: (offset: number) => void = () => {};
   @State contentWidth: number = 0;
   @State refreshing: boolean = false;
+  @State refreshHintVisible: boolean = false;
   @State viewportHeight: number = 0;
   private listScroller: Scroller = new Scroller();
   private loadMorePending: boolean = false;
@@ -837,8 +864,12 @@ export struct GalleryListContent {
       return;
     }
     this.refreshing = true;
+    this.refreshHintVisible = true;
     this.onRefresh();
-    setTimeout(() => { this.refreshing = false; }, 900);
+    setTimeout(() => {
+      this.refreshing = false;
+      this.refreshHintVisible = false;
+    }, 900);
   }
 
   private toolbarHeight(): number {
@@ -1026,6 +1057,18 @@ export struct GalleryListContent {
         .height(36)
         .justifyContent(FlexAlign.Center)
         .backgroundColor('#F3F5F7')
+      }
+
+      if (this.refreshHintVisible) {
+        Row() {
+          LoadingProgress().width(18).height(18).color('#2F6F8F')
+          Text(uiText('Refreshing')).fontSize(12).fontColor('#2F6F8F').margin({ left: 6 })
+        }
+        .height(32)
+        .padding({ left: 12, right: 12 })
+        .backgroundColor('#E6F0F5')
+        .borderRadius(16)
+        .margin({ bottom: 56, right: 18 })
       }
 
       QuickActionColumn({

@@ -73,6 +73,7 @@ export interface GalleryListLoadResult {
   message: string;
   pages: number;
   nextPage: number;
+  nextUrl: string;
   resultCount: string;
   galleries: GalleryInfo[];
 }
@@ -534,6 +535,7 @@ export class EhHttpClient {
           message: httpStatusMessage(response.statusCode, response.body),
           pages: 0,
           nextPage: -1,
+          nextUrl: '',
           resultCount: '',
           galleries: []
         };
@@ -549,6 +551,7 @@ export class EhHttpClient {
         message: parseMessage,
         pages: parsed.pages,
         nextPage: parsed.nextPage,
+        nextUrl: parsed.nextUrl,
         resultCount: parsed.resultCount,
         galleries: parsed.galleries
       };
@@ -560,6 +563,7 @@ export class EhHttpClient {
         message: networkErrorMessage(error),
         pages: 0,
         nextPage: -1,
+        nextUrl: '',
         resultCount: '',
         galleries: []
       };
