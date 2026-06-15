@@ -5,6 +5,7 @@ import { picker } from '@kit.CoreFileKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
 import { webview } from '@kit.ArkWeb';
+import { HdsNavigation, HideMode, HdsNavigationTitleMode, BottomBuilderShowType } from '@kit.UIDesignKit';
 import { GalleryCategory, GalleryComment, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite, GalleryTagGroup, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
 import { DownloadDirectoryScanResult, RestoredDownloadGallery, ehDownloadFileStore } from '../services/EhDownloadFileStore';
@@ -18,8 +19,7 @@ import { CacheClearResult, readerImageCache } from '../services/ReaderImageCache
 import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
 import { MigrationTask, migrationTasks } from '../services/MigrationStatus';
 import { FilterRule, FILTER_MODE_TITLE, FILTER_MODE_UPLOADER, FILTER_MODE_TAG, FILTER_MODE_TAG_NAMESPACE, ehFilterStore } from '../services/EhFilterStore';
-import { FloatingToolbarHost } from './NavigationComponents';
-import { LANGUAGE_REVISION_KEY, nextFloatingToolbarOffset } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, APP_THEME_COLOR, themeSurfaceColor } from '../shared/EhShared';
 import { EhBackupBundle, DrawerItem, SettingsHeaderItem, SettingsRowItem, SessionMode, SettingsPanel, DRAWER_ITEMS, SETTINGS_HEADERS, STATUS_BAR_HEIGHT_KEY, ON_OFF_OPTIONS, shouldUseChineseUi, uiText, uiValue, uiStatusText, uiPageText, zhText, setActiveBackHandler, runActiveBackHandler, createEmptyGallery, createEmptyDownloadInfo, createDetailFromGallery, createEmptyDetail, createEmptyPreview, createEmptyPage, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneStringArray, cloneRequiredStringArray, cloneGalleryInfo, cloneGalleryInfos, padTwo, applyGalleryFilters, cloneGalleryTagGroups, cloneGalleryComments, cloneGalleryPreviews, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, cloneTopListItem, cloneTopListBucket, cloneTopListInfo, cloneTopListDetail, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, saveDownloadsQuietly, filterDownloadItems, downloadItemMatches, sortDownloadItems, nextDownloadStatusFilter, nextDownloadLabelFilter, nextDownloadSortMode, nextStringOption, nextDownloadState, nextDownloadLabel, downloadLabelName, downloadStateLabel, downloadStateColor, downloadProgressText, downloadSizeText, downloadImageUrlForPage, downloadThreadLimit, downloadPageIndexes, downloadQueueSummary, parseHistoryMaxSize, routeTitle, routeSubtitle, launchRouteFromSetting, settingsPanelTitle, settingsRowsForPanel, optionSettingsRow, textSettingsRow, staticSettingsRow, settingEntryValue, cloneStringOptions, settingMigrationMessage, nextOption, isValidProxyPortText, formatNetworkDiagnostics, listModeForRoute, routeUsesKeyword, usesGallerySearchToolbar, usesEmbeddedToolbar, defaultKeywordForRoute, gallerySearchTitle, currentGallerySite, effectiveListSite, gallerySiteName, galleryListFailureMessage, shouldRetryGalleryListOnE, withGalleryListMessage, readerPageReferer, readerDisplayImageUrl, cacheReaderImageForPage, cacheThumbnailImage, cloneGalleryPageWithCache, readerLocalImageSource, readerZoomSize, readerFullImageWidth, readerFullImageHeight, readerImageFit, readerShortUrl, readerPreloadCount, readerIsRightToLeft, categoryName, categoryColor, ratingText, galleryDisplayTitle, showGalleryPages, galleryListMode, galleryThumbWidth, galleryThumbHeight, galleryRowHeight, galleryTagPreview, detailTitleFontSize, detailTitleMaxLines, detailHeadingFontSize, readerShowProgress, readerShowClock, readerClockText, padTimeNumber, topListChipColor } from '../shared/EhShared';
 
 interface GalleryListSceneCache {
@@ -34,19 +34,17 @@ interface GalleryListSceneCache {
   galleries: GalleryInfo[];
   hasFirstRefresh: boolean;
   filterActive: boolean;
-  toolbarOffsetY: number;
   listScrollOffset: number;
 }
 
 const galleryListSceneCache: Map<string, GalleryListSceneCache> = new Map();
 
-function updateGalleryListScrollCache(key: string, offset: number, toolbarOffsetY: number): void {
+function updateGalleryListScrollCache(key: string, offset: number): void {
   const cache = galleryListSceneCache.get(key);
   if (cache === undefined) {
     return;
   }
   cache.listScrollOffset = offset;
-  cache.toolbarOffsetY = toolbarOffsetY;
 }
 
 @Component
@@ -143,7 +141,6 @@ export struct GalleryListScene {
   @State readerPreviewIndex: number = 0;
   @State renderVersion: number = 0;
   @State isLoadingMore: boolean = false;
-  @State toolbarOffsetY: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   private listScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
@@ -169,7 +166,6 @@ export struct GalleryListScene {
     this.galleries = cloneGalleryInfos(cache.galleries);
     this.hasFirstRefresh = cache.hasFirstRefresh;
     this.filterActive = cache.filterActive;
-    this.toolbarOffsetY = cache.toolbarOffsetY;
     this.listScrollOffset = cache.listScrollOffset;
     return true;
   }
@@ -187,23 +183,15 @@ export struct GalleryListScene {
       galleries: cloneGalleryInfos(this.galleries),
       hasFirstRefresh: this.hasFirstRefresh,
       filterActive: this.filterActive,
-      toolbarOffsetY: this.toolbarOffsetY,
       listScrollOffset: this.listScrollOffset
     });
   }
 
   private resetListScroll(): void {
     this.listScrollOffset = 0;
-    this.toolbarOffsetY = 0;
     this.saveListCache();
   }
 
-  private updateToolbarForScroll(offset: number): void {
-    const delta = offset - this.listScrollOffset;
-    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, delta, offset, 62);
-    this.listScrollOffset = offset;
-    updateGalleryListScrollCache(this.cacheKey(), this.listScrollOffset, this.toolbarOffsetY);
-  }
 
   aboutToAppear(): void {
     if (!this.restoreListCache()) {
@@ -753,7 +741,6 @@ export struct GalleryListScene {
           statusText: this.statusText,
           requestUrl: this.requestUrl,
           isLoadingMore: this.isLoadingMore,
-          toolbarOffsetY: this.toolbarOffsetY,
           galleries: this.galleries,
           onKeywordChange: (value: string) => {
             this.keyword = value;
@@ -787,7 +774,8 @@ export struct GalleryListScene {
           },
           initialScrollOffset: this.listScrollOffset,
           onScrollUpdate: (offset: number) => {
-            this.updateToolbarForScroll(offset);
+            this.listScrollOffset = offset;
+            updateGalleryListScrollCache(this.cacheKey(), this.listScrollOffset);
           }
         })
       }
@@ -811,7 +799,6 @@ export struct GalleryListContent {
   @Prop statusText: string = '';
   @Prop requestUrl: string = '';
   @Prop isLoadingMore: boolean = false;
-  @Prop toolbarOffsetY: number = 0;
   @Prop galleries: GalleryInfo[] = [];
   onKeywordChange: (value: string) => void = () => {};
   onMenu: () => void = () => {};
@@ -849,7 +836,7 @@ export struct GalleryListContent {
     const rows = Math.ceil(this.galleries.length / columns);
     const cardHeight = galleryListMode() === 'Thumb' ? Math.max(0, this.galleryCardWidth() / 0.75 + 54) :
       galleryThumbHeight();
-    return this.toolbarHeight() + rows * cardHeight + Math.max(0, rows - 1) * this.galleryCardGap() +
+    return 62 + rows * cardHeight + Math.max(0, rows - 1) * this.galleryCardGap() +
       this.galleryContentPadding();
   }
 
@@ -874,12 +861,8 @@ export struct GalleryListContent {
     }, 900);
   }
 
-  private toolbarHeight(): number {
-    return 62;
-  }
-
   private contentTopPadding(): number {
-    return this.toolbarHeight() + this.galleryContentPadding();
+    return 62 + this.galleryContentPadding();
   }
 
   private galleryCardPreferredWidth(): number {
@@ -955,21 +938,11 @@ export struct GalleryListContent {
   }
 
   build() {
-    Stack({ alignContent: Alignment.BottomEnd }) {
-      FloatingToolbarHost({
-        kind: 'search',
-        title: this.searchTitle,
-        keyword: this.keyword,
-        filterActive: this.filterActive,
-        requestUrl: this.requestUrl,
-        toolbarOffsetY: this.toolbarOffsetY,
-        toolbarHeight: this.toolbarHeight(),
-        onKeywordChange: this.onKeywordChange,
-        onMenu: this.onMenu,
-        onSearch: this.onSearch
-      }) {
+    HdsNavigation() {
+      Scroll(this.listScroller) {
         Column() {
-        if (this.galleries.length === 0) {
+          Column() {
+          if (this.galleries.length === 0) {
           Column() {
             GalleryListStateView({
               statusText: this.statusText,
@@ -982,8 +955,6 @@ export struct GalleryListContent {
           .height('100%')
           .padding({ top: this.contentTopPadding() })
         } else {
-          Refresh({ refreshing: this.refreshing }) {
-            Scroll(this.listScroller) {
               Column() {
                 Row() {
                   if (this.refreshing) {
@@ -1020,53 +991,11 @@ export struct GalleryListContent {
               }
               .width('100%')
               .padding({ top: this.contentTopPadding() })
-            }
-            .scrollable(ScrollDirection.Vertical)
-            .scrollBar(BarState.Off)
-            .edgeEffect(EdgeEffect.Spring)
-            .width('100%')
-            .height('100%')
-            .onAppear(() => {
-              if (!this.restoredScroll && this.initialScrollOffset > 0) {
-                this.restoredScroll = true;
-                setTimeout(() => {
-                  this.listScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
-                }, 0);
-              }
-            })
-            .onScrollStop(() => {
-              const offset = this.listScroller.currentOffset().yOffset;
-              this.onScrollUpdate(offset);
-              this.triggerLoadMoreByOffset(offset);
-            })
-            .onDidScroll((scrollOffset: number, scrollState: ScrollState) => {
-              const offset = this.listScroller.currentOffset().yOffset;
-              this.onScrollUpdate(offset);
-              this.triggerLoadMoreByOffset(offset);
-            })
-            .onReachEnd(() => {
-              this.triggerLoadMoreIfNear(this.galleries.length);
-            })
           }
-          .refreshOffset(36)
-          .pullToRefresh(true)
-          .onRefreshing(() => {
-            this.refreshFromPull();
-          })
-          .width('100%')
-          .height('100%')
-        }
+
         }
         .width('100%')
         .height('100%')
-        .onAreaChange((oldArea: Area, newArea: Area) => {
-          this.updateContentWidth(newArea.width as number);
-          const height = newArea.height as number;
-          if (height > 0 && !Number.isNaN(height)) {
-            this.viewportHeight = height;
-          }
-        })
-      }
 
       if (this.isLoadingMore) {
         Row() {
@@ -1090,11 +1019,109 @@ export struct GalleryListContent {
         onRefresh: this.onRefresh,
         onRandom: this.onRandom
       })
-        .margin({ right: 18, bottom: 18 })
     }
     .width('100%')
-    .height('100%')
+  }
+  .scrollable(ScrollDirection.Vertical)
+  .scrollBar(BarState.Off)
+  .edgeEffect(EdgeEffect.Spring)
+  .width('100%')
+  .height('100%')
+}
+.titleBar({
+      content: {
+        bottomBuilder: {
+          builder: (): void => this.SearchToolbarContent(),
+          height: 62,
+          showType: BottomBuilderShowType.DIRECTLY_SHOW
+        }
+      },
+      enableComponentSafeArea: true,
+    })
+    .hideBackButton(true)
+    .titleMode(HdsNavigationTitleMode.MINI)
+    .bindToScrollable([this.listScroller])
+    .dynamicHideTitleBar({
+      hideTitleArea: true,
+      hideBottomBuilder: true,
+      hideStatusBar: false,
+      mode: HideMode.SCROLL_UP_TO
+    })
+    .onAreaChange((oldArea: Area, newArea: Area) => {
+      this.updateContentWidth(newArea.width as number);
+      const height = newArea.height as number;
+      if (height > 0 && !Number.isNaN(height)) {
+        this.viewportHeight = height;
+      }
+    })
     .backgroundColor('#F3F5F7')
+  }
+
+  @Builder
+  private SearchToolbarContent() {
+    Column() {
+      Row() {
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r('sys.symbol.open_sidebar'))
+            .fontSize(20)
+            .fontColor([Color.White])
+        }
+        .width(38)
+        .height(38)
+        .backgroundColor('rgba(255,255,255,0.15)')
+        .flexShrink(0)
+        .onClick(() => {
+          this.onMenu();
+        })
+
+        Stack({ alignContent: Alignment.BottomStart }) {
+          TextInput({ text: this.keyword, placeholder: this.searchTitle.length === 0 ? uiText('Search galleries') : uiText(this.searchTitle) })
+            .height(38)
+            .width('100%')
+            .backgroundColor(themeSurfaceColor())
+            .borderRadius(19)
+            .placeholderColor('rgba(47,111,143,0.5)')
+            .fontColor('#17202A')
+            .caretColor('#2F6F8F')
+            .padding({ left: 16, right: 16 })
+            .onChange((value: string) => {
+              this.onKeywordChange(value);
+            })
+          if (this.filterActive) {
+            Text(uiText('Filter mode'))
+              .fontSize(9)
+              .fontColor(Color.White)
+              .backgroundColor('rgba(255,255,255,0.3)')
+              .padding({ left: 5, right: 5, top: 2, bottom: 2 })
+              .borderRadius(4)
+              .margin({ left: 10, bottom: 6 })
+          }
+        }
+        .height(38)
+        .layoutWeight(1)
+        .margin({ left: 10 })
+
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r('sys.symbol.magnifyingglass'))
+            .fontSize(18)
+            .fontColor([Color.White])
+        }
+        .width(38)
+        .height(38)
+        .backgroundColor('rgba(255,255,255,0.15)')
+        .flexShrink(0)
+        .margin({ left: 10 })
+        .onClick(() => {
+          this.onSearch();
+        })
+      }
+      .width('100%')
+      .height(62)
+      .padding({ left: 14, right: 14 })
+      .alignItems(VerticalAlign.Center)
+    }
+    .width('100%')
+    .backgroundColor('#2F6F8F')
   }
 }
 
