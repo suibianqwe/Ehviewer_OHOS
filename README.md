@@ -74,6 +74,12 @@ $env:Path='D:\Program Files\Huawei\DevEco Studio\jbr\bin;' + $env:Path
 
 本仓库的版本号从 `0.1.0` 开始递增。只有在实现新功能、用户明确要求发布，或需要交付可安装包时才创建 GitHub Release；普通 bug 修复不默认发布 Release。
 
+### v0.1.48
+
+- 按 HarmonyOS `Refresh` 推荐结构重做历史页下拉刷新。
+- 历史页列表改为复用首页的 `Refresh -> Scroll -> Column` 流式布局。
+- 修正历史页刷新状态收尾，避免刷新后界面状态不同步。
+
 ### v0.1.47
 
 - 去掉画廊、历史、排行顶部标题栏中的 URL 状态副条。

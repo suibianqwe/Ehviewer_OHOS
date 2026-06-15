@@ -42,6 +42,7 @@ export struct HistoryScene {
   @State renderVersion: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @State toolbarOffsetY: number = 0;
+  @State historyRefreshing: boolean = false;
   private historyScroller: Scroller = new Scroller();
   private historyScrollOffset: number = 0;
   private historyToolbarScrollOffset: number = 0;
@@ -68,6 +69,7 @@ export struct HistoryScene {
     if (context === undefined) {
       this.histories = cloneGalleryInfos(ehHistoryStore.getItems());
       this.statusText = this.histories.length.toString() + ' local history items';
+      this.historyRefreshing = false;
       this.renderVersion++;
       return;
     }
@@ -75,11 +77,21 @@ export struct HistoryScene {
     ehHistoryStore.load(context).then(() => {
       this.histories = cloneGalleryInfos(ehHistoryStore.getItems());
       this.statusText = this.histories.length.toString() + ' history items';
+      this.historyRefreshing = false;
       this.renderVersion++;
     }).catch((error: Error) => {
       this.statusText = 'History load failed: ' + error.message;
+      this.historyRefreshing = false;
       this.renderVersion++;
     });
+  }
+
+  private refreshHistoryFromPull(): void {
+    if (this.historyRefreshing) {
+      return;
+    }
+    this.historyRefreshing = true;
+    this.loadHistory();
   }
 
   private clearHistory(): void {
@@ -219,6 +231,10 @@ export struct HistoryScene {
     const delta = offset - this.historyToolbarScrollOffset;
     this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, delta, offset, 62);
     this.historyToolbarScrollOffset = offset;
+  }
+
+  private historyContentTopPadding(): number {
+    return 70;
   }
 
   private cacheReaderImage(index: number, page: GalleryPage): void {
@@ -432,77 +448,100 @@ export struct HistoryScene {
         toolbarHeight: 62,
         onMenu: this.onMenu,
         onRefresh: () => {
-          this.loadHistory();
+          this.refreshHistoryFromPull();
         },
         onClear: () => {
           this.clearHistory();
         }
       }) {
         Column() {
-        if (this.histories.length === 0) {
-          Column() {
-            PlaceholderScene({
-              title: 'History',
-              detail: 'Viewed gallery details will appear here. Open a gallery from Homepage, Favorites or Top Lists to add it.'
+          Refresh({ refreshing: this.historyRefreshing }) {
+            Scroll(this.historyScroller) {
+              Column({ space: 8 }) {
+                Row() {
+                  if (this.historyRefreshing) {
+                    LoadingProgress()
+                      .width(20)
+                      .height(20)
+                      .color('#2F6F8F')
+                  }
+                }
+                .width('100%')
+                .height(this.historyRefreshing ? 28 : 0)
+                .justifyContent(FlexAlign.Center)
+                .animation({ duration: 180, curve: Curve.EaseOut })
+
+                if (this.histories.length === 0) {
+                  PlaceholderScene({
+                    title: 'History',
+                    detail: 'Viewed gallery details will appear here. Open a gallery from Homepage, Favorites or Top Lists to add it.'
+                  })
+                    .layoutWeight(1)
+                } else {
+                  ForEach(this.histories, (gallery: GalleryInfo) => {
+                    Column() {
+                      GalleryListRow({ gallery: gallery })
+                        .onClick(() => {
+                          this.loadDetail(gallery);
+                        })
+                      Row() {
+                        Text(uiText('Remove'))
+                          .fontSize(12)
+                          .fontColor('#C33A2C')
+                          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                          .onClick(() => {
+                            this.removeHistory(gallery);
+                          })
+                        Blank()
+                      }
+                      .width('100%')
+                      .padding({ right: 8, bottom: 6 })
+                      .backgroundColor(Color.White)
+                    }
+                    .width('100%')
+                    .borderRadius(6)
+                  }, (gallery: GalleryInfo) => gallery.gid.toString() + ':' + this.renderVersion.toString())
+                }
+              }
+              .width('100%')
+              .padding({ left: 8, right: 8, top: this.historyContentTopPadding(), bottom: 0 })
+              .translate({ y: this.toolbarOffsetY })
+            }
+            .scrollable(ScrollDirection.Vertical)
+            .scrollBar(BarState.Off)
+            .edgeEffect(EdgeEffect.Spring)
+            .width('100%')
+            .height('100%')
+            .onAppear(() => {
+              if (this.historyScrollOffset > 0) {
+                setTimeout(() => {
+                  this.historyScroller.scrollTo({ xOffset: 0, yOffset: this.historyScrollOffset });
+                }, 0);
+              }
+            })
+            .onDidScroll((scrollOffset: number, scrollState: ScrollState) => {
+              this.updateToolbarForScroll();
+            })
+            .onScrollStop(() => {
+              const offset = this.historyScroller.currentOffset().yOffset;
+              if (offset <= 4) {
+                this.toolbarOffsetY = 0;
+              }
+              this.historyScrollOffset = offset;
+              this.historyToolbarScrollOffset = offset;
             })
           }
+          .refreshOffset(36)
+          .pullToRefresh(true)
+          .onRefreshing(() => {
+            this.refreshHistoryFromPull();
+          })
           .width('100%')
           .height('100%')
-          .padding({ top: 70 })
-        } else {
-          List({ space: 8, scroller: this.historyScroller }) {
-            ForEach(this.histories, (gallery: GalleryInfo) => {
-              ListItem() {
-                Column() {
-                  GalleryListRow({ gallery: gallery })
-                    .onClick(() => {
-                      this.loadDetail(gallery);
-                    })
-                  Row() {
-                    Text(uiText('Remove'))
-                      .fontSize(12)
-                      .fontColor('#C33A2C')
-                      .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-                      .onClick(() => {
-                        this.removeHistory(gallery);
-                      })
-                    Blank()
-                  }
-                  .width('100%')
-                  .padding({ right: 8, bottom: 6 })
-                  .backgroundColor(Color.White)
-                }
-                .borderRadius(6)
-              }
-            }, (gallery: GalleryInfo) => gallery.gid.toString() + ':' + this.renderVersion.toString())
-          }
-          .layoutWeight(1)
-          .width('100%')
-          .padding({ left: 8, right: 8, top: 70 + this.toolbarOffsetY, bottom: 0 })
-          .backgroundColor('#F3F5F7')
-          .edgeEffect(EdgeEffect.Spring)
-          .onAppear(() => {
-            if (this.historyScrollOffset > 0) {
-              this.historyScroller.scrollTo({ xOffset: 0, yOffset: this.historyScrollOffset });
-            }
-          })
-          .onDidScroll((scrollOffset: number, scrollState: ScrollState) => {
-            this.updateToolbarForScroll();
-          })
-          .onScrollStop(() => {
-            const offset = this.historyScroller.currentOffset().yOffset;
-            if (offset <= 4) {
-              this.toolbarOffsetY = 0;
-            }
-            this.historyScrollOffset = offset;
-            this.historyToolbarScrollOffset = offset;
-          })
         }
-
-      }
-      .width('100%')
-      .height('100%')
-      .backgroundColor('#F3F5F7')
+        .width('100%')
+        .height('100%')
+        .backgroundColor('#F3F5F7')
       }
     }
   }
