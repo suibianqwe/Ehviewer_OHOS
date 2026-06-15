@@ -221,10 +221,6 @@ export struct HistoryScene {
     this.historyToolbarScrollOffset = offset;
   }
 
-  private historyContentTopPadding(): number {
-    return Math.max(0, 62 + this.toolbarOffsetY);
-  }
-
   private cacheReaderImage(index: number, page: GalleryPage): void {
     cacheReaderImageForPage(page, (cachedPage: GalleryPage) => {
       galleryPageCache.put(cachedPage.pageUrl.length > 0 ? cachedPage.pageUrl : page.pageUrl, cachedPage);
@@ -482,8 +478,10 @@ export struct HistoryScene {
           }
           .width('100%')
           .height('100%')
-          .padding({ left: 8, right: 8, top: this.historyContentTopPadding(), bottom: 12 })
+          .padding({ left: 8, right: 8, top: 62, bottom: 32 })
+          .translate({ y: this.toolbarOffsetY })
           .backgroundColor('#F3F5F7')
+          .edgeEffect(EdgeEffect.Spring)
           .onAppear(() => {
             if (this.historyScrollOffset > 0) {
               this.historyScroller.scrollTo({ xOffset: 0, yOffset: this.historyScrollOffset });

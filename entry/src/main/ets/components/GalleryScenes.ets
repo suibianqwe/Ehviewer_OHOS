@@ -147,7 +147,6 @@ export struct GalleryListScene {
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   private listScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
-  private lastToolbarUpdateOffset: number = 0;
 
   private cacheKey(): string {
     const mode = this.useForcedMode ? this.forcedMode.toString() : listModeForRoute(this.sourceRoute).toString();
@@ -200,16 +199,10 @@ export struct GalleryListScene {
   }
 
   private updateToolbarForScroll(offset: number): void {
-    if (Math.abs(offset - this.lastToolbarUpdateOffset) < 3) {
-      this.listScrollOffset = offset;
-      updateGalleryListScrollCache(this.cacheKey(), this.listScrollOffset, this.toolbarOffsetY);
-      return;
-    }
     const delta = offset - this.listScrollOffset;
     this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, delta, offset,
       this.requestUrl.length > 0 ? 88 : 62);
     this.listScrollOffset = offset;
-    this.lastToolbarUpdateOffset = offset;
     updateGalleryListScrollCache(this.cacheKey(), this.listScrollOffset, this.toolbarOffsetY);
   }
 
@@ -889,6 +882,10 @@ export struct GalleryListContent {
     return this.requestUrl.length > 0 ? 88 : 62;
   }
 
+  private contentTopPadding(): number {
+    return this.toolbarHeight();
+  }
+
   private galleryCardPreferredWidth(): number {
     if (galleryListMode() === 'Extended') {
       return 340;
@@ -1013,10 +1010,12 @@ export struct GalleryListContent {
                 .padding({ left: this.galleryContentPadding(), right: this.galleryContentPadding(), bottom: 0 })
               }
               .width('100%')
-              .padding({ top: this.toolbarHeight() })
+              .padding({ top: this.contentTopPadding() })
+              .translate({ y: this.toolbarOffsetY })
             }
             .scrollable(ScrollDirection.Vertical)
             .scrollBar(BarState.Off)
+            .edgeEffect(EdgeEffect.Spring)
             .width('100%')
             .height('100%')
             .onAppear(() => {
