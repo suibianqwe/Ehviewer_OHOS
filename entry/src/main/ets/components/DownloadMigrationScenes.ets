@@ -30,7 +30,6 @@ export struct DownloadScene {
   onMenu: () => void = () => {};
 
   @State items: DownloadInfo[] = [];
-  @State visibleItems: DownloadInfo[] = [];
   @State labels: DownloadLabel[] = [];
   @State query: string = '';
   @State statusFilter: string = 'All';
@@ -50,7 +49,6 @@ export struct DownloadScene {
     if (context === undefined) {
       this.items = ehDownloadStore.getItems();
       this.labels = ehDownloadStore.getLabels();
-      this.applyFilters();
       return;
     }
 
@@ -58,12 +56,10 @@ export struct DownloadScene {
       this.items = ehDownloadStore.getItems();
       this.labels = ehDownloadStore.getLabels();
       this.statusText = this.items.length.toString() + ' download items';
-      this.applyFilters();
     }).catch((error: Error) => {
       this.statusText = 'Download load failed: ' + error.message;
       this.items = ehDownloadStore.getItems();
       this.labels = ehDownloadStore.getLabels();
-      this.applyFilters();
     });
   }
 
@@ -77,8 +73,8 @@ export struct DownloadScene {
     });
   }
 
-  private applyFilters(): void {
-    this.visibleItems = filterDownloadItems(this.items, this.query, this.statusFilter, this.labelFilter, this.sortMode);
+  private visibleDownloadItems(): DownloadInfo[] {
+    return filterDownloadItems(this.items, this.query, this.statusFilter, this.labelFilter, this.sortMode);
   }
 
   private startAll(): void {
@@ -86,7 +82,6 @@ export struct DownloadScene {
     ehDownloadStore.startAll();
     this.items = ehDownloadStore.getItems();
     this.statusText = 'Queued idle and failed downloads';
-    this.applyFilters();
     this.persistDownloads();
     this.runDownloadQueue();
   }
@@ -96,7 +91,6 @@ export struct DownloadScene {
     ehDownloadStore.stopAll();
     this.items = ehDownloadStore.getItems();
     this.statusText = 'Stopped waiting downloads';
-    this.applyFilters();
     this.persistDownloads();
   }
 
@@ -136,7 +130,6 @@ export struct DownloadScene {
     } finally {
       this.isProcessing = false;
       this.items = ehDownloadStore.getItems();
-      this.applyFilters();
       this.persistDownloads();
     }
   }
@@ -145,7 +138,6 @@ export struct DownloadScene {
     ehDownloadStore.setState(item.gid, DownloadState.Downloading);
     this.items = ehDownloadStore.getItems();
     this.statusText = 'Downloading: ' + item.title;
-    this.applyFilters();
     this.persistDownloads();
 
     try {
@@ -160,7 +152,6 @@ export struct DownloadScene {
       ehDownloadStore.setProgress(item.gid, 0, total, 0);
       ehDownloadStore.setStorage(item.gid, downloadDirectory, 0);
       this.items = ehDownloadStore.getItems();
-      this.applyFilters();
 
       let finished = 0;
       let fileSize = ehDownloadFileStore.directorySize(context, detailResult.detail);
@@ -174,7 +165,6 @@ export struct DownloadScene {
         ehDownloadStore.setStorage(item.gid, downloadDirectory, fileSize);
         this.items = ehDownloadStore.getItems();
         this.statusText = 'Resumed ' + finished.toString() + '/' + total.toString() + ': ' + item.title;
-        this.applyFilters();
         this.persistDownloads();
       }
 
@@ -215,7 +205,6 @@ export struct DownloadScene {
         ehDownloadStore.setStorage(item.gid, downloadDirectory, fileSize);
         this.items = ehDownloadStore.getItems();
         this.statusText = 'Downloaded ' + finished.toString() + '/' + total.toString() + ': ' + item.title;
-        this.applyFilters();
         this.persistDownloads();
       }
 
@@ -224,13 +213,11 @@ export struct DownloadScene {
       ehDownloadStore.setStorage(item.gid, downloadDirectory, fileSize);
       this.statusText = 'Download finished: ' + item.title;
       this.items = ehDownloadStore.getItems();
-      this.applyFilters();
       this.persistDownloads();
     } catch (error) {
       ehDownloadStore.setState(item.gid, DownloadState.Failed);
       this.items = ehDownloadStore.getItems();
       this.statusText = 'Download failed: ' + String(error);
-      this.applyFilters();
       this.persistDownloads();
     }
   }
@@ -239,7 +226,6 @@ export struct DownloadScene {
     ehDownloadStore.clearFinished();
     this.items = ehDownloadStore.getItems();
     this.statusText = 'Cleared finished downloads';
-    this.applyFilters();
     this.persistDownloads();
   }
 
@@ -248,7 +234,6 @@ export struct DownloadScene {
       this.labels = ehDownloadStore.getLabels();
       this.statusText = 'Added label: ' + this.newLabel.trim();
       this.newLabel = '';
-      this.applyFilters();
       this.persistDownloads();
     } else {
       this.statusText = 'Label is empty or already exists';
@@ -265,7 +250,6 @@ export struct DownloadScene {
     this.items = ehDownloadStore.getItems();
     this.statusText = 'Deleted label: ' + this.labelFilter;
     this.labelFilter = 'All';
-    this.applyFilters();
     this.persistDownloads();
   }
 
@@ -273,7 +257,6 @@ export struct DownloadScene {
     ehDownloadStore.removeGallery(item.gid);
     this.items = ehDownloadStore.getItems();
     this.statusText = 'Removed: ' + item.title;
-    this.applyFilters();
     this.persistDownloads();
   }
 
@@ -281,7 +264,6 @@ export struct DownloadScene {
     ehDownloadStore.setState(item.gid, nextDownloadState(item.state));
     this.items = ehDownloadStore.getItems();
     this.statusText = 'Updated state: ' + item.title;
-    this.applyFilters();
     this.persistDownloads();
   }
 
@@ -290,7 +272,6 @@ export struct DownloadScene {
     ehDownloadStore.setLabel(item.gid, label);
     this.items = ehDownloadStore.getItems();
     this.statusText = label.length === 0 ? 'Moved to default label: ' + item.title : 'Moved to label ' + label + ': ' + item.title;
-    this.applyFilters();
     this.persistDownloads();
   }
 
@@ -321,7 +302,6 @@ export struct DownloadScene {
           .margin({ left: 10 })
           .onChange((value: string) => {
             this.query = value;
-            this.applyFilters();
           })
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.play_arrow_triangle_2_circlepath'))
@@ -350,7 +330,6 @@ export struct DownloadScene {
             .fontSize(12)
             .onClick(() => {
               this.statusFilter = nextDownloadStatusFilter(this.statusFilter);
-              this.applyFilters();
             })
           Button(uiText('Label') + ': ' + uiValue(this.labelFilter))
             .height(30)
@@ -358,7 +337,6 @@ export struct DownloadScene {
             .margin({ left: 8 })
             .onClick(() => {
               this.labelFilter = nextDownloadLabelFilter(this.labelFilter, this.labels);
-              this.applyFilters();
             })
           Button(uiText('Sort') + ': ' + uiValue(this.sortMode))
             .height(30)
@@ -366,10 +344,9 @@ export struct DownloadScene {
             .margin({ left: 8 })
             .onClick(() => {
               this.sortMode = nextDownloadSortMode(this.sortMode);
-              this.applyFilters();
             })
           Blank()
-          Text(this.visibleItems.length.toString() + '/' + this.items.length.toString())
+          Text(this.visibleDownloadItems().length.toString() + '/' + this.items.length.toString())
             .fontSize(12)
             .fontColor('#667085')
         }
@@ -421,7 +398,7 @@ export struct DownloadScene {
       .backgroundColor(Color.White)
       .margin({ left: 12, right: 12, top: 12, bottom: 8 })
 
-      if (this.visibleItems.length === 0) {
+      if (this.visibleDownloadItems().length === 0) {
         Column() {
           Text(uiText('Downloads'))
             .fontSize(22)
@@ -437,7 +414,7 @@ export struct DownloadScene {
         .justifyContent(FlexAlign.Center)
       } else {
         List({ space: 8 }) {
-          ForEach(this.visibleItems, (item: DownloadInfo) => {
+          ForEach(this.visibleDownloadItems(), (item: DownloadInfo) => {
             ListItem() {
               DownloadRow({
                 item: item,
