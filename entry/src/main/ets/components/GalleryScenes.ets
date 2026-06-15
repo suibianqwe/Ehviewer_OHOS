@@ -734,7 +734,10 @@ export struct GalleryListContent {
     return this.requestUrl.length > 0 ? 88 : 62;
   }
 
-  private thumbCardPreferredWidth(): number {
+  private galleryCardPreferredWidth(): number {
+    if (galleryListMode() !== 'Thumb') {
+      return galleryListMode() === 'Extended' ? 520 : 440;
+    }
     const value = galleryThumbWidth();
     if (value <= 70) {
       return 116;
@@ -745,23 +748,23 @@ export struct GalleryListContent {
     return 136;
   }
 
-  private thumbCardGap(): number {
+  private galleryCardGap(): number {
     return 8;
   }
 
-  private thumbContentPadding(): number {
+  private galleryContentPadding(): number {
     return 8;
   }
 
-  private thumbCardWidth(): number {
-    const availableWidth = Math.max(0, this.contentWidth - this.thumbContentPadding() * 2);
-    if (availableWidth <= 0) {
-      return this.thumbCardPreferredWidth();
+  private galleryCardWidth(): number {
+    const availableWidth = Math.max(0, this.contentWidth - this.galleryContentPadding() * 2);
+    if (availableWidth <= 0 || Number.isNaN(availableWidth)) {
+      return this.galleryCardPreferredWidth();
     }
-    const preferred = this.thumbCardPreferredWidth();
-    const gap = this.thumbCardGap();
+    const preferred = this.galleryCardPreferredWidth();
+    const gap = this.galleryCardGap();
     const columns = Math.max(1, Math.floor((availableWidth + gap) / (preferred + gap)));
-    return Math.floor((availableWidth - gap * (columns - 1)) / columns);
+    return Math.floor((availableWidth - gap * columns) / columns);
   }
 
   build() {
@@ -798,19 +801,19 @@ export struct GalleryListContent {
                 ForEach(this.galleries, (gallery: GalleryInfo) => {
                   if (galleryListMode() === 'Thumb') {
                     GalleryThumbCard({ gallery: gallery })
-                      .width(this.thumbCardWidth())
-                      .margin({ right: this.thumbCardGap(), bottom: this.thumbCardGap() })
+                      .width(this.galleryCardWidth())
+                      .margin({ right: this.galleryCardGap(), bottom: this.galleryCardGap() })
                       .onClick(() => { this.onSelectGallery(gallery); })
                   } else {
                     GalleryListRow({ gallery: gallery })
-                      .width('100%')
-                      .margin({ bottom: 8 })
+                      .width(this.galleryCardWidth())
+                      .margin({ right: this.galleryCardGap(), bottom: this.galleryCardGap() })
                       .onClick(() => { this.onSelectGallery(gallery); })
                   }
                 }, (gallery: GalleryInfo) => gallery.gid.toString() + ':' + this.renderVersion.toString())
               }
               .width('100%')
-              .padding({ left: this.thumbContentPadding(), right: this.thumbContentPadding(), bottom: 0 })
+              .padding({ left: this.galleryContentPadding(), right: this.galleryContentPadding(), bottom: 0 })
             }
             .width('100%')
             .padding({ top: this.toolbarHeight() })
@@ -819,9 +822,6 @@ export struct GalleryListContent {
           .scrollBar(BarState.Off)
           .width('100%')
           .height('100%')
-          .onAreaChange((oldArea: Area, newArea: Area) => {
-            this.contentWidth = Number(newArea.width);
-          })
           .onAppear(() => {
             if (this.initialScrollOffset > 0) {
               this.listScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
@@ -841,6 +841,9 @@ export struct GalleryListContent {
         }
         .width('100%')
         .height('100%')
+        .onAreaChange((oldArea: Area, newArea: Area) => {
+          this.contentWidth = newArea.width as number;
+        })
       }
 
       if (this.isLoadingMore) {
