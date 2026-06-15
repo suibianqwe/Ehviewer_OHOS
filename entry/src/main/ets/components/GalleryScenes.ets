@@ -828,7 +828,6 @@ export struct GalleryListContent {
   onScrollUpdate: (offset: number) => void = () => {};
   @State contentWidth: number = 0;
   @State refreshing: boolean = false;
-  @State refreshHintVisible: boolean = false;
   @State viewportHeight: number = 0;
   private listScroller: Scroller = new Scroller();
   private loadMorePending: boolean = false;
@@ -870,11 +869,9 @@ export struct GalleryListContent {
       return;
     }
     this.refreshing = true;
-    this.refreshHintVisible = true;
     this.onRefresh();
     setTimeout(() => {
       this.refreshing = false;
-      this.refreshHintVisible = false;
     }, 900);
   }
 
@@ -989,6 +986,19 @@ export struct GalleryListContent {
           Refresh({ refreshing: this.refreshing }) {
             Scroll(this.listScroller) {
               Column() {
+                Row() {
+                  if (this.refreshing) {
+                    LoadingProgress()
+                      .width(20)
+                      .height(20)
+                      .color('#2F6F8F')
+                  }
+                }
+                .width('100%')
+                .height(this.refreshing ? 28 : 0)
+                .justifyContent(FlexAlign.Center)
+                .animation({ duration: 180, curve: Curve.EaseOut })
+
                 Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
                   ForEach(this.galleries, (gallery: GalleryInfo, index: number) => {
                     if (galleryListMode() === 'Thumb') {
@@ -1069,18 +1079,6 @@ export struct GalleryListContent {
         .height(36)
         .justifyContent(FlexAlign.Center)
         .backgroundColor('#F3F5F7')
-      }
-
-      if (this.refreshHintVisible) {
-        Row() {
-          LoadingProgress().width(20).height(20).color('#2F6F8F')
-          Text(uiText('Refreshing')).fontSize(12).fontColor('#2F6F8F').margin({ left: 6 })
-        }
-        .height(34)
-        .padding({ left: 12, right: 12 })
-        .backgroundColor('#E6F0F5')
-        .borderRadius(16)
-        .position({ x: 14, y: Math.max(8, this.toolbarHeight() + this.toolbarOffsetY + 8) })
       }
 
       QuickActionColumn({

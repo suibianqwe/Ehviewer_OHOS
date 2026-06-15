@@ -476,10 +476,9 @@ export struct HistoryScene {
               }
             }, (gallery: GalleryInfo) => gallery.gid.toString() + ':' + this.renderVersion.toString())
           }
+          .layoutWeight(1)
           .width('100%')
-          .height('100%')
-          .padding({ left: 8, right: 8, top: 62, bottom: 32 })
-          .translate({ y: this.toolbarOffsetY })
+          .padding({ left: 8, right: 8, top: 62 + this.toolbarOffsetY, bottom: 32 })
           .backgroundColor('#F3F5F7')
           .edgeEffect(EdgeEffect.Spring)
           .onAppear(() => {
