@@ -448,7 +448,7 @@ export struct HistoryScene {
           }
           .width('100%')
           .height('100%')
-          .padding({ top: 62 })
+          .padding({ top: 70 })
         } else {
           List({ space: 8, scroller: this.historyScroller }) {
             ForEach(this.histories, (gallery: GalleryInfo) => {
@@ -478,7 +478,7 @@ export struct HistoryScene {
           }
           .layoutWeight(1)
           .width('100%')
-          .padding({ left: 8, right: 8, top: 62 + this.toolbarOffsetY, bottom: 32 })
+          .padding({ left: 8, right: 8, top: 70 + this.toolbarOffsetY, bottom: 0 })
           .backgroundColor('#F3F5F7')
           .edgeEffect(EdgeEffect.Spring)
           .onAppear(() => {
@@ -1007,7 +1007,7 @@ export struct TopListScene {
           }
           .width('100%')
           .height('100%')
-          .padding({ top: 62 })
+          .padding({ top: 74 })
         } else {
           Column() {
             TopListBoard({
@@ -1109,7 +1109,7 @@ export struct TopListBoard {
         .backgroundColor('#F3F5F7')
     }
       .width('100%')
-      .padding({ left: 0, right: 0, top: 62 })
+      .padding({ left: 0, right: 0, top: 74 })
       .backgroundColor('#F3F5F7')
       .translate({ y: this.toolbarOffsetY })
   }

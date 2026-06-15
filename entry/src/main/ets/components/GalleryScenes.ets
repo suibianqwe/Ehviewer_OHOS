@@ -200,8 +200,7 @@ export struct GalleryListScene {
 
   private updateToolbarForScroll(offset: number): void {
     const delta = offset - this.listScrollOffset;
-    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, delta, offset,
-      this.requestUrl.length > 0 ? 88 : 62);
+    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, delta, offset, 62);
     this.listScrollOffset = offset;
     updateGalleryListScrollCache(this.cacheKey(), this.listScrollOffset, this.toolbarOffsetY);
   }
@@ -876,11 +875,11 @@ export struct GalleryListContent {
   }
 
   private toolbarHeight(): number {
-    return this.requestUrl.length > 0 ? 88 : 62;
+    return 62;
   }
 
   private contentTopPadding(): number {
-    return this.toolbarHeight();
+    return this.toolbarHeight() + this.galleryContentPadding();
   }
 
   private galleryCardPreferredWidth(): number {
@@ -981,7 +980,7 @@ export struct GalleryListContent {
           }
           .width('100%')
           .height('100%')
-          .padding({ top: this.toolbarHeight() })
+          .padding({ top: this.contentTopPadding() })
         } else {
           Refresh({ refreshing: this.refreshing }) {
             Scroll(this.listScroller) {

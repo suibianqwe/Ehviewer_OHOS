@@ -256,9 +256,6 @@ export struct GallerySearchToolbar {
       .padding({ left: 14, right: 14 })
       .alignItems(VerticalAlign.Center)
 
-      if (this.requestUrl.length > 0) {
-        ToolbarStatusLine({ text: this.requestUrl })
-      }
     }
     .width('100%')
     .backgroundColor(APP_THEME_COLOR)
@@ -335,32 +332,9 @@ export struct ActionTitleToolbar {
       .padding({ left: 14, right: 14 })
       .alignItems(VerticalAlign.Center)
 
-      if (this.requestUrl.length > 0) {
-        ToolbarStatusLine({ text: this.requestUrl })
-      }
     }
     .width('100%')
     .backgroundColor(APP_THEME_COLOR)
-  }
-}
-
-@Component
-struct ToolbarStatusLine {
-  @Prop text: string = '';
-
-  build() {
-    Row() {
-      Text(this.text)
-        .fontSize(11)
-        .fontColor('rgba(255,255,255,0.75)')
-        .layoutWeight(1)
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-    }
-    .width('100%')
-    .height(26)
-    .padding({ left: 16, right: 14 })
-    .backgroundColor('rgba(0,0,0,0.12)')
   }
 }
 
