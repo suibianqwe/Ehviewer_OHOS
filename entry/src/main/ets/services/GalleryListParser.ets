@@ -1,6 +1,16 @@
 import { GalleryCategory, GalleryInfo } from '../model/GalleryModels';
 
+export enum GalleryListDisplayMode {
+  Unknown = 'unknown',
+  Minimal = 'minimal',
+  MinimalPlus = 'minimal+',
+  Compact = 'compact',
+  Extended = 'extended',
+  Thumbnail = 'thumbnail'
+}
+
 export interface GalleryListParseResult {
+  displayMode: GalleryListDisplayMode;
   pages: number;
   nextPage: number;
   resultCount: string;
@@ -30,15 +40,17 @@ const FAVORITE_SLOT_RGB: string[][] = [
 
 export function parseGalleryList(body: string): GalleryListParseResult {
   const galleries: GalleryInfo[] = [];
-  const rows: string[] = splitGalleryRows(body);
+  const displayMode = detectDisplayMode(body);
+  const rows: string[] = splitGalleryRows(body, displayMode);
   for (let i = 0; i < rows.length; i++) {
-    const gallery = parseGalleryInfo(rows[i]);
+    const gallery = parseGalleryInfo(rows[i], displayMode);
     if (gallery !== null) {
       galleries.push(gallery);
     }
   }
 
   return {
+    displayMode: displayMode,
     pages: parsePages(body),
     nextPage: parseNextPage(body),
     resultCount: parseResultCount(body),
@@ -47,17 +59,71 @@ export function parseGalleryList(body: string): GalleryListParseResult {
   };
 }
 
-function splitGalleryRows(body: string): string[] {
-  const tableRows = splitTableRows(body);
-  if (tableRows.length > 0) {
+function detectDisplayMode(body: string): GalleryListDisplayMode {
+  const selected = /<option\b[^>]+value=["']([^"']+)["'][^>]*selected=["']selected["'][^>]*>/i.exec(body);
+  if (selected !== null) {
+    const selectedValue = selected[1].toLowerCase();
+    if (selectedValue === 'm') {
+      return GalleryListDisplayMode.Minimal;
+    }
+    if (selectedValue === 'p') {
+      return GalleryListDisplayMode.MinimalPlus;
+    }
+    if (selectedValue === 'l') {
+      return GalleryListDisplayMode.Compact;
+    }
+    if (selectedValue === 'e') {
+      return GalleryListDisplayMode.Extended;
+    }
+    if (selectedValue === 't') {
+      return GalleryListDisplayMode.Thumbnail;
+    }
+  }
+
+  const itgClass = parseItgClass(body);
+  if (hasClass(itgClass, 'gltm')) {
+    return GalleryListDisplayMode.Minimal;
+  }
+  if (hasClass(itgClass, 'gltc')) {
+    return GalleryListDisplayMode.Compact;
+  }
+  if (hasClass(itgClass, 'glte')) {
+    return GalleryListDisplayMode.Extended;
+  }
+  if (hasClass(itgClass, 'gld')) {
+    return GalleryListDisplayMode.Thumbnail;
+  }
+
+  if (/<div[^>]+class=["'][^"']*\bgl1t\b[^"']*["'][^>]*>/i.test(body)) {
+    return GalleryListDisplayMode.Thumbnail;
+  }
+  if (/<td[^>]+class=["'][^"']*\bgl1c\b[^"']*["'][^>]*>/i.test(body)) {
+    return GalleryListDisplayMode.Compact;
+  }
+  if (/<td[^>]+class=["'][^"']*\bgl1e\b[^"']*["'][^>]*>/i.test(body)) {
+    return GalleryListDisplayMode.Extended;
+  }
+  if (/<td[^>]+class=["'][^"']*\bgl1m\b[^"']*["'][^>]*>/i.test(body)) {
+    return GalleryListDisplayMode.Minimal;
+  }
+  return GalleryListDisplayMode.Unknown;
+}
+
+function splitGalleryRows(body: string, displayMode: GalleryListDisplayMode): string[] {
+  if (displayMode === GalleryListDisplayMode.Thumbnail) {
+    return splitThumbnailRows(body);
+  }
+
+  const tableRows = splitTableRows(body, displayMode);
+  if (tableRows.length > 0 || displayMode !== GalleryListDisplayMode.Unknown) {
     return tableRows;
   }
   return splitThumbnailRows(body);
 }
 
-function splitTableRows(body: string): string[] {
+function splitTableRows(body: string, displayMode: GalleryListDisplayMode): string[] {
   const rows: string[] = [];
-  const tableStart = findItgTableStart(body);
+  const tableStart = findItgTableStart(body, displayMode);
   const tableEnd = tableStart < 0 ? -1 : body.indexOf('</table>', tableStart);
   const source = tableStart >= 0 && tableEnd > tableStart ? body.substring(tableStart, tableEnd + 8) : body;
   let index = 0;
@@ -100,9 +166,36 @@ function splitThumbnailRows(body: string): string[] {
   return rows;
 }
 
-function findItgTableStart(body: string): number {
+function findItgTableStart(body: string, displayMode: GalleryListDisplayMode): number {
+  const modeClass = tableClassForMode(displayMode);
+  if (modeClass.length > 0) {
+    const modePattern = new RegExp("<table[^>]+class=[\"'][^\"']*\\bitg\\b[^\"']*\\b" + modeClass + "\\b[^\"']*[\"'][^>]*>", 'i');
+    const modeMatch = modePattern.exec(body);
+    if (modeMatch !== null) {
+      return modeMatch.index;
+    }
+  }
+
   const match = /<table[^>]+class=["'][^"']*\bitg\b[^"']*["'][^>]*>/i.exec(body);
   return match === null ? -1 : match.index;
+}
+
+function parseItgClass(body: string): string {
+  const table = /<(?:table|div)[^>]+class=["']([^"']*\bitg\b[^"']*)["'][^>]*>/i.exec(body);
+  return table === null ? '' : table[1];
+}
+
+function tableClassForMode(displayMode: GalleryListDisplayMode): string {
+  if (displayMode === GalleryListDisplayMode.Minimal || displayMode === GalleryListDisplayMode.MinimalPlus) {
+    return 'gltm';
+  }
+  if (displayMode === GalleryListDisplayMode.Compact) {
+    return 'gltc';
+  }
+  if (displayMode === GalleryListDisplayMode.Extended) {
+    return 'glte';
+  }
+  return '';
 }
 
 function findThumbnailEnd(body: string, start: number): number {
@@ -110,7 +203,7 @@ function findThumbnailEnd(body: string, start: number): number {
   return footer > start ? footer : body.length;
 }
 
-function parseGalleryInfo(row: string): GalleryInfo | null {
+function parseGalleryInfo(row: string, displayMode: GalleryListDisplayMode): GalleryInfo | null {
   const link = DETAIL_LINK_PATTERN.exec(row);
   if (link === null) {
     return null;
@@ -129,7 +222,7 @@ function parseGalleryInfo(row: string): GalleryInfo | null {
     thumb: parseThumb(row),
     category: parseCategory(row),
     posted: posted.text,
-    uploader: parseUploader(row),
+    uploader: parseUploader(row, displayMode),
     rating: parseRating(row),
     rated: parseRated(row),
     simpleTags: parseSimpleTags(row),
@@ -190,7 +283,7 @@ function parseCategory(row: string): number {
   return GalleryCategory.Unknown;
 }
 
-function parseUploader(row: string): string {
+function parseUploader(row: string, displayMode: GalleryListDisplayMode): string {
   const uploader = /\/uploader\/[^"']+["'][^>]*>([\s\S]*?)<\/a>/i.exec(row);
   if (uploader !== null) {
     return cleanText(uploader[1]);
@@ -214,6 +307,14 @@ function parseUploader(row: string): string {
     const fromGl5m = parseFirstLinkText(gl5mChildren[i]);
     if (fromGl5m.length > 0) {
       return fromGl5m;
+    }
+  }
+
+  if (displayMode === GalleryListDisplayMode.Compact) {
+    const gl4c = findClassBlock(row, 'gl4c');
+    const fromGl4c = parseFirstLinkText(gl4c);
+    if (fromGl4c.length > 0) {
+      return fromGl4c;
     }
   }
   return '';
@@ -306,6 +407,12 @@ function parseItemPages(row: string): number {
     return parseIntSafe(gl5mPages[1], 0);
   }
 
+  const gl4c = findClassBlock(row, 'gl4c');
+  const gl4cPages = PAGE_COUNT_PATTERN.exec(gl4c);
+  if (gl4cPages !== null) {
+    return parseIntSafe(gl4cPages[1], 0);
+  }
+
   const glthumb = findClassBlock(row, 'glthumb');
   const glthumbPages = PAGE_COUNT_PATTERN.exec(glthumb);
   if (glthumbPages !== null) {
@@ -354,6 +461,10 @@ function parsePosted(row: string, gid: number): PostedInfo {
     text: cleanText(block[0]),
     favoriteSlot: parseFavoriteSlot(parseAttribute(block[0], 'style'))
   };
+}
+
+function hasClass(classValue: string, className: string): boolean {
+  return new RegExp("(^|\\s)" + escapeRegExp(className) + "(\\s|$)", 'i').test(classValue);
 }
 
 function parseFavoriteSlot(style: string): number {

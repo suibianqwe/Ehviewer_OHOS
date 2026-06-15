@@ -1,7 +1,10 @@
+import { GalleryListDisplayMode } from './GalleryListParser';
+
 export interface GalleryListFixtureCase {
   name: string;
   html: string;
   expectedCount: number;
+  expectedMode: GalleryListDisplayMode;
 }
 
 export const minimalListFixture: string = `
@@ -26,6 +29,65 @@ export const minimalListFixture: string = `
           <div>26 pages</div>
           <div class="ir" title="4.5"></div>
           <div class="gt" title="language:chinese">chinese</div>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+export const minimalPlusListFixture: string = `
+<html>
+  <body>
+    <select><option value="p" selected="selected">Minimal+</option></select>
+    <table class="itg gltm">
+      <tr>
+        <th></th><th>Published</th><th></th><th>Title</th><th></th><th class="glhide">Uploader</th>
+      </tr>
+      <tr>
+        <td class="gl1m glcat"><div class="cs ct2">Doujinshi</div></td>
+        <td class="gl2m">
+          <div class="glthumb" id="it5392268" style="top:-21px;height:395px">
+            <div><img src="https://ehgt.org/a/b/minimal_plus_250.jpg" style="height:349px;width:250px;top:-4px" alt="Minimal Plus Fixture Gallery" /></div>
+            <div><div><div class="cs ct2">Doujinshi</div><div id="postedpop_5392268">pop up text</div></div></div>
+          </div>
+          <div id="posted_5392268">2026-06-12 11:30</div>
+        </td>
+        <td class="gl3m glname">
+          <a href="https://exhentai.org/g/5392268/bff56437fe/"><div class="glink">Minimal Plus Fixture Gallery</div></a>
+        </td>
+        <td class="gl4m"><div class="ir" style="background-position:-16px -21px;opacity:1"></div></td>
+        <td class="gl5m glhide">
+          <div><a href="https://exhentai.org/uploader/minplus">minplus</a></div>
+          <div>34 pages</div>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+
+export const compactListFixture: string = `
+<html>
+  <body>
+    <select><option value="l" selected="selected">Compact</option></select>
+    <table class="itg gltc">
+      <tr><th></th><th>Published</th><th>Title</th><th class="glhide">Uploader</th></tr>
+      <tr>
+        <td class="gl1c glcat"><div class="cn ct2">Doujinshi</div></td>
+        <td class="gl2c">
+          <div class="glthumb" id="it6392268" style="top:-22px;height:395px">
+            <div><img src="https://ehgt.org/a/b/compact_250.jpg" style="height:349px;width:250px;top:-4px" alt="Compact Fixture Gallery" /></div>
+            <div><div><div class="cn ct2">Doujinshi</div><div id="postedpop_6392268">pop up text</div></div></div>
+          </div>
+          <div id="posted_6392268">2026-06-12 12:30</div>
+          <div class="ir" title="4.0"></div>
+        </td>
+        <td class="gl3c glname">
+          <a href="https://exhentai.org/g/6392268/cff56437ff/"><div class="glink">Compact Fixture Gallery</div></a>
+          <div class="gt" title="language:chinese">chinese</div>
+        </td>
+        <td class="gl4c glhide">
+          <div><a href="https://exhentai.org/uploader/compact">compact</a></div>
+          <div>19 pages</div>
         </td>
       </tr>
     </table>
@@ -131,10 +193,12 @@ export const favoritesListFixture: string = `
 </html>`;
 
 export const galleryListFixtures: GalleryListFixtureCase[] = [
-  { name: 'minimal', html: minimalListFixture, expectedCount: 1 },
-  { name: 'extended', html: extendedListFixture, expectedCount: 1 },
-  { name: 'thumbnail', html: thumbnailListFixture, expectedCount: 1 },
-  { name: 'favorites', html: favoritesListFixture, expectedCount: 1 }
+  { name: 'minimal', html: minimalListFixture, expectedCount: 1, expectedMode: GalleryListDisplayMode.Minimal },
+  { name: 'minimal+', html: minimalPlusListFixture, expectedCount: 1, expectedMode: GalleryListDisplayMode.MinimalPlus },
+  { name: 'compact', html: compactListFixture, expectedCount: 1, expectedMode: GalleryListDisplayMode.Compact },
+  { name: 'extended', html: extendedListFixture, expectedCount: 1, expectedMode: GalleryListDisplayMode.Extended },
+  { name: 'thumbnail', html: thumbnailListFixture, expectedCount: 1, expectedMode: GalleryListDisplayMode.Thumbnail },
+  { name: 'favorites', html: favoritesListFixture, expectedCount: 1, expectedMode: GalleryListDisplayMode.Thumbnail }
 ];
 
 export const galleryListFixture: string = minimalListFixture;

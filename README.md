@@ -74,6 +74,12 @@ $env:Path='D:\Program Files\Huawei\DevEco Studio\jbr\bin;' + $env:Path
 
 本仓库的版本号从 `0.1.0` 开始递增。只有在实现新功能、用户明确要求发布，或需要交付可安装包时才创建 GitHub Release；普通 bug 修复不默认发布 Release。
 
+### v0.1.32
+
+- 画廊列表解析器新增显示模式自动识别。
+- 分别适配 Minimal、Minimal+、Compact、Extended、Thumbnail 五种列表结构。
+- 补充 Compact 和 Minimal+ 离线解析样本。
+
 ### v0.1.31
 
 - 应用包名改为 `yt.ehviewer.huawei`。
