@@ -814,6 +814,10 @@ export struct GalleryListContent {
   onScrollUpdate: (offset: number) => void = () => {};
   @State contentWidth: number = 0;
   @State refreshing: boolean = false;
+  @State refreshScaleNum: number = 1;
+  @State refreshFlag: boolean = true;
+  @State refreshMsg: string = 'Pull to refresh';
+  private refreshOffsetNum: number = 64;
   @State viewportHeight: number = 0;
   private listScroller: Scroller = new Scroller();
   private loadMorePending: boolean = false;
@@ -939,92 +943,125 @@ export struct GalleryListContent {
 
   build() {
     HdsNavigation() {
-      Scroll(this.listScroller) {
-        Column() {
+      Refresh({ refreshing: $$this.refreshing, builder: this.customRefreshBuilder() }) {
+        Scroll(this.listScroller) {
           Column() {
-          if (this.galleries.length === 0) {
-          Column() {
-            GalleryListStateView({
-              statusText: this.statusText,
-              requestUrl: this.requestUrl,
-              onRefresh: this.onRefresh
-            })
-              .layoutWeight(1)
+            Column() {
+            if (this.galleries.length === 0) {
+            Column() {
+              GalleryListStateView({
+                statusText: this.statusText,
+                requestUrl: this.requestUrl,
+                onRefresh: this.onRefresh
+              })
+                .layoutWeight(1)
+            }
+            .width('100%')
+            .height('100%')
+            .padding({ top: this.contentTopPadding() })
+          } else {
+                Column() {
+                  Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+                    ForEach(this.galleries, (gallery: GalleryInfo, index: number) => {
+                      if (galleryListMode() === 'Thumb') {
+                        GalleryThumbCard({ gallery: gallery })
+                          .width(this.galleryCardWidth())
+                          .margin({ right: this.galleryCardRightMargin(index), bottom: this.galleryCardGap() })
+                          .animation({ duration: 220, curve: Curve.EaseInOut })
+                          .onClick(() => { this.onSelectGallery(gallery); })
+                      } else {
+                        GalleryListRow({ gallery: gallery })
+                          .width(this.galleryCardWidth())
+                          .margin({ right: this.galleryCardRightMargin(index), bottom: this.galleryCardGap() })
+                          .animation({ duration: 220, curve: Curve.EaseInOut })
+                          .onClick(() => { this.onSelectGallery(gallery); })
+                      }
+                    }, (gallery: GalleryInfo) => gallery.gid.toString())
+                  }
+                  .width('100%')
+                  .padding({ left: this.galleryContentPadding(), right: this.galleryContentPadding(), bottom: 0 })
+                }
+                .width('100%')
+                .padding({ top: this.contentTopPadding() })
+            }
+
           }
           .width('100%')
           .height('100%')
-          .padding({ top: this.contentTopPadding() })
-        } else {
-              Column() {
-                Row() {
-                  if (this.refreshing) {
-                    LoadingProgress()
-                      .width(20)
-                      .height(20)
-                      .color('#2F6F8F')
-                  }
-                }
-                .width('100%')
-                .height(this.refreshing ? 28 : 0)
-                .justifyContent(FlexAlign.Center)
-                .animation({ duration: 180, curve: Curve.EaseOut })
 
-                Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-                  ForEach(this.galleries, (gallery: GalleryInfo, index: number) => {
-                    if (galleryListMode() === 'Thumb') {
-                      GalleryThumbCard({ gallery: gallery })
-                        .width(this.galleryCardWidth())
-                        .margin({ right: this.galleryCardRightMargin(index), bottom: this.galleryCardGap() })
-                        .animation({ duration: 220, curve: Curve.EaseInOut })
-                        .onClick(() => { this.onSelectGallery(gallery); })
-                    } else {
-                      GalleryListRow({ gallery: gallery })
-                        .width(this.galleryCardWidth())
-                        .margin({ right: this.galleryCardRightMargin(index), bottom: this.galleryCardGap() })
-                        .animation({ duration: 220, curve: Curve.EaseInOut })
-                        .onClick(() => { this.onSelectGallery(gallery); })
-                    }
-                  }, (gallery: GalleryInfo) => gallery.gid.toString())
-                }
-                .width('100%')
-                .padding({ left: this.galleryContentPadding(), right: this.galleryContentPadding(), bottom: 0 })
-              }
-              .width('100%')
-              .padding({ top: this.contentTopPadding() })
+        if (this.isLoadingMore) {
+          Row() {
+            LoadingProgress().width(20).height(20).color('#9BB8CB')
+            Text(uiText('Loading...')).fontSize(12).fontColor('#9BB8CB').margin({ left: 6 })
           }
-
+          .width('100%')
+          .height(36)
+          .justifyContent(FlexAlign.Center)
+          .backgroundColor('#F3F5F7')
         }
-        .width('100%')
-        .height('100%')
 
-      if (this.isLoadingMore) {
-        Row() {
-          LoadingProgress().width(20).height(20).color('#9BB8CB')
-          Text(uiText('Loading...')).fontSize(12).fontColor('#9BB8CB').margin({ left: 6 })
-        }
-        .width('100%')
-        .height(36)
-        .justifyContent(FlexAlign.Center)
-        .backgroundColor('#F3F5F7')
+        QuickActionColumn({
+          expanded: this.actionsExpanded,
+          filterActive: this.filterActive,
+          canJump: this.canJump,
+          canRandom: this.canRandom,
+          onToggle: this.onToggleActions,
+          onFilter: this.onFilter,
+          onJump: this.onJump,
+          onRefresh: this.onRefresh,
+          onRandom: this.onRandom
+        })
       }
-
-      QuickActionColumn({
-        expanded: this.actionsExpanded,
-        filterActive: this.filterActive,
-        canJump: this.canJump,
-        canRandom: this.canRandom,
-        onToggle: this.onToggleActions,
-        onFilter: this.onFilter,
-        onJump: this.onJump,
-        onRefresh: this.onRefresh,
-        onRandom: this.onRandom
-      })
+      .width('100%')
     }
+    .scrollable(ScrollDirection.Vertical)
+    .scrollBar(BarState.Off)
+    .edgeEffect(EdgeEffect.Spring)
     .width('100%')
+    .height('100%')
+    .onAppear(() => {
+      if (!this.restoredScroll && this.initialScrollOffset > 0) {
+        this.restoredScroll = true;
+        setTimeout(() => {
+          this.listScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
+        }, 0);
+      }
+    })
+    .onScrollStop(() => {
+      const offset = this.listScroller.currentOffset().yOffset;
+      this.onScrollUpdate(offset);
+      this.triggerLoadMoreByOffset(offset);
+    })
+    .onDidScroll((scrollOffset: number, scrollState: ScrollState) => {
+      const offset = this.listScroller.currentOffset().yOffset;
+      this.onScrollUpdate(offset);
+      this.triggerLoadMoreByOffset(offset);
+    })
+    .onReachEnd(() => {
+      this.triggerLoadMoreIfNear(this.galleries.length);
+    })
   }
-  .scrollable(ScrollDirection.Vertical)
-  .scrollBar(BarState.Off)
-  .edgeEffect(EdgeEffect.Spring)
+  .refreshOffset(64)
+  .pullToRefresh(true)
+  .onRefreshing(() => {
+    this.refreshFromPull();
+  })
+  .onOffsetChange((value: number) => {
+    if (value < this.refreshOffsetNum) {
+      this.refreshFlag = true;
+      this.refreshMsg = uiText('Pull to refresh');
+      this.refreshScaleNum = value / this.refreshOffsetNum;
+    } else {
+      this.refreshMsg = uiText('Release to refresh');
+      this.refreshScaleNum = this.refreshOffsetNum / value;
+    }
+  })
+  .onStateChange((refreshStatus: number) => {
+    if (refreshStatus === 3) {
+      this.refreshFlag = false;
+      this.refreshMsg = uiText('Refreshing...');
+    }
+  })
   .width('100%')
   .height('100%')
 }
@@ -1055,6 +1092,27 @@ export struct GalleryListContent {
       }
     })
     .backgroundColor('#F3F5F7')
+  }
+
+  @Builder
+  private customRefreshBuilder() {
+    Stack() {
+      Column() {
+        Image($r('app.media.app_icon'))
+          .height(28)
+          .scale({ x: this.refreshScaleNum, y: this.refreshScaleNum })
+          .visibility(this.refreshFlag ? Visibility.Visible : Visibility.None)
+        LoadingProgress()
+          .height(32)
+          .visibility(this.refreshFlag ? Visibility.None : Visibility.Visible)
+        Text(this.refreshMsg)
+          .fontSize(16)
+      }
+      .alignItems(HorizontalAlign.Center)
+    }
+    .width('100%')
+    .height(60)
+    .align(Alignment.Center)
   }
 
   @Builder
