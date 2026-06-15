@@ -739,7 +739,7 @@ export struct GalleryListContent {
       return 340;
     }
     if (galleryListMode() === 'Detail') {
-      return 300;
+      return 340;
     }
     const value = galleryThumbWidth();
     if (value <= 70) {
@@ -784,7 +784,7 @@ export struct GalleryListContent {
       return 300;
     }
     if (galleryListMode() === 'Detail') {
-      return 260;
+      return 300;
     }
     return 104;
   }
@@ -1116,78 +1116,151 @@ export struct ActionBubble {
 export struct GalleryListRow {
   gallery: GalleryInfo = createEmptyGallery();
 
+  private cardHeight(): number {
+    return galleryThumbHeight();
+  }
+
+  private readPageText(): string {
+    const readIndex = ehHistoryStore.getReadPage(this.gallery.gid);
+    const readPages = readIndex >= 0 ? Math.min(this.gallery.pages, readIndex + 1) : 0;
+    return readPages.toString() + '/' + this.gallery.pages.toString() + ' P';
+  }
+
+  private languageText(): string {
+    if (this.gallery.simpleLanguage !== undefined && this.gallery.simpleLanguage.length > 0) {
+      return this.gallery.simpleLanguage;
+    }
+    return '-';
+  }
+
+  private tagColor(index: number): string {
+    const colors: string[] = ['#D8EEF7', '#E6E0F4', '#DDEFD9', '#F7E3C7', '#F6DDE7', '#DDE7F5'];
+    return colors[index % colors.length];
+  }
+
+  private tagTextColor(index: number): string {
+    const colors: string[] = ['#205E78', '#594596', '#2F6841', '#8A5A1F', '#8A3858', '#3A567D'];
+    return colors[index % colors.length];
+  }
+
   build() {
     Row() {
       GalleryThumb({
         url: this.gallery.thumb === undefined ? '' : this.gallery.thumb,
         widthValue: galleryThumbWidth(),
-        heightValue: galleryThumbHeight()
+        heightValue: this.cardHeight(),
+        radiusValue: 6
       })
+        .height('100%')
 
       Column() {
-        Text(galleryDisplayTitle(this.gallery))
-          .fontSize(galleryListMode() === 'Thumb' ? 14 : 15)
-          .fontWeight(FontWeight.Medium)
-          .fontColor('#17202A')
-          .maxLines(galleryListMode() === 'Extended' ? 3 : 2)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-        if (galleryListMode() !== 'Thumb') {
-          Text(this.gallery.uploader === undefined || this.gallery.uploader.length === 0 ? uiText('unknown uploader') :
-            this.gallery.uploader)
-            .fontSize(12)
-            .fontColor('#667085')
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .margin({ top: 5 })
-        }
-
-        Blank()
-
         Row() {
-          CategoryBadge({ category: this.gallery.category })
-          Blank()
-          if (showGalleryPages()) {
-            Text(this.gallery.pages.toString() + 'p')
+          Column() {
+            Text(galleryDisplayTitle(this.gallery))
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#17202A')
+              .maxLines(galleryListMode() === 'Extended' ? 1 : 2)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .width('100%')
+
+            Text(this.gallery.uploader === undefined || this.gallery.uploader.length === 0 ? uiText('unknown uploader') :
+              this.gallery.uploader)
               .fontSize(12)
               .fontColor('#667085')
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .margin({ top: 3 })
+
+            Row() {
+              Text(this.languageText())
+                .fontSize(13)
+                .fontColor('#40566F')
+                .fontWeight(FontWeight.Medium)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+              if (showGalleryPages()) {
+                Text(this.readPageText())
+                  .fontSize(13)
+                  .fontColor('#40566F')
+                  .fontWeight(FontWeight.Medium)
+                  .margin({ left: 8 })
+              }
+            }
+            .width('100%')
+            .margin({ top: 5 })
+
+            Text(this.gallery.posted === undefined ? '' : this.gallery.posted)
+              .fontSize(13)
+              .fontColor('#98A2B3')
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .margin({ top: 2 })
           }
-          Text(this.gallery.posted === undefined ? '' : this.gallery.posted)
-            .fontSize(12)
-            .fontColor('#98A2B3')
-            .margin({ left: 8 })
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .layoutWeight(1)
+          .alignItems(HorizontalAlign.Start)
+
+          Column() {
+            Rating({ rating: this.gallery.rating, indicator: true })
+              .stars(5)
+              .stepSize(0.5)
+              .height(16)
+              .width(82)
+            CategoryBadge({ category: this.gallery.category })
+              .margin({ top: 6 })
+          }
+          .alignItems(HorizontalAlign.End)
+          .margin({ left: 8 })
         }
         .width('100%')
-
-        if (galleryListMode() !== 'Thumb') {
-          Rating({ rating: this.gallery.rating, indicator: true })
-            .stars(5)
-            .stepSize(0.5)
-            .height(12)
-            .width(60)
-            .margin({ top: 2 })
-        }
+        .layoutWeight(1)
 
         if (galleryListMode() === 'Extended' && this.gallery.simpleTags !== undefined && this.gallery.simpleTags.length > 0) {
-          Text(galleryTagPreview(this.gallery))
-            .fontSize(11)
-            .fontColor('#40566F')
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .margin({ top: 6 })
+          Flex({ wrap: FlexWrap.Wrap }) {
+            ForEach(this.gallery.simpleTags.slice(0, 6), (tag: string, index: number) => {
+              GalleryTagChip({
+                text: tag,
+                backgroundColorValue: this.tagColor(index),
+                color: this.tagTextColor(index)
+              })
+                .margin({ right: 4, top: 4 })
+            }, (tag: string, index: number) => tag + ':' + index.toString())
+          }
+          .width('100%')
+          .height(25)
+          .clip(true)
         }
       }
-      .height(galleryRowHeight())
+      .height('100%')
       .layoutWeight(1)
-      .margin({ left: 10 })
+      .padding({ left: 10, right: 8, top: 7, bottom: 7 })
       .alignItems(HorizontalAlign.Start)
     }
     .width('100%')
-    .padding(8)
-    .backgroundColor(Color.White)
-    .borderRadius(6)
+    .height(this.cardHeight())
+      .backgroundColor(Color.White)
+      .borderRadius(6)
+      .clip(true)
+  }
+}
+
+@Component
+export struct GalleryTagChip {
+  text: string = '';
+  backgroundColorValue: string = '#D8EEF7';
+  color: string = '#205E78';
+
+  build() {
+    Text(this.text)
+      .fontSize(12)
+      .fontWeight(FontWeight.Medium)
+      .fontColor(this.color)
+      .height(21)
+      .padding({ left: 7, right: 7 })
+      .backgroundColor(this.backgroundColorValue)
+      .borderRadius(3)
+      .maxLines(1)
+      .textOverflow({ overflow: TextOverflow.Ellipsis })
   }
 }
 
@@ -1196,6 +1269,7 @@ export struct GalleryThumb {
   url: string = '';
   widthValue: number = 86;
   heightValue: number = 118;
+  radiusValue: number = 4;
 
   @State localUrl: string = '';
   @State loadFailed: boolean = false;
@@ -1220,7 +1294,7 @@ export struct GalleryThumb {
         .width('100%')
         .height('100%')
         .backgroundColor('#E7ECF1')
-        .borderRadius(4)
+        .borderRadius(this.radiusValue)
 
       if (this.loadFailed) {
         Column({ space: 4 }) {
@@ -1237,7 +1311,7 @@ export struct GalleryThumb {
           .width('100%')
           .height('100%')
           .objectFit(ImageFit.Cover)
-          .borderRadius(4)
+          .borderRadius(this.radiusValue)
           .onError(() => {
             this.loadFailed = true;
           })
@@ -1302,9 +1376,10 @@ export struct CategoryBadge {
 
   build() {
     Text(categoryName(this.category))
-      .fontSize(11)
+      .fontSize(12)
       .fontWeight(FontWeight.Bold)
       .fontColor(Color.White)
+      .height(21)
       .padding({ left: 8, right: 8, top: 2, bottom: 2 })
       .backgroundColor(categoryColor(this.category))
       .borderRadius(3)
