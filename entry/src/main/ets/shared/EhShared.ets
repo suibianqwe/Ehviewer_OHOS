@@ -266,6 +266,23 @@ export function zhText(text: string): string {
     case 'Search': return '搜索';
     case 'Search galleries': return '搜索画廊';
     case 'Search downloads': return '搜索下载';
+    case 'Advanced': return '高级';
+    case 'Advanced search': return '高级搜索';
+    case 'Normal': return '普通';
+    case 'All categories': return '全部分类';
+    case 'Any rating': return '任意评分';
+    case 'Name': return '名称';
+    case 'Description': return '描述';
+    case 'Torrent': return '种子';
+    case 'Has torrent': return '有种子';
+    case 'Expunged': return '已删除';
+    case 'Low power': return '弱标签';
+    case 'Downvoted': return '低票标签';
+    case 'No lang filter': return '不过滤语言';
+    case 'No uploader filter': return '不过滤上传者';
+    case 'No tag filter': return '不过滤标签';
+    case 'From page': return '起始页';
+    case 'To page': return '结束页';
     case 'Information': return '信息';
     case 'Tags': return '标签';
     case 'No tags parsed': return '暂无标签';
@@ -1404,7 +1421,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       staticSettingsRow('latest_release', 'Latest release', 'GitHub releases URL from original settings', 'Link', 'url'),
       staticSettingsRow('issue_help', 'Issue help', 'Issue guide URL from original settings', 'Link', 'url'),
       staticSettingsRow('license', 'License', 'Open-source license view', 'GPL', 'activity'),
-      staticSettingsRow('version', 'Version', 'HarmonyOS port workspace version', '0.1.83', 'version'),
+      staticSettingsRow('version', 'Version', 'HarmonyOS port workspace version', '0.1.84', 'version'),
       staticSettingsRow('check_for_updates', 'Check for updates', 'Original AppUpdater entry', 'Open', 'action'),
       optionSettingsRow('close_auto_updates', 'Close automatic updates', 'Disable startup update check', entries, ON_OFF_OPTIONS),
       staticSettingsRow('donate', 'Donate', 'Original donation entry', 'Not migrated', 'url')
