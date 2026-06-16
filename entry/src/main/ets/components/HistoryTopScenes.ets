@@ -47,6 +47,7 @@ export struct HistoryScene {
   @State historyRefreshShowLogo: boolean = true;
   @State historyRefreshMsg: string = '';
   private readonly HISTORY_REFRESH_OFFSET: number = 64;
+  @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   private historyScroller: Scroller = new Scroller();
   private historyScrollOffset: number = 0;
   private historyToolbarScrollOffset: number = 0;
@@ -226,12 +227,20 @@ export struct HistoryScene {
   private updateToolbarForScroll(): void {
     const offset = this.historyScroller.currentOffset().yOffset;
     const delta = offset - this.historyToolbarScrollOffset;
-    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, delta, offset, 62);
+    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, delta, offset, this.floatingToolbarHeight());
     this.historyToolbarScrollOffset = offset;
   }
 
+  private statusBarVp(): number {
+    return this.getUIContext().px2vp(this.statusBarHeightPx);
+  }
+
+  private floatingToolbarHeight(): number {
+    return this.statusBarVp() + 62;
+  }
+
   private historyContentTopPadding(): number {
-    return 70;
+    return this.floatingToolbarHeight() + 8;
   }
 
   private cacheReaderImage(index: number, page: GalleryPage): void {
@@ -474,9 +483,9 @@ export struct HistoryScene {
         onMenu: this.onMenu,
         onRefresh: () => {
           this.historyRefreshShowLogo = false;
-            this.historyRefreshMsg = uiText('Refreshing...');
-            this.historyRefreshing = true;
-            this.loadHistory();
+          this.historyRefreshMsg = uiText('Refreshing...');
+          this.historyRefreshing = true;
+          this.loadHistory();
         },
         onClear: () => {
           this.clearHistory();
@@ -520,6 +529,9 @@ export struct HistoryScene {
                 }
               }
               .width('100%')
+              .height('100%')
+              .justifyContent(FlexAlign.Start)
+              .alignItems(HorizontalAlign.Start)
               .padding({ left: 8, right: 8, top: this.historyContentTopPadding(), bottom: 0 })
             }
             .scrollable(ScrollDirection.Vertical)
@@ -612,6 +624,7 @@ export struct TopListScene {
   @State renderVersion: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @State toolbarOffsetY: number = 0;
+  @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   private topListScroller: Scroller = new Scroller();
   private topListScrollOffset: number = 0;
   private topListToolbarScrollOffset: number = 0;
@@ -938,8 +951,16 @@ export struct TopListScene {
 
   private updateToolbarForScroll(contentOffset: number): void {
     const delta = contentOffset - this.topListToolbarScrollOffset;
-    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, delta, contentOffset, 62);
+    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, delta, contentOffset, this.floatingToolbarHeight());
     this.topListToolbarScrollOffset = contentOffset;
+  }
+
+  private statusBarVp(): number {
+    return this.getUIContext().px2vp(this.statusBarHeightPx);
+  }
+
+  private floatingToolbarHeight(): number {
+    return this.statusBarVp() + 62;
   }
 
   build() {
@@ -1037,7 +1058,7 @@ export struct TopListScene {
             .layoutWeight(1)
         }
         .width('100%')
-        .padding({ left: 12, right: 12, top: 10, bottom: 8 })
+        .padding({ left: 12, right: 12, top: this.statusBarVp() + 10, bottom: 8 })
         .backgroundColor(Color.White)
 
         GalleryListScene({
@@ -1068,60 +1089,60 @@ export struct TopListScene {
         }
       }) {
         Column() {
-        if (this.topList.lists.length === 0) {
-          Column() {
-            GalleryListStateView({
-              statusText: this.statusText,
-              requestUrl: this.requestUrl,
-              onRefresh: () => {
-                this.loadTopList();
-              }
-            })
-              .layoutWeight(1)
-          }
-          .width('100%')
-          .height('100%')
-          .padding({ top: 74 })
-        } else {
-          Column() {
-            TopListBoard({
-              lists: this.topList.lists,
-              selectedIndex: this.selectedIndex,
-              info: this.currentInfo(),
-              toolbarOffsetY: this.toolbarOffsetY,
-              renderVersion: this.renderVersion,
-              onSelectList: (index: number) => {
-                if (this.selectedIndex === index) {
-                  return;
+          if (this.topList.lists.length === 0) {
+            Column() {
+              GalleryListStateView({
+                statusText: this.statusText,
+                requestUrl: this.requestUrl,
+                onRefresh: () => {
+                  this.loadTopList();
                 }
-                this.selectedIndex = index;
-                this.topListScrollOffset = 0;
-                this.topListToolbarScrollOffset = 0;
-                this.toolbarOffsetY = 0;
-                this.renderVersion++;
-              },
-              onOpenBucket: (bucket: TopListBucket) => {
-                this.openBucket(bucket);
-              },
-              onOpenItem: (item: TopListItem, info: TopListInfo) => {
-                this.openTopListItem(item, info);
-              },
-              initialScrollOffset: this.topListScrollOffset,
-              onScrollUpdate: (offset: number, scrollOffset: number) => {
-                this.updateToolbarForScroll(offset);
-                this.topListScrollOffset = offset;
-              }
-            })
+              })
+                .layoutWeight(1)
+            }
+            .width('100%')
+            .height('100%')
+            .padding({ top: this.floatingToolbarHeight() + 12 })
+          } else {
+            Column() {
+              TopListBoard({
+                lists: this.topList.lists,
+                selectedIndex: this.selectedIndex,
+                info: this.currentInfo(),
+                toolbarOffsetY: this.toolbarOffsetY,
+                topPadding: this.floatingToolbarHeight() + 12,
+                renderVersion: this.renderVersion,
+                onSelectList: (index: number) => {
+                  if (this.selectedIndex === index) {
+                    return;
+                  }
+                  this.selectedIndex = index;
+                  this.topListScrollOffset = 0;
+                  this.topListToolbarScrollOffset = 0;
+                  this.toolbarOffsetY = 0;
+                  this.renderVersion++;
+                },
+                onOpenBucket: (bucket: TopListBucket) => {
+                  this.openBucket(bucket);
+                },
+                onOpenItem: (item: TopListItem, info: TopListInfo) => {
+                  this.openTopListItem(item, info);
+                },
+                initialScrollOffset: this.topListScrollOffset,
+                onScrollUpdate: (offset: number, scrollOffset: number) => {
+                  this.updateToolbarForScroll(offset);
+                  this.topListScrollOffset = offset;
+                }
+              })
               .layoutWeight(1)
+            }
+            .width('100%')
+            .height('100%')
           }
-          .width('100%')
-          .height('100%')
         }
-
-      }
-      .width('100%')
-      .height('100%')
-      .backgroundColor('#F3F5F7')
+        .width('100%')
+        .height('100%')
+        .backgroundColor('#F3F5F7')
       }
     }
   }
@@ -1162,6 +1183,7 @@ export struct TopListBoard {
   @Prop selectedIndex: number = 0;
   @Prop info: TopListInfo = createEmptyTopListInfo();
   @Prop toolbarOffsetY: number = 0;
+  @Prop topPadding: number = 74;
   @Prop renderVersion: number = 0;
   onSelectList: (index: number) => void = () => {};
   onOpenBucket: (bucket: TopListBucket) => void = () => {};
@@ -1183,7 +1205,7 @@ export struct TopListBoard {
         .backgroundColor('#F3F5F7')
     }
       .width('100%')
-      .padding({ left: 0, right: 0, top: 74 })
+      .padding({ left: 0, right: 0, top: this.topPadding })
       .backgroundColor('#F3F5F7')
   }
 

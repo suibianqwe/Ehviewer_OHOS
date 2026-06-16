@@ -530,11 +530,14 @@ export struct FloatingToolbarHost {
   onSearch: () => void = () => {};
   onRefresh: () => void = () => {};
   onClear: () => void = () => {};
-  @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
+  @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
 
   private statusBarVp(): number {
-    // We don't have getUIContext() here easily, use a reasonable default
-    return 0;
+    return this.getUIContext().px2vp(this.statusBarHeightPx);
+  }
+
+  private totalToolbarHeight(): number {
+    return this.statusBarVp() + this.toolbarHeight;
   }
 
   @Builder
@@ -543,7 +546,11 @@ export struct FloatingToolbarHost {
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       this.content()
-      FloatingToolbar({ offsetY: this.toolbarOffsetY, barHeight: this.toolbarHeight }) {
+      FloatingToolbar({ offsetY: this.toolbarOffsetY, barHeight: this.totalToolbarHeight() }) {
+        Column()
+          .width('100%')
+          .height(this.statusBarVp())
+          .backgroundColor(APP_THEME_COLOR)
         if (this.kind === 'search') {
           LegacySearchBar({
             keyword: this.keyword,
