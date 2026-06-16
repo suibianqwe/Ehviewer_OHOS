@@ -329,7 +329,6 @@ export struct GalleryListScene {
       const existingGids: Set<number> = new Set(this.galleries.map((g: GalleryInfo) => g.gid));
       const unique: GalleryInfo[] = newGalleries.filter((g: GalleryInfo) => !existingGids.has(g.gid));
       this.galleries = this.galleries.concat(unique);
-      this.renderVersion++;
       this.pageIndex = nextPage;
       if (result.pages > 0) {
         this.totalPages = result.pages;
@@ -746,7 +745,6 @@ export struct GalleryListScene {
             .animation({ duration: 300, curve: Curve.EaseOut }))
       } else {
         GalleryListContent({
-          renderVersion: this.renderVersion,
           sceneTitle: this.sceneTitle,
           listMode: this.listMode,
           keyword: this.keyword,
@@ -808,7 +806,6 @@ export struct GalleryListScene {
 
 @Component
 export struct GalleryListContent {
-  @Prop renderVersion: number = 0;
   @Prop sceneTitle: string = '';
   @Prop listMode: string = '';
   @Prop keyword: string = '';
@@ -822,7 +819,6 @@ export struct GalleryListContent {
   @Prop isLoadingMore: boolean = false;
   @Prop galleries: GalleryInfo[] = [];
   @Prop @Watch('onScrollReset') scrollResetVersion: number = 0;
-  private lastResetVersion: number = 0;
   onKeywordChange: (value: string) => void = () => {};
   onMenu: () => void = () => {};
   onSearch: () => void = () => {};
@@ -1081,9 +1077,7 @@ export struct GalleryListContent {
                 }
               .margin({ bottom: this.galleryCardGap() })
               }, (_row: GalleryInfo[], rowIndex: number) => {
-                return this.galleryColumnCount().toString() + ':' + this.layoutVersion.toString() + ':' +
-                  this.renderVersion.toString() + ':' + rowIndex.toString() + ':' +
-                  _row.map((gallery: GalleryInfo) => gallery.gid.toString()).join('-');
+                return this.galleryColumnCount().toString() + ':' + rowIndex.toString() + ':' + this.galleryRowKey(_row);
               })
 
               // 加载更多指示器
@@ -1244,6 +1238,10 @@ export struct GalleryListContent {
       rows.push(this.galleries.slice(i, i + cols));
     }
     return rows;
+  }
+
+  private galleryRowKey(row: GalleryInfo[]): string {
+    return row.map((gallery: GalleryInfo) => gallery.gid.toString()).join('-');
   }
 
   private searchMode(): boolean {
@@ -1646,13 +1644,14 @@ export struct GalleryTagChip {
 
 @Component
 export struct GalleryThumb {
-  url: string = '';
+  @Prop @Watch('onUrlChange') url: string = '';
   widthValue: number = 86;
   heightValue: number = 118;
   radiusValue: number = 4;
 
   @State localUrl: string = '';
   @State loadFailed: boolean = false;
+  private cachedUrl: string = '';
 
   aboutToAppear(): void {
     if (this.url.length > 0) {
@@ -1662,8 +1661,27 @@ export struct GalleryThumb {
     }
   }
 
+  onUrlChange(): void {
+    if (this.url.length > 0) {
+      this.cacheThumb();
+    } else {
+      this.cachedUrl = '';
+      this.localUrl = '';
+      this.loadFailed = true;
+    }
+  }
+
   private cacheThumb(): void {
+    if (this.cachedUrl === this.url && (this.localUrl.length > 0 || this.loadFailed)) {
+      return;
+    }
+    this.cachedUrl = this.url;
+    this.localUrl = '';
+    this.loadFailed = false;
     cacheThumbnailImage(this.url, (path: string) => {
+      if (this.cachedUrl !== this.url) {
+        return;
+      }
       this.localUrl = readerLocalImageSource(path);
     });
   }
