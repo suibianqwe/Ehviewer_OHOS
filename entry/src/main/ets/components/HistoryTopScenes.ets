@@ -1244,8 +1244,8 @@ export struct TopListTabs {
             .height(34)
             .fontSize(12)
             .fontColor(index === this.selectedIndex ? Color.White : '#2F6F8F')
-            .backgroundColor(index === this.selectedIndex ? '#2F6F8F' : Color.White)
-            .border({ width: 1, color: '#D0D5DD' })
+            .backgroundColor(index === this.selectedIndex ? '#2F6F8F' : Color.Transparent)
+            .border({ width: 1, color: index === this.selectedIndex ? '#2F6F8F' : '#B8CDD8' })
             .onClick(() => {
               this.onSelect(index);
             })
@@ -1274,7 +1274,7 @@ export struct TopListBoard {
   initialScrollOffset: number = 0;
   onScrollUpdate: (offset: number, scrollOffset: number) => void = () => {};
   private boardScroller: Scroller = new Scroller();
-  private readonly TABS_BAR_HEIGHT: number = 44;
+  private readonly TABS_BAR_HEIGHT: number = 42;
 
   private tabsVisualTop(): number {
     return Math.max(this.statusBarHeight, this.topPadding + this.toolbarOffsetY);
@@ -1289,12 +1289,12 @@ export struct TopListBoard {
         onSelect: this.onSelectList
       })
         .width('100%')
-        .padding({ top: 4, bottom: 6 })
-        .backgroundColor('#F3F5F7')
+        .padding({ top: 4, bottom: 4 })
+        .backgroundColor(Color.Transparent)
     }
       .width('100%')
       .height(this.TABS_BAR_HEIGHT)
-      .backgroundColor('#F3F5F7')
+      .backgroundColor(Color.Transparent)
   }
 
   build() {
@@ -1332,7 +1332,7 @@ export struct TopListBoard {
       }
       .width('100%')
       .padding({ left: 12, right: 12, top: this.tabsVisualTop() })
-      .backgroundColor('#F3F5F7')
+      .backgroundColor(Color.Transparent)
       .zIndex(8)
     }
     .width('100%')
