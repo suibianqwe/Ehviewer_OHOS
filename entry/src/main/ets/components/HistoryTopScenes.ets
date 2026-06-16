@@ -56,6 +56,8 @@ export struct HistoryScene {
   @State detailRequestUrl: string = '';
   @State detailDownloadText: string = 'Download';
   @State detailLoaded: boolean = false;
+  @State optimisticFavorite: boolean = false;
+  @State favoriteBusy: boolean = false;
   @State readerStatus: string = 'Reader is ready';
   @State readerPage: GalleryPage = createEmptyPage();
   @State readerPreviewIndex: number = 0;
@@ -146,6 +148,8 @@ export struct HistoryScene {
     this.detailRequestUrl = '';
     this.detailDownloadText = downloadButtonText(gallery.gid);
     this.detailLoaded = false;
+    this.optimisticFavorite = gallery.favoriteSlot >= 0;
+    this.favoriteBusy = false;
     this.renderVersion++;
 
     this.client.loadGalleryDetail(gallery.gid, gallery.token, 0, currentGallerySite(), '').then((result: GalleryDetailLoadResult) => {
@@ -160,6 +164,8 @@ export struct HistoryScene {
       this.detail = mergeLoadedSceneDetail(result.detail, this.detail);
       this.detailDownloadText = downloadButtonText(result.detail.gid);
       this.detailLoaded = true;
+      this.optimisticFavorite = this.detail.isFavorited;
+      this.favoriteBusy = false;
       this.renderVersion++;
       saveGalleryToHistory(result.detail);
       this.loadHistory();
@@ -179,6 +185,8 @@ export struct HistoryScene {
     this.detailRequestUrl = '';
     this.detailDownloadText = 'Download';
     this.detailLoaded = false;
+    this.optimisticFavorite = false;
+    this.favoriteBusy = false;
     this.readerStatus = 'Reader is ready';
     this.readerPage = createEmptyPage();
     this.readerPreviewIndex = 0;
@@ -426,21 +434,41 @@ export struct HistoryScene {
       this.detailStatus = 'No gallery loaded';
       return;
     }
+    if (this.favoriteBusy) {
+      return;
+    }
     const wasFavorited = this.detail.isFavorited;
     this.detailStatus = wasFavorited ? 'Removing from favorites...' : 'Adding to favorites...';
+    this.favoriteBusy = true;
+    this.optimisticFavorite = !wasFavorited;
+    this.applyDetailFavoriteState(this.optimisticFavorite);
+    this.renderVersion++;
     this.client.toggleFavorite(this.detail.gid, this.detail.token, wasFavorited,
       GallerySite.E).then((result: ToggleFavoriteResult) => {
       this.detailStatus = result.message;
       if (result.ok) {
-        const nextDetail = cloneGalleryDetail(this.detail);
-        nextDetail.isFavorited = result.nowFavorited;
-        nextDetail.favoriteSlot = result.nowFavorited ? Math.max(-1, nextDetail.favoriteSlot) : -2;
-        this.detail = nextDetail;
+        this.optimisticFavorite = result.nowFavorited;
+        this.applyDetailFavoriteState(result.nowFavorited);
+      } else {
+        this.optimisticFavorite = wasFavorited;
+        this.applyDetailFavoriteState(wasFavorited);
       }
+      this.favoriteBusy = false;
       this.renderVersion++;
     }).catch((error: Error) => {
       this.detailStatus = 'Favorite failed: ' + error.message;
+      this.optimisticFavorite = wasFavorited;
+      this.applyDetailFavoriteState(wasFavorited);
+      this.favoriteBusy = false;
+      this.renderVersion++;
     });
+  }
+
+  private applyDetailFavoriteState(isFavorited: boolean): void {
+    const nextDetail = cloneGalleryDetail(this.detail);
+    nextDetail.isFavorited = isFavorited;
+    nextDetail.favoriteSlot = isFavorited ? Math.max(0, nextDetail.favoriteSlot) : -2;
+    this.detail = nextDetail;
   }
 
   private shareDetail(): void {
@@ -564,7 +592,7 @@ export struct HistoryScene {
         renderVersion: this.renderVersion,
         detail: this.detail,
         isDetailLoaded: this.detailLoaded,
-        isFavorited: this.detail.isFavorited,
+        isFavorited: this.optimisticFavorite,
         statusText: this.detailStatus,
         requestUrl: this.detailRequestUrl,
         downloadText: this.detailDownloadText,
@@ -771,6 +799,8 @@ export struct TopListScene {
   @State detailRequestUrl: string = '';
   @State detailDownloadText: string = 'Download';
   @State detailLoaded: boolean = false;
+  @State optimisticFavorite: boolean = false;
+  @State favoriteBusy: boolean = false;
   @State readerStatus: string = 'Reader is ready';
   @State readerPage: GalleryPage = createEmptyPage();
   @State readerPreviewIndex: number = 0;
@@ -872,6 +902,8 @@ export struct TopListScene {
     this.detailRequestUrl = '';
     this.detailDownloadText = downloadButtonText(gid);
     this.detailLoaded = false;
+    this.optimisticFavorite = false;
+    this.favoriteBusy = false;
     this.renderVersion++;
 
     this.client.loadGalleryDetail(gid, item.token, 0, GallerySite.E, this.requestUrl).then((result: GalleryDetailLoadResult) => {
@@ -885,6 +917,8 @@ export struct TopListScene {
       this.detail = mergeLoadedSceneDetail(result.detail, this.detail);
       this.detailDownloadText = downloadButtonText(result.detail.gid);
       this.detailLoaded = true;
+      this.optimisticFavorite = this.detail.isFavorited;
+      this.favoriteBusy = false;
       this.renderVersion++;
       saveGalleryToHistory(result.detail);
       this.prewarmReader();
@@ -903,6 +937,8 @@ export struct TopListScene {
     this.detailRequestUrl = '';
     this.detailDownloadText = 'Download';
     this.detailLoaded = false;
+    this.optimisticFavorite = false;
+    this.favoriteBusy = false;
     this.readerStatus = 'Reader is ready';
     this.readerPage = createEmptyPage();
     this.readerPreviewIndex = 0;
@@ -1068,21 +1104,41 @@ export struct TopListScene {
       this.detailStatus = 'No gallery loaded';
       return;
     }
+    if (this.favoriteBusy) {
+      return;
+    }
     const wasFavorited = this.detail.isFavorited;
     this.detailStatus = wasFavorited ? 'Removing from favorites...' : 'Adding to favorites...';
+    this.favoriteBusy = true;
+    this.optimisticFavorite = !wasFavorited;
+    this.applyDetailFavoriteState(this.optimisticFavorite);
+    this.renderVersion++;
     this.client.toggleFavorite(this.detail.gid, this.detail.token, wasFavorited,
       GallerySite.E).then((result: ToggleFavoriteResult) => {
       this.detailStatus = result.message;
       if (result.ok) {
-        const nextDetail = cloneGalleryDetail(this.detail);
-        nextDetail.isFavorited = result.nowFavorited;
-        nextDetail.favoriteSlot = result.nowFavorited ? Math.max(-1, nextDetail.favoriteSlot) : -2;
-        this.detail = nextDetail;
+        this.optimisticFavorite = result.nowFavorited;
+        this.applyDetailFavoriteState(result.nowFavorited);
+      } else {
+        this.optimisticFavorite = wasFavorited;
+        this.applyDetailFavoriteState(wasFavorited);
       }
+      this.favoriteBusy = false;
       this.renderVersion++;
     }).catch((error: Error) => {
       this.detailStatus = 'Favorite failed: ' + error.message;
+      this.optimisticFavorite = wasFavorited;
+      this.applyDetailFavoriteState(wasFavorited);
+      this.favoriteBusy = false;
+      this.renderVersion++;
     });
+  }
+
+  private applyDetailFavoriteState(isFavorited: boolean): void {
+    const nextDetail = cloneGalleryDetail(this.detail);
+    nextDetail.isFavorited = isFavorited;
+    nextDetail.favoriteSlot = isFavorited ? Math.max(0, nextDetail.favoriteSlot) : -2;
+    this.detail = nextDetail;
   }
 
   private shareDetail(): void {
@@ -1199,7 +1255,7 @@ export struct TopListScene {
         renderVersion: this.renderVersion,
         detail: this.detail,
         isDetailLoaded: this.detailLoaded,
-        isFavorited: this.detail.isFavorited,
+        isFavorited: this.optimisticFavorite,
         statusText: this.detailStatus,
         requestUrl: this.detailRequestUrl,
         downloadText: this.detailDownloadText,

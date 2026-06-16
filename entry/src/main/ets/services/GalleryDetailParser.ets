@@ -4,9 +4,12 @@ const DETAIL_PATTERN: RegExp =
   /var\s+gid\s*=\s*(\d+);[\s\S]*?var\s+token\s*=\s*["']([a-f0-9]+)["'];[\s\S]*?var\s+apiuid\s*=\s*([-\d]+);[\s\S]*?var\s+apikey\s*=\s*["']([a-f0-9]+)["'];/i;
 const TORRENT_PATTERN: RegExp = /onclick=["']return popUp\(['"]([^'"]+)['"][^)]*\)["'][^>]*>\s*Torrent Download\s*\((\d+)\)\s*<\/a>/i;
 const ARCHIVE_PATTERN: RegExp = /onclick=["']return popUp\(['"]([^'"]+)['"][^)]*\)["'][^>]*>\s*Archive Download\s*<\/a>/i;
-const COVER_PATTERN: RegExp = /id=["']gd1["'][\s\S]*?style=["'][^"']*url\(([^)]+)\)[^"']*["']/i;
+const COVER_PATTERN: RegExp = /id=["']gd1["'][\s\S]*?style=["']([^"']*url\([^)]+\)[^"']*)["']/i;
+const COVER_URL_PATTERN: RegExp = /url\(([^)]+)\)/i;
 const PREVIEW_PATTERN: RegExp =
-  /<a[^>]+href=["']([^"']+)["'][^>]*>\s*<div[^>]+title=["']Page\s+(\d+):[^"']*["'][^>]+style=["'][^"']*width:(\d+)px;?\s*height:(\d+)px;?[^"']*url\(([^)]+)\)/gi;
+  /<a[^>]+href=["']([^"']+)["'][^>]*>[\s\S]*?<div[^>]+title=["']Page\s+(\d+):[^"']*["'][^>]+style=["']([^"']*width:\s*(\d+)px;?\s*height:\s*(\d+)px;?[^"']*url\([^)]+\)[^"']*)["'][^>]*>/gi;
+const LARGE_PREVIEW_PATTERN: RegExp =
+  /<div[^>]+class=["'][^"']*\bgdtl\b[^"']*["'][\s\S]*?<a[^>]+href=["']([^"']+)["'][^>]*>\s*<img[^>]+alt=["']([\d,]+)["'][^>]+src=["']([^"']+)["']/gi;
 
 export interface GalleryDetailParseResult {
   detail: GalleryDetail | null;
@@ -71,7 +74,7 @@ export function parseGalleryDetail(body: string): GalleryDetailParseResult {
 
 function parseCover(body: string): string {
   const match = COVER_PATTERN.exec(body);
-  return match === null ? '' : decodeHtml(match[1]);
+  return match === null ? '' : normalizeThumbUrl(extractStyleUrl(match[1]));
 }
 
 function parseUploader(body: string): string {
@@ -218,20 +221,76 @@ function parsePreviewPages(body: string): number {
 
 function parsePreviewSet(body: string): GalleryPreview[] {
   const previews: GalleryPreview[] = [];
+  const seen: Set<number> = new Set();
   let match: RegExpExecArray | null = PREVIEW_PATTERN.exec(body);
   while (match !== null) {
-    previews.push({
-      index: parseIntSafe(match[2], 1) - 1,
-      pageUrl: decodeHtml(match[1]),
-      imageUrl: decodeHtml(match[5]),
-      width: parseIntSafe(match[3], 0),
-      height: parseIntSafe(match[4], 0),
-      xOffset: 0,
-      yOffset: 0
-    });
+    const index = parseIntSafe(match[2], 1) - 1;
+    if (index >= 0 && !seen.has(index)) {
+      seen.add(index);
+      previews.push({
+        index: index,
+        pageUrl: decodeHtml(match[1]),
+        imageUrl: normalizeThumbUrl(extractStyleUrl(match[3])),
+        width: parseIntSafe(match[4], 0),
+        height: parseIntSafe(match[5], 0),
+        xOffset: parseStyleOffset(match[3]),
+        yOffset: 0
+      });
+    }
     match = PREVIEW_PATTERN.exec(body);
   }
+
+  match = LARGE_PREVIEW_PATTERN.exec(body);
+  while (match !== null) {
+    const index = parseIntSafe(match[2], 1) - 1;
+    if (index >= 0 && !seen.has(index)) {
+      seen.add(index);
+      previews.push({
+        index: index,
+        pageUrl: decodeHtml(match[1]),
+        imageUrl: normalizeThumbUrl(match[3]),
+        width: 200,
+        height: 0,
+        xOffset: 0,
+        yOffset: 0
+      });
+    }
+    match = LARGE_PREVIEW_PATTERN.exec(body);
+  }
+
+  previews.sort((left: GalleryPreview, right: GalleryPreview) => left.index - right.index);
   return previews;
+}
+
+function extractStyleUrl(style: string): string {
+  const match = COVER_URL_PATTERN.exec(style);
+  if (match === null) {
+    return '';
+  }
+  return decodeHtml(match[1]).replace(/^["']|["']$/g, '').trim();
+}
+
+function parseStyleOffset(style: string): number {
+  const match = /-\s*(\d+)px/i.exec(style);
+  return match === null ? 0 : parseIntSafe(match[1], 0);
+}
+
+function normalizeThumbUrl(url: string): string {
+  const decoded = decodeHtml(url).replace(/^["']|["']$/g, '').trim();
+  if (decoded.length === 0) {
+    return '';
+  }
+  const match = /^https?:\/\/[^/]+\/t\/([^/]+)\/([^/]+)\/([^?#]+)(?:[?#].*)?$/i.exec(decoded);
+  if (match === null) {
+    return decoded;
+  }
+  const first = match[1];
+  const second = match[2];
+  const file = match[3];
+  if (file.indexOf(first + second) !== 0) {
+    return decoded;
+  }
+  return 'https://ehgt.org/' + first + '/' + second + '/' + file;
 }
 
 function parseById(body: string, id: string): string {

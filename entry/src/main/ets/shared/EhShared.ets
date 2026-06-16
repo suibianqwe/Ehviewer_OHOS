@@ -1404,7 +1404,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       staticSettingsRow('latest_release', 'Latest release', 'GitHub releases URL from original settings', 'Link', 'url'),
       staticSettingsRow('issue_help', 'Issue help', 'Issue guide URL from original settings', 'Link', 'url'),
       staticSettingsRow('license', 'License', 'Open-source license view', 'GPL', 'activity'),
-      staticSettingsRow('version', 'Version', 'HarmonyOS port workspace version', '0.1.81', 'version'),
+      staticSettingsRow('version', 'Version', 'HarmonyOS port workspace version', '0.1.82', 'version'),
       staticSettingsRow('check_for_updates', 'Check for updates', 'Original AppUpdater entry', 'Open', 'action'),
       optionSettingsRow('close_auto_updates', 'Close automatic updates', 'Disable startup update check', entries, ON_OFF_OPTIONS),
       staticSettingsRow('donate', 'Donate', 'Original donation entry', 'Not migrated', 'url')
@@ -1643,9 +1643,12 @@ export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: Galle
   }).catch(() => {});
 }
 
-export function cacheThumbnailImage(url: string, onReady: (path: string) => void): void {
+export function cacheThumbnailImage(url: string, onReady: (path: string) => void, onError?: () => void): void {
   const context = getAbilityContext();
   if (context === undefined || url.length === 0) {
+    if (onError !== undefined) {
+      onError();
+    }
     return;
   }
 
@@ -1658,8 +1661,14 @@ export function cacheThumbnailImage(url: string, onReady: (path: string) => void
   readerImageCache.ensureCached(context, url, EhUrl.getReferer(currentGallerySite())).then((path: string) => {
     if (path.length > 0) {
       onReady(path);
+    } else if (onError !== undefined) {
+      onError();
     }
-  }).catch(() => {});
+  }).catch(() => {
+    if (onError !== undefined) {
+      onError();
+    }
+  });
 }
 
 export function cloneGalleryPageWithCache(page: GalleryPage, cachedPath: string): GalleryPage {

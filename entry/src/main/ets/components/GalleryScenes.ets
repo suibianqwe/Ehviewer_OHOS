@@ -157,6 +157,8 @@ export struct GalleryListScene {
   @State detailRequestUrl: string = '';
   @State detailDownloadText: string = 'Download';
   @State detailLoaded: boolean = false;
+  @State optimisticFavorite: boolean = false;
+  @State favoriteBusy: boolean = false;
   @State readerStatus: string = 'Reader is ready';
   @State readerPage: GalleryPage = createEmptyPage();
   @State readerPreviewIndex: number = 0;
@@ -446,6 +448,8 @@ export struct GalleryListScene {
     this.detailRequestUrl = '';
     this.detailDownloadText = downloadButtonText(gallery.gid);
     this.detailLoaded = false;
+    this.optimisticFavorite = gallery.favoriteSlot >= 0;
+    this.favoriteBusy = false;
     this.renderVersion++;
 
     this.client.loadGalleryDetail(gallery.gid, gallery.token, 0, this.activeSite, this.requestUrl).then((result: GalleryDetailLoadResult) => {
@@ -460,6 +464,8 @@ export struct GalleryListScene {
       this.detail = mergeLoadedGalleryDetail(result.detail, this.detail);
       this.detailDownloadText = downloadButtonText(result.detail.gid);
       this.detailLoaded = true;
+      this.optimisticFavorite = this.detail.isFavorited;
+      this.favoriteBusy = false;
       this.renderVersion++;
       saveGalleryToHistory(result.detail);
       this.prewarmReader();
@@ -477,6 +483,9 @@ export struct GalleryListScene {
     this.detailStatus = 'Tap a gallery row to load detail';
     this.detailRequestUrl = '';
     this.detailDownloadText = 'Download';
+    this.detailLoaded = false;
+    this.optimisticFavorite = false;
+    this.favoriteBusy = false;
     this.readerStatus = 'Reader is ready';
     this.readerPage = createEmptyPage();
     this.readerPreviewIndex = 0;
@@ -642,21 +651,41 @@ export struct GalleryListScene {
       this.detailStatus = 'No gallery loaded';
       return;
     }
+    if (this.favoriteBusy) {
+      return;
+    }
     const wasFavorited = this.detail.isFavorited;
     this.detailStatus = wasFavorited ? 'Removing from favorites...' : 'Adding to favorites...';
+    this.favoriteBusy = true;
+    this.optimisticFavorite = !wasFavorited;
+    this.applyDetailFavoriteState(this.optimisticFavorite);
+    this.renderVersion++;
     this.client.toggleFavorite(this.detail.gid, this.detail.token, wasFavorited,
       this.activeSite).then((result: ToggleFavoriteResult) => {
       this.detailStatus = result.message;
       if (result.ok) {
-        const nextDetail = cloneGalleryDetail(this.detail);
-        nextDetail.isFavorited = result.nowFavorited;
-        nextDetail.favoriteSlot = result.nowFavorited ? Math.max(-1, nextDetail.favoriteSlot) : -2;
-        this.detail = nextDetail;
+        this.optimisticFavorite = result.nowFavorited;
+        this.applyDetailFavoriteState(result.nowFavorited);
+      } else {
+        this.optimisticFavorite = wasFavorited;
+        this.applyDetailFavoriteState(wasFavorited);
       }
+      this.favoriteBusy = false;
       this.renderVersion++;
     }).catch((error: Error) => {
       this.detailStatus = 'Favorite failed: ' + error.message;
+      this.optimisticFavorite = wasFavorited;
+      this.applyDetailFavoriteState(wasFavorited);
+      this.favoriteBusy = false;
+      this.renderVersion++;
     });
+  }
+
+  private applyDetailFavoriteState(isFavorited: boolean): void {
+    const nextDetail = cloneGalleryDetail(this.detail);
+    nextDetail.isFavorited = isFavorited;
+    nextDetail.favoriteSlot = isFavorited ? Math.max(0, nextDetail.favoriteSlot) : -2;
+    this.detail = nextDetail;
   }
 
   private rateDetail(rating: number): void {
@@ -753,7 +782,7 @@ export struct GalleryListScene {
           renderVersion: this.renderVersion,
           detail: this.detail,
           isDetailLoaded: this.detailLoaded,
-          isFavorited: this.detail.isFavorited,
+          isFavorited: this.optimisticFavorite,
           statusText: this.detailStatus,
           requestUrl: this.detailRequestUrl,
           downloadText: this.detailDownloadText,
@@ -1742,6 +1771,13 @@ export struct GalleryThumb {
         return;
       }
       this.localUrl = readerLocalImageSource(path);
+      this.loadFailed = false;
+    }, () => {
+      if (this.cachedUrl !== this.url) {
+        return;
+      }
+      this.localUrl = '';
+      this.loadFailed = true;
     });
   }
 
@@ -1763,6 +1799,12 @@ export struct GalleryThumb {
             .fontColor('#9BB8CB')
         }
         .justifyContent(FlexAlign.Center)
+        .onClick(() => {
+          if (this.url.length > 0) {
+            this.cachedUrl = '';
+            this.cacheThumb();
+          }
+        })
       } else if (this.localUrl.length > 0) {
         Image(this.localUrl)
           .width('100%')
@@ -2067,10 +2109,11 @@ export struct DetailHeader {
 
 @Component
 export struct HeaderActionButton {
-  symbolIcon: Resource = $r('sys.symbol.play_fill');
-  text: string = '';
-  accent: boolean = false;
+  @Prop symbolIcon: Resource = $r('sys.symbol.play_fill');
+  @Prop text: string = '';
+  @Prop accent: boolean = false;
   onTap: () => void = () => {};
+  @State pressed: boolean = false;
 
   build() {
     Row() {
@@ -2089,6 +2132,15 @@ export struct HeaderActionButton {
     .width('100%')
     .backgroundColor(this.accent ? '#F7C948' : '#2B6B87')
     .borderRadius(4)
+    .scale({ x: this.pressed ? 0.96 : 1, y: this.pressed ? 0.96 : 1 })
+    .animation({ duration: 120, curve: Curve.EaseOut })
+    .onTouch((event: TouchEvent) => {
+      if (event.type === TouchType.Down) {
+        this.pressed = true;
+      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+        this.pressed = false;
+      }
+    })
     .onClick(() => {
       this.onTap();
     })
@@ -2391,11 +2443,12 @@ export struct RatingPanel {
 
 @Component
 export struct DetailActionItem {
-  symbolIcon: Resource = $r('sys.symbol.heart');
-  label: string = '';
-  isActive: boolean = true;
-  isFilled: boolean = false;
+  @Prop symbolIcon: Resource = $r('sys.symbol.heart');
+  @Prop label: string = '';
+  @Prop isActive: boolean = true;
+  @Prop isFilled: boolean = false;
   onTap: () => void = () => {};
+  @State pressed: boolean = false;
 
   build() {
     Column({ space: 6 }) {
@@ -2412,6 +2465,20 @@ export struct DetailActionItem {
     .width(72)
     .height(68)
     .justifyContent(FlexAlign.Center)
+    .backgroundColor(this.pressed ? '#E6F1F6' : '#00FFFFFF')
+    .borderRadius(6)
+    .scale({ x: this.pressed ? 0.92 : 1, y: this.pressed ? 0.92 : 1 })
+    .animation({ duration: 120, curve: Curve.EaseOut })
+    .onTouch((event: TouchEvent) => {
+      if (!this.isActive) {
+        return;
+      }
+      if (event.type === TouchType.Down) {
+        this.pressed = true;
+      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+        this.pressed = false;
+      }
+    })
     .onClick(() => {
       if (this.isActive) {
         this.onTap();
