@@ -1241,6 +1241,8 @@ export struct TopListTabs {
       Row({ space: 8 }) {
         ForEach(this.lists, (info: TopListInfo, index: number) => {
           Button(info.title)
+            .type(ButtonType.Normal)
+            .stateEffect(false)
             .height(34)
             .fontSize(12)
             .fontColor(index === this.selectedIndex ? Color.White : '#2F6F8F')
@@ -1280,6 +1282,10 @@ export struct TopListBoard {
     return Math.max(this.statusBarHeight, this.topPadding + this.toolbarOffsetY);
   }
 
+  private contentTopPadding(): number {
+    return this.tabsVisualTop() + this.TABS_BAR_HEIGHT + 8;
+  }
+
   @Builder
   private TabsBar() {
     Column() {
@@ -1314,7 +1320,8 @@ export struct TopListBoard {
       }
       .width('100%')
       .height('100%')
-      .padding({ left: 12, right: 12, top: this.topPadding + this.TABS_BAR_HEIGHT + 8, bottom: 0 })
+      .padding({ left: 12, right: 12, top: this.contentTopPadding(), bottom: 0 })
+      .backgroundColor('#F3F5F7')
       .onAppear(() => {
         if (this.initialScrollOffset > 0) {
           this.boardScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
@@ -1337,6 +1344,7 @@ export struct TopListBoard {
     }
     .width('100%')
     .height('100%')
+    .backgroundColor('#F3F5F7')
   }
 }
 
