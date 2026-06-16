@@ -835,6 +835,7 @@ export struct GalleryListContent {
   initialScrollOffset: number = 0;
   onScrollUpdate: (offset: number) => void = () => {};
   @State contentWidth: number = 0;
+  @State layoutVersion: number = 0;
   @State refreshing: boolean = false;
   onRefreshPull: (done: () => void) => void = (done: () => void) => { done(); };
   // 下拉刷新自定义 builder 状态
@@ -994,21 +995,12 @@ export struct GalleryListContent {
     return 104;
   }
 
-  private galleryCardRightMargin(index: number): number {
-    return (index + 1) % this.galleryColumnCount() === 0 ? 0 : this.galleryCardGap();
-  }
-
   private updateContentWidth(width: number): void {
     if (width <= 0 || Number.isNaN(width) || this.contentWidth === width) {
       return;
     }
-    if (this.contentWidth <= 0) {
-      this.contentWidth = width;
-      return;
-    }
-    this.getUIContext().animateTo({ duration: 220, curve: Curve.EaseInOut }, () => {
-      this.contentWidth = width;
-    });
+    this.contentWidth = width;
+    this.layoutVersion++;
   }
 
 
@@ -1087,7 +1079,10 @@ export struct GalleryListContent {
                   .justifyContent(FlexAlign.Start)
                 }
                 .margin({ bottom: this.galleryCardGap() })
-              }, (_row: GalleryInfo[], rowIndex: number) => rowIndex.toString() + ':' + this.renderVersion.toString())
+              }, (_row: GalleryInfo[], rowIndex: number) => {
+                return this.galleryColumnCount().toString() + ':' + this.layoutVersion.toString() + ':' +
+                  this.renderVersion.toString() + ':' + rowIndex.toString();
+              })
 
               // 加载更多指示器
               if (this.isLoadingMore) {
