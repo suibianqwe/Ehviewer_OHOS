@@ -329,6 +329,7 @@ export struct GalleryListScene {
       const existingGids: Set<number> = new Set(this.galleries.map((g: GalleryInfo) => g.gid));
       const unique: GalleryInfo[] = newGalleries.filter((g: GalleryInfo) => !existingGids.has(g.gid));
       this.galleries = this.galleries.concat(unique);
+      this.renderVersion++;
       this.pageIndex = nextPage;
       if (result.pages > 0) {
         this.totalPages = result.pages;
@@ -1078,10 +1079,11 @@ export struct GalleryListContent {
                   .padding({ left: this.galleryContentPadding(), right: this.galleryContentPadding() })
                   .justifyContent(FlexAlign.Start)
                 }
-                .margin({ bottom: this.galleryCardGap() })
+              .margin({ bottom: this.galleryCardGap() })
               }, (_row: GalleryInfo[], rowIndex: number) => {
                 return this.galleryColumnCount().toString() + ':' + this.layoutVersion.toString() + ':' +
-                  this.renderVersion.toString() + ':' + rowIndex.toString();
+                  this.renderVersion.toString() + ':' + rowIndex.toString() + ':' +
+                  _row.map((gallery: GalleryInfo) => gallery.gid.toString()).join('-');
               })
 
               // 加载更多指示器
