@@ -145,6 +145,7 @@ export struct GalleryListScene {
   @State detailStatus: string = 'Tap a gallery row to load detail';
   @State detailRequestUrl: string = '';
   @State detailDownloadText: string = 'Download';
+  @State detailLoaded: boolean = false;
   @State readerStatus: string = 'Reader is ready';
   @State readerPage: GalleryPage = createEmptyPage();
   @State readerPreviewIndex: number = 0;
@@ -444,6 +445,7 @@ export struct GalleryListScene {
     this.detailStatus = 'Loading detail for gid ' + gallery.gid.toString() + '...';
     this.detailRequestUrl = '';
     this.detailDownloadText = downloadButtonText(gallery.gid);
+    this.detailLoaded = false;
     this.renderVersion++;
 
     this.client.loadGalleryDetail(gallery.gid, gallery.token, 0, this.activeSite, this.requestUrl).then((result: GalleryDetailLoadResult) => {
@@ -457,6 +459,7 @@ export struct GalleryListScene {
       this.detailStatus = 'Detail loaded';
       this.detail = cloneGalleryDetail(result.detail);
       this.detailDownloadText = downloadButtonText(result.detail.gid);
+      this.detailLoaded = true;
       this.renderVersion++;
       saveGalleryToHistory(result.detail);
       this.prewarmReader();
@@ -645,7 +648,10 @@ export struct GalleryListScene {
       this.activeSite).then((result: ToggleFavoriteResult) => {
       this.detailStatus = result.message;
       if (result.ok) {
-        this.detail.isFavorited = result.nowFavorited;
+        const nextDetail = cloneGalleryDetail(this.detail);
+        nextDetail.isFavorited = result.nowFavorited;
+        nextDetail.favoriteSlot = result.nowFavorited ? Math.max(-1, nextDetail.favoriteSlot) : -2;
+        this.detail = nextDetail;
       }
       this.renderVersion++;
     }).catch((error: Error) => {
@@ -711,6 +717,7 @@ export struct GalleryListScene {
         GalleryDetailScene({
           renderVersion: this.renderVersion,
           detail: this.detail,
+          isDetailLoaded: this.detailLoaded,
           isFavorited: this.detail.isFavorited,
           statusText: this.detailStatus,
           requestUrl: this.detailRequestUrl,
@@ -1801,6 +1808,7 @@ export struct CategoryBadge {
 export struct GalleryDetailScene {
   @Prop renderVersion: number = 0;
   @Prop detail: GalleryDetail = createEmptyDetail();
+  @Prop isDetailLoaded: boolean = false;
   @Prop isFavorited: boolean = false;
   @Prop statusText: string = '';
   @Prop requestUrl: string = '';
@@ -1863,12 +1871,22 @@ export struct GalleryDetailScene {
             onRead: this.onRead
           })
         }
+        if (this.statusText.length > 0 && (!this.isDetailLoaded || this.statusText.indexOf('failed') >= 0 ||
+          this.statusText.indexOf('Failed') >= 0)) {
+          ListItem() {
+            DetailLoadStatus({
+              statusText: this.statusText,
+              isError: this.statusText.indexOf('failed') >= 0 || this.statusText.indexOf('Failed') >= 0
+            })
+          }
+        }
         ListItem() {
-          DetailInfoBlock({ detail: this.detail, requestUrl: this.requestUrl })
+          DetailInfoBlock({ detail: this.detail, requestUrl: this.requestUrl, isDetailLoaded: this.isDetailLoaded })
         }
         ListItem() {
           DetailActions({
             detail: this.detail,
+            isDetailLoaded: this.isDetailLoaded,
             isFavorited: this.isFavorited,
             onFavorite: this.onFavorite,
             onShare: this.onShare,
@@ -1877,18 +1895,20 @@ export struct GalleryDetailScene {
           })
         }
         ListItem() {
-          DetailTags({ tags: this.detail.tags })
+          DetailTags({ tags: this.detail.tags, isDetailLoaded: this.isDetailLoaded })
         }
         ListItem() {
           DetailPreviews({
             previews: this.detail.previewSet,
             previewPages: this.detail.previewPages,
+            isDetailLoaded: this.isDetailLoaded,
             onSelectPreview: this.onSelectPreview
           })
         }
         ListItem() {
           DetailComments({
             comments: this.detail.comments,
+            isDetailLoaded: this.isDetailLoaded,
             onComments: this.onComments
           })
         }
@@ -2008,25 +2028,85 @@ export struct HeaderActionButton {
 }
 
 @Component
+export struct DetailLoadStatus {
+  @Prop statusText: string = '';
+  @Prop isError: boolean = false;
+
+  build() {
+    Row() {
+      if (!this.isError) {
+        LoadingProgress()
+          .width(18)
+          .height(18)
+          .color(APP_THEME_COLOR)
+          .margin({ right: 10 })
+      } else {
+        SymbolGlyph($r('sys.symbol.exclamationmark_circle'))
+          .fontSize(18)
+          .fontColor(['#B42318'])
+          .margin({ right: 10 })
+      }
+      Text(uiStatusText(this.statusText))
+        .fontSize(12)
+        .fontColor(this.isError ? '#B42318' : '#40566F')
+        .layoutWeight(1)
+    }
+    .width('100%')
+    .padding({ left: 16, right: 16, top: 10, bottom: 10 })
+    .backgroundColor(this.isError ? '#FEF3F2' : '#EEF6FA')
+  }
+}
+
+@Component
 export struct DetailInfoBlock {
   @Prop detail: GalleryDetail = createEmptyDetail();
   @Prop requestUrl: string = '';
+  @Prop isDetailLoaded: boolean = false;
+
+  private pagesText(): string {
+    if (this.detail.pages <= 0) {
+      return '-';
+    }
+    return this.detail.pages.toString() + (shouldUseChineseUi() ? ' 页' : ' pages');
+  }
+
+  private favoriteText(): string {
+    if (!this.isDetailLoaded) {
+      return uiText('Loading...');
+    }
+    return this.detail.favoriteCount.toString() + (shouldUseChineseUi() ? ' 次收藏' : ' favored');
+  }
 
   build() {
     Column() {
-      Text(uiText('Information'))
-        .fontSize(detailHeadingFontSize())
-        .fontWeight(FontWeight.Medium)
-        .fontColor('#17202A')
-        .width('100%')
-      InfoRow({ label: uiText('Posted'), value: this.detail.posted === undefined ? '' : this.detail.posted })
-      InfoRow({ label: uiText('Parent'), value: this.detail.parent })
-      InfoRow({ label: uiText('Visible'), value: this.detail.visible })
-      InfoRow({ label: uiText('Language'), value: this.detail.language })
-      InfoRow({ label: uiText('File Size'), value: this.detail.size })
-      InfoRow({ label: uiText('Length'), value: this.detail.pages.toString() + (shouldUseChineseUi() ? ' 页' : ' pages') })
-      InfoRow({ label: uiText('Rating'), value: ratingText(this.detail.rating) + ' / ' + this.detail.ratingCount.toString() })
-      InfoRow({ label: uiText('Favorited'), value: this.detail.favoriteCount.toString() })
+      Row() {
+        DetailSummaryCell({
+          value: this.detail.language.length > 0 ? this.detail.language :
+            (this.detail.simpleLanguage === undefined || this.detail.simpleLanguage.length === 0 ? '-' : this.detail.simpleLanguage),
+          textAlignValue: TextAlign.Start
+        })
+        DetailSummaryCell({ value: this.pagesText(), textAlignValue: TextAlign.Center })
+        DetailSummaryCell({
+          value: this.isDetailLoaded ? (this.detail.size.length > 0 ? this.detail.size : '-') : uiText('Loading...'),
+          textAlignValue: TextAlign.End
+        })
+      }
+      .width('100%')
+
+      Row() {
+        DetailSummaryCell({ value: this.favoriteText(), textAlignValue: TextAlign.Start })
+        DetailSummaryCell({
+          value: this.detail.posted === undefined || this.detail.posted.length === 0 ? '-' : this.detail.posted,
+          textAlignValue: TextAlign.End
+        })
+      }
+      .width('100%')
+      .margin({ top: 8 })
+
+      if (this.isDetailLoaded) {
+        InfoRow({ label: uiText('Parent'), value: this.detail.parent })
+        InfoRow({ label: uiText('Visible'), value: this.detail.visible })
+      }
       if (this.requestUrl.length > 0) {
         InfoRow({ label: 'URL', value: this.requestUrl })
       }
@@ -2034,6 +2114,22 @@ export struct DetailInfoBlock {
     .width('100%')
     .padding(16)
     .backgroundColor(Color.White)
+  }
+}
+
+@Component
+export struct DetailSummaryCell {
+  @Prop value: string = '';
+  @Prop textAlignValue: TextAlign = TextAlign.Start;
+
+  build() {
+    Text(this.value.length === 0 ? '-' : this.value)
+      .fontSize(13)
+      .fontColor('#17202A')
+      .textAlign(this.textAlignValue)
+      .maxLines(1)
+      .textOverflow({ overflow: TextOverflow.Ellipsis })
+      .layoutWeight(1)
   }
 }
 
@@ -2063,6 +2159,7 @@ export struct InfoRow {
 @Component
 export struct DetailActions {
   @Prop detail: GalleryDetail = createEmptyDetail();
+  @Prop isDetailLoaded: boolean = false;
   @Prop isFavorited: boolean = false;
   onFavorite: () => void = () => {};
   onShare: () => void = () => {};
@@ -2070,41 +2167,89 @@ export struct DetailActions {
   onArchive: () => void = () => {};
 
   build() {
-    Scroll() {
-      Row() {
-        DetailActionItem({
-          symbolIcon: $r('sys.symbol.heart'),
-          label: this.isFavorited ? uiText('Favorited') : uiText('Favorite'),
-          isActive: this.detail.gid > 0,
-          isFilled: this.isFavorited,
-          onTap: this.onFavorite
-        })
-        DetailActionItem({
-          symbolIcon: $r('sys.symbol.share'),
-          label: uiText('Share'),
-          isActive: this.detail.gid > 0,
-          onTap: this.onShare
-        })
-        DetailActionItem({
-          symbolIcon: $r('sys.symbol.save'),
-          label: this.detail.torrentCount > 0 ?
-            'Torrent (' + this.detail.torrentCount.toString() + ')' : 'Torrent',
-          isActive: this.detail.torrentCount > 0 && this.detail.torrentUrl.length > 0,
-          onTap: this.onTorrent
-        })
-        DetailActionItem({
-          symbolIcon: $r('sys.symbol.doc_plaintext'),
-          label: uiText('Archive'),
-          isActive: this.detail.archiveUrl.length > 0,
-          onTap: this.onArchive
-        })
+    Column() {
+      Scroll() {
+        Row() {
+          DetailActionItem({
+            symbolIcon: $r('sys.symbol.heart'),
+            label: this.isFavorited ? uiText('Favorited') : uiText('Favorite'),
+            isActive: this.detail.gid > 0,
+            isFilled: this.isFavorited,
+            onTap: this.onFavorite
+          })
+          DetailActionItem({
+            symbolIcon: $r('sys.symbol.star'),
+            label: uiText('Rate'),
+            isActive: this.isDetailLoaded && this.detail.apiUid >= 0,
+            onTap: () => {}
+          })
+          DetailActionItem({
+            symbolIcon: $r('sys.symbol.share'),
+            label: uiText('Share'),
+            isActive: this.detail.gid > 0,
+            onTap: this.onShare
+          })
+          DetailActionItem({
+            symbolIcon: $r('sys.symbol.save'),
+            label: this.isDetailLoaded && this.detail.torrentCount > 0 ?
+              'Torrent (' + this.detail.torrentCount.toString() + ')' : 'Torrent',
+            isActive: this.isDetailLoaded && this.detail.torrentCount > 0 && this.detail.torrentUrl.length > 0,
+            onTap: this.onTorrent
+          })
+          DetailActionItem({
+            symbolIcon: $r('sys.symbol.doc_plaintext'),
+            label: uiText('Archive'),
+            isActive: this.isDetailLoaded && this.detail.archiveUrl.length > 0,
+            onTap: this.onArchive
+          })
+        }
       }
+      .scrollable(ScrollDirection.Horizontal)
+      .scrollBar(BarState.Off)
+      .width('100%')
+
+      RatingSummary({
+        rating: this.detail.rating,
+        ratingCount: this.detail.ratingCount,
+        isDetailLoaded: this.isDetailLoaded
+      })
+        .margin({ top: 8 })
     }
-    .scrollable(ScrollDirection.Horizontal)
-    .scrollBar(BarState.Off)
     .width('100%')
-    .padding({ top: 8, bottom: 8 })
+    .padding({ top: 12, bottom: 12 })
     .backgroundColor(Color.White)
+  }
+}
+
+@Component
+export struct RatingSummary {
+  @Prop rating: number = -1;
+  @Prop ratingCount: number = 0;
+  @Prop isDetailLoaded: boolean = false;
+
+  private ratingLabel(): string {
+    if (this.rating < 0) {
+      return '-';
+    }
+    return this.rating.toString() + ' / 5';
+  }
+
+  build() {
+    Column() {
+      Text(this.isDetailLoaded ? this.ratingLabel() + '  (' + this.ratingCount.toString() + ')' : uiText('Loading rating...'))
+        .fontSize(13)
+        .fontColor('#40566F')
+      Row({ space: 2 }) {
+        ForEach([0, 1, 2, 3, 4], (index: number) => {
+          SymbolGlyph($r('sys.symbol.star_fill'))
+            .fontSize(16)
+            .fontColor([this.rating >= index + 1 ? '#F7C948' : '#D0D5DD'])
+        }, (index: number) => index.toString())
+      }
+      .margin({ top: 4 })
+    }
+    .alignItems(HorizontalAlign.Center)
+    .width('100%')
   }
 }
 @Component
@@ -2141,6 +2286,7 @@ export struct DetailActionItem {
 @Component
 export struct DetailTags {
   @Prop tags: GalleryTagGroup[] = [];
+  @Prop isDetailLoaded: boolean = false;
 
   build() {
     Column() {
@@ -2149,7 +2295,12 @@ export struct DetailTags {
         .fontWeight(FontWeight.Medium)
         .fontColor('#17202A')
         .width('100%')
-      if (this.tags.length === 0) {
+      if (!this.isDetailLoaded) {
+        Text(uiText('Loading tags...'))
+          .fontSize(12)
+          .fontColor('#667085')
+          .margin({ top: 8 })
+      } else if (this.tags.length === 0) {
         Text(uiText('No tags parsed'))
           .fontSize(12)
           .fontColor('#667085')
@@ -2194,6 +2345,7 @@ export struct TagGroupRow {
 export struct DetailPreviews {
   @Prop previews: GalleryPreview[] = [];
   @Prop previewPages: number = 0;
+  @Prop isDetailLoaded: boolean = false;
   onSelectPreview: (preview: GalleryPreview) => void = () => {};
 
   build() {
@@ -2203,20 +2355,30 @@ export struct DetailPreviews {
         .fontWeight(FontWeight.Medium)
         .fontColor('#17202A')
         .width('100%')
-      Text(shouldUseChineseUi() ? this.previews.length.toString() + ' 个缩略图 / ' + this.previewPages.toString() + ' 页' :
-        this.previews.length.toString() + ' thumbnails / ' + this.previewPages.toString() + ' pages')
+      Text(!this.isDetailLoaded ? uiText('Loading previews...') :
+        (shouldUseChineseUi() ? this.previews.length.toString() + ' 个缩略图 / ' + this.previewPages.toString() + ' 页' :
+          this.previews.length.toString() + ' thumbnails / ' + this.previewPages.toString() + ' pages'))
         .fontSize(12)
         .fontColor('#667085')
         .width('100%')
         .margin({ top: 6, bottom: 8 })
-      ForEach(this.previews.slice(0, 12), (preview: GalleryPreview) => {
-        PreviewRow({
-          preview: preview,
-          onSelectPreview: (selected: GalleryPreview) => {
-            this.onSelectPreview(selected);
-          }
-        })
-      }, (preview: GalleryPreview) => preview.index.toString())
+      if (this.isDetailLoaded && this.previews.length === 0) {
+        Text(uiText('No previews'))
+          .fontSize(12)
+          .fontColor('#667085')
+      } else {
+        Flex({ wrap: FlexWrap.Wrap }) {
+          ForEach(this.previews.slice(0, 24), (preview: GalleryPreview) => {
+            PreviewTile({
+              preview: preview,
+              onSelectPreview: (selected: GalleryPreview) => {
+                this.onSelectPreview(selected);
+              }
+            })
+          }, (preview: GalleryPreview) => preview.index.toString())
+        }
+        .width('100%')
+      }
     }
     .alignItems(HorizontalAlign.Start)
     .width('100%')
@@ -2261,6 +2423,33 @@ export struct PreviewRow {
   }
 }
 
+@Component
+export struct PreviewTile {
+  preview: GalleryPreview = createEmptyPreview();
+  onSelectPreview: (preview: GalleryPreview) => void = () => {};
+
+  build() {
+    Column() {
+      GalleryThumb({
+        url: this.preview.imageUrl,
+        widthValue: 86,
+        heightValue: 62,
+        radiusValue: 4
+      })
+      Text((this.preview.index + 1).toString())
+        .fontSize(11)
+        .fontColor('#40566F')
+        .margin({ top: 4 })
+    }
+    .width(94)
+    .padding({ right: 8, bottom: 10 })
+    .alignItems(HorizontalAlign.Center)
+    .onClick(() => {
+      this.onSelectPreview(this.preview);
+    })
+  }
+}
+
 function stripHtml(html: string): string {
   let text = html
     .replace(/<br\s*\/?>/gi, '\n')
@@ -2282,6 +2471,7 @@ function stripHtml(html: string): string {
 @Component
 export struct DetailComments {
   @Prop comments: GalleryComment[] = [];
+  @Prop isDetailLoaded: boolean = false;
   onComments: () => void = () => {};
 
   build() {
@@ -2292,7 +2482,11 @@ export struct DetailComments {
           .fontWeight(FontWeight.Medium)
           .fontColor('#17202A')
           .layoutWeight(1)
-        if (this.comments.length > 0) {
+        if (!this.isDetailLoaded) {
+          Text(uiText('Loading...'))
+            .fontSize(13)
+            .fontColor('#667085')
+        } else if (this.comments.length > 0) {
           Text(uiText('See all') + ' (' + this.comments.length.toString() + ')')
             .fontSize(13)
             .fontColor('#2F6F8F')
@@ -2308,12 +2502,16 @@ export struct DetailComments {
       .width('100%')
       .margin({ bottom: 10 })
 
-      if (this.comments.length === 0) {
+      if (!this.isDetailLoaded) {
+        Text(uiText('Loading comments...'))
+          .fontSize(13)
+          .fontColor('#667085')
+      } else if (this.comments.length === 0) {
         Text(uiText('No comments'))
           .fontSize(13)
           .fontColor('#667085')
       } else {
-        ForEach(this.comments.slice(0, 3), (comment: GalleryComment) => {
+        ForEach(this.comments.slice(0, 2), (comment: GalleryComment) => {
           Column() {
             Row() {
               Text(comment.user.length > 0 ? comment.user : uiText('Anonymous'))
@@ -2343,7 +2541,7 @@ export struct DetailComments {
           .borderRadius(6)
         }, (comment: GalleryComment) => comment.id)
 
-        if (this.comments.length > 3) {
+        if (this.comments.length > 2) {
           Text(uiText('View all') + ' ' + this.comments.length.toString() + ' ' + uiText('comments') + ' →')
             .fontSize(13)
             .fontColor('#2F6F8F')
