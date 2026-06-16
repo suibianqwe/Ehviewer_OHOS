@@ -869,6 +869,13 @@ export struct GalleryListContent {
   private visibleBarHeight(): number {
     return Math.max(0, this.totalBarHeight() + this.toolbarOffsetY);
   }
+
+  private syncToolbarWithPull(offset: number): void {
+    if (offset <= 0) {
+      return;
+    }
+    this.toolbarOffsetY = Math.min(0, -this.totalBarHeight() + offset);
+  }
   
   private handleScrollMove(yOffset: number): void {
     const delta = yOffset - this.lastScrollY;
@@ -1149,6 +1156,7 @@ export struct GalleryListContent {
         .pullToRefresh(true)
         .onOffsetChange((value: number) => {
           const offset = Math.max(0, value);
+          this.syncToolbarWithPull(offset);
           if (this.refreshing) {
             return;
           }
