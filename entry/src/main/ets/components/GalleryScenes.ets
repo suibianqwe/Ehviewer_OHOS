@@ -815,6 +815,11 @@ export struct GalleryListContent {
   onScrollUpdate: (offset: number) => void = () => {};
   @State contentWidth: number = 0;
   @State refreshing: boolean = false;
+  // 下拉刷新自定义 builder 状态
+  @State refreshScaleNum: number = 0;
+  @State refreshShowLogo: boolean = true;
+  @State refreshMsg: string = '';
+  private readonly REFRESH_OFFSET: number = 80;
   @State viewportHeight: number = 0;
   private listScroller: Scroller = new Scroller();
   private loadMorePending: boolean = false;
@@ -963,9 +968,39 @@ export struct GalleryListContent {
     });
   }
 
+
+  @Builder
+  private customRefreshComponent() {
+    Stack() {
+      Column({ space: 6 }) {
+        // Logo icon: visible while dragging (before refresh triggers)
+        Image($r('app.media.app_icon'))
+          .width(28)
+          .height(28)
+          .scale({ x: this.refreshScaleNum, y: this.refreshScaleNum })
+          .visibility(this.refreshShowLogo ? Visibility.Visible : Visibility.None)
+        // LoadingProgress: visible once refresh is triggered
+        LoadingProgress()
+          .width(32)
+          .height(32)
+          .color(APP_THEME_COLOR)
+          .visibility(this.refreshShowLogo ? Visibility.None : Visibility.Visible)
+        if (this.refreshMsg.length > 0) {
+          Text(this.refreshMsg)
+            .fontSize(13)
+            .fontColor($r('app.color.secondary_text'))
+        }
+      }
+      .alignItems(HorizontalAlign.Center)
+    }
+    .width('100%')
+    .height(100)
+    .align(Alignment.Center)
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Refresh({ refreshing: $$this.refreshing }) {
+      Refresh({ refreshing: $$this.refreshing, builder: this.customRefreshComponent() }) {
         Scroll(this.listScroller) {
           Column() {
             if (this.galleries.length === 0) {
@@ -1065,8 +1100,27 @@ export struct GalleryListContent {
           this.triggerLoadMoreIfNear(this.galleries.length);
         })
       }
-      .refreshOffset(80)
+      .refreshOffset(this.REFRESH_OFFSET)
       .pullToRefresh(true)
+      .onOffsetChange((value: number) => {
+        if (value < this.REFRESH_OFFSET) {
+          this.refreshShowLogo = true;
+          this.refreshMsg = uiText('Pull down to refresh');
+          // scale from 0 to 1 as user pulls down
+          this.refreshScaleNum = value / this.REFRESH_OFFSET;
+        } else {
+          this.refreshMsg = uiText('Release to refresh');
+          // scale back from 1 to smaller as user pulls past threshold
+          this.refreshScaleNum = this.REFRESH_OFFSET / value;
+        }
+      })
+      .onStateChange((refreshStatus: RefreshStatus) => {
+        // RefreshStatus 3 = Refresh (rebounded to offset, now refreshing)
+        if (refreshStatus === RefreshStatus.Refresh) {
+          this.refreshShowLogo = false;
+          this.refreshMsg = uiText('Refreshing...');
+        }
+      })
       .onRefreshing(() => {
         this.refreshFromPull();
       })

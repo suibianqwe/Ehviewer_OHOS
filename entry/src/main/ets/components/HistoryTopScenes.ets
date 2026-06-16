@@ -43,6 +43,10 @@ export struct HistoryScene {
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @State toolbarOffsetY: number = 0;
   @State historyRefreshing: boolean = false;
+  @State historyRefreshScaleNum: number = 0;
+  @State historyRefreshShowLogo: boolean = true;
+  @State historyRefreshMsg: string = '';
+  private readonly HISTORY_REFRESH_OFFSET: number = 64;
   private historyScroller: Scroller = new Scroller();
   private historyScrollOffset: number = 0;
   private historyToolbarScrollOffset: number = 0;
@@ -90,8 +94,16 @@ export struct HistoryScene {
     if (this.historyRefreshing) {
       return;
     }
+    this.historyRefreshShowLogo = false;
+    this.historyRefreshMsg = uiText('Refreshing...');
     this.historyRefreshing = true;
     this.loadHistory();
+    setTimeout(() => {
+      this.historyRefreshing = false;
+      this.historyRefreshShowLogo = true;
+      this.historyRefreshMsg = '';
+      this.historyRefreshScaleNum = 0;
+    }, 800);
   }
 
   private clearHistory(): void {
@@ -364,6 +376,34 @@ export struct HistoryScene {
     this.renderVersion++;
   }
 
+
+  @Builder
+  private historyRefreshComponent() {
+    Stack() {
+      Column({ space: 6 }) {
+        Image($r('app.media.app_icon'))
+          .width(28)
+          .height(28)
+          .scale({ x: this.historyRefreshScaleNum, y: this.historyRefreshScaleNum })
+          .visibility(this.historyRefreshShowLogo ? Visibility.Visible : Visibility.None)
+        LoadingProgress()
+          .width(32)
+          .height(32)
+          .color(APP_THEME_COLOR)
+          .visibility(this.historyRefreshShowLogo ? Visibility.None : Visibility.Visible)
+        if (this.historyRefreshMsg.length > 0) {
+          Text(this.historyRefreshMsg)
+            .fontSize(13)
+            .fontColor($r('app.color.secondary_text'))
+        }
+      }
+      .alignItems(HorizontalAlign.Center)
+    }
+    .width('100%')
+    .height(80)
+    .align(Alignment.Center)
+  }
+
   build() {
     if (this.showReader) {
       ReaderScene({
@@ -455,21 +495,9 @@ export struct HistoryScene {
         }
       }) {
         Column() {
-          Refresh({ refreshing: this.historyRefreshing }) {
+          Refresh({ refreshing: $$this.historyRefreshing, builder: this.historyRefreshComponent() }) {
             Scroll(this.historyScroller) {
               Column({ space: 8 }) {
-                Row() {
-                  if (this.historyRefreshing) {
-                    LoadingProgress()
-                      .width(20)
-                      .height(20)
-                      .color('#2F6F8F')
-                  }
-                }
-                .width('100%')
-                .height(this.historyRefreshing ? 28 : 0)
-                .justifyContent(FlexAlign.Center)
-                .animation({ duration: 180, curve: Curve.EaseOut })
 
                 if (this.histories.length === 0) {
                   PlaceholderScene({
@@ -530,9 +558,26 @@ export struct HistoryScene {
               this.historyToolbarScrollOffset = offset;
             })
           }
-          .refreshOffset(36)
+          .refreshOffset(this.HISTORY_REFRESH_OFFSET)
           .pullToRefresh(true)
+          .onOffsetChange((value: number) => {
+            if (value < this.HISTORY_REFRESH_OFFSET) {
+              this.historyRefreshShowLogo = true;
+              this.historyRefreshMsg = uiText('Pull down to refresh');
+              this.historyRefreshScaleNum = value / this.HISTORY_REFRESH_OFFSET;
+            } else {
+              this.historyRefreshMsg = uiText('Release to refresh');
+              this.historyRefreshScaleNum = this.HISTORY_REFRESH_OFFSET / value;
+            }
+          })
+          .onStateChange((refreshStatus: RefreshStatus) => {
+            if (refreshStatus === RefreshStatus.Refresh) {
+              this.historyRefreshShowLogo = false;
+              this.historyRefreshMsg = uiText('Refreshing...');
+            }
+          })
           .onRefreshing(() => {
+            this.historyRefreshScaleNum = 0;
             this.refreshHistoryFromPull();
           })
           .width('100%')
