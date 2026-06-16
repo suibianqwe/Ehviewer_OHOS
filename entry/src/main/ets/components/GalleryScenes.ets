@@ -819,7 +819,7 @@ export struct GalleryListContent {
   @State refreshScaleNum: number = 0;
   @State refreshShowLogo: boolean = true;
   @State refreshMsg: string = '';
-  private readonly REFRESH_OFFSET: number = 80;
+  private readonly REFRESH_OFFSET: number = 60;
   @State viewportHeight: number = 0;
   private listScroller: Scroller = new Scroller();
   private loadMorePending: boolean = false;
@@ -885,11 +885,20 @@ export struct GalleryListContent {
     if (this.refreshing) {
       return;
     }
+    // 先滚回顶部，消除刷新前留下的空白
+    this.listScroller.scrollTo({ xOffset: 0, yOffset: 0 });
+    this.lastScrollY = 0;
+    this.toolbarOffsetY = 0;
+    this.refreshShowLogo = false;
+    this.refreshMsg = uiText('Refreshing...');
     this.refreshing = true;
     this.onRefresh();
     setTimeout(() => {
       this.refreshing = false;
-    }, 900);
+      this.refreshShowLogo = true;
+      this.refreshMsg = '';
+      this.refreshScaleNum = 0;
+    }, 1000);
   }
 
   private contentTopPadding(): number {
@@ -1065,7 +1074,7 @@ export struct GalleryListContent {
         }
         .scrollable(ScrollDirection.Vertical)
         .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.None)
+        .edgeEffect(EdgeEffect.Spring)
         .width('100%')
         .height('100%')
         .onAppear(() => {
