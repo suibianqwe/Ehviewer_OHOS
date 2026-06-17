@@ -17,18 +17,7 @@ export function applyAppChromeImmersiveMode(win?: window.Window): void {
   if (target === undefined) {
     return;
   }
-  target.setWindowLayoutFullScreen(true).then(() => {
-    target.setSpecificSystemBarEnabled('status', true).catch(() => {});
-    target.setSpecificSystemBarEnabled('navigationIndicator', false).catch(() => {});
-    target.setWindowSystemBarEnable(['status']).catch(() => {});
-    target.setWindowSystemBarProperties({
-      statusBarColor: APP_STATUS_BAR_COLOR,
-      isStatusBarLightIcon: true
-    }).catch(() => {});
-  }).catch(() => {
-    target.setSpecificSystemBarEnabled('status', true).catch(() => {});
-    target.setSpecificSystemBarEnabled('navigationIndicator', false).catch(() => {});
-  });
+  applyAppChromeImmersiveModeAsync(target).catch(() => {});
 }
 
 // Reader page only: full-screen layout with both status bar and navigation indicator hidden.
@@ -37,11 +26,30 @@ export function applyReaderFullscreenImmersiveMode(win?: window.Window): void {
   if (target === undefined) {
     return;
   }
-  target.setWindowLayoutFullScreen(true).then(() => {
-    target.setSpecificSystemBarEnabled('status', false).catch(() => {});
-    target.setSpecificSystemBarEnabled('navigationIndicator', false).catch(() => {});
-  }).catch(() => {
-    target.setSpecificSystemBarEnabled('status', false).catch(() => {});
-    target.setSpecificSystemBarEnabled('navigationIndicator', false).catch(() => {});
-  });
+  applyReaderFullscreenImmersiveModeAsync(target).catch(() => {});
+}
+
+async function applyAppChromeImmersiveModeAsync(target: window.Window): Promise<void> {
+  await ignoreWindowError(() => target.setSpecificSystemBarEnabled('status', true));
+  await ignoreWindowError(() => target.setSpecificSystemBarEnabled('navigationIndicator', false));
+  await ignoreWindowError(() => target.setWindowSystemBarEnable(['status']));
+  await ignoreWindowError(() => target.setWindowLayoutFullScreen(true));
+  await ignoreWindowError(() => target.setWindowSystemBarProperties({
+    statusBarColor: APP_STATUS_BAR_COLOR,
+    isStatusBarLightIcon: true
+  }));
+}
+
+async function applyReaderFullscreenImmersiveModeAsync(target: window.Window): Promise<void> {
+  await ignoreWindowError(() => target.setWindowLayoutFullScreen(true));
+  await ignoreWindowError(() => target.setWindowSystemBarEnable([]));
+  await ignoreWindowError(() => target.setSpecificSystemBarEnabled('status', false));
+  await ignoreWindowError(() => target.setSpecificSystemBarEnabled('navigationIndicator', false));
+}
+
+async function ignoreWindowError(task: () => Promise<void>): Promise<void> {
+  try {
+    await task();
+  } catch (error) {
+  }
 }

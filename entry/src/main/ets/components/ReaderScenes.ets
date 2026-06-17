@@ -422,30 +422,6 @@ export struct ReaderScene {
     } catch (e) {}
   }
 
-  private syncOverlayState(): void {
-    this.overlayShowProgress = ehSettingsStore.getValue('gallery_show_progress', 'On') === 'On';
-    this.overlayShowClock = ehSettingsStore.getValue('gallery_show_clock', 'On') === 'On';
-    this.overlayShowBattery = ehSettingsStore.getValue('gallery_show_battery', 'On') === 'On';
-  }
-
-  private syncDirectionState(): void {
-    const dir = ehSettingsStore.getValue('reading_direction', 'Right to left');
-    this.swiperVertical = dir === 'Top to bottom';
-    this.swiperReversed = dir === 'Right to left';
-  }
-
-  private refreshBattery(): void {
-    try {
-      this.batteryLevel = batteryInfo.batterySOC;
-    } catch (e) {
-      this.batteryLevel = -1;
-    }
-  }
-
-  private batteryText(): string {
-    return this.batteryLevel >= 0 ? this.batteryLevel.toString() + '%' : '--';
-  }
-
   private applyReaderWindowSettings(): void {
     const keepOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
     const orientation = ehSettingsStore.getValue('screen_rotation', 'System');
@@ -454,8 +430,9 @@ export struct ReaderScene {
       return;
     }
     this.enterReaderFullscreen(win);
-    this.scheduleReaderFullscreen(120);
-    this.scheduleReaderFullscreen(420);
+    this.scheduleReaderFullscreen(80);
+    this.scheduleReaderFullscreen(260);
+    this.scheduleReaderFullscreen(620);
     try {
       win.setWindowKeepScreenOn(keepOn).catch(() => {});
     } catch (e) {}
@@ -484,6 +461,30 @@ export struct ReaderScene {
         this.enterReaderFullscreen(win);
       }
     }, delay);
+  }
+
+  private syncOverlayState(): void {
+    this.overlayShowProgress = ehSettingsStore.getValue('gallery_show_progress', 'On') === 'On';
+    this.overlayShowClock = ehSettingsStore.getValue('gallery_show_clock', 'On') === 'On';
+    this.overlayShowBattery = ehSettingsStore.getValue('gallery_show_battery', 'On') === 'On';
+  }
+
+  private syncDirectionState(): void {
+    const dir = ehSettingsStore.getValue('reading_direction', 'Right to left');
+    this.swiperVertical = dir === 'Top to bottom';
+    this.swiperReversed = dir === 'Right to left';
+  }
+
+  private refreshBattery(): void {
+    try {
+      this.batteryLevel = batteryInfo.batterySOC;
+    } catch (e) {
+      this.batteryLevel = -1;
+    }
+  }
+
+  private batteryText(): string {
+    return this.batteryLevel >= 0 ? this.batteryLevel.toString() + '%' : '--';
   }
 
   private onPageIndexChange(): void {
@@ -573,7 +574,6 @@ export struct ReaderScene {
   }
 
   private applyMenuSettings(): void {
-    const oldFullscreen = ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On';
     ehSettingsStore.setValue('screen_rotation', this.menuScreenRotation);
     ehSettingsStore.setValue('reading_direction', this.menuReadingDirection);
     ehSettingsStore.setValue('page_scaling', this.menuPageScaling);
@@ -595,9 +595,7 @@ export struct ReaderScene {
     if (context !== undefined) {
       ehSettingsStore.save(context).catch(() => {});
     }
-    if (oldFullscreen !== this.menuReadingFullscreen) {
-      this.applyReaderWindowSettings();
-    }
+    this.applyReaderWindowSettings();
     const win = getMainWindow();
     if (win !== undefined) {
       win.setWindowKeepScreenOn(this.menuKeepScreenOn).catch(() => {});
