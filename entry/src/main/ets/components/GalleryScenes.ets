@@ -1735,6 +1735,26 @@ export struct GallerySearchScene {
   private refreshSuggestions(): void {
     const text = this.keywordDraft.trim();
     const next: SearchSuggestionItem[] = [];
+    if (text.length > 0) {
+      next.push({
+        kind: 'search',
+        title: 'Search current text',
+        subtitle: text,
+        query: text
+      });
+      next.push({
+        kind: 'tag',
+        title: 'Specify tag',
+        subtitle: text,
+        query: text
+      });
+      next.push({
+        kind: 'uploader',
+        title: 'Specify uploader',
+        subtitle: text,
+        query: text
+      });
+    }
     const galleryUrl = this.parseGalleryUrl(text);
     if (galleryUrl !== null) {
       next.push({
@@ -1785,6 +1805,23 @@ export struct GallerySearchScene {
   }
 
   private applySuggestion(suggestion: SearchSuggestionItem): void {
+    if (suggestion.kind === 'search') {
+      this.keywordDraft = suggestion.query;
+      this.submitSearch();
+      return;
+    }
+    if (suggestion.kind === 'tag') {
+      this.keywordDraft = suggestion.query;
+      this.modeDraft = ListMode.Tag;
+      this.refreshSuggestions();
+      return;
+    }
+    if (suggestion.kind === 'uploader') {
+      this.keywordDraft = suggestion.query;
+      this.modeDraft = ListMode.Uploader;
+      this.refreshSuggestions();
+      return;
+    }
     if (suggestion.kind === 'gallery') {
       const galleryUrl = this.parseGalleryUrl(suggestion.query);
       if (galleryUrl !== null) {
@@ -1989,6 +2026,15 @@ export struct SearchSuggestionList {
   private iconForKind(kind: string): Resource {
     if (kind === 'gallery' || kind === 'page') {
       return $r('sys.symbol.doc_plaintext');
+    }
+    if (kind === 'tag') {
+      return $r('sys.symbol.star');
+    }
+    if (kind === 'uploader') {
+      return $r('sys.symbol.open_sidebar');
+    }
+    if (kind === 'search') {
+      return $r('sys.symbol.magnifyingglass');
     }
     return $r('sys.symbol.clock');
   }
@@ -3924,6 +3970,18 @@ export struct ReaderScene {
       return;
     }
     try {
+      win.setWindowLayoutFullScreen(true).catch(() => {});
+    } catch (e) {}
+    try {
+      win.setWindowSystemBarEnable(['status']).catch(() => {});
+    } catch (e) {}
+    try {
+      win.setWindowSystemBarProperties({
+        statusBarColor: '#FF2F6F8F',
+        isStatusBarLightIcon: true
+      }).catch(() => {});
+    } catch (e) {}
+    try {
       win.setWindowKeepScreenOn(false).catch(() => {});
     } catch (e) {}
     try {
@@ -3933,9 +3991,22 @@ export struct ReaderScene {
 
   private applyReaderWindowSettings(): void {
     const keepOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
+    const fullscreen = ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On';
     const orientation = ehSettingsStore.getValue('screen_rotation', 'System');
     const win = AppStorage.get<window.Window>('mainWindow');
     if (win !== undefined) {
+      try {
+        win.setWindowLayoutFullScreen(true).catch(() => {});
+      } catch (e) {}
+      if (fullscreen) {
+        try {
+          win.setWindowSystemBarEnable([]).catch(() => {});
+        } catch (e) {}
+      } else {
+        try {
+          win.setWindowSystemBarEnable(['status']).catch(() => {});
+        } catch (e) {}
+      }
       try {
         win.setWindowKeepScreenOn(keepOn).catch(() => {});
       } catch (e) {}
