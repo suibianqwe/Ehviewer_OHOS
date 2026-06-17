@@ -3867,79 +3867,66 @@ export struct PreviewTile {
 
 @Component
 export struct PreviewThumb {
-  preview: GalleryPreview = createEmptyPreview();
+  @Prop @Watch('onPreviewChange') preview: GalleryPreview = createEmptyPreview();
   widthValue: number = 132;
   heightValue: number = 96;
   radiusValue: number = 4;
   @State localUrl: string = '';
-  @State cachedUrl: string = '';
   @State loadFailed: boolean = false;
+  private cachedUrl: string = '';
 
   aboutToAppear(): void {
-    this.cacheThumb();
+    if (this.preview.imageUrl.length > 0) {
+      this.cacheThumb();
+    } else {
+      this.loadFailed = true;
+    }
   }
 
-  aboutToDisappear(): void {
-    this.cachedUrl = '';
-    this.localUrl = '';
-  }
-
-  aboutToReuse(params: Record<string, Object>): void {
-    const next = params['preview'] as GalleryPreview | undefined;
-    const nextUrl = next === undefined ? this.preview.imageUrl : next.imageUrl;
-    if (nextUrl !== this.cachedUrl) {
+  onPreviewChange(): void {
+    if (this.preview.imageUrl.length > 0) {
+      this.cacheThumb();
+    } else {
       this.cachedUrl = '';
       this.localUrl = '';
-      this.loadFailed = false;
-      this.cacheThumb();
+      this.loadFailed = true;
     }
   }
 
   private cacheThumb(): void {
     const url = this.preview.imageUrl;
-    if (url.length === 0 || url === this.cachedUrl) {
+    if (url.length === 0 || (url === this.cachedUrl && (this.localUrl.length > 0 || this.loadFailed))) {
       return;
     }
     this.cachedUrl = url;
+    this.localUrl = '';
     this.loadFailed = false;
     cacheThumbnailImage(url, (localPath: string) => {
-      if (this.cachedUrl === url && localPath.length > 0) {
-        this.localUrl = localPath;
+      if (this.cachedUrl !== url) {
+        return;
+      }
+      if (localPath.length > 0) {
+        this.localUrl = readerLocalImageSource(localPath);
+        this.loadFailed = false;
       }
     }, () => {
       if (this.cachedUrl === url) {
+        this.localUrl = '';
         this.loadFailed = true;
       }
     });
   }
 
-  private scaleValue(): number {
-    if (this.preview.width <= 0 || this.preview.height <= 0 || this.widthValue <= 0 || this.heightValue <= 0) {
-      return 1;
-    }
-    return Math.max(this.widthValue / this.preview.width, this.heightValue / this.preview.height);
-  }
-
-  private imageWidthValue(): number | string {
-    if (this.preview.width <= 0) {
-      return '100%';
-    }
-    return Math.max(this.widthValue, Math.round(this.preview.width * this.scaleValue()));
-  }
-
-  private imageHeightValue(): number | string {
-    if (this.preview.height <= 0) {
-      return '100%';
-    }
-    return Math.max(this.heightValue, Math.round(this.preview.height * this.scaleValue()));
+  private usesSpriteCrop(): boolean {
+    return this.preview.xOffset > 0 || this.preview.yOffset > 0;
   }
 
   private xPosition(): number {
-    return -Math.round(this.preview.xOffset * this.scaleValue());
+    return -Math.round(this.preview.xOffset);
   }
 
   private yPosition(): number {
-    return -Math.round(this.preview.yOffset * this.scaleValue());
+    return -Math.round(this.preview.yOffset);
   }
 
   build() {
@@ -3964,12 +3951,20 @@ export struct PreviewThumb {
           this.cachedUrl = '';
           this.cacheThumb();
         })
+      } else if (this.localUrl.length > 0 && this.usesSpriteCrop()) {
+        Image(this.localUrl)
+          .fitOriginalSize(true)
+          .objectFit(ImageFit.None)
+          .position({ x: this.xPosition(), y: this.yPosition() })
+          .syncLoad(true)
+          .onError(() => {
+            this.loadFailed = true;
+          })
       } else if (this.localUrl.length > 0) {
         Image(this.localUrl)
-          .width(this.imageWidthValue())
-          .height(this.imageHeightValue())
-          .objectFit(ImageFit.Fill)
-          .position({ x: this.xPosition(), y: this.yPosition() })
+          .width('100%')
+          .height('100%')
+          .objectFit(ImageFit.Cover)
           .syncLoad(true)
           .onError(() => {
             this.loadFailed = true;
@@ -4239,6 +4234,9 @@ export struct ReaderScene {
       win.setWindowLayoutFullScreen(true).catch(() => {});
     } catch (e) {}
     try {
+      win.setImmersiveModeEnabledState(false);
+    } catch (e) {}
+    try {
       win.setWindowSystemBarEnable(['status']).catch(() => {});
     } catch (e) {}
     try {
@@ -4272,6 +4270,9 @@ export struct ReaderScene {
       } catch (e) {}
       if (fullscreen) {
         try {
+          win.setImmersiveModeEnabledState(true);
+        } catch (e) {}
+        try {
           win.setWindowSystemBarEnable([]).catch(() => {});
         } catch (e) {}
         try {
@@ -4281,6 +4282,9 @@ export struct ReaderScene {
           win.setSpecificSystemBarEnabled('navigation', false, false).catch(() => {});
         } catch (e) {}
       } else {
+        try {
+          win.setImmersiveModeEnabledState(false);
+        } catch (e) {}
         try {
           win.setWindowSystemBarEnable(['status']).catch(() => {});
         } catch (e) {}
@@ -4387,37 +4391,6 @@ export struct ReaderScene {
               .fontColor('#98A2B3')
           }
 
-          Row() {
-            Column() {
-              Blank()
-            }
-            .height('100%')
-            .layoutWeight(1)
-            .onClick(() => {
-              this.tapLeftPageArea();
-            })
-
-            Column() {
-              Blank()
-            }
-            .height('100%')
-            .layoutWeight(1)
-            .onClick(() => {
-              this.toggleControls();
-            })
-
-            Column() {
-              Blank()
-            }
-            .height('100%')
-            .layoutWeight(1)
-            .onClick(() => {
-              this.tapRightPageArea();
-            })
-          }
-          .width('100%')
-          .height('100%')
-
           if (!this.controlsVisible && readerShowProgress()) {
             Text(this.progressText())
               .fontSize(12)
@@ -4427,6 +4400,38 @@ export struct ReaderScene {
               .borderRadius(12)
               .position({ x: 12, y: 12 })
           }
+
+          Row() {
+            Blank()
+              .height('100%')
+              .layoutWeight(1)
+              .onClick(() => {
+                this.tapLeftPageArea();
+              })
+            Column() {
+              Blank()
+                .layoutWeight(1)
+                .onClick(() => {
+                  this.toggleControls();
+                })
+              Blank()
+                .layoutWeight(1)
+                .onClick(() => {
+                  this.toggleControls();
+                })
+            }
+            .height('100%')
+            .layoutWeight(1)
+            Blank()
+              .height('100%')
+              .layoutWeight(1)
+              .onClick(() => {
+                this.tapRightPageArea();
+              })
+          }
+          .width('100%')
+          .height('100%')
+          .zIndex(3)
         }
         .width('100%')
         .height('100%')
@@ -4436,163 +4441,168 @@ export struct ReaderScene {
       .height('100%')
 
       if (this.controlsVisible) {
-        Column() {
-          Row() {
-            Button({ type: ButtonType.Circle, stateEffect: true }) {
-              SymbolGlyph($r('sys.symbol.chevron_left'))
-                .fontSize(20)
-                .fontColor([Color.White])
-            }
-            .width(36)
-            .height(36)
-            .backgroundColor('#CC111827')
-            .onClick(() => {
-              this.onBack();
-            })
-            Text(uiStatusText(this.statusText))
-              .fontSize(12)
-              .fontColor('#E5E7EB')
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-              .margin({ left: 10 })
-              .layoutWeight(1)
-            if (readerShowClock()) {
-              Text(readerClockText())
-                .fontSize(12)
-                .fontColor('#E5E7EB')
-                .margin({ left: 8 })
-            }
-            if (readerShowProgress()) {
-              Text(this.progressText())
-                .fontSize(12)
-                .fontColor('#E5E7EB')
-                .margin({ left: 8 })
-            }
-          }
-          .width('100%')
-          .padding({ left: 12, right: 12, top: 12, bottom: 10 })
-          .backgroundColor('#99000000')
-
-          Blank()
-            .layoutWeight(1)
-
-          if (this.showInfo) {
-            Column() {
-              InfoRow({ label: uiText('Page URL'), value: this.page.pageUrl })
-              InfoRow({ label: uiText('Image URL'), value: this.page.imageUrl })
-              InfoRow({ label: uiText('Original'), value: this.page.originImageUrl })
-              InfoRow({ label: uiText('Show Key'), value: this.page.showKey })
-              InfoRow({ label: uiText('Retry Key'), value: this.page.skipHathKey })
-              InfoRow({ label: uiText('Fit'), value: uiValue(this.fitMode) + ', zoom ' + this.zoomPercent.toString() + '%' })
-            }
-            .width('100%')
-            .padding(12)
-            .backgroundColor('#EEFFFFFF')
-          }
-
+        Stack() {
           Column() {
             Row() {
-              Text((this.pageIndex + 1).toString())
+              Button({ type: ButtonType.Circle, stateEffect: true }) {
+                SymbolGlyph($r('sys.symbol.chevron_left'))
+                  .fontSize(20)
+                  .fontColor([Color.White])
+              }
+              .width(36)
+              .height(36)
+              .backgroundColor('#CC111827')
+              .onClick(() => {
+                this.onBack();
+              })
+              Text(uiStatusText(this.statusText))
                 .fontSize(12)
                 .fontColor('#E5E7EB')
-                .width(42)
-              Slider({
-                value: this.pageIndex,
-                min: 0,
-                max: Math.max(0, this.totalPages - 1),
-                step: 1
-              })
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .margin({ left: 10 })
                 .layoutWeight(1)
-                .enabled(this.totalPages > 1)
-                .onChange((value: number, mode: SliderChangeMode) => {
-                  if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
-                    this.jumpTo(value);
+              if (readerShowClock()) {
+                Text(readerClockText())
+                  .fontSize(12)
+                  .fontColor('#E5E7EB')
+                  .margin({ left: 8 })
+              }
+              if (readerShowProgress()) {
+                Text(this.progressText())
+                  .fontSize(12)
+                  .fontColor('#E5E7EB')
+                  .margin({ left: 8 })
+              }
+            }
+            .width('100%')
+            .padding({ left: 12, right: 12, top: 12, bottom: 10 })
+            .backgroundColor('#99000000')
+
+            Blank()
+              .layoutWeight(1)
+
+            if (this.showInfo) {
+              Column() {
+                InfoRow({ label: uiText('Page URL'), value: this.page.pageUrl })
+                InfoRow({ label: uiText('Image URL'), value: this.page.imageUrl })
+                InfoRow({ label: uiText('Original'), value: this.page.originImageUrl })
+                InfoRow({ label: uiText('Show Key'), value: this.page.showKey })
+                InfoRow({ label: uiText('Retry Key'), value: this.page.skipHathKey })
+                InfoRow({ label: uiText('Fit'), value: uiValue(this.fitMode) + ', zoom ' + this.zoomPercent.toString() + '%' })
+              }
+              .width('100%')
+              .padding(12)
+              .backgroundColor('#EEFFFFFF')
+            }
+
+            Column() {
+              Row() {
+                Text((this.pageIndex + 1).toString())
+                  .fontSize(12)
+                  .fontColor('#E5E7EB')
+                  .width(42)
+                Slider({
+                  value: this.pageIndex,
+                  min: 0,
+                  max: Math.max(0, this.totalPages - 1),
+                  step: 1
+                })
+                  .layoutWeight(1)
+                  .enabled(this.totalPages > 1)
+                  .onChange((value: number, mode: SliderChangeMode) => {
+                    if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
+                      this.jumpTo(value);
+                    }
+                  })
+                Text((this.totalPages <= 0 ? 1 : this.totalPages).toString())
+                  .fontSize(12)
+                  .fontColor('#E5E7EB')
+                  .textAlign(TextAlign.End)
+                  .width(42)
+              }
+              .width('100%')
+              .alignItems(VerticalAlign.Center)
+
+              Row({ space: 8 }) {
+                ReaderNavButton({
+                  text: uiText('Previous'),
+                  active: this.pageIndex > 0,
+                  onTap: this.onPrev
+                })
+                  .layoutWeight(1)
+                ReaderNavButton({
+                  text: uiText('Next'),
+                  active: this.totalPages <= 0 || this.pageIndex + 1 < this.totalPages,
+                  onTap: this.onNext
+                })
+                  .layoutWeight(1)
+              }
+              .width('100%')
+              .margin({ top: 10 })
+
+              Row({ space: 8 }) {
+                ReaderToolButton({
+                  text: '-',
+                  active: this.zoomPercent > 50,
+                  onTap: () => {
+                    this.zoomOut();
                   }
                 })
-              Text((this.totalPages <= 0 ? 1 : this.totalPages).toString())
-                .fontSize(12)
-                .fontColor('#E5E7EB')
-                .textAlign(TextAlign.End)
-                .width(42)
+                ReaderToolButton({
+                  text: this.zoomPercent.toString() + '%',
+                  active: true,
+                  onTap: () => {
+                    this.resetZoom();
+                  }
+                })
+                ReaderToolButton({
+                  text: '+',
+                  active: this.zoomPercent < 300,
+                  onTap: () => {
+                    this.zoomIn();
+                  }
+                })
+                ReaderToolButton({
+                  text: uiValue(this.fitMode),
+                  active: true,
+                  onTap: () => {
+                    this.cycleFitMode();
+                  }
+                })
+                ReaderToolButton({
+                  text: this.preferOriginal ? uiText('Original') : uiText('Resampled'),
+                  active: this.page.originImageUrl.length > 0,
+                  onTap: () => {
+                    this.preferOriginal = !this.preferOriginal;
+                  }
+                })
+                ReaderToolButton({
+                  text: uiText('Info'),
+                  active: true,
+                  onTap: () => {
+                    this.showInfo = !this.showInfo;
+                  }
+                })
+                ReaderToolButton({
+                  text: uiText('Retry'),
+                  active: this.page.pageUrl.length > 0,
+                  onTap: this.onRetry
+                })
+              }
+              .width('100%')
+              .margin({ top: 10 })
             }
             .width('100%')
-            .alignItems(VerticalAlign.Center)
-
-            Row({ space: 8 }) {
-              ReaderNavButton({
-                text: uiText('Previous'),
-                active: this.pageIndex > 0,
-                onTap: this.onPrev
-              })
-                .layoutWeight(1)
-              ReaderNavButton({
-                text: uiText('Next'),
-                active: this.totalPages <= 0 || this.pageIndex + 1 < this.totalPages,
-                onTap: this.onNext
-              })
-                .layoutWeight(1)
-            }
-            .width('100%')
-            .margin({ top: 10 })
-
-            Row({ space: 8 }) {
-              ReaderToolButton({
-                text: '-',
-                active: this.zoomPercent > 50,
-                onTap: () => {
-                  this.zoomOut();
-                }
-              })
-              ReaderToolButton({
-                text: this.zoomPercent.toString() + '%',
-                active: true,
-                onTap: () => {
-                  this.resetZoom();
-                }
-              })
-              ReaderToolButton({
-                text: '+',
-                active: this.zoomPercent < 300,
-                onTap: () => {
-                  this.zoomIn();
-                }
-              })
-              ReaderToolButton({
-                text: uiValue(this.fitMode),
-                active: true,
-                onTap: () => {
-                  this.cycleFitMode();
-                }
-              })
-              ReaderToolButton({
-                text: this.preferOriginal ? uiText('Original') : uiText('Resampled'),
-                active: this.page.originImageUrl.length > 0,
-                onTap: () => {
-                  this.preferOriginal = !this.preferOriginal;
-                }
-              })
-              ReaderToolButton({
-                text: uiText('Info'),
-                active: true,
-                onTap: () => {
-                  this.showInfo = !this.showInfo;
-                }
-              })
-              ReaderToolButton({
-                text: uiText('Retry'),
-                active: this.page.pageUrl.length > 0,
-                onTap: this.onRetry
-              })
-            }
-            .width('100%')
-            .margin({ top: 10 })
+            .padding({ left: 12, right: 12, top: 12, bottom: 14 })
+            .backgroundColor('#CC111827')
           }
           .width('100%')
-          .padding({ left: 12, right: 12, top: 12, bottom: 14 })
-          .backgroundColor('#CC111827')
+          .height('100%')
         }
         .width('100%')
         .height('100%')
+        .zIndex(4)
       }
     }
     .width('100%')
