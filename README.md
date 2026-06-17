@@ -26,25 +26,6 @@
 - 本地历史、下载队列、阅读缓存、图片缓存和基础设置持久化。
 - E-Hentai / ExHentai 的基础网络请求、Cookie、Referer、列表/详情/图片页解析逻辑。
 
-## 构建方式
-
-推荐使用 DevEco Studio 打开项目目录，并保持 SDK 目标为 `6.1.1 (24)`。
-
-命令行构建示例：
-
-```powershell
-$env:DEVECO_SDK_HOME='D:\Program Files\Huawei\DevEco Studio\sdk'
-$env:OHOS_SDK_HOME='D:\Program Files\Huawei\DevEco Studio\sdk'
-& 'D:\Program Files\Huawei\DevEco Studio\tools\node\node.exe' 'D:\Program Files\Huawei\DevEco Studio\tools\hvigor\bin\hvigorw.js' --mode project -p product=default assembleApp --analyze=normal --parallel --incremental --daemon
-```
-
-常见构建产物：
-
-- `entry/build/default/outputs/default/entry-default-unsigned.hap`
-- `entry/build/default/outputs/default/app/entry-default.hap`
-
-当前仓库未配置正式签名文件，构建日志中出现跳过签名的提示属于预期行为。
-
 ## 目录结构
 
 - `AppScope/`：应用级配置、图标和名称资源。
