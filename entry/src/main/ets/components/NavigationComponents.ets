@@ -228,6 +228,7 @@ export struct EhNavBar {
   @Prop filterActive: boolean = false;
   @Prop showClear: boolean = false;
   @Prop canClear: boolean = false;
+  @Prop showSearchButton: boolean = false;
   // translate offset injected by parent for scroll-hide; 0 = visible, negative = hidden
   @Prop translateY: number = 0;
   onMenu: () => void = () => {};
@@ -347,6 +348,20 @@ export struct EhNavBar {
           .flexShrink(0)
           .margin({ left: 6 })
           .onClick(() => { this.onRefresh(); })
+
+          if (this.showSearchButton) {
+            Button({ type: ButtonType.Circle, stateEffect: true }) {
+              SymbolGlyph($r('sys.symbol.magnifyingglass'))
+                .fontSize(20)
+                .fontColor([Color.White])
+            }
+            .width(40)
+            .height(40)
+            .backgroundColor('rgba(255,255,255,0.14)')
+            .flexShrink(0)
+            .margin({ left: 6 })
+            .onClick(() => { this.onSearch(); })
+          }
 
           // Optional clear button
           if (this.showClear) {
