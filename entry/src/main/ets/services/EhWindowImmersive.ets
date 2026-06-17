@@ -2,6 +2,7 @@ import { window } from '@kit.ArkUI';
 
 export const MAIN_WINDOW_KEY: string = 'mainWindow';
 export const READER_WINDOW_KEY: string = 'readerWindow';
+export const EMBEDDED_READER_ACTIVE_KEY: string = 'embeddedReaderActive';
 const APP_STATUS_BAR_COLOR: string = '#FF2F6F8F';
 
 export function rememberMainWindow(win: window.Window): void {
@@ -24,10 +25,21 @@ export function getReaderWindow(): window.Window | undefined {
   return AppStorage.get<window.Window>(READER_WINDOW_KEY);
 }
 
+export function setEmbeddedReaderActive(active: boolean): void {
+  AppStorage.setOrCreate<boolean>(EMBEDDED_READER_ACTIVE_KEY, active);
+}
+
+export function isEmbeddedReaderActive(): boolean {
+  return AppStorage.get<boolean>(EMBEDDED_READER_ACTIVE_KEY) === true;
+}
+
 // Normal app pages: full-screen layout, status bar visible, navigation indicator hidden.
 export function applyAppChromeImmersiveMode(win?: window.Window): void {
   const target = win === undefined ? getMainWindow() : win;
   if (target === undefined) {
+    return;
+  }
+  if (target === getMainWindow() && isEmbeddedReaderActive()) {
     return;
   }
   applyAppChromeImmersiveModeAsync(target).catch(() => {});

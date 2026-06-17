@@ -852,6 +852,7 @@ export struct GalleryListScene {
       this.showReader = true;
       return;
     }
+    this.showReader = false;
     const context = getAbilityContext();
     if (context === undefined) {
       this.showReader = true;
@@ -863,7 +864,6 @@ export struct GalleryListScene {
       abilityName: 'ReaderAbility'
     }).catch((error: Error) => {
       this.readerStatus = 'Reader launch failed: ' + error.message;
-      this.showReader = true;
       this.renderVersion++;
       this.persistReaderSession();
     });

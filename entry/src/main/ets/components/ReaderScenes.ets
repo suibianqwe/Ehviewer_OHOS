@@ -9,7 +9,8 @@ import {
   applyReaderFullscreenImmersiveMode,
   applyReaderStatusVisibleImmersiveMode,
   getMainWindow,
-  getReaderWindow
+  getReaderWindow,
+  setEmbeddedReaderActive
 } from '../services/EhWindowImmersive';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import {
@@ -421,6 +422,9 @@ export struct ReaderScene {
 
   aboutToAppear(): void {
     this.readerWindowActive = true;
+    if (this.restoreAppChromeOnExit) {
+      setEmbeddedReaderActive(true);
+    }
     this.fitMode = ehSettingsStore.getValue('page_scaling', 'Fit width');
     this.menuVisible = false;
     this.sliderVisible = false;
@@ -446,6 +450,7 @@ export struct ReaderScene {
     if (!this.restoreAppChromeOnExit) {
       return;
     }
+    setEmbeddedReaderActive(false);
     const win = getMainWindow();
     if (win === undefined) {
       return;
