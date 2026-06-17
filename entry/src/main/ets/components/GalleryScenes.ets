@@ -4214,6 +4214,8 @@ export struct ReaderScene {
   @State showInfo: boolean = false;
   @State preferOriginal: boolean = false;
   @State controlsVisible: boolean = false;
+  @State pageDragOffsetX: number = 0;
+  @State pinchBaseZoom: number = 100;
 
   aboutToAppear(): void {
     this.fitMode = ehSettingsStore.getValue('page_scaling', 'Fit width');
@@ -4319,6 +4321,19 @@ export struct ReaderScene {
     this.zoomPercent = 100;
   }
 
+  private clampZoom(value: number): number {
+    return Math.max(50, Math.min(300, Math.round(value)));
+  }
+
+  private setZoom(value: number): void {
+    this.zoomPercent = this.clampZoom(value);
+    this.fitMode = 'Original';
+  }
+
+  private zoomLabel(): string {
+    return this.zoomPercent.toString() + '%';
+  }
+
   private cycleFitMode(): void {
     const next = nextOption(this.fitMode, ['Fit width', 'Fit height', 'Original', 'Smart fit']);
     this.fitMode = next;
@@ -4359,6 +4374,71 @@ export struct ReaderScene {
     this.controlsVisible = !this.controlsVisible;
   }
 
+  private hideControls(): void {
+    this.controlsVisible = false;
+  }
+
+  private showControlsMenu(): void {
+    this.controlsVisible = true;
+  }
+
+  private canGoNext(): boolean {
+    return this.totalPages <= 0 || this.pageIndex + 1 < this.totalPages;
+  }
+
+  private canGoPrev(): boolean {
+    return this.pageIndex > 0;
+  }
+
+  private goNextPage(): void {
+    if (this.canGoNext()) {
+      this.onNext();
+    }
+  }
+
+  private goPrevPage(): void {
+    if (this.canGoPrev()) {
+      this.onPrev();
+    }
+  }
+
+  private panTargetIsNext(offsetX: number): boolean {
+    if (readerIsRightToLeft()) {
+      return offsetX > 0;
+    }
+    return offsetX < 0;
+  }
+
+  private finishPagePan(offsetX: number, velocityX: number): void {
+    const absOffset = Math.abs(offsetX);
+    const absVelocity = Math.abs(velocityX);
+    this.pageDragOffsetX = 0;
+    if (absOffset < 64 && absVelocity < 420) {
+      return;
+    }
+    if (this.panTargetIsNext(offsetX)) {
+      this.goNextPage();
+    } else {
+      this.goPrevPage();
+    }
+  }
+
+  private updatePagePan(offsetX: number, offsetY: number): void {
+    if (Math.abs(offsetX) < Math.abs(offsetY)) {
+      return;
+    }
+    this.controlsVisible = false;
+    this.pageDragOffsetX = Math.max(-96, Math.min(96, offsetX * 0.32));
+  }
+
+  private updatePinchZoom(scale: number): void {
+    if (scale <= 0 || Number.isNaN(scale)) {
+      return;
+    }
+    this.fitMode = 'Original';
+    this.zoomPercent = this.clampZoom(this.pinchBaseZoom * scale);
+  }
+
   private jumpTo(value: number): void {
     if (this.totalPages <= 0) {
       return;
@@ -4384,11 +4464,14 @@ export struct ReaderScene {
               .height(readerFullImageHeight(this.zoomPercent))
               .objectFit(readerImageFit(this.fitMode))
               .backgroundColor('#050608')
+              .translate({ x: this.pageDragOffsetX })
+              .animation({ duration: 120, curve: Curve.EaseOut })
           } else {
             Text(this.statusText.indexOf('failed') >= 0 || this.statusText.indexOf('Failed') >= 0 ?
               uiText('Image page failed to load') : uiText('Image page is loading'))
               .fontSize(16)
               .fontColor('#98A2B3')
+              .translate({ x: this.pageDragOffsetX })
           }
 
           if (!this.controlsVisible && readerShowProgress()) {
@@ -4412,12 +4495,12 @@ export struct ReaderScene {
               Blank()
                 .layoutWeight(1)
                 .onClick(() => {
-                  this.toggleControls();
+                  this.showControlsMenu();
                 })
               Blank()
                 .layoutWeight(1)
                 .onClick(() => {
-                  this.toggleControls();
+                  this.showControlsMenu();
                 })
             }
             .height('100%')
@@ -4432,6 +4515,31 @@ export struct ReaderScene {
           .width('100%')
           .height('100%')
           .zIndex(3)
+          .gesture(
+            GestureGroup(GestureMode.Parallel,
+              PanGesture({ fingers: 1, direction: PanDirection.Horizontal, distance: 12 })
+                .onActionUpdate((event: GestureEvent) => {
+                  this.updatePagePan(event.offsetX, event.offsetY);
+                })
+                .onActionEnd((event: GestureEvent) => {
+                  this.finishPagePan(event.offsetX, event.velocityX);
+                })
+                .onActionCancel(() => {
+                  this.pageDragOffsetX = 0;
+                }),
+              PinchGesture({ fingers: 2, distance: 4 })
+                .onActionStart(() => {
+                  this.pinchBaseZoom = this.zoomPercent;
+                  this.controlsVisible = false;
+                })
+                .onActionUpdate((event: GestureEvent) => {
+                  this.updatePinchZoom(event.scale);
+                })
+                .onActionEnd(() => {
+                  this.pinchBaseZoom = this.zoomPercent;
+                })
+            )
+          )
         }
         .width('100%')
         .height('100%')
@@ -4541,28 +4649,39 @@ export struct ReaderScene {
               .width('100%')
               .margin({ top: 10 })
 
-              Row({ space: 8 }) {
+              Flex({ wrap: FlexWrap.Wrap }) {
                 ReaderToolButton({
-                  text: '-',
+                  text: uiText('Zoom out'),
                   active: this.zoomPercent > 50,
                   onTap: () => {
                     this.zoomOut();
                   }
                 })
+                  .margin({ right: 8, bottom: 8 })
                 ReaderToolButton({
-                  text: this.zoomPercent.toString() + '%',
+                  text: this.zoomLabel(),
                   active: true,
                   onTap: () => {
                     this.resetZoom();
                   }
                 })
+                  .margin({ right: 8, bottom: 8 })
                 ReaderToolButton({
-                  text: '+',
+                  text: uiText('Zoom in'),
                   active: this.zoomPercent < 300,
                   onTap: () => {
                     this.zoomIn();
                   }
                 })
+                  .margin({ right: 8, bottom: 8 })
+                ReaderToolButton({
+                  text: '150%',
+                  active: true,
+                  onTap: () => {
+                    this.setZoom(150);
+                  }
+                })
+                  .margin({ right: 8, bottom: 8 })
                 ReaderToolButton({
                   text: uiValue(this.fitMode),
                   active: true,
@@ -4570,6 +4689,7 @@ export struct ReaderScene {
                     this.cycleFitMode();
                   }
                 })
+                  .margin({ right: 8, bottom: 8 })
                 ReaderToolButton({
                   text: this.preferOriginal ? uiText('Original') : uiText('Resampled'),
                   active: this.page.originImageUrl.length > 0,
@@ -4577,6 +4697,7 @@ export struct ReaderScene {
                     this.preferOriginal = !this.preferOriginal;
                   }
                 })
+                  .margin({ right: 8, bottom: 8 })
                 ReaderToolButton({
                   text: uiText('Info'),
                   active: true,
@@ -4584,11 +4705,21 @@ export struct ReaderScene {
                     this.showInfo = !this.showInfo;
                   }
                 })
+                  .margin({ right: 8, bottom: 8 })
                 ReaderToolButton({
                   text: uiText('Retry'),
                   active: this.page.pageUrl.length > 0,
                   onTap: this.onRetry
                 })
+                  .margin({ right: 8, bottom: 8 })
+                ReaderToolButton({
+                  text: uiText('Hide'),
+                  active: true,
+                  onTap: () => {
+                    this.hideControls();
+                  }
+                })
+                  .margin({ right: 8, bottom: 8 })
               }
               .width('100%')
               .margin({ top: 10 })
