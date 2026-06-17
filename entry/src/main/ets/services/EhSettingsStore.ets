@@ -40,6 +40,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'volume_page', value: 'Off' },
     { key: 'reading_fullscreen', value: 'On' },
     { key: 'screen_lightness', value: '50%' },
+    { key: 'custom_screen_lightness', value: 'Off' },
     { key: 'download_location', value: 'Not set' },
     { key: 'media_scan', value: 'Off' },
     { key: 'download_thread', value: '3' },

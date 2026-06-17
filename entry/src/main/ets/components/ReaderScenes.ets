@@ -1,15 +1,13 @@
 ﻿import { window } from '@kit.ArkUI';
+import { batteryInfo } from '@kit.BasicServicesKit';
 import { GalleryComment, GalleryPage } from '../model/GalleryModels';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import {
   createEmptyPage,
   getAbilityContext,
-  nextOption,
   plainTextFromHtml,
   readerClockText,
   readerDisplayImageUrl,
-  readerShowClock,
-  readerShowProgress,
   uiStatusText,
   uiText,
   uiValue
@@ -18,6 +16,7 @@ import {
 const READER_MIN_SCALE: number = 1;
 const READER_MAX_SCALE: number = 4;
 const READER_DOUBLE_TAP_SCALE: number = 2.25;
+const SLIDER_AUTO_HIDE_DELAY: number = 3000;
 
 @Component
 struct ReaderInfoRow {
@@ -358,22 +357,53 @@ export struct ReaderScene {
   @State fitMode: string = 'Fit width';
   @State showInfo: boolean = false;
   @State preferOriginal: boolean = false;
-  @State controlsVisible: boolean = false;
+  @State menuVisible: boolean = false;
+  @State sliderVisible: boolean = false;
   @State currentIndex: number = 0;
   @State isDisableSwipe: boolean = false;
   @State zoomPercent: number = 100;
   @State viewportCommand: string = '';
   @State viewportCommandVersion: number = 0;
+  // Swiper direction state (applied from menu)
+  @State swiperVertical: boolean = false;
+  @State swiperReversed: boolean = false;
+  // Overlay display state (updated when menu closes)
+  @State overlayShowProgress: boolean = true;
+  @State overlayShowClock: boolean = true;
+  @State overlayShowBattery: boolean = true;
+  @State batteryLevel: number = -1;
   private swiperController: SwiperController = new SwiperController();
+  private sliderHideTimer: number = -1;
+
+  // Menu settings state (reflects ehSettingsStore, applied on menu close)
+  @State menuScreenRotation: string = 'System';
+  @State menuReadingDirection: string = 'Right to left';
+  @State menuPageScaling: string = 'Fit width';
+  @State menuStartPosition: string = 'Beginning';
+  @State menuKeepScreenOn: boolean = false;
+  @State menuShowClock: boolean = true;
+  @State menuShowProgress: boolean = true;
+  @State menuShowBattery: boolean = true;
+  @State menuReadingFullscreen: boolean = true;
+  @State menuCustomBrightness: boolean = false;
+  @State menuBrightnessLevel: string = '50%';
+  private readerWindowActive: boolean = false;
 
   aboutToAppear(): void {
+    this.readerWindowActive = true;
     this.fitMode = ehSettingsStore.getValue('page_scaling', 'Fit width');
-    this.controlsVisible = false;
+    this.menuVisible = false;
+    this.sliderVisible = false;
     this.currentIndex = this.pageIndex;
+    this.syncOverlayState();
+    this.syncDirectionState();
+    this.refreshBattery();
     this.applyReaderWindowSettings();
   }
 
   aboutToDisappear(): void {
+    this.readerWindowActive = false;
+    this.clearSliderTimer();
     this.restoreWindowSettings();
   }
 
@@ -382,27 +412,7 @@ export struct ReaderScene {
     if (win === undefined) {
       return;
     }
-    try {
-      win.setWindowLayoutFullScreen(true).catch(() => {});
-    } catch (e) {}
-    try {
-      win.setImmersiveModeEnabledState(false);
-    } catch (e) {}
-    try {
-      win.setWindowSystemBarEnable(['status']).catch(() => {});
-    } catch (e) {}
-    try {
-      win.setSpecificSystemBarEnabled('status', true, false).catch(() => {});
-    } catch (e) {}
-    try {
-      win.setSpecificSystemBarEnabled('navigation', true, false).catch(() => {});
-    } catch (e) {}
-    try {
-      win.setWindowSystemBarProperties({
-        statusBarColor: '#FF2F6F8F',
-        isStatusBarLightIcon: true
-      }).catch(() => {});
-    } catch (e) {}
+    this.showAppSystemBars(win);
     try {
       win.setWindowKeepScreenOn(false).catch(() => {});
     } catch (e) {}
@@ -411,52 +421,96 @@ export struct ReaderScene {
     } catch (e) {}
   }
 
+  private showAppSystemBars(win: window.Window): void {
+    Promise.all([
+      win.setSpecificSystemBarEnabled('status', true),
+      win.setSpecificSystemBarEnabled('navigationIndicator', true)
+    ]).then(() => {
+      return win.setWindowSystemBarEnable(['status']);
+    }).then(() => {
+      return win.setWindowLayoutFullScreen(true);
+    }).then(() => {
+      win.setWindowSystemBarProperties({
+        statusBarColor: '#FF2F6F8F',
+        isStatusBarLightIcon: true
+      }).catch(() => {});
+    }).catch(() => {});
+  }
+
+  private syncOverlayState(): void {
+    this.overlayShowProgress = ehSettingsStore.getValue('gallery_show_progress', 'On') === 'On';
+    this.overlayShowClock = ehSettingsStore.getValue('gallery_show_clock', 'On') === 'On';
+    this.overlayShowBattery = ehSettingsStore.getValue('gallery_show_battery', 'On') === 'On';
+  }
+
+  private syncDirectionState(): void {
+    const dir = ehSettingsStore.getValue('reading_direction', 'Right to left');
+    this.swiperVertical = dir === 'Top to bottom';
+    this.swiperReversed = dir === 'Right to left';
+  }
+
+  private refreshBattery(): void {
+    try {
+      this.batteryLevel = batteryInfo.batterySOC;
+    } catch (e) {
+      this.batteryLevel = -1;
+    }
+  }
+
+  private batteryText(): string {
+    return this.batteryLevel >= 0 ? this.batteryLevel.toString() + '%' : '--';
+  }
+
   private applyReaderWindowSettings(): void {
     const keepOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
     const fullscreen = ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On';
     const orientation = ehSettingsStore.getValue('screen_rotation', 'System');
     const win = AppStorage.get<window.Window>('mainWindow');
-    if (win !== undefined) {
-      try {
-        win.setWindowLayoutFullScreen(true).catch(() => {});
-      } catch (e) {}
-      if (fullscreen) {
-        try {
-          win.setImmersiveModeEnabledState(true);
-        } catch (e) {}
-        try {
-          win.setWindowSystemBarEnable([]).catch(() => {});
-        } catch (e) {}
-        try {
-          win.setSpecificSystemBarEnabled('status', false, false).catch(() => {});
-        } catch (e) {}
-        try {
-          win.setSpecificSystemBarEnabled('navigation', false, false).catch(() => {});
-        } catch (e) {}
-      } else {
-        try {
-          win.setImmersiveModeEnabledState(false);
-        } catch (e) {}
-        try {
-          win.setWindowSystemBarEnable(['status']).catch(() => {});
-        } catch (e) {}
-        try {
-          win.setSpecificSystemBarEnabled('status', true, false).catch(() => {});
-        } catch (e) {}
-      }
-      try {
-        win.setWindowKeepScreenOn(keepOn).catch(() => {});
-      } catch (e) {}
-      try {
-        let o: window.Orientation = window.Orientation.UNSPECIFIED;
-        if (orientation === 'Portrait') {
-          o = window.Orientation.PORTRAIT;
-        } else if (orientation === 'Landscape') {
-          o = window.Orientation.LANDSCAPE;
-        }
-        win.setPreferredOrientation(o).catch(() => {});
-      } catch (e) {}
+    if (win === undefined) {
+      return;
     }
+    this.applyFullscreenBars(win, fullscreen);
+    this.scheduleFullscreenBars(fullscreen, 120);
+    this.scheduleFullscreenBars(fullscreen, 420);
+    try {
+      win.setWindowKeepScreenOn(keepOn).catch(() => {});
+    } catch (e) {}
+    try {
+      let o: window.Orientation = window.Orientation.UNSPECIFIED;
+      if (orientation === 'Portrait') {
+        o = window.Orientation.PORTRAIT;
+      } else if (orientation === 'Landscape') {
+        o = window.Orientation.LANDSCAPE;
+      }
+      win.setPreferredOrientation(o).catch(() => {});
+    } catch (e) {}
+  }
+
+  private applyFullscreenBars(win: window.Window, fullscreen: boolean): void {
+    if (fullscreen) {
+      win.setWindowLayoutFullScreen(true).then(() => {
+        return win.setWindowSystemBarEnable([]);
+      }).then(() => {
+        return Promise.all([
+          win.setSpecificSystemBarEnabled('status', false),
+          win.setSpecificSystemBarEnabled('navigationIndicator', false)
+        ]);
+      }).catch(() => {});
+      return;
+    }
+    this.showAppSystemBars(win);
+  }
+
+  private scheduleFullscreenBars(fullscreen: boolean, delay: number): void {
+    setTimeout(() => {
+      if (!this.readerWindowActive) {
+        return;
+      }
+      const win = AppStorage.get<window.Window>('mainWindow');
+      if (win !== undefined) {
+        this.applyFullscreenBars(win, fullscreen);
+      }
+    }, delay);
   }
 
   private onPageIndexChange(): void {
@@ -505,23 +559,145 @@ export struct ReaderScene {
     return this.zoomPercent.toString() + '%';
   }
 
-  private cycleFitMode(): void {
-    const next = nextOption(this.fitMode, ['Fit width', 'Fit height', 'Original', 'Smart fit']);
-    this.fitMode = next;
+  private clearSliderTimer(): void {
+    if (this.sliderHideTimer !== -1) {
+      clearTimeout(this.sliderHideTimer);
+      this.sliderHideTimer = -1;
+    }
+  }
+
+  private scheduleSliderHide(): void {
+    this.clearSliderTimer();
+    this.sliderHideTimer = setTimeout(() => {
+      this.sliderVisible = false;
+      this.sliderHideTimer = -1;
+    }, SLIDER_AUTO_HIDE_DELAY) as number;
+  }
+
+  private showSlider(): void {
+    this.sliderVisible = true;
+    this.scheduleSliderHide();
+  }
+
+  private hideSlider(): void {
+    this.clearSliderTimer();
+    this.sliderVisible = false;
+  }
+
+  private showMenu(): void {
+    this.menuScreenRotation = ehSettingsStore.getValue('screen_rotation', 'System');
+    this.menuReadingDirection = ehSettingsStore.getValue('reading_direction', 'Right to left');
+    this.menuPageScaling = ehSettingsStore.getValue('page_scaling', 'Fit width');
+    this.menuStartPosition = ehSettingsStore.getValue('start_position', 'Beginning');
+    this.menuKeepScreenOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
+    this.menuShowClock = ehSettingsStore.getValue('gallery_show_clock', 'On') === 'On';
+    this.menuShowProgress = ehSettingsStore.getValue('gallery_show_progress', 'On') === 'On';
+    this.menuShowBattery = ehSettingsStore.getValue('gallery_show_battery', 'On') === 'On';
+    this.menuReadingFullscreen = ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On';
+    this.menuCustomBrightness = ehSettingsStore.getValue('custom_screen_lightness', 'Off') === 'On';
+    this.menuBrightnessLevel = ehSettingsStore.getValue('screen_lightness', '50%');
+    this.menuVisible = true;
+  }
+
+  private applyMenuSettings(): void {
+    const oldFullscreen = ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On';
+    ehSettingsStore.setValue('screen_rotation', this.menuScreenRotation);
+    ehSettingsStore.setValue('reading_direction', this.menuReadingDirection);
+    ehSettingsStore.setValue('page_scaling', this.menuPageScaling);
+    ehSettingsStore.setValue('start_position', this.menuStartPosition);
+    ehSettingsStore.setValue('keep_screen_on', this.menuKeepScreenOn ? 'On' : 'Off');
+    ehSettingsStore.setValue('gallery_show_clock', this.menuShowClock ? 'On' : 'Off');
+    ehSettingsStore.setValue('gallery_show_progress', this.menuShowProgress ? 'On' : 'Off');
+    ehSettingsStore.setValue('gallery_show_battery', this.menuShowBattery ? 'On' : 'Off');
+    ehSettingsStore.setValue('reading_fullscreen', this.menuReadingFullscreen ? 'On' : 'Off');
+    ehSettingsStore.setValue('custom_screen_lightness', this.menuCustomBrightness ? 'On' : 'Off');
+    ehSettingsStore.setValue('screen_lightness', this.menuBrightnessLevel);
+    this.fitMode = this.menuPageScaling;
     this.issueViewportCommand('reset');
-    ehSettingsStore.setValue('page_scaling', next);
+    this.syncOverlayState();
+    this.syncDirectionState();
+    this.refreshBattery();
+    this.applyBrightness();
     const context = getAbilityContext();
     if (context !== undefined) {
       ehSettingsStore.save(context).catch(() => {});
     }
+    if (oldFullscreen !== this.menuReadingFullscreen) {
+      this.applyReaderWindowSettings();
+    }
+    const win = AppStorage.get<window.Window>('mainWindow');
+    if (win !== undefined) {
+      win.setWindowKeepScreenOn(this.menuKeepScreenOn).catch(() => {});
+      let o: window.Orientation = window.Orientation.UNSPECIFIED;
+      if (this.menuScreenRotation === 'Portrait') {
+        o = window.Orientation.PORTRAIT;
+      } else if (this.menuScreenRotation === 'Landscape') {
+        o = window.Orientation.LANDSCAPE;
+      }
+      win.setPreferredOrientation(o).catch(() => {});
+    }
   }
 
-  private hideControls(): void {
-    this.controlsVisible = false;
+  private applyBrightness(): void {
+    const win = AppStorage.get<window.Window>('mainWindow');
+    if (win === undefined) {
+      return;
+    }
+    if (!this.menuCustomBrightness) {
+      win.setWindowBrightness(-1).catch(() => {});
+      return;
+    }
+    const pct = Number.parseFloat(this.menuBrightnessLevel) / 100;
+    const brightness = Number.isNaN(pct) ? 0.5 : Math.max(0, Math.min(1, pct));
+    win.setWindowBrightness(brightness).catch(() => {});
   }
 
-  private toggleControls(): void {
-    this.controlsVisible = !this.controlsVisible;
+  private hideMenu(): void {
+    this.applyMenuSettings();
+    this.menuVisible = false;
+    this.showInfo = false;
+  }
+
+  private hideAll(): void {
+    this.hideMenu();
+    this.hideSlider();
+  }
+
+  // Called from ReaderImageViewport with tap coordinates (vp units)
+  private onTap(x: number, y: number, w: number, h: number): void {
+    if (this.menuVisible) {
+      this.hideAll();
+      return;
+    }
+    if (this.sliderVisible) {
+      this.hideSlider();
+      return;
+    }
+    const relX = w > 0 ? x / w : 0.5;
+    const relY = h > 0 ? y / h : 0.5;
+    if (this.swiperVertical) {
+      // Top-to-bottom: tap top 1/3 → prev, bottom 1/3 → next, center → menu
+      if (relY < 1.0 / 3.0) {
+        this.jumpTo(this.currentIndex - 1);
+      } else if (relY > 2.0 / 3.0) {
+        this.jumpTo(this.currentIndex + 1);
+      } else {
+        this.showMenu();
+      }
+      return;
+    }
+    // Horizontal modes
+    if (relX < 1.0 / 3.0) {
+      // Left tap: prev for LTR, next for RTL
+      this.swiperReversed ? this.jumpTo(this.currentIndex + 1) : this.jumpTo(this.currentIndex - 1);
+    } else if (relX > 2.0 / 3.0) {
+      // Right tap: next for LTR, prev for RTL
+      this.swiperReversed ? this.jumpTo(this.currentIndex - 1) : this.jumpTo(this.currentIndex + 1);
+    } else if (relY < 2.0 / 3.0) {
+      this.showMenu();
+    } else {
+      this.showSlider();
+    }
   }
 
   private canGoPrev(): boolean {
@@ -576,8 +752,10 @@ export struct ReaderScene {
             isActive: index === this.currentIndex,
             command: this.viewportCommand,
             commandVersion: this.viewportCommandVersion,
-            onToggleControls: () => {
-              this.toggleControls();
+            onTap: (x: number, y: number, w: number, h: number) => {
+              if (index === this.currentIndex) {
+                this.onTap(x, y, w, h);
+              }
             },
             onSwipeLockChange: (locked: boolean) => {
               if (index === this.currentIndex) {
@@ -599,6 +777,7 @@ export struct ReaderScene {
       .indicator(false)
       .loop(false)
       .autoPlay(false)
+      .vertical(this.swiperVertical)
       .displayCount(1)
       .itemSpace(0)
       .duration(180)
@@ -612,225 +791,305 @@ export struct ReaderScene {
       .height('100%')
       .backgroundColor('#050608')
 
-      if (!this.controlsVisible && readerShowProgress()) {
-        Text(this.progressText())
-          .fontSize(12)
-          .fontColor('#F2F4F7')
-          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-          .backgroundColor('#66000000')
-          .borderRadius(12)
-          .position({ x: 12, y: 12 })
-          .zIndex(3)
-      }
-
-      if (!this.controlsVisible && readerShowClock()) {
-        Text(readerClockText())
-          .fontSize(12)
-          .fontColor('#F2F4F7')
-          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-          .backgroundColor('#66000000')
-          .borderRadius(12)
-          .position({ x: 12, y: 42 })
-          .zIndex(3)
-      }
-
-      if (this.controlsVisible) {
-        Stack() {
-          Column() {
-            Row() {
-              Button({ type: ButtonType.Circle, stateEffect: true }) {
-                SymbolGlyph($r('sys.symbol.chevron_left'))
-                  .fontSize(20)
-                  .fontColor([Color.White])
-              }
-              .width(36)
-              .height(36)
-              .backgroundColor('#CC111827')
-              .onClick(() => {
-                this.onBack();
-              })
-              Text(uiStatusText(this.statusText))
-                .fontSize(12)
-                .fontColor('#E5E7EB')
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-                .margin({ left: 10 })
-                .layoutWeight(1)
-              if (readerShowClock()) {
-                Text(readerClockText())
-                  .fontSize(12)
-                  .fontColor('#E5E7EB')
-                  .margin({ left: 8 })
-              }
-              if (readerShowProgress()) {
-                Text(this.progressText())
-                  .fontSize(12)
-                  .fontColor('#E5E7EB')
-                  .margin({ left: 8 })
-              }
-            }
-            .width('100%')
-            .padding({ left: 12, right: 12, top: 12, bottom: 10 })
-            .backgroundColor('#99000000')
-
-            Blank()
-              .layoutWeight(1)
-
-            if (this.showInfo) {
-              Column() {
-                ReaderInfoRow({ label: uiText('Page URL'), value: this.page.pageUrl })
-                ReaderInfoRow({ label: uiText('Image URL'), value: this.page.imageUrl })
-                ReaderInfoRow({ label: uiText('Original'), value: this.page.originImageUrl })
-                ReaderInfoRow({ label: uiText('Show Key'), value: this.page.showKey })
-                ReaderInfoRow({ label: uiText('Retry Key'), value: this.page.skipHathKey })
-                ReaderInfoRow({ label: uiText('Fit'), value: uiValue(this.fitMode) + ', zoom ' + this.zoomPercent.toString() + '%' })
-              }
-              .width('100%')
-              .padding(12)
-              .backgroundColor('#EEFFFFFF')
-            }
-
-            Column() {
-              Row() {
-                Text((this.currentIndex + 1).toString())
-                  .fontSize(12)
-                  .fontColor('#E5E7EB')
-                  .width(42)
-                Slider({
-                  value: this.currentIndex,
-                  min: 0,
-                  max: Math.max(0, this.totalPages - 1),
-                  step: 1
-                })
-                  .layoutWeight(1)
-                  .enabled(this.totalPages > 1)
-                  .onChange((value: number, mode: SliderChangeMode) => {
-                    if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
-                      this.jumpTo(value);
-                    }
-                  })
-                Text((this.totalPages <= 0 ? 1 : this.totalPages).toString())
-                  .fontSize(12)
-                  .fontColor('#E5E7EB')
-                  .textAlign(TextAlign.End)
-                  .width(42)
-              }
-              .width('100%')
-              .alignItems(VerticalAlign.Center)
-
-              Row({ space: 8 }) {
-                ReaderNavButton({
-                  text: uiText('Previous'),
-                  active: this.canGoPrev(),
-                  onTap: () => {
-                    this.jumpTo(this.currentIndex - 1);
-                  }
-                })
-                  .layoutWeight(1)
-                ReaderNavButton({
-                  text: uiText('Next'),
-                  active: this.canGoNext(),
-                  onTap: () => {
-                    this.jumpTo(this.currentIndex + 1);
-                  }
-                })
-                  .layoutWeight(1)
-              }
-              .width('100%')
-              .margin({ top: 10 })
-
-              Flex({ wrap: FlexWrap.Wrap }) {
-                ReaderToolButton({
-                  text: uiText('Zoom out'),
-                  active: this.zoomPercent > 100,
-                  onTap: () => {
-                    this.zoomOut();
-                  }
-                })
-                  .margin({ right: 8, bottom: 8 })
-                ReaderToolButton({
-                  text: this.zoomLabel(),
-                  active: true,
-                  onTap: () => {
-                    this.resetZoom();
-                  }
-                })
-                  .margin({ right: 8, bottom: 8 })
-                ReaderToolButton({
-                  text: uiText('Zoom in'),
-                  active: this.zoomPercent < 400,
-                  onTap: () => {
-                    this.zoomIn();
-                  }
-                })
-                  .margin({ right: 8, bottom: 8 })
-                ReaderToolButton({
-                  text: '225%',
-                  active: true,
-                  onTap: () => {
-                    this.issueViewportCommand('double_zoom');
-                  }
-                })
-                  .margin({ right: 8, bottom: 8 })
-                ReaderToolButton({
-                  text: uiValue(this.fitMode),
-                  active: true,
-                  onTap: () => {
-                    this.cycleFitMode();
-                  }
-                })
-                  .margin({ right: 8, bottom: 8 })
-                ReaderToolButton({
-                  text: this.preferOriginal ? uiText('Original') : uiText('Resampled'),
-                  active: this.page.originImageUrl.length > 0,
-                  onTap: () => {
-                    this.preferOriginal = !this.preferOriginal;
-                    this.issueViewportCommand('reset');
-                  }
-                })
-                  .margin({ right: 8, bottom: 8 })
-                ReaderToolButton({
-                  text: uiText('Info'),
-                  active: true,
-                  onTap: () => {
-                    this.showInfo = !this.showInfo;
-                  }
-                })
-                  .margin({ right: 8, bottom: 8 })
-                ReaderToolButton({
-                  text: uiText('Retry'),
-                  active: this.page.pageUrl.length > 0,
-                  onTap: this.onRetry
-                })
-                  .margin({ right: 8, bottom: 8 })
-                ReaderToolButton({
-                  text: uiText('Hide'),
-                  active: true,
-                  onTap: () => {
-                    this.hideControls();
-                  }
-                })
-                  .margin({ right: 8, bottom: 8 })
-              }
-              .width('100%')
-              .margin({ top: 10 })
-            }
-            .width('100%')
-            .padding({ left: 12, right: 12, top: 12, bottom: 14 })
-            .backgroundColor('#CC111827')
+      // Floating progress / clock / battery overlay (when no panel shown)
+      if (!this.menuVisible && !this.sliderVisible) {
+        Column({ space: 4 }) {
+          if (this.overlayShowProgress) {
+            Text(this.progressText())
+              .fontSize(12)
+              .fontColor('#F2F4F7')
+              .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+              .backgroundColor('#66000000')
+              .borderRadius(10)
           }
+          if (this.overlayShowClock) {
+            Text(readerClockText())
+              .fontSize(12)
+              .fontColor('#F2F4F7')
+              .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+              .backgroundColor('#66000000')
+              .borderRadius(10)
+          }
+          if (this.overlayShowBattery) {
+            Text(this.batteryText())
+              .fontSize(12)
+              .fontColor('#F2F4F7')
+              .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+              .backgroundColor('#66000000')
+              .borderRadius(10)
+          }
+        }
+        .alignItems(HorizontalAlign.Start)
+        .position({ x: 12, y: 12 })
+        .zIndex(3)
+      }
+
+      // ── Slider panel (lower 1/3 tap, auto-hides after 3s) ──
+      if (this.sliderVisible) {
+        Stack() {}
           .width('100%')
           .height('100%')
+          .onClick(() => { this.hideSlider(); })
+          .zIndex(4)
+
+        Column() {
+          Row() {
+            Text((this.currentIndex + 1).toString())
+              .fontSize(12)
+              .fontColor('#E5E7EB')
+              .width(42)
+              .textAlign(TextAlign.Center)
+            Slider({
+              value: this.currentIndex,
+              min: 0,
+              max: Math.max(0, this.totalPages - 1),
+              step: 1
+            })
+              .layoutWeight(1)
+              .enabled(this.totalPages > 1)
+              .onChange((value: number, mode: SliderChangeMode) => {
+                if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
+                  this.clearSliderTimer();
+                  this.jumpTo(value);
+                  this.scheduleSliderHide();
+                }
+              })
+            Text((this.totalPages <= 0 ? 1 : this.totalPages).toString())
+              .fontSize(12)
+              .fontColor('#E5E7EB')
+              .textAlign(TextAlign.Center)
+              .width(42)
+          }
+          .width('100%')
+          .alignItems(VerticalAlign.Center)
         }
         .width('100%')
-        .height('100%')
-        .zIndex(4)
+        .padding({ left: 12, right: 12, top: 10, bottom: 16 })
+        .backgroundColor('#CC111827')
+        .position({ x: 0, y: '100%' })
+        .translate({ y: '-100%' })
+        .zIndex(5)
+      }
+
+      // ── Settings menu (upper 2/3 tap) ──
+      if (this.menuVisible) {
+        // Full-screen backdrop to dismiss on outside tap
+        Stack() {}
+          .width('100%')
+          .height('100%')
+          .onClick(() => { this.hideMenu(); })
+          .zIndex(6)
+
+        Column() {
+          // Top bar: back + title + clock/progress
+          Row() {
+            Button({ type: ButtonType.Circle, stateEffect: true }) {
+              SymbolGlyph($r('sys.symbol.chevron_left'))
+                .fontSize(20)
+                .fontColor([Color.White])
+            }
+            .width(36)
+            .height(36)
+            .backgroundColor('#334155')
+            .onClick(() => { this.onBack(); })
+
+            Text(uiStatusText(this.statusText))
+              .fontSize(12)
+              .fontColor('#E5E7EB')
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .margin({ left: 10 })
+              .layoutWeight(1)
+            if (this.menuShowClock) {
+              Text(readerClockText())
+                .fontSize(12)
+                .fontColor('#E5E7EB')
+                .margin({ left: 8 })
+            }
+            if (this.menuShowProgress) {
+              Text(this.progressText())
+                .fontSize(12)
+                .fontColor('#E5E7EB')
+                .margin({ left: 8 })
+            }
+          }
+          .width('100%')
+          .padding({ left: 12, right: 12, top: 12, bottom: 10 })
+          .backgroundColor('#99000000')
+
+          // Scrollable settings body
+          Scroll() {
+            Column({ space: 0 }) {
+
+              ReaderMenuSelect({
+                label: uiText('Screen rotation'),
+                options: ['System', 'Portrait', 'Landscape'],
+                value: this.menuScreenRotation,
+                onChange: (v: string) => { this.menuScreenRotation = v; }
+              })
+              ReaderMenuDivider()
+
+              ReaderMenuSelect({
+                label: uiText('Reading direction'),
+                options: ['Left to right', 'Right to left', 'Top to bottom'],
+                value: this.menuReadingDirection,
+                onChange: (v: string) => { this.menuReadingDirection = v; }
+              })
+              ReaderMenuDivider()
+
+              ReaderMenuSelect({
+                label: uiText('Page scaling'),
+                options: ['Fit width', 'Fit height', 'Original', 'Smart fit'],
+                value: this.menuPageScaling,
+                onChange: (v: string) => { this.menuPageScaling = v; }
+              })
+              ReaderMenuDivider()
+
+              ReaderMenuSelect({
+                label: uiText('Start position'),
+                options: ['Beginning', 'Last read', 'End'],
+                value: this.menuStartPosition,
+                onChange: (v: string) => { this.menuStartPosition = v; }
+              })
+              ReaderMenuDivider()
+
+              ReaderMenuToggle({
+                label: uiText('Keep screen on'),
+                value: this.menuKeepScreenOn,
+                onChange: (v: boolean) => { this.menuKeepScreenOn = v; }
+              })
+              ReaderMenuDivider()
+
+              ReaderMenuToggle({
+                label: uiText('Show clock'),
+                value: this.menuShowClock,
+                onChange: (v: boolean) => { this.menuShowClock = v; }
+              })
+              ReaderMenuDivider()
+
+              ReaderMenuToggle({
+                label: uiText('Show progress'),
+                value: this.menuShowProgress,
+                onChange: (v: boolean) => { this.menuShowProgress = v; }
+              })
+              ReaderMenuDivider()
+
+              ReaderMenuToggle({
+                label: uiText('Show battery'),
+                value: this.menuShowBattery,
+                onChange: (v: boolean) => { this.menuShowBattery = v; }
+              })
+              ReaderMenuDivider()
+
+              ReaderMenuToggle({
+                label: uiText('Reading fullscreen'),
+                value: this.menuReadingFullscreen,
+                onChange: (v: boolean) => { this.menuReadingFullscreen = v; }
+              })
+              ReaderMenuDivider()
+
+              ReaderMenuToggle({
+                label: uiText('Screen lightness'),
+                value: this.menuCustomBrightness,
+                onChange: (v: boolean) => { this.menuCustomBrightness = v; }
+              })
+
+              if (this.menuCustomBrightness) {
+                ReaderMenuDivider()
+                ReaderMenuSelect({
+                  label: '',
+                  options: ['0%', '25%', '50%', '75%', '100%'],
+                  value: this.menuBrightnessLevel,
+                  onChange: (v: string) => { this.menuBrightnessLevel = v; }
+                })
+              }
+
+              // Bottom close button
+              Button(uiText('Close'))
+                .width('100%')
+                .height(42)
+                .fontSize(14)
+                .fontColor(Color.White)
+                .backgroundColor('#2F6F8F')
+                .borderRadius(0)
+                .margin({ top: 8 })
+                .onClick(() => { this.hideMenu(); })
+            }
+            .width('100%')
+          }
+          .scrollable(ScrollDirection.Vertical)
+          .scrollBar(BarState.Off)
+          .layoutWeight(1)
+        }
+        .width('100%')
+        .constraintSize({ maxHeight: '80%' })
+        .backgroundColor('#EE111827')
+        .zIndex(7)
       }
     }
     .width('100%')
     .height('100%')
     .backgroundColor('#050608')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+  }
+
+}
+
+@Component
+struct ReaderMenuDivider {
+  build() {
+    Divider()
+      .height(1)
+      .color('#1FFFFFFF')
+      .margin({ left: 16, right: 16 })
+  }
+}
+
+@Component
+struct ReaderMenuSelect {
+  label: string = '';
+  options: string[] = [];
+  value: string = '';
+  onChange: (v: string) => void = () => {};
+
+  build() {
+    Row() {
+      Text(this.label)
+        .fontSize(14)
+        .fontColor('#E5E7EB')
+        .layoutWeight(1)
+      Select(this.options.map((o: string) => ({ value: o } as SelectOption)))
+        .value(this.value)
+        .font({ size: 13 })
+        .fontColor('#E5E7EB')
+        .backgroundColor('#1F2937')
+        .onSelect((_idx: number, v: string) => { this.onChange(v); })
+    }
+    .width('100%')
+    .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+    .alignItems(VerticalAlign.Center)
+  }
+}
+
+@Component
+struct ReaderMenuToggle {
+  label: string = '';
+  value: boolean = false;
+  onChange: (v: boolean) => void = () => {};
+
+  build() {
+    Row() {
+      Text(this.label)
+        .fontSize(14)
+        .fontColor('#E5E7EB')
+        .layoutWeight(1)
+      Toggle({ type: ToggleType.Switch, isOn: this.value })
+        .onChange((v: boolean) => { this.onChange(v); })
+        .selectedColor('#2F6F8F')
+    }
+    .width('100%')
+    .padding({ left: 16, right: 16, top: 6, bottom: 6 })
+    .alignItems(VerticalAlign.Center)
   }
 }
 
@@ -843,7 +1102,7 @@ struct ReaderImageViewport {
   @Prop isActive: boolean = false;
   @Prop command: string = '';
   @Prop @Watch('onCommandChange') commandVersion: number = 0;
-  onToggleControls: () => void = () => {};
+  onTap: (x: number, y: number, w: number, h: number) => void = () => {};
   onSwipeLockChange: (locked: boolean) => void = (_locked: boolean) => {};
   onZoomChange: (percent: number) => void = (_percent: number) => {};
 
@@ -892,7 +1151,25 @@ struct ReaderImageViewport {
     if (this.fitMode === 'Smart fit') {
       return ImageFit.Cover;
     }
+    if (this.fitMode === 'Fit height') {
+      return ImageFit.Fill;
+    }
+    // 'Fit width' — default
     return ImageFit.Contain;
+  }
+
+  private imageWidth(): string {
+    if (this.fitMode === 'Fit height') {
+      return 'auto';
+    }
+    return '100%';
+  }
+
+  private imageHeight(): string {
+    if (this.fitMode === 'Fit width') {
+      return 'auto';
+    }
+    return '100%';
   }
 
   private readAreaSize(value: Length): number {
@@ -935,8 +1212,8 @@ struct ReaderImageViewport {
     Stack({ alignContent: Alignment.Center }) {
       if (this.imageUrl().length > 0) {
         Image(this.imageUrl())
-          .width('100%')
-          .height('100%')
+          .width(this.imageWidth())
+          .height(this.imageHeight())
           .objectFit(this.imageFit())
           .backgroundColor('#050608')
           .scale({ x: this.imageModel.currentScale, y: this.imageModel.currentScale, centerX: '50%', centerY: '50%' })
@@ -976,8 +1253,13 @@ struct ReaderImageViewport {
             this.reportState();
           }),
         TapGesture({ count: 1 })
-          .onAction(() => {
-            this.onToggleControls();
+          .onAction((event: GestureEvent) => {
+            this.onTap(
+              this.tapCenterX(event),
+              this.tapCenterY(event),
+              this.imageModel.componentWidth,
+              this.imageModel.componentHeight
+            );
           }),
         GestureGroup(GestureMode.Parallel,
           PanGesture({ fingers: 1, distance: this.imageModel.disableSwipe ? 3 : 50 })
