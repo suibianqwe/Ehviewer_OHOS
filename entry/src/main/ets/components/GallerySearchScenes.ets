@@ -12,6 +12,7 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../shared/EhTheme';
+import { selectArrowModifier } from '../shared/EhSelectStyle';
 
 export interface SearchSuggestionItem {
   kind: string;
@@ -787,6 +788,12 @@ export struct SearchAdvancedPanel {
               .value(this.modeLabelDraft.length > 0 ? this.modeLabelDraft : this.modeLabelForIndex(this.searchModeIndex()))
               .height(38)
               .width('100%')
+              .fontColor(themePrimaryText())
+              .selectedOptionBgColor(themeSurfaceVariant())
+              .selectedOptionFontColor(themePrimaryText())
+              .optionBgColor(themeSurface())
+              .optionFont({ size: 13 })
+              .arrowModifier(selectArrowModifier())
               .onSelect((index: number) => {
                 const next = this.modeForIndex(index);
                 this.modeDraft = next;

@@ -23,6 +23,7 @@ import {
   uiText,
   uiValue
 } from '../shared/EhShared';
+import { selectArrowModifier } from '../shared/EhSelectStyle';
 import { EhSubNavBar } from './NavigationComponents';
 
 const READER_MIN_SCALE: number = 1;
@@ -1258,6 +1259,11 @@ struct ReaderMenuSelect {
         .font({ size: 13 })
         .fontColor('#E5E7EB')
         .backgroundColor('#1F2937')
+        .selectedOptionBgColor('#374151')
+        .selectedOptionFontColor('#F9FAFB')
+        .optionBgColor('#111827')
+        .optionFont({ size: 13 })
+        .arrowModifier(selectArrowModifier('#E5E7EB'))
         .onSelect((_idx: number, v: string) => { this.onChange(v); })
     }
     .width('100%')

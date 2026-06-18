@@ -44,6 +44,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
+import { selectArrowModifier } from '../shared/EhSelectStyle';
 import { EhBackupBundle, DrawerItem, SettingsHeaderItem, SettingsRowItem, SessionMode, SettingsPanel, DRAWER_ITEMS, SETTINGS_HEADERS, STATUS_BAR_HEIGHT_KEY, ON_OFF_OPTIONS, shouldUseChineseUi, uiText, uiValue, uiStatusText, uiPageText, zhText, setActiveBackHandler, runActiveBackHandler, createEmptyGallery, createEmptyDownloadInfo, createDetailFromGallery, createEmptyDetail, createEmptyPreview, createEmptyPage, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneStringArray, cloneRequiredStringArray, cloneGalleryInfo, cloneGalleryInfos, padTwo, applyGalleryFilters, cloneGalleryTagGroups, cloneGalleryComments, cloneGalleryPreviews, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, cloneTopListItem, cloneTopListBucket, cloneTopListInfo, cloneTopListDetail, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, saveDownloadsQuietly, filterDownloadItems, downloadItemMatches, sortDownloadItems, nextDownloadStatusFilter, nextDownloadLabelFilter, nextDownloadSortMode, nextStringOption, nextDownloadState, nextDownloadLabel, downloadLabelName, downloadStateLabel, downloadStateColor, downloadProgressText, downloadSizeText, downloadImageUrlForPage, downloadThreadLimit, downloadPageIndexes, downloadQueueSummary, parseHistoryMaxSize, routeTitle, routeSubtitle, launchRouteFromSetting, settingsPanelTitle, settingsRowsForPanel, optionSettingsRow, textSettingsRow, staticSettingsRow, settingEntryValue, cloneStringOptions, settingMigrationMessage, nextOption, isValidProxyPortText, formatNetworkDiagnostics, listModeForRoute, routeUsesKeyword, usesGallerySearchToolbar, usesEmbeddedToolbar, defaultKeywordForRoute, gallerySearchTitle, currentGallerySite, effectiveListSite, gallerySiteName, galleryListFailureMessage, withGalleryListMessage, readerPageReferer, readerDisplayImageUrl, cacheReaderImageForPage, cacheThumbnailImage, cloneGalleryPageWithCache, readerLocalImageSource, readerZoomSize, readerFullImageWidth, readerFullImageHeight, readerImageFit, readerShortUrl, readerPreloadCount, readerIsRightToLeft, categoryName, categoryColor, ratingText, galleryDisplayTitle, showGalleryPages, galleryListMode, galleryThumbWidth, galleryThumbHeight, galleryRowHeight, galleryTagPreview, detailTitleFontSize, detailTitleMaxLines, detailHeadingFontSize, readerShowProgress, readerShowClock, readerClockText, padTimeNumber, topListChipColor } from '../shared/EhShared';
 import { FilterPanel, MigrationScene } from './DownloadMigrationScenes';
 import { AppSubToolbar, AppToolbar } from './NavigationComponents';
@@ -1705,16 +1706,11 @@ export struct SettingsActionRow {
 @Component
 export struct SettingsStaticRow {
   row: SettingsRowItem = { title: '', summary: '', value: '', type: '' };
-  @Prop @Watch('onRenderRevisionChanged') renderRevision: number = 0;
-  @State themeOptionsVisible: boolean = false;
+  @Prop renderRevision: number = 0;
   onTap: () => void = () => {};
   onTextChange: (key: string, value: string) => void = () => {};
   onSwitchChange: (key: string, isOn: boolean) => void = () => {};
   onOptionSelect: (key: string, value: string) => void = () => {};
-
-  onRenderRevisionChanged(): void {
-    this.themeOptionsVisible = false;
-  }
 
   build() {
     Column() {
@@ -1724,21 +1720,7 @@ export struct SettingsStaticRow {
           summary: uiText(this.row.summary)
         })
         .layoutWeight(1)
-        if (this.row.key === 'theme') {
-          ThemeDropdown({
-            value: this.row.value,
-            expanded: this.themeOptionsVisible,
-            onToggle: () => {
-              this.themeOptionsVisible = !this.themeOptionsVisible;
-            },
-            onSelect: (value: string) => {
-              if (this.row.key !== undefined) {
-                this.themeOptionsVisible = false;
-                this.onOptionSelect(this.row.key, value);
-              }
-            }
-          })
-        } else if (this.row.type === 'input') {
+        if (this.row.type === 'input') {
           TextInput({ text: this.row.value, placeholder: this.row.summary })
             .width(150)
             .height(38)
@@ -1779,6 +1761,7 @@ export struct SettingsStaticRow {
             .selectedOptionFontColor(themePrimaryText())
             .optionBgColor(themeSurface())
             .optionFont({ size: 13 })
+            .arrowModifier(selectArrowModifier())
             .margin({ left: 8 })
             .onSelect((index: number) => {
               if (this.row.key !== undefined && this.row.options !== undefined) {
@@ -1798,19 +1781,6 @@ export struct SettingsStaticRow {
         }
       }
       .width('100%')
-
-      if (this.row.key === 'theme' && this.themeOptionsVisible) {
-        ThemeDropdownOptions({
-          value: this.row.value,
-          onSelect: (value: string) => {
-            if (this.row.key !== undefined) {
-              this.themeOptionsVisible = false;
-              this.onOptionSelect(this.row.key, value);
-            }
-          }
-        })
-          .margin({ top: 10 })
-      }
     }
     .width('100%')
     .padding(14)
@@ -1821,77 +1791,6 @@ export struct SettingsStaticRow {
         this.onTap();
       }
     })
-  }
-}
-
-@Component
-struct ThemeDropdown {
-  value: string = 'Light';
-  expanded: boolean = false;
-  onToggle: () => void = () => {};
-  onSelect: (value: string) => void = (_value: string) => {};
-
-  build() {
-    Row({ space: 8 }) {
-      Text(uiValue(this.value))
-        .fontSize(13)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(themePrimaryText())
-        .maxLines(1)
-      SymbolGlyph(this.expanded ? $r('sys.symbol.chevron_up') : $r('sys.symbol.chevron_down'))
-        .fontSize(14)
-        .fontColor([themePrimaryText()])
-    }
-    .height(36)
-    .padding({ left: 12, right: 10 })
-    .backgroundColor(themeFieldBackground())
-    .border({ width: 1, color: themePrimaryColor() })
-    .borderRadius(6)
-    .margin({ left: 12 })
-    .onClick(() => {
-      this.onToggle();
-    })
-  }
-}
-
-@Component
-struct ThemeDropdownOptions {
-  value: string = 'Light';
-  onSelect: (value: string) => void = (_value: string) => {};
-
-  private options(): string[] {
-    return ['Light', 'Dark', 'Black'];
-  }
-
-  build() {
-    Column() {
-      ForEach(this.options(), (option: string) => {
-        Row() {
-          Text(uiValue(option))
-            .fontSize(14)
-            .fontWeight(option === this.value ? FontWeight.Bold : FontWeight.Medium)
-            .fontColor(option === this.value ? themePrimaryText() : themeSecondaryText())
-            .layoutWeight(1)
-          if (option === this.value) {
-            SymbolGlyph($r('sys.symbol.checkmark'))
-              .fontSize(16)
-              .fontColor([themePrimaryColor()])
-          }
-        }
-        .width('100%')
-        .height(38)
-        .padding({ left: 12, right: 12 })
-        .backgroundColor(option === this.value ? themeSurfaceVariant() : themeFieldBackground())
-        .onClick(() => {
-          this.onSelect(option);
-        })
-      }, (option: string) => option)
-    }
-    .width('100%')
-    .clip(true)
-    .border({ width: 1, color: themePrimaryColor() })
-    .borderRadius(6)
-    .backgroundColor(themeFieldBackground())
   }
 }
 
