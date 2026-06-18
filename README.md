@@ -1,7 +1,7 @@
 # EhViewer HarmonyOS
 
 <p align="center">
-  <img src="docs/images/app-icon.png" width="120" alt="EhViewer HarmonyOS app icon" />
+  <img src="entry/src/main/resources/base/media/app_icon.svg" width="120" alt="EhViewer HarmonyOS app icon" />
 </p>
 
 `Ehviewer_OHOS` 是基于 `Ehviewer_CN_SXJ` 的 HarmonyOS 原生移植项目。项目目标不是通过 Android 兼容层运行 APK，而是使用 ArkTS、ArkUI 和 HarmonyOS Stage 模型重写主要界面、网络、阅读器、下载、历史、设置等功能。

@@ -794,10 +794,12 @@ export struct SearchAdvancedPanel {
       .width('100%')
       .padding({ left: 12, right: 12, top: 10, bottom: 10 })
       .backgroundColor(Color.White)
+      .borderRadius({ bottomLeft: 8, bottomRight: 8 })
     }
     .width('100%')
     .backgroundColor(Color.White)
     .borderRadius(8)
+    .clip(true)
     .shadow({ radius: 12, color: '#33000000', offsetX: 0, offsetY: 4 })
   }
 
