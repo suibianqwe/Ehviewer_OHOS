@@ -1,6 +1,6 @@
-import { GalleryCategory, GalleryRoute } from '../model/GalleryModels';
+import { ALL_CATEGORY, GalleryCategory, GalleryRoute } from '../model/GalleryModels';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
-import { APP_THEME_COLOR, LANGUAGE_REVISION_KEY, categoryName, themeSurfaceColor, uiText } from '../shared/EhShared';
+import { APP_THEME_COLOR, LANGUAGE_REVISION_KEY, categoryColor, categoryName, themeSurfaceColor, uiText } from '../shared/EhShared';
 
 interface SearchSuggestionItem {
   kind: string;
@@ -12,6 +12,11 @@ interface SearchSuggestionItem {
 interface GalleryUrlMatch {
   gid: number;
   token: string;
+}
+
+interface SearchCategoryOption {
+  label: string;
+  category: number;
 }
 
 const searchHistoryKeywords: string[] = [];
@@ -235,7 +240,7 @@ export struct GallerySearchScene {
             })
 
           Button({ type: ButtonType.Circle, stateEffect: true }) {
-            SymbolGlyph($r('sys.symbol.gearshape'))
+            SymbolGlyph($r('sys.symbol.plus'))
               .fontSize(20)
               .fontColor([Color.White])
           }
@@ -359,7 +364,7 @@ export struct SearchSummaryStrip {
   build() {
     Row({ space: 8 }) {
       SearchStatusChip({ label: this.modeLabel(), isActive: true })
-      SearchStatusChip({ label: this.category === GalleryCategory.None ? 'All categories' : categoryName(this.category), isActive: false })
+      SearchStatusChip({ label: this.categoryLabel(), isActive: false })
       if (this.advancedEnabled) {
         SearchStatusChip({ label: 'Advanced', isActive: true })
       }
@@ -370,6 +375,16 @@ export struct SearchSummaryStrip {
     .width('100%')
     .height(34)
     .alignItems(VerticalAlign.Center)
+  }
+
+  private categoryLabel(): string {
+    if (this.category === GalleryCategory.None || this.category === ALL_CATEGORY) {
+      return 'All categories';
+    }
+    if (this.category === 0) {
+      return 'No categories';
+    }
+    return categoryName(this.category);
   }
 }
 
@@ -496,19 +511,18 @@ export struct SearchAdvancedPanel {
     ];
   }
 
-  private categoryOptions(): SelectOption[] {
+  private categoryOptions(): SearchCategoryOption[] {
     return [
-      { value: uiText('All categories') },
-      { value: 'Doujinshi' },
-      { value: 'Manga' },
-      { value: 'Artist CG' },
-      { value: 'Game CG' },
-      { value: 'Image Set' },
-      { value: 'Cosplay' },
-      { value: 'Asian Porn' },
-      { value: 'Non-H' },
-      { value: 'Western' },
-      { value: 'Misc' }
+      { label: 'Doujinshi', category: GalleryCategory.Doujinshi },
+      { label: 'Manga', category: GalleryCategory.Manga },
+      { label: 'Artist CG', category: GalleryCategory.ArtistCg },
+      { label: 'Game CG', category: GalleryCategory.GameCg },
+      { label: 'Image Set', category: GalleryCategory.ImageSet },
+      { label: 'Cosplay', category: GalleryCategory.Cosplay },
+      { label: 'Asian Porn', category: GalleryCategory.AsianPorn },
+      { label: 'Non-H', category: GalleryCategory.NonH },
+      { label: 'Western', category: GalleryCategory.Western },
+      { label: 'Misc', category: GalleryCategory.Misc }
     ];
   }
 
@@ -535,36 +549,33 @@ export struct SearchAdvancedPanel {
     return 0;
   }
 
-  private categoryIndex(): number {
-    switch (this.searchCategory) {
-      case GalleryCategory.Doujinshi: return 1;
-      case GalleryCategory.Manga: return 2;
-      case GalleryCategory.ArtistCg: return 3;
-      case GalleryCategory.GameCg: return 4;
-      case GalleryCategory.ImageSet: return 5;
-      case GalleryCategory.Cosplay: return 6;
-      case GalleryCategory.AsianPorn: return 7;
-      case GalleryCategory.NonH: return 8;
-      case GalleryCategory.Western: return 9;
-      case GalleryCategory.Misc: return 10;
-      default: return 0;
+  private selectedCategoryMask(): number {
+    if (this.searchCategory === GalleryCategory.None) {
+      return ALL_CATEGORY;
     }
+    return this.searchCategory & ALL_CATEGORY;
   }
 
-  private categoryForIndex(index: number): number {
-    switch (index) {
-      case 1: return GalleryCategory.Doujinshi;
-      case 2: return GalleryCategory.Manga;
-      case 3: return GalleryCategory.ArtistCg;
-      case 4: return GalleryCategory.GameCg;
-      case 5: return GalleryCategory.ImageSet;
-      case 6: return GalleryCategory.Cosplay;
-      case 7: return GalleryCategory.AsianPorn;
-      case 8: return GalleryCategory.NonH;
-      case 9: return GalleryCategory.Western;
-      case 10: return GalleryCategory.Misc;
-      default: return GalleryCategory.None;
-    }
+  private allCategoriesSelected(): boolean {
+    return this.selectedCategoryMask() === ALL_CATEGORY;
+  }
+
+  private categorySelected(category: number): boolean {
+    return (this.selectedCategoryMask() & category) !== 0;
+  }
+
+  private emitCategoryMask(mask: number): void {
+    this.onSearchCategoryChange(mask === ALL_CATEGORY ? GalleryCategory.None : mask);
+  }
+
+  private toggleAllCategories(): void {
+    this.emitCategoryMask(this.allCategoriesSelected() ? 0 : ALL_CATEGORY);
+  }
+
+  private toggleCategory(category: number): void {
+    const mask = this.selectedCategoryMask();
+    const next = (mask & category) !== 0 ? (mask & ~category) : (mask | category);
+    this.emitCategoryMask(next);
   }
 
   private modeForIndex(index: number): ListMode {
@@ -603,15 +614,6 @@ export struct SearchAdvancedPanel {
     this.onAdvanceSearchChange(next);
   }
 
-  private pageText(value: number): string {
-    return value > 0 ? value.toString() : '';
-  }
-
-  private parsePageText(value: string): number {
-    const parsed = Number.parseInt(value);
-    return Number.isNaN(parsed) || parsed <= 0 ? -1 : parsed;
-  }
-
   @Builder
   private sectionTitle(title: string) {
     Text(uiText(title))
@@ -626,41 +628,43 @@ export struct SearchAdvancedPanel {
       Scroll() {
         Column({ space: 10 }) {
           Row() {
-            Text(uiText('Advanced search'))
-              .fontSize(16)
-              .fontWeight(FontWeight.Medium)
-              .fontColor('#17202A')
-            Blank()
-            Button({ type: ButtonType.Circle, stateEffect: true }) {
-              SymbolGlyph($r('sys.symbol.xmark'))
-                .fontSize(18)
-                .fontColor(['#40566F'])
-            }
-            .width(34)
-            .height(34)
-            .backgroundColor('#EEF2F6')
-            .onClick(() => {
-              this.onClose();
-            })
-          }
-          .width('100%')
-          .alignItems(VerticalAlign.Center)
-
-          Row({ space: 8 }) {
             Select(this.searchModeOptions())
               .selected(this.searchModeIndex())
               .height(38)
-              .layoutWeight(1)
+              .width('100%')
               .onSelect((index: number) => {
                 this.onSearchModeChange(this.modeForIndex(index));
               })
-            Select(this.categoryOptions())
-              .selected(this.categoryIndex())
-              .height(38)
-              .layoutWeight(1)
-              .onSelect((index: number) => {
-                this.onSearchCategoryChange(this.categoryForIndex(index));
-              })
+          }
+          .width('100%')
+
+          this.sectionTitle('Categories')
+          Button(uiText('All categories'))
+            .height(32)
+            .fontSize(12)
+            .fontColor(Color.White)
+            .backgroundColor(this.allCategoriesSelected() ? APP_THEME_COLOR : '#5A8FA8')
+            .borderRadius(4)
+            .width('100%')
+            .onClick(() => {
+              this.toggleAllCategories();
+            })
+          Column({ space: 8 }) {
+            ForEach(this.categoryRows(), (row: SearchCategoryOption[]) => {
+              Row({ space: 8 }) {
+                ForEach(row, (option: SearchCategoryOption) => {
+                  SearchCategoryChip({
+                    label: option.label,
+                    category: option.category,
+                    selected: this.categorySelected(option.category),
+                    onToggle: (category: number) => {
+                      this.toggleCategory(category);
+                    }
+                  })
+                }, (option: SearchCategoryOption) => option.category.toString())
+              }
+              .width('100%')
+            }, (row: SearchCategoryOption[], index: number) => index.toString() + row.map((option: SearchCategoryOption) => option.category.toString()).join('-'))
           }
           .width('100%')
 
@@ -711,34 +715,14 @@ export struct SearchAdvancedPanel {
               Blank().layoutWeight(1)
             }
 
-            this.sectionTitle('Pages')
+            this.sectionTitle('Rating')
             Row({ space: 8 }) {
               Select(this.ratingOptions())
                 .selected(this.ratingIndex())
                 .height(38)
-                .layoutWeight(1)
+                .width('100%')
                 .onSelect((index: number) => {
                   this.onMinRatingChange(this.ratingForIndex(index));
-                })
-              TextInput({ text: this.pageText(this.pageFrom), placeholder: uiText('From page') })
-                .height(38)
-                .layoutWeight(1)
-                .type(InputType.Number)
-                .backgroundColor('#F3F6F8')
-                .fontColor('#17202A')
-                .placeholderColor('#7A8A9A')
-                .onChange((value: string) => {
-                  this.onPageFromChange(this.parsePageText(value));
-                })
-              TextInput({ text: this.pageText(this.pageTo), placeholder: uiText('To page') })
-                .height(38)
-                .layoutWeight(1)
-                .type(InputType.Number)
-                .backgroundColor('#F3F6F8')
-                .fontColor('#17202A')
-                .placeholderColor('#7A8A9A')
-                .onChange((value: string) => {
-                  this.onPageToChange(this.parsePageText(value));
                 })
             }
           }
@@ -765,6 +749,15 @@ export struct SearchAdvancedPanel {
     .backgroundColor(Color.White)
     .borderRadius(8)
     .shadow({ radius: 12, color: '#33000000', offsetX: 0, offsetY: 4 })
+  }
+
+  private categoryRows(): SearchCategoryOption[][] {
+    const options = this.categoryOptions();
+    const rows: SearchCategoryOption[][] = [];
+    for (let i = 0; i < options.length; i += 2) {
+      rows.push(options.slice(i, i + 2));
+    }
+    return rows;
   }
 }
 
@@ -890,6 +883,28 @@ export struct SearchFlagChip {
       .layoutWeight(1)
       .onClick(() => {
         this.onToggle(!this.isOn);
+      })
+  }
+}
+
+@Component
+export struct SearchCategoryChip {
+  label: string = '';
+  category: number = GalleryCategory.Unknown;
+  selected: boolean = false;
+  onToggle: (category: number) => void = (_category: number) => {};
+
+  build() {
+    Button(uiText(this.label))
+      .height(32)
+      .fontSize(12)
+      .fontWeight(FontWeight.Bold)
+      .fontColor(this.selected ? Color.White : '#40566F')
+      .backgroundColor(this.selected ? categoryColor(this.category) : '#EEF2F6')
+      .borderRadius(4)
+      .layoutWeight(1)
+      .onClick(() => {
+        this.onToggle(this.category);
       })
   }
 }

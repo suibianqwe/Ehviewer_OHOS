@@ -1,6 +1,6 @@
 ﻿import { common } from '@kit.AbilityKit';
 import { pasteboard } from '@kit.BasicServicesKit';
-import { GalleryCategory, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite } from '../model/GalleryModels';
+import { ALL_CATEGORY, GalleryCategory, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite } from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
 import { EhHttpClient, GalleryDetailLoadResult, GalleryListLoadResult, GalleryPageLoadResult, RateGalleryResult, ToggleFavoriteResult } from '../services/EhHttpClient';
 import { DEFAULT_ADVANCE_SEARCH, EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder } from '../services/EhUrl';
@@ -13,7 +13,7 @@ import { LANGUAGE_REVISION_KEY, APP_THEME_COLOR } from '../shared/EhShared';
 import { EhNavBar } from '../components/NavigationComponents';
 import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard } from './GalleryCards';
 import { GalleryDetailOverlayScene, GalleryDetailScene } from './GalleryDetailScenes';
-import { GallerySearchScene, QuickActionColumn, recordSearchHistory } from './GallerySearchScenes';
+import { QuickActionColumn, SearchAdvancedPanel, recordSearchHistory } from './GallerySearchScenes';
 import { CommentsScene, PlaceholderScene, ReaderScene } from './ReaderScenes';
 import { uiText, uiStatusText, setActiveBackHandler, createEmptyGallery, createDetailFromGallery, createEmptyDetail, createEmptyPage, cloneGalleryInfos, applyGalleryFilters, cloneGalleryPreviews, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, listModeForRoute, routeUsesKeyword, defaultKeywordForRoute, gallerySearchTitle, effectiveListSite, galleryListFailureMessage, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, galleryDisplayTitle, galleryListMode, galleryThumbWidth, galleryThumbHeight } from '../shared/EhShared';
 
@@ -188,7 +188,6 @@ export struct GalleryListScene {
   @State scrollResetVersion: number = 0;
   @State fabExpanded: boolean = false;
   @State filterActive: boolean = false;
-  @State showSearchScene: boolean = false;
   @State showSearchResultScene: boolean = false;
   @State searchResultDraft: SearchResultDraft = createEmptySearchResultDraft();
   @State searchMode: ListMode = ListMode.Normal;
@@ -223,6 +222,11 @@ export struct GalleryListScene {
 
   private cacheKey(): string {
     const mode = this.useForcedMode ? this.forcedMode.toString() : listModeForRoute(this.sourceRoute).toString();
+    if (this.isSearchResultScene) {
+      return this.sourceRoute.toString() + '|search-result|' + this.keyword + '|' + this.searchMode.toString() + '|' +
+        this.searchCategory.toString() + '|' + (this.advancedSearchEnabled ? '1' : '0') + '|' +
+        this.advanceSearch.toString() + '|' + this.minRating.toString();
+    }
     return this.sourceRoute.toString() + '|' + mode + '|' + this.follow + '|' + this.initialKeyword + '|' +
       this.initialSearchMode.toString() + '|' + this.initialSearchCategory.toString() + '|' +
       (this.initialAdvancedSearchEnabled ? '1' : '0') + '|' + this.initialAdvanceSearch.toString() + '|' +
@@ -319,10 +323,6 @@ export struct GalleryListScene {
   }
 
   private handleSystemBack(): boolean {
-    if (this.showSearchScene) {
-      this.closeSearchScene();
-      return true;
-    }
     if (this.showSearchResultScene) {
       this.closeSearchResultScene();
       return true;
@@ -523,7 +523,7 @@ export struct GalleryListScene {
 
   private applySearch(): void {
     this.fabExpanded = false;
-    this.showSearchScene = false;
+    this.rememberSearchKeyword(this.keyword);
     this.resetListScroll();
     this.loadRemote(0);
   }
@@ -534,14 +534,17 @@ export struct GalleryListScene {
 
   private openSearchScene(): void {
     this.fabExpanded = false;
-    this.showSearchScene = true;
-  }
-
-  private closeSearchScene(): void {
-    this.showSearchScene = false;
-    setTimeout(() => {
-      setActiveBackHandler(() => this.handleSystemBack());
-    }, 0);
+    this.searchResultDraft = {
+      keyword: this.keyword.trim(),
+      mode: this.searchMode,
+      category: this.searchCategory,
+      advancedEnabled: this.advancedSearchEnabled,
+      advanceSearch: this.advanceSearch,
+      minRating: this.minRating,
+      pageFrom: -1,
+      pageTo: -1
+    };
+    this.showSearchResultScene = true;
   }
 
   private closeSearchResultScene(): void {
@@ -562,10 +565,9 @@ export struct GalleryListScene {
       advancedEnabled: advancedEnabled,
       advanceSearch: flags,
       minRating: minRating,
-      pageFrom: pageFrom,
-      pageTo: pageTo
+      pageFrom: -1,
+      pageTo: -1
     };
-    this.showSearchScene = false;
     this.showSearchResultScene = true;
     this.fabExpanded = false;
   }
@@ -1110,37 +1112,6 @@ export struct GalleryListScene {
           .transition(TransitionEffect.asymmetric(
             TransitionEffect.move(TransitionEdge.END).animation({ duration: 260, curve: Curve.EaseOut }),
             TransitionEffect.move(TransitionEdge.END).animation({ duration: 220, curve: Curve.EaseIn })))
-      } else if (this.showSearchScene) {
-        GallerySearchScene({
-          initialKeyword: this.keyword,
-          initialMode: this.searchMode,
-          initialCategory: this.searchCategory,
-          initialAdvancedEnabled: this.advancedSearchEnabled,
-          initialAdvanceSearch: this.advanceSearch,
-          initialMinRating: this.minRating,
-          initialPageFrom: this.pageFrom,
-          initialPageTo: this.pageTo,
-          sourceRoute: this.sourceRoute,
-          filterActive: this.filterActive,
-          onBack: () => {
-            this.closeSearchScene();
-          },
-          onOpenGalleryUrl: (gid: number, token: string) => {
-            this.closeSearchScene();
-            this.loadDetailByToken(gid, token);
-          },
-          onOpenPageUrl: (pageUrl: string) => {
-            this.statusText = 'Gallery page URL suggestion: ' + pageUrl;
-            this.closeSearchScene();
-          },
-          onApply: (keyword: string, mode: ListMode, category: number, advancedEnabled: boolean, flags: number,
-            minRating: number, pageFrom: number, pageTo: number) => {
-            this.applySearchDraft(keyword, mode, category, advancedEnabled, flags, minRating, pageFrom, pageTo);
-          }
-        })
-          .transition(TransitionEffect.asymmetric(
-            TransitionEffect.move(TransitionEdge.END).animation({ duration: 240, curve: Curve.EaseOut }),
-            TransitionEffect.move(TransitionEdge.END).animation({ duration: 200, curve: Curve.EaseIn })))
       } else if (this.showReader) {
         ReaderScene({
           renderVersion: this.renderVersion,
@@ -1229,6 +1200,14 @@ export struct GalleryListScene {
           filterActive: this.filterActive,
           showSearchButton: routeUsesKeyword(this.sourceRoute) && !this.isSearchResultScene,
           showBackButton: this.isSearchResultScene,
+          isSearchResultScene: this.isSearchResultScene,
+          searchModeValue: this.searchMode,
+          searchCategory: this.searchCategory,
+          advancedSearchEnabled: this.advancedSearchEnabled,
+          advanceSearch: this.advanceSearch,
+          minRating: this.minRating,
+          pageIndex: this.pageIndex,
+          totalPages: this.totalPages,
           canJump: this.totalPages > 1,
           canRandom: this.galleries.length > 0,
           statusText: this.statusText,
@@ -1238,6 +1217,24 @@ export struct GalleryListScene {
           onKeywordChange: (value: string) => {
             this.keyword = value;
           },
+          onSearchModeChange: (mode: ListMode) => {
+            this.searchMode = mode;
+          },
+          onSearchCategoryChange: (category: number) => {
+            this.searchCategory = category;
+          },
+          onAdvancedEnabledChange: (enabled: boolean) => {
+            this.advancedSearchEnabled = enabled;
+          },
+          onAdvanceSearchChange: (flags: number) => {
+            this.advanceSearch = flags;
+          },
+          onMinRatingChange: (rating: number) => {
+            this.minRating = rating;
+          },
+          onPageJump: (page: number) => {
+            this.loadRemote(Math.max(0, page - 1));
+          },
           onMenu: () => {
             this.onMenu();
           },
@@ -1245,7 +1242,11 @@ export struct GalleryListScene {
             this.onBack();
           },
           onSearch: () => {
-            this.openSearchScene();
+            if (this.isSearchResultScene) {
+              this.applySearch();
+            } else {
+              this.openSearchScene();
+            }
           },
           onRefresh: () => {
             this.loadRemote(0, this.galleries.length > 0);
@@ -1295,6 +1296,14 @@ export struct GalleryListContent {
   @Prop filterActive: boolean = false;
   @Prop showSearchButton: boolean = false;
   @Prop showBackButton: boolean = false;
+  @Prop isSearchResultScene: boolean = false;
+  @Prop searchModeValue: ListMode = ListMode.Normal;
+  @Prop searchCategory: number = GalleryCategory.None;
+  @Prop advancedSearchEnabled: boolean = false;
+  @Prop advanceSearch: number = DEFAULT_ADVANCE_SEARCH;
+  @Prop minRating: number = -1;
+  @Prop @Watch('onPageChanged') pageIndex: number = 0;
+  @Prop totalPages: number = 0;
   @Prop canJump: boolean = false;
   @Prop canRandom: boolean = false;
   @Prop statusText: string = '';
@@ -1303,6 +1312,12 @@ export struct GalleryListContent {
   @Prop galleries: GalleryInfo[] = [];
   @Prop @Watch('onScrollReset') scrollResetVersion: number = 0;
   onKeywordChange: (value: string) => void = () => {};
+  onSearchModeChange: (mode: ListMode) => void = (_mode: ListMode) => {};
+  onSearchCategoryChange: (category: number) => void = (_category: number) => {};
+  onAdvancedEnabledChange: (enabled: boolean) => void = (_enabled: boolean) => {};
+  onAdvanceSearchChange: (flags: number) => void = (_flags: number) => {};
+  onMinRatingChange: (rating: number) => void = (_rating: number) => {};
+  onPageJump: (page: number) => void = (_page: number) => {};
   onMenu: () => void = () => {};
   onBack: () => void = () => {};
   onSearch: () => void = () => {};
@@ -1317,6 +1332,8 @@ export struct GalleryListContent {
   onScrollUpdate: (offset: number) => void = () => {};
   @State contentWidth: number = 0;
   @State refreshing: boolean = false;
+  @State advancedPanelVisible: boolean = false;
+  @State pageJumpDraft: string = '';
   onRefreshPull: (done: () => void) => void = (done: () => void) => { done(); };
   // 下拉刷新自定义 builder 状态
   @State refreshScaleNum: number = 0;
@@ -1338,8 +1355,45 @@ export struct GalleryListContent {
     this.snapListToTop();
   }
 
+  onPageChanged(): void {
+    this.syncPageJumpDraft();
+  }
+
   private statusBarVp(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx);
+  }
+
+  aboutToAppear(): void {
+    this.syncPageJumpDraft();
+  }
+
+  private syncPageJumpDraft(): void {
+    this.pageJumpDraft = (this.pageIndex + 1).toString();
+  }
+
+  private submitPageJump(): void {
+    const parsed = Number.parseInt(this.pageJumpDraft);
+    if (Number.isNaN(parsed) || parsed <= 0) {
+      this.syncPageJumpDraft();
+      return;
+    }
+    const maxPage = this.totalPages > 0 ? this.totalPages : parsed;
+    this.onPageJump(Math.max(1, Math.min(parsed, maxPage)));
+  }
+
+  private toggleAdvancedPanel(): void {
+    this.advancedPanelVisible = !this.advancedPanelVisible;
+  }
+
+  private closeAdvancedPanel(): void {
+    this.advancedPanelVisible = false;
+  }
+
+  private searchResultSubtitle(): string {
+    if (this.totalPages > 0) {
+      return (this.pageIndex + 1).toString() + ' / ' + this.totalPages.toString();
+    }
+    return (this.pageIndex + 1).toString() + ' / -';
   }
   
   private totalBarHeight(): number {
@@ -1376,7 +1430,7 @@ export struct GalleryListContent {
     const rows = Math.ceil(this.galleries.length / columns);
     const cardHeight = galleryListMode() === 'Thumb' ? Math.max(0, this.galleryCardWidth() / 0.75 + 54) :
       galleryThumbHeight();
-    return this.totalBarHeight() + rows * cardHeight + Math.max(0, rows - 1) * this.galleryCardGap() +
+    return this.totalBarHeight() + this.searchResultStripHeight() + rows * cardHeight + Math.max(0, rows - 1) * this.galleryCardGap() +
       this.galleryContentPadding();
   }
 
@@ -1393,6 +1447,10 @@ export struct GalleryListContent {
 
   private contentStartOffset(): number {
     return this.galleryContentPadding();
+  }
+
+  private searchResultStripHeight(): number {
+    return this.isSearchResultScene ? 42 : 0;
   }
 
   private galleryCardPreferredWidth(): number {
@@ -1518,6 +1576,127 @@ export struct GalleryListContent {
     .clip(true)
   }
 
+  @Builder
+  private searchResultNavBar() {
+    Column() {
+      Column()
+        .height(this.statusBarVp())
+        .width('100%')
+        .backgroundColor(APP_THEME_COLOR)
+
+      Row({ space: 8 }) {
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r('sys.symbol.chevron_left'))
+            .fontSize(22)
+            .fontColor([Color.White])
+        }
+        .width(40)
+        .height(40)
+        .backgroundColor('rgba(255,255,255,0.14)')
+        .flexShrink(0)
+        .onClick(() => {
+          this.onBack();
+        })
+
+        TextInput({ text: this.keyword, placeholder: uiText('Search galleries') })
+          .height(38)
+          .layoutWeight(1)
+          .backgroundColor('#F4F7F9')
+          .borderRadius(19)
+          .placeholderColor('#5D7183')
+          .fontColor('#17202A')
+          .caretColor(APP_THEME_COLOR)
+          .padding({ left: 16, right: 16 })
+          .onChange((value: string) => {
+            this.onKeywordChange(value);
+          })
+          .onSubmit(() => {
+            this.closeAdvancedPanel();
+            this.onSearch();
+          })
+
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r('sys.symbol.plus'))
+            .fontSize(22)
+            .fontColor([Color.White])
+        }
+        .width(40)
+        .height(40)
+        .backgroundColor(this.advancedPanelVisible || this.advancedSearchEnabled ? 'rgba(255,255,255,0.28)' :
+          'rgba(255,255,255,0.14)')
+        .flexShrink(0)
+        .onClick(() => {
+          this.toggleAdvancedPanel();
+        })
+      }
+      .width('100%')
+      .height(this.barHeight)
+      .padding({ left: 12, right: 12 })
+      .alignItems(VerticalAlign.Center)
+      .backgroundColor(APP_THEME_COLOR)
+    }
+    .width('100%')
+    .translate({ y: this.toolbarOffsetY })
+    .animation({ duration: 200, curve: Curve.EaseOut })
+    .zIndex(10)
+  }
+
+  @Builder
+  private searchPageStrip() {
+    Row({ space: 8 }) {
+      Text(uiText('Page'))
+        .fontSize(12)
+        .fontColor('#40566F')
+      TextInput({ text: this.pageJumpDraft, placeholder: '1' })
+        .width(64)
+        .height(30)
+        .type(InputType.Number)
+        .fontSize(13)
+        .fontColor('#17202A')
+        .backgroundColor('#EEF2F6')
+        .borderRadius(4)
+        .textAlign(TextAlign.Center)
+        .onChange((value: string) => {
+          this.pageJumpDraft = value;
+        })
+        .onSubmit(() => {
+          this.submitPageJump();
+        })
+      Text('/ ' + (this.totalPages > 0 ? this.totalPages.toString() : '-'))
+        .fontSize(12)
+        .fontColor('#667085')
+      Text(this.resultSummaryText())
+        .fontSize(12)
+        .fontColor('#667085')
+        .layoutWeight(1)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+      Button({ type: ButtonType.Circle, stateEffect: true }) {
+        SymbolGlyph($r('sys.symbol.magnifyingglass'))
+          .fontSize(18)
+          .fontColor([Color.White])
+      }
+      .width(32)
+      .height(32)
+      .backgroundColor(APP_THEME_COLOR)
+      .onClick(() => {
+        this.closeAdvancedPanel();
+        this.onSearch();
+      })
+    }
+    .width('100%')
+    .height(42)
+    .padding({ left: 10, right: 10 })
+    .backgroundColor(Color.White)
+  }
+
+  private resultSummaryText(): string {
+    if (this.statusText.length > 0) {
+      return uiStatusText(this.statusText);
+    }
+    return this.searchResultSubtitle();
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
@@ -1530,6 +1709,12 @@ export struct GalleryListContent {
                   .height(this.totalBarHeight())
               }
                 .width('100%')
+            }
+
+            if (this.isSearchResultScene) {
+              ListItem() {
+                this.searchPageStrip()
+              }
             }
 
             // 空状态或画廊列表
@@ -1704,23 +1889,62 @@ export struct GalleryListContent {
       .padding({ right: 16, bottom: 24 })
       .hitTestBehavior(HitTestMode.Transparent)
 
+      if (this.advancedPanelVisible) {
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor('rgba(0,0,0,0.18)')
+          .onClick(() => {
+            this.closeAdvancedPanel();
+          })
+          .zIndex(11)
+
+        SearchAdvancedPanel({
+          searchModeValue: this.searchModeValue,
+          searchCategory: this.searchCategory,
+          advancedSearchEnabled: this.advancedSearchEnabled,
+          advanceSearch: this.advanceSearch,
+          minRating: this.minRating,
+          onSearchModeChange: this.onSearchModeChange,
+          onSearchCategoryChange: this.onSearchCategoryChange,
+          onAdvancedEnabledChange: this.onAdvancedEnabledChange,
+          onAdvanceSearchChange: this.onAdvanceSearchChange,
+          onMinRatingChange: this.onMinRatingChange,
+          onClose: () => {
+            this.closeAdvancedPanel();
+          },
+          onSearch: () => {
+            this.closeAdvancedPanel();
+            this.onSearch();
+          }
+        })
+          .margin({ top: this.statusBarVp() + this.barHeight + 8, left: 10, right: 10 })
+          .transition(TransitionEffect.move(TransitionEdge.TOP)
+            .animation({ duration: 180, curve: Curve.EaseOut }))
+          .zIndex(12)
+      }
+
       // 浮动导航栏
       Column() {
-        EhNavBar({
-          statusBarHeight: this.statusBarVp(),
-          title: this.searchTitle.length > 0 ? this.searchTitle : this.sceneTitle,
-          searchMode: false,
-          keyword: this.keyword,
-          filterActive: this.filterActive,
-          showSearchButton: this.showSearchButton,
-          showBackButton: this.showBackButton,
-          translateY: this.toolbarOffsetY,
-          onMenu: () => { this.onMenu(); },
-          onBack: () => { this.onBack(); },
-          onSearch: () => { this.onSearch(); },
-          onKeywordChange: (v: string) => { this.onKeywordChange(v); },
-          onRefresh: () => { this.onRefresh(); }
-        })
+        if (this.isSearchResultScene) {
+          this.searchResultNavBar()
+        } else {
+          EhNavBar({
+            statusBarHeight: this.statusBarVp(),
+            title: this.searchTitle.length > 0 ? this.searchTitle : this.sceneTitle,
+            searchMode: false,
+            keyword: this.keyword,
+            filterActive: this.filterActive,
+            showSearchButton: this.showSearchButton,
+            showBackButton: this.showBackButton,
+            translateY: this.toolbarOffsetY,
+            onMenu: () => { this.onMenu(); },
+            onBack: () => { this.onBack(); },
+            onSearch: () => { this.onSearch(); },
+            onKeywordChange: (v: string) => { this.onKeywordChange(v); },
+            onRefresh: () => { this.onRefresh(); }
+          })
+        }
       }
     }
     .width('100%')
