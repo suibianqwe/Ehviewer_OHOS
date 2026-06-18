@@ -400,6 +400,7 @@ export function zhText(text: string): string {
     case 'Search current text': return '搜索当前文本';
     case 'Search history': return '搜索历史';
     case 'Search once to create suggestions': return '搜索一次后会显示历史建议';
+    case 'Search history appears before typing; tag tips appear while typing': return '输入前显示搜索历史，输入时显示标签提示';
     case 'Open gallery': return '打开画廊';
     case 'Open page': return '打开页面';
     case 'Specify tag': return '指定标签';

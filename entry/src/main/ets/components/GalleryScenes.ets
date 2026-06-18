@@ -13,7 +13,7 @@ import { LANGUAGE_REVISION_KEY, APP_THEME_COLOR } from '../shared/EhShared';
 import { EhNavBar } from '../components/NavigationComponents';
 import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard } from './GalleryCards';
 import { GalleryDetailOverlayScene, GalleryDetailScene } from './GalleryDetailScenes';
-import { buildSearchSuggestions, gallerySuggestionUrl, pageSuggestionUrl, QuickActionColumn, SearchAdvancedPanel, SearchSuggestionItem, SearchSuggestionList, SearchSummaryStrip, recordSearchHistory } from './GallerySearchScenes';
+import { applyTagSuggestionToKeyword, buildSearchSuggestions, QuickActionColumn, SearchAdvancedPanel, SearchSuggestionItem, SearchSuggestionList, SearchSummaryStrip, recordSearchHistory } from './GallerySearchScenes';
 import { CommentsScene, PlaceholderScene, ReaderScene } from './ReaderScenes';
 import { uiText, uiStatusText, setActiveBackHandler, createEmptyGallery, createDetailFromGallery, createEmptyDetail, createEmptyPage, cloneGalleryInfos, applyGalleryFilters, cloneGalleryPreviews, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, listModeForRoute, routeUsesKeyword, defaultKeywordForRoute, gallerySearchTitle, effectiveListSite, galleryListFailureMessage, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, galleryDisplayTitle, galleryListMode, galleryThumbWidth, galleryThumbHeight } from '../shared/EhShared';
 
@@ -1767,38 +1767,9 @@ export struct GalleryListContent {
   }
 
   private applySearchSuggestion(suggestion: SearchSuggestionItem): void {
-    if (suggestion.kind === 'search') {
-      this.onKeywordChange(suggestion.query);
-      this.closeAdvancedPanel();
-      this.onSearch();
-      return;
-    }
     if (suggestion.kind === 'tag') {
-      this.onKeywordChange(suggestion.query);
+      this.onKeywordChange(applyTagSuggestionToKeyword(this.keyword, suggestion.query));
       this.onSearchModeChange(ListMode.Tag);
-      return;
-    }
-    if (suggestion.kind === 'uploader') {
-      this.onKeywordChange(suggestion.query);
-      this.onSearchModeChange(ListMode.Uploader);
-      return;
-    }
-    if (suggestion.kind === 'gallery') {
-      const galleryUrl = gallerySuggestionUrl(suggestion.query);
-      if (galleryUrl !== null) {
-        const gallery = createEmptyGallery();
-        gallery.gid = galleryUrl.gid;
-        gallery.token = galleryUrl.token;
-        gallery.title = 'Gallery ' + galleryUrl.gid.toString();
-        this.onSelectGallery(gallery);
-      }
-      return;
-    }
-    if (suggestion.kind === 'page') {
-      const pageUrl = pageSuggestionUrl(suggestion.query);
-      if (pageUrl.length > 0) {
-        this.onKeywordChange(pageUrl);
-      }
       return;
     }
     this.onKeywordChange(suggestion.query);
@@ -1828,7 +1799,7 @@ export struct GalleryListContent {
           Text(uiText('Search history'))
             .fontSize(15)
             .fontColor('#40566F')
-          Text(uiText('Search once to create suggestions'))
+          Text(uiText('Search history appears before typing; tag tips appear while typing'))
             .fontSize(12)
             .fontColor('#7A8A99')
         }

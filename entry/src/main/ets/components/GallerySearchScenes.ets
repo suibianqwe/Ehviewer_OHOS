@@ -1,5 +1,6 @@
 import { ALL_CATEGORY, GalleryCategory, GalleryRoute } from '../model/GalleryModels';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
+import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { APP_THEME_COLOR, LANGUAGE_REVISION_KEY, categoryColor, categoryName, themeSurfaceColor, uiText } from '../shared/EhShared';
 
 export interface SearchSuggestionItem {
@@ -7,6 +8,8 @@ export interface SearchSuggestionItem {
   title: string;
   subtitle: string;
   query: string;
+  translated?: string;
+  namespace?: string;
 }
 
 export interface GalleryUrlMatch {
@@ -20,6 +23,34 @@ interface SearchCategoryOption {
 }
 
 const searchHistoryKeywords: string[] = [];
+
+function activeTagPrefix(keyword: string): string {
+  const parts = keyword.trim().split(/\s+/);
+  const collected: string[] = [];
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (parts[i].indexOf(':') >= 0 || parts[i].indexOf('$') >= 0) {
+      break;
+    }
+    collected.unshift(parts[i]);
+  }
+  return collected.join(' ').trim();
+}
+
+export function applyTagSuggestionToKeyword(keyword: string, tag: string): string {
+  const trimmed = keyword.trim();
+  if (trimmed.length === 0) {
+    return tag;
+  }
+  const active = activeTagPrefix(trimmed);
+  if (active.length === 0) {
+    return (trimmed + ' ' + tag).trim();
+  }
+  const start = trimmed.length - active.length;
+  if (start <= 0) {
+    return tag;
+  }
+  return (trimmed.substring(0, start).trim() + ' ' + tag).trim();
+}
 
 export function recordSearchHistory(keyword: string): void {
   const trimmed = keyword.trim();
@@ -62,52 +93,12 @@ export function pageSuggestionUrl(text: string): string {
   return parsePageUrl(text);
 }
 
-export function buildSearchSuggestions(keyword: string, limit: number = 10): SearchSuggestionItem[] {
+export function buildSearchSuggestions(keyword: string, limit: number = 40): SearchSuggestionItem[] {
   const text = keyword.trim();
   const next: SearchSuggestionItem[] = [];
-  if (text.length > 0) {
-    next.push({
-      kind: 'search',
-      title: 'Search current text',
-      subtitle: text,
-      query: text
-    });
-    next.push({
-      kind: 'tag',
-      title: 'Specify tag',
-      subtitle: text,
-      query: text
-    });
-    next.push({
-      kind: 'uploader',
-      title: 'Specify uploader',
-      subtitle: text,
-      query: text
-    });
-  }
-  const galleryUrl = parseGalleryUrl(text);
-  if (galleryUrl !== null) {
-    next.push({
-      kind: 'gallery',
-      title: 'Open gallery',
-      subtitle: galleryUrl.gid.toString() + ' / ' + galleryUrl.token,
-      query: text
-    });
-  }
-  const pageUrl = parsePageUrl(text);
-  if (pageUrl.length > 0) {
-    next.push({
-      kind: 'page',
-      title: 'Open page',
-      subtitle: pageUrl,
-      query: text
-    });
-  }
-  const lower = text.toLowerCase();
-  for (let i = 0; i < searchHistoryKeywords.length && next.length < limit; i++) {
-    const history = searchHistoryKeywords[i];
-    const historyLower = history.toLowerCase();
-    if (text.length === 0 || (historyLower.indexOf(lower) === 0 && historyLower !== lower)) {
+  if (text.length === 0) {
+    for (let i = 0; i < searchHistoryKeywords.length && next.length < limit; i++) {
+      const history = searchHistoryKeywords[i];
       next.push({
         kind: 'history',
         title: history,
@@ -115,6 +106,25 @@ export function buildSearchSuggestions(keyword: string, limit: number = 10): Sea
         query: history
       });
     }
+    return next;
+  }
+
+  const active = activeTagPrefix(text);
+  if (active.length === 0) {
+    return next;
+  }
+
+  const tags = ehTagTranslationStore.suggest(active, limit);
+  for (let i = 0; i < tags.length; i++) {
+    const tag = tags[i];
+    next.push({
+      kind: 'tag',
+      title: tag.translated,
+      subtitle: tag.tag,
+      query: tag.tag,
+      translated: tag.translated,
+      namespace: tag.namespace
+    });
   }
   return next;
 }
@@ -180,35 +190,10 @@ export struct GallerySearchScene {
   }
 
   private applySuggestion(suggestion: SearchSuggestionItem): void {
-    if (suggestion.kind === 'search') {
-      this.keywordDraft = suggestion.query;
-      this.submitSearch();
-      return;
-    }
     if (suggestion.kind === 'tag') {
-      this.keywordDraft = suggestion.query;
+      this.keywordDraft = applyTagSuggestionToKeyword(this.keywordDraft, suggestion.query);
       this.modeDraft = ListMode.Tag;
       this.refreshSuggestions();
-      return;
-    }
-    if (suggestion.kind === 'uploader') {
-      this.keywordDraft = suggestion.query;
-      this.modeDraft = ListMode.Uploader;
-      this.refreshSuggestions();
-      return;
-    }
-    if (suggestion.kind === 'gallery') {
-      const galleryUrl = parseGalleryUrl(suggestion.query);
-      if (galleryUrl !== null) {
-        this.onOpenGalleryUrl(galleryUrl.gid, galleryUrl.token);
-      }
-      return;
-    }
-    if (suggestion.kind === 'page') {
-      const pageUrl = parsePageUrl(suggestion.query);
-      if (pageUrl.length > 0) {
-        this.onOpenPageUrl(pageUrl);
-      }
       return;
     }
     this.keywordDraft = suggestion.query;
@@ -409,23 +394,14 @@ export struct SearchSuggestionList {
   onSelect: (suggestion: SearchSuggestionItem) => void = (_suggestion: SearchSuggestionItem) => {};
 
   private iconForKind(kind: string): Resource {
-    if (kind === 'gallery' || kind === 'page') {
-      return $r('sys.symbol.doc_plaintext');
-    }
     if (kind === 'tag') {
       return $r('sys.symbol.star');
-    }
-    if (kind === 'uploader') {
-      return $r('sys.symbol.open_sidebar');
-    }
-    if (kind === 'search') {
-      return $r('sys.symbol.magnifyingglass');
     }
     return $r('sys.symbol.clock');
   }
 
   private tintForKind(kind: string): string {
-    if (kind === 'gallery' || kind === 'page') {
+    if (kind === 'tag') {
       return APP_THEME_COLOR;
     }
     return '#6B7C8C';
@@ -441,13 +417,13 @@ export struct SearchSuggestionList {
               .fontColor([this.tintForKind(suggestion.kind)])
               .width(24)
             Column({ space: 2 }) {
-              Text(uiText(suggestion.title))
+              Text(suggestion.kind === 'history' ? uiText(suggestion.title) : suggestion.title)
                 .fontSize(14)
                 .fontColor('#17202A')
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
               if (suggestion.subtitle.length > 0) {
-                Text(uiText(suggestion.subtitle))
+                Text(suggestion.subtitle)
                   .fontSize(11)
                   .fontColor('#667085')
                   .maxLines(1)

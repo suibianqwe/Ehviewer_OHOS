@@ -64,6 +64,8 @@
 
 感谢 `Ehviewer_CN_SXJ` 及相关 EhViewer 项目的作者和贡献者。这个移植项目的界面、功能和逻辑都大量参考了原应用。
 
+感谢 [EhTagTranslation/Database](https://github.com/EhTagTranslation/Database) 项目提供中文标签翻译数据，搜索标签提示和标签翻译能力参考并使用了该项目维护的译文数据库。
+
 也感谢所有测试、反馈问题、提出建议和愿意帮忙修 bug 的用户。快速迭代离不开这些真实反馈。
 
 ## License
