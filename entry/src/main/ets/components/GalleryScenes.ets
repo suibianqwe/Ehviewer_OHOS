@@ -1771,7 +1771,7 @@ export struct GalleryListContent {
   }
 
   private refreshSearchSuggestions(namespaces: string[] = this.selectedTagNamespaces): void {
-    this.searchSuggestionItems = buildSearchSuggestions(this.keyword, 40, namespaces);
+    this.searchSuggestionItems = buildSearchSuggestions(this.keyword, 0, namespaces);
     this.searchSuggestionRevision++;
   }
 
@@ -1819,6 +1819,7 @@ export struct GalleryListContent {
             this.applySearchSuggestion(suggestion);
           }
         })
+          .height(Math.max(240, this.viewportHeight - this.totalBarHeight() - 58))
       } else {
         Column({ space: 8 }) {
           SymbolGlyph($r('sys.symbol.clock'))
@@ -1922,7 +1923,7 @@ export struct GalleryListContent {
             }
           }
           .contentStartOffset(this.contentStartOffset())
-          .scrollBar(BarState.Off)
+          .scrollBar(BarState.Auto)
           .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false, effectEdge: EffectEdge.START })
           .width('100%')
           .height('100%')

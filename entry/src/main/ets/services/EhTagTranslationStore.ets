@@ -14,7 +14,7 @@ class EhTagTranslationStore {
   private loaded: boolean = false;
   private entries: EhTagSuggestion[] = [];
 
-  suggest(keyword: string, limit: number = 40, namespaces: string[] = []): EhTagSuggestion[] {
+  suggest(keyword: string, limit: number = 0, namespaces: string[] = []): EhTagSuggestion[] {
     const normalized = keyword.trim().toLowerCase();
     if (normalized.length === 0) {
       return [];
@@ -22,7 +22,8 @@ class EhTagTranslationStore {
     this.ensureLoaded();
     const filter = normalizeNamespaces(namespaces);
     const result: EhTagSuggestion[] = [];
-    for (let i = 0; i < this.entries.length && result.length < limit; i++) {
+    const unlimited = limit <= 0;
+    for (let i = 0; i < this.entries.length && (unlimited || result.length < limit); i++) {
       const entry = this.entries[i];
       if (filter.length > 0 && filter.indexOf(entry.namespace) < 0) {
         continue;

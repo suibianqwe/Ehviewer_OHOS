@@ -870,7 +870,7 @@ export struct HistoryScene {
               })
             }
             .scrollable(ScrollDirection.Vertical)
-            .scrollBar(BarState.Off)
+            .scrollBar(BarState.Auto)
             .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false, effectEdge: EffectEdge.START })
             .width('100%')
             .height('100%')
@@ -1808,6 +1808,7 @@ export struct TopListBoard {
       .height('100%')
       .padding({ left: 12, right: 12, top: this.contentTopPadding(), bottom: 0 })
       .backgroundColor('#F3F5F7')
+      .scrollBar(BarState.Auto)
       .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false, effectEdge: EffectEdge.START })
       .onAppear(() => {
         if (this.initialScrollOffset > 0) {

@@ -112,7 +112,7 @@ export function pageSuggestionUrl(text: string): string {
   return parsePageUrl(text);
 }
 
-export function buildSearchSuggestions(keyword: string, limit: number = 40,
+export function buildSearchSuggestions(keyword: string, limit: number = 0,
   namespaces: string[] = []): SearchSuggestionItem[] {
   const text = keyword.trim();
   const next: SearchSuggestionItem[] = [];
@@ -208,7 +208,7 @@ export struct GallerySearchScene {
   }
 
   private refreshSuggestions(namespaces: string[] = this.selectedTagNamespaces): void {
-    this.suggestions = buildSearchSuggestions(this.keywordDraft, 40, namespaces);
+    this.suggestions = buildSearchSuggestions(this.keywordDraft, 0, namespaces);
     this.suggestionRevision++;
   }
 
@@ -315,6 +315,7 @@ export struct GallerySearchScene {
                 this.applySuggestion(suggestion);
               }
             })
+              .layoutWeight(1)
               .margin({ top: 4 })
           }
         }
@@ -410,7 +411,7 @@ export struct SearchSummaryStrip {
     .height(42)
     .padding({ top: 2, bottom: 2 })
     .scrollable(ScrollDirection.Horizontal)
-    .scrollBar(BarState.Off)
+    .scrollBar(BarState.Auto)
   }
 
   private namespaceSelected(namespace: string): boolean {
@@ -472,6 +473,8 @@ export struct SearchSuggestionList {
     .columnsGap(6)
     .rowsGap(6)
     .width('100%')
+    .height('100%')
+    .scrollBar(BarState.Auto)
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       const width = newArea.width as number;
       if (width > 0 && !Number.isNaN(width) && Math.abs(width - this.contentWidth) >= 1) {
