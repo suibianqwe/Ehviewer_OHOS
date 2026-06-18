@@ -14,6 +14,7 @@ import { ehSettingsStore, SettingEntry, defaultSettingEntries } from '../service
 import { EhHttpClient, GalleryDetailLoadResult, GalleryListLoadResult, GalleryPageLoadResult, NetworkDiagnosticResult, RateGalleryResult, SignInResult, ToggleFavoriteResult, TopListLoadResult } from '../services/EhHttpClient';
 import { EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder } from '../services/EhUrl';
 import { galleryPageCache } from '../services/GalleryPageCache';
+import { loadRemainingGalleryPreviews, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { CacheClearResult, readerImageCache } from '../services/ReaderImageCache';
 import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
@@ -79,6 +80,7 @@ export struct HistoryScene {
   private readerPreviewMap: Map<number, GalleryPreview> = new Map();
   private readerPreviewPageRequests: Map<number, Promise<GalleryPreview | null>> = new Map();
   private readerPreviewPageSize: number = 0;
+  private detailPreviewLoadSerial: number = 0;
 
   aboutToAppear(): void {
     setActiveBackHandler(() => this.handleSystemBack());
@@ -147,6 +149,7 @@ export struct HistoryScene {
 
   private loadDetail(gallery: GalleryInfo): void {
     this.showDetail = true;
+    this.detailPreviewLoadSerial++;
     this.detail = createDetailFromGallery(gallery);
     this.resetReaderPreviewCache();
     this.detailStatus = 'Loading detail for gid ' + gallery.gid.toString() + '...';
@@ -175,6 +178,7 @@ export struct HistoryScene {
       this.renderVersion++;
       saveGalleryToHistory(result.detail);
       this.loadHistory();
+      this.loadRemainingDetailPreviews(this.detailPreviewLoadSerial);
       this.prewarmReader();
     }).catch((error: Error) => {
       this.detailStatus = 'Detail load failed: ' + error.message;
@@ -194,6 +198,7 @@ export struct HistoryScene {
     this.detailLoaded = false;
     this.optimisticFavorite = false;
     this.favoriteBusy = false;
+    this.detailPreviewLoadSerial++;
     this.readerStatus = 'Reader is ready';
     this.readerPage = createEmptyPage();
     this.readerPreviewIndex = 0;
@@ -491,12 +496,7 @@ export struct HistoryScene {
   }
 
   private seedReaderPreviewCache(previews: GalleryPreview[]): void {
-    if (previews.length > 0 && (this.readerPreviewPageSize <= 0 || previews.length > this.readerPreviewPageSize)) {
-      this.readerPreviewPageSize = previews.length;
-    }
-    for (let i = 0; i < previews.length; i++) {
-      this.readerPreviewMap.set(previews[i].index, previews[i]);
-    }
+    this.readerPreviewPageSize = seedPreviewMap(this.readerPreviewMap, previews, this.readerPreviewPageSize);
   }
 
   private readerTotalPages(): number {
@@ -553,23 +553,28 @@ export struct HistoryScene {
   }
 
   private mergeReaderPreviewSet(loaded: GalleryDetail): void {
-    this.seedReaderPreviewCache(loaded.previewSet);
-    const byIndex: Map<number, GalleryPreview> = new Map();
-    for (let i = 0; i < this.detail.previewSet.length; i++) {
-      byIndex.set(this.detail.previewSet[i].index, this.detail.previewSet[i]);
-    }
-    for (let i = 0; i < loaded.previewSet.length; i++) {
-      byIndex.set(loaded.previewSet[i].index, loaded.previewSet[i]);
-    }
-    const merged: GalleryPreview[] = Array.from(byIndex.values());
-    merged.sort((left: GalleryPreview, right: GalleryPreview) => left.index - right.index);
-    const nextDetail = cloneGalleryDetail(this.detail);
-    nextDetail.previewSet = cloneGalleryPreviews(merged);
-    nextDetail.previewPages = Math.max(nextDetail.previewPages, loaded.previewPages);
-    nextDetail.pages = Math.max(nextDetail.pages, loaded.pages);
-    this.detail = nextDetail;
-    this.seedReaderPreviewCache(this.detail.previewSet);
+    const merged = mergeGalleryPreviewSets(this.detail, loaded, this.readerPreviewMap, this.readerPreviewPageSize);
+    this.detail = merged.detail;
+    this.readerPreviewPageSize = merged.previewPageSize;
     this.renderVersion++;
+  }
+
+  private async loadRemainingDetailPreviews(serial: number): Promise<void> {
+    const referer = this.detailRequestUrl.length > 0 ? this.detailRequestUrl : '';
+    await loadRemainingGalleryPreviews({
+      client: this.client,
+      site: currentGallerySite(),
+      referer: referer,
+      getDetail: () => this.detail,
+      isCurrent: () => serial === this.detailPreviewLoadSerial && this.showDetail,
+      onMerge: (detail: GalleryDetail) => {
+        this.mergeReaderPreviewSet(detail);
+      },
+      onError: (message: string) => {
+        this.detailStatus = 'Preview page load failed: ' + message;
+        this.renderVersion++;
+      }
+    });
   }
 
   private toggleDownloadDetail(): void {
@@ -970,6 +975,7 @@ export struct TopListScene {
   private readerPreviewMap: Map<number, GalleryPreview> = new Map();
   private readerPreviewPageRequests: Map<number, Promise<GalleryPreview | null>> = new Map();
   private readerPreviewPageSize: number = 0;
+  private detailPreviewLoadSerial: number = 0;
 
   aboutToAppear(): void {
     setActiveBackHandler(() => this.handleSystemBack());
@@ -1051,6 +1057,7 @@ export struct TopListScene {
     }
 
     this.showDetail = true;
+    this.detailPreviewLoadSerial++;
     const loadingDetail = createEmptyDetail();
     loadingDetail.gid = gid;
     loadingDetail.token = item.token;
@@ -1081,6 +1088,7 @@ export struct TopListScene {
       this.favoriteBusy = false;
       this.renderVersion++;
       saveGalleryToHistory(result.detail);
+      this.loadRemainingDetailPreviews(this.detailPreviewLoadSerial);
       this.prewarmReader();
     }).catch((error: Error) => {
       this.detailStatus = 'Detail load failed: ' + error.message;
@@ -1100,6 +1108,7 @@ export struct TopListScene {
     this.detailLoaded = false;
     this.optimisticFavorite = false;
     this.favoriteBusy = false;
+    this.detailPreviewLoadSerial++;
     this.readerStatus = 'Reader is ready';
     this.readerPage = createEmptyPage();
     this.readerPreviewIndex = 0;
@@ -1315,12 +1324,7 @@ export struct TopListScene {
   }
 
   private seedReaderPreviewCache(previews: GalleryPreview[]): void {
-    if (previews.length > 0 && (this.readerPreviewPageSize <= 0 || previews.length > this.readerPreviewPageSize)) {
-      this.readerPreviewPageSize = previews.length;
-    }
-    for (let i = 0; i < previews.length; i++) {
-      this.readerPreviewMap.set(previews[i].index, previews[i]);
-    }
+    this.readerPreviewPageSize = seedPreviewMap(this.readerPreviewMap, previews, this.readerPreviewPageSize);
   }
 
   private readerTotalPages(): number {
@@ -1377,23 +1381,28 @@ export struct TopListScene {
   }
 
   private mergeReaderPreviewSet(loaded: GalleryDetail): void {
-    this.seedReaderPreviewCache(loaded.previewSet);
-    const byIndex: Map<number, GalleryPreview> = new Map();
-    for (let i = 0; i < this.detail.previewSet.length; i++) {
-      byIndex.set(this.detail.previewSet[i].index, this.detail.previewSet[i]);
-    }
-    for (let i = 0; i < loaded.previewSet.length; i++) {
-      byIndex.set(loaded.previewSet[i].index, loaded.previewSet[i]);
-    }
-    const merged: GalleryPreview[] = Array.from(byIndex.values());
-    merged.sort((left: GalleryPreview, right: GalleryPreview) => left.index - right.index);
-    const nextDetail = cloneGalleryDetail(this.detail);
-    nextDetail.previewSet = cloneGalleryPreviews(merged);
-    nextDetail.previewPages = Math.max(nextDetail.previewPages, loaded.previewPages);
-    nextDetail.pages = Math.max(nextDetail.pages, loaded.pages);
-    this.detail = nextDetail;
-    this.seedReaderPreviewCache(this.detail.previewSet);
+    const merged = mergeGalleryPreviewSets(this.detail, loaded, this.readerPreviewMap, this.readerPreviewPageSize);
+    this.detail = merged.detail;
+    this.readerPreviewPageSize = merged.previewPageSize;
     this.renderVersion++;
+  }
+
+  private async loadRemainingDetailPreviews(serial: number): Promise<void> {
+    const referer = this.detailRequestUrl.length > 0 ? this.detailRequestUrl : this.requestUrl;
+    await loadRemainingGalleryPreviews({
+      client: this.client,
+      site: GallerySite.E,
+      referer: referer,
+      getDetail: () => this.detail,
+      isCurrent: () => serial === this.detailPreviewLoadSerial && this.showDetail,
+      onMerge: (detail: GalleryDetail) => {
+        this.mergeReaderPreviewSet(detail);
+      },
+      onError: (message: string) => {
+        this.detailStatus = 'Preview page load failed: ' + message;
+        this.renderVersion++;
+      }
+    });
   }
 
   private toggleDownloadDetail(): void {

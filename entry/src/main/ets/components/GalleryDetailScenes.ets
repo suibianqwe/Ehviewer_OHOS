@@ -104,18 +104,18 @@ export struct GalleryDetailScene {
             DetailTags({ tags: this.detail.tags, isDetailLoaded: this.isDetailLoaded })
           }
           ListItem() {
+            DetailComments({
+              comments: this.detail.comments,
+              isDetailLoaded: this.isDetailLoaded,
+              onComments: this.onComments
+            })
+          }
+          ListItem() {
             DetailPreviews({
               previews: this.detail.previewSet,
               previewPages: this.detail.previewPages,
               isDetailLoaded: this.isDetailLoaded,
               onSelectPreview: this.onSelectPreview
-            })
-          }
-          ListItem() {
-            DetailComments({
-              comments: this.detail.comments,
-              isDetailLoaded: this.isDetailLoaded,
-              onComments: this.onComments
             })
           }
         }

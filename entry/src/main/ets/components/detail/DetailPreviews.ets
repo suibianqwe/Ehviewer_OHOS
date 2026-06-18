@@ -34,12 +34,12 @@ export struct DetailPreviews {
   }
 
   private previewTileHeight(): number {
-    return Math.round(this.previewTileWidth() * 0.72);
+    return Math.round(this.previewTileWidth() * 4 / 3);
   }
 
   private previewRows(): GalleryPreview[][] {
     const columns = this.previewColumns();
-    const items = this.previews.slice(0, 24);
+    const items = this.previews;
     const rows: GalleryPreview[][] = [];
     for (let i = 0; i < items.length; i += columns) {
       rows.push(items.slice(i, i + columns));
@@ -226,12 +226,25 @@ export struct PreviewThumb {
     return this.preview.xOffset > 0 || this.preview.yOffset > 0;
   }
 
-  private xPosition(): number {
-    return -Math.round(this.preview.xOffset);
+  private spriteScale(): number {
+    const sourceWidth = this.preview.width > 0 ? this.preview.width : this.widthValue;
+    const sourceHeight = this.preview.height > 0 ? this.preview.height : this.heightValue;
+    if (sourceWidth <= 0 || sourceHeight <= 0) {
+      return 1;
+    }
+    return Math.max(this.widthValue / sourceWidth, this.heightValue / sourceHeight);
   }
 
-  private yPosition(): number {
-    return -Math.round(this.preview.yOffset);
+  private spriteXPosition(): number {
+    const scale = this.spriteScale();
+    const sourceWidth = this.preview.width > 0 ? this.preview.width : this.widthValue;
+    return Math.round(-this.preview.xOffset * scale + (this.widthValue - sourceWidth * scale) / 2);
+  }
+
+  private spriteYPosition(): number {
+    const scale = this.spriteScale();
+    const sourceHeight = this.preview.height > 0 ? this.preview.height : this.heightValue;
+    return Math.round(-this.preview.yOffset * scale + (this.heightValue - sourceHeight * scale) / 2);
   }
 
   build() {
@@ -257,14 +270,20 @@ export struct PreviewThumb {
           this.cacheThumb();
         })
       } else if (this.localUrl.length > 0 && this.usesSpriteCrop()) {
-        Image(this.localUrl)
-          .fitOriginalSize(true)
-          .objectFit(ImageFit.None)
-          .position({ x: this.xPosition(), y: this.yPosition() })
-          .syncLoad(true)
-          .onError(() => {
-            this.loadFailed = true;
-          })
+        Stack() {
+          Image(this.localUrl)
+            .fitOriginalSize(true)
+            .objectFit(ImageFit.None)
+            .scale({ x: this.spriteScale(), y: this.spriteScale(), centerX: 0, centerY: 0 })
+            .position({ x: this.spriteXPosition(), y: this.spriteYPosition() })
+            .syncLoad(true)
+            .onError(() => {
+              this.loadFailed = true;
+            })
+        }
+        .width('100%')
+        .height('100%')
+        .clip(true)
       } else if (this.localUrl.length > 0) {
         Image(this.localUrl)
           .width('100%')
