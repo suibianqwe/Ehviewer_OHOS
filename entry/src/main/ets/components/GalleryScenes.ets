@@ -170,6 +170,7 @@ export struct GalleryListScene {
   initialMinRating: number = -1;
   initialPageFrom: number = -1;
   initialPageTo: number = -1;
+  initialSearchSubmitted: boolean = false;
   isSearchResultScene: boolean = false;
   useForcedMode: boolean = false;
   forcedMode: ListMode = ListMode.Normal;
@@ -304,7 +305,7 @@ export struct GalleryListScene {
       this.minRating = this.initialMinRating;
       this.pageFrom = this.initialPageFrom;
       this.pageTo = this.initialPageTo;
-      this.searchSubmitted = !this.isSearchResultScene;
+      this.searchSubmitted = !this.isSearchResultScene || this.initialSearchSubmitted;
     }
     const context = getAbilityContext();
     if (context !== undefined) {
@@ -579,6 +580,31 @@ export struct GalleryListScene {
       advancedEnabled: advancedEnabled,
       advanceSearch: flags,
       minRating: minRating,
+      pageFrom: -1,
+      pageTo: -1
+    };
+    this.showSearchResultScene = true;
+    this.fabExpanded = false;
+  }
+
+  private openTagSearch(namespace: string, tag: string): void {
+    const trimmedNamespace = namespace.trim();
+    const trimmedTag = tag.trim();
+    if (trimmedNamespace.length === 0 || trimmedTag.length === 0) {
+      return;
+    }
+    const tagQuery = trimmedTag.indexOf(' ') >= 0 ? '"' + trimmedTag.replace(/"/g, '\\"') + '"' : trimmedTag;
+    this.showDetail = false;
+    this.showComments = false;
+    this.showReader = false;
+    this.detailScrollOffset = 0;
+    this.searchResultDraft = {
+      keyword: trimmedNamespace + ':' + tagQuery,
+      mode: ListMode.Tag,
+      category: GalleryCategory.None,
+      advancedEnabled: false,
+      advanceSearch: DEFAULT_ADVANCE_SEARCH,
+      minRating: -1,
       pageFrom: -1,
       pageTo: -1
     };
@@ -1118,6 +1144,7 @@ export struct GalleryListScene {
           initialMinRating: this.searchResultDraft.minRating,
           initialPageFrom: this.searchResultDraft.pageFrom,
           initialPageTo: this.searchResultDraft.pageTo,
+          initialSearchSubmitted: true,
           isSearchResultScene: true,
           onBack: () => {
             this.closeSearchResultScene();
@@ -1200,6 +1227,9 @@ export struct GalleryListScene {
           initialDetailScrollOffset: this.detailScrollOffset,
           onDetailScrollUpdate: (offset: number) => {
             this.detailScrollOffset = offset;
+          },
+          onTagSearch: (namespace: string, tag: string) => {
+            this.openTagSearch(namespace, tag);
           }
         })
           .transition(TransitionEffect.move(TransitionEdge.END)

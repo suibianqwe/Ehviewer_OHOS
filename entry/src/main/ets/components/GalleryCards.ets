@@ -34,6 +34,10 @@ export struct GalleryListRow {
     return galleryListMode() === 'Extended' ? 2 : 3;
   }
 
+  private titleHeight(): number {
+    return galleryListMode() === 'Extended' ? 38 : 56;
+  }
+
   private hasTags(): boolean {
     return galleryListMode() === 'Extended' && this.previewTags().length > 0;
   }
@@ -105,6 +109,8 @@ export struct GalleryListRow {
             .maxLines(this.titleMaxLines())
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .width('100%')
+            .height(this.titleHeight())
+            .clip(true)
 
           Text(this.gallery.uploader === undefined || this.gallery.uploader.length === 0 ? uiText('unknown uploader') :
             this.gallery.uploader)
@@ -331,6 +337,8 @@ export struct GalleryThumbCard {
           .maxLines(2)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width('100%')
+          .height(32)
+          .clip(true)
 
         Row() {
           CategoryBadge({ category: this.gallery.category })

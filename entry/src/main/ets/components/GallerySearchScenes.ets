@@ -28,6 +28,8 @@ interface TagNamespaceOption {
 }
 
 const searchHistoryKeywords: string[] = [];
+const SEARCH_SUGGESTION_RENDER_BATCH: number = 80;
+let rememberedSearchCategory: number = GalleryCategory.None;
 const TAG_NAMESPACE_OPTIONS: TagNamespaceOption[] = [
   { label: 'Artist', value: 'artist' },
   { label: 'Group', value: 'group' },
@@ -117,7 +119,8 @@ export function buildSearchSuggestions(keyword: string, limit: number = 0,
   const text = keyword.trim();
   const next: SearchSuggestionItem[] = [];
   if (text.length === 0) {
-    for (let i = 0; i < searchHistoryKeywords.length && next.length < limit; i++) {
+    const unlimited = limit <= 0;
+    for (let i = 0; i < searchHistoryKeywords.length && (unlimited || next.length < limit); i++) {
       const history = searchHistoryKeywords[i];
       next.push({
         kind: 'history',
@@ -423,9 +426,35 @@ export struct SearchSummaryStrip {
 @Component
 export struct SearchSuggestionList {
   @Prop suggestions: SearchSuggestionItem[] = [];
-  @Prop revision: number = 0;
+  @Prop @Watch('onRevisionChanged') revision: number = 0;
   onSelect: (suggestion: SearchSuggestionItem) => void = (_suggestion: SearchSuggestionItem) => {};
   @State contentWidth: number = 0;
+  @State renderLimit: number = SEARCH_SUGGESTION_RENDER_BATCH;
+
+  aboutToAppear(): void {
+    this.resetRenderLimit();
+  }
+
+  onRevisionChanged(): void {
+    this.resetRenderLimit();
+  }
+
+  private resetRenderLimit(): void {
+    this.renderLimit = SEARCH_SUGGESTION_RENDER_BATCH;
+  }
+
+  private visibleSuggestions(): SearchSuggestionItem[] {
+    if (this.suggestions.length <= this.renderLimit) {
+      return this.suggestions;
+    }
+    return this.suggestions.slice(0, this.renderLimit);
+  }
+
+  private loadMoreVisibleSuggestions(): void {
+    if (this.renderLimit < this.suggestions.length) {
+      this.renderLimit = Math.min(this.suggestions.length, this.renderLimit + SEARCH_SUGGESTION_RENDER_BATCH);
+    }
+  }
 
   private columnCount(): number {
     if (this.contentWidth <= 0) {
@@ -457,7 +486,7 @@ export struct SearchSuggestionList {
 
   build() {
     Grid() {
-      ForEach(this.suggestions, (suggestion: SearchSuggestionItem) => {
+      ForEach(this.visibleSuggestions(), (suggestion: SearchSuggestionItem) => {
         GridItem() {
           SearchSuggestionTile({
             suggestion: suggestion,
@@ -475,6 +504,9 @@ export struct SearchSuggestionList {
     .width('100%')
     .height('100%')
     .scrollBar(BarState.Auto)
+    .onReachEnd(() => {
+      this.loadMoreVisibleSuggestions();
+    })
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       const width = newArea.width as number;
       if (width > 0 && !Number.isNaN(width) && Math.abs(width - this.contentWidth) >= 1) {
@@ -605,7 +637,7 @@ export struct SearchAdvancedPanel {
 
   aboutToAppear(): void {
     this.modeDraft = this.searchModeValue;
-    this.categoryDraft = this.searchCategory;
+    this.categoryDraft = this.searchCategory === GalleryCategory.None ? rememberedSearchCategory : this.searchCategory;
     this.advancedEnabledDraft = this.advancedSearchEnabled;
     this.advanceSearchDraft = this.advanceSearch;
     this.minRatingDraft = this.minRating;
@@ -676,6 +708,7 @@ export struct SearchAdvancedPanel {
   private emitCategoryMask(mask: number): void {
     const next = mask === ALL_CATEGORY ? GalleryCategory.None : mask;
     this.categoryDraft = next;
+    rememberedSearchCategory = next;
     this.onSearchCategoryChange(next);
   }
 

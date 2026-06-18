@@ -33,6 +33,7 @@ export struct GalleryDetailOverlayScene {
   onArchive: () => void = () => {};
   onLoadMorePreviews: () => void = () => {};
   onDetailScrollUpdate: (offset: number) => void = () => {};
+  onTagSearch: (namespace: string, tag: string) => void = (_namespace: string, _tag: string) => {};
 
   build() {
     if (this.showComments) {
@@ -63,7 +64,8 @@ export struct GalleryDetailOverlayScene {
         onArchive: this.onArchive,
         onLoadMorePreviews: this.onLoadMorePreviews,
         initialDetailScrollOffset: this.initialDetailScrollOffset,
-        onDetailScrollUpdate: this.onDetailScrollUpdate
+        onDetailScrollUpdate: this.onDetailScrollUpdate,
+        onTagSearch: this.onTagSearch
       })
     }
   }
@@ -91,6 +93,7 @@ export struct GalleryDetailScene {
   onLoadMorePreviews: () => void = () => {};
   initialDetailScrollOffset: number = 0;
   onDetailScrollUpdate: (offset: number) => void = () => {};
+  onTagSearch: (namespace: string, tag: string) => void = (_namespace: string, _tag: string) => {};
   private detailScroller: Scroller = new Scroller();
   @State showRatingDialog: boolean = false;
   @State pendingRating: number = 0;
@@ -163,7 +166,11 @@ export struct GalleryDetailScene {
             })
           }
           ListItem() {
-            DetailTags({ tags: this.detail.tags, isDetailLoaded: this.isDetailLoaded })
+            DetailTags({
+              tags: this.detail.tags,
+              isDetailLoaded: this.isDetailLoaded,
+              onTagSearch: this.onTagSearch
+            })
           }
           ListItem() {
             DetailComments({

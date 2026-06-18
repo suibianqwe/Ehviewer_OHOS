@@ -4,6 +4,7 @@ import { uiText } from '../../shared/EhShared';
 export struct DetailTags {
   @Prop tags: GalleryTagGroup[] = [];
   @Prop isDetailLoaded: boolean = false;
+  onTagSearch: (namespace: string, tag: string) => void = (_namespace: string, _tag: string) => {};
 
   build() {
     Column() {
@@ -24,7 +25,13 @@ export struct DetailTags {
           .margin({ top: 8 })
       } else {
         ForEach(this.tags, (group: GalleryTagGroup) => {
-          TagGroupRow({ namespace: group.namespace, tags: group.tags })
+          TagGroupRow({
+            namespace: group.namespace,
+            tags: group.tags,
+            onTagSearch: (namespace: string, tag: string) => {
+              this.onTagSearch(namespace, tag);
+            }
+          })
         }, (group: GalleryTagGroup) => group.namespace)
       }
     }
@@ -39,6 +46,7 @@ export struct DetailTags {
 export struct TagGroupRow {
   namespace: string = '';
   tags: string[] = [];
+  onTagSearch: (namespace: string, tag: string) => void = (_namespace: string, _tag: string) => {};
 
   build() {
     Row() {
@@ -46,11 +54,22 @@ export struct TagGroupRow {
         .fontSize(12)
         .fontColor('#40566F')
         .width(86)
-      Text(this.tags.join(', '))
-        .fontSize(12)
-        .fontColor('#667085')
-        .maxLines(2)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
+      Flex({ wrap: FlexWrap.Wrap }) {
+        ForEach(this.tags, (tag: string) => {
+          Button(tag, { type: ButtonType.Normal, stateEffect: true })
+            .height(26)
+            .fontSize(12)
+            .fontColor('#225A74')
+            .backgroundColor('#DCECF3')
+            .borderRadius(4)
+            .padding({ left: 8, right: 8 })
+            .margin({ right: 6, bottom: 6 })
+            .onClick(() => {
+              this.onTagSearch(this.namespace, tag);
+            })
+        }, (tag: string) => this.namespace + ':' + tag)
+      }
+        .clip(true)
         .layoutWeight(1)
     }
     .width('100%')
