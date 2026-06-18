@@ -194,6 +194,72 @@ export function uiStatusText(text: string): string {
   if (text === 'Web Cookie captured') {
     return '已捕获网页 Cookie';
   }
+  if (text === 'Ability context is not ready') {
+    return 'Ability 上下文尚未就绪';
+  }
+  if (text === 'Username cannot be empty') {
+    return '用户名不能为空';
+  }
+  if (text === 'Password cannot be empty') {
+    return '密码不能为空';
+  }
+  if (text === 'Web sign-in is ready; existing browser verification is kept') {
+    return '网页登录已准备好，现有浏览器验证状态会保留';
+  }
+  if (text === 'Web verification Cookie captured; waiting for login...') {
+    return '已捕获网页验证 Cookie，等待登录完成...';
+  }
+  if (text === 'Waiting for web login...') {
+    return '等待网页登录...';
+  }
+  if (text === 'Web Cookie found, but context is not ready') {
+    return '已找到网页 Cookie，但上下文尚未就绪';
+  }
+  if (text === 'Cookie fields detected') {
+    return '已识别 Cookie 字段';
+  }
+  if (text === 'No known Cookie fields detected') {
+    return '未识别到已知 Cookie 字段';
+  }
+  if (text === 'ipb_member_id is empty') {
+    return 'ipb_member_id 为空';
+  }
+  if (text === 'ipb_pass_hash is empty') {
+    return 'ipb_pass_hash 为空';
+  }
+  if (text === 'ipb_member_id should contain digits only') {
+    return 'ipb_member_id 只能包含数字';
+  }
+  if (text === 'ipb_pass_hash should be 32 lowercase letters or digits') {
+    return 'ipb_pass_hash 应为 32 位小写字母或数字';
+  }
+  if (text === 'Cookie cleared in memory') {
+    return '已在内存中清除 Cookie';
+  }
+  if (text === 'Cookie cleared') {
+    return 'Cookie 已清除';
+  }
+  if (text === 'Cookie session loaded') {
+    return '已加载 Cookie 会话';
+  }
+  if (text === 'Tourist mode') {
+    return '游客模式';
+  }
+  if (text === 'Signed out in memory') {
+    return '已在内存中退出登录';
+  }
+  if (text === 'Signed out') {
+    return '已退出登录';
+  }
+  if (text === 'No setting is selected') {
+    return '未选择设置项';
+  }
+  if (text === 'UConfig requires a signed-in session') {
+    return 'UConfig 需要已登录会话';
+  }
+  if (text === 'My Tags requires a signed-in session') {
+    return 'My Tags 需要已登录会话';
+  }
   if (text === 'Running network diagnostics...') {
     return '正在运行网络诊断...';
   }
@@ -226,6 +292,48 @@ export function uiStatusText(text: string): string {
   }
   if (text.indexOf('Sign in failed: ') === 0) {
     return '登录失败：' + text.substring('Sign in failed: '.length);
+  }
+  if (text.indexOf('Cookie load failed: ') === 0) {
+    return 'Cookie 加载失败：' + text.substring('Cookie load failed: '.length);
+  }
+  if (text.indexOf('Cookie save failed: ') === 0) {
+    return 'Cookie 保存失败：' + text.substring('Cookie save failed: '.length);
+  }
+  if (text.indexOf('Cookie clear failed: ') === 0) {
+    return 'Cookie 清除失败：' + text.substring('Cookie clear failed: '.length);
+  }
+  if (text.indexOf('Web Cookie save failed: ') === 0) {
+    return '网页 Cookie 保存失败：' + text.substring('Web Cookie save failed: '.length);
+  }
+  if (text.indexOf('Signed in but Cookie save failed: ') === 0) {
+    return '已登录，但 Cookie 保存失败：' + text.substring('Signed in but Cookie save failed: '.length);
+  }
+  if (text.indexOf('Settings load failed: ') === 0) {
+    return '设置加载失败：' + text.substring('Settings load failed: '.length);
+  }
+  if (text.indexOf('Sign out failed: ') === 0) {
+    return '退出登录失败：' + text.substring('Sign out failed: '.length);
+  }
+  if (text.indexOf('Save failed: ') === 0) {
+    return '保存失败：' + text.substring('Save failed: '.length);
+  }
+  if (text.indexOf('Load more failed: ') === 0) {
+    return '加载更多失败：' + text.substring('Load more failed: '.length);
+  }
+  if (text.indexOf('Download load failed: ') === 0) {
+    return '下载列表加载失败：' + text.substring('Download load failed: '.length);
+  }
+  if (text.indexOf('Download save failed: ') === 0) {
+    return '下载列表保存失败：' + text.substring('Download save failed: '.length);
+  }
+  if (text.indexOf('Download failed: ') === 0) {
+    return '下载失败：' + text.substring('Download failed: '.length);
+  }
+  if (text.indexOf('Filter load warning: ') === 0) {
+    return '过滤规则加载警告：' + text.substring('Filter load warning: '.length);
+  }
+  if (text.indexOf('Filter save failed: ') === 0) {
+    return '过滤规则保存失败：' + text.substring('Filter save failed: '.length);
   }
   if (text.indexOf('Saved network setting: ') === 0) {
     return '已保存网络设置：' + text.substring('Saved network setting: '.length);
@@ -315,8 +423,14 @@ export function zhText(text: string): string {
     case 'To page': return '结束页';
     case 'Information': return '信息';
     case 'Tags': return '标签';
+    case 'Loading...': return '正在加载...';
+    case 'Loading tags...': return '正在加载标签...';
+    case 'Loading previews...': return '正在加载预览...';
+    case 'Loading comments...': return '正在加载评论...';
+    case 'Loading rating...': return '正在加载评分...';
     case 'No tags parsed': return '暂无标签';
     case 'Previews': return '预览';
+    case 'No previews': return '暂无预览';
     case 'Comments': return '评论';
     case 'See all': return '查看全部';
     case 'View all': return '查看全部';
@@ -348,6 +462,9 @@ export function zhText(text: string): string {
     case 'Archive': return '归档';
     case 'Archive -': return '归档 -';
     case 'Share': return '分享';
+    case 'Rate': return '评分';
+    case 'Cancel': return '取消';
+    case 'Submit': return '提交';
     case 'Read': return '阅读';
     case 'Queued': return '已加入';
     case 'Original': return '原图';
@@ -403,6 +520,8 @@ export function zhText(text: string): string {
     case 'Clear': return '清除';
     case 'OK': return '确定';
     case 'Session': return '会话';
+    case 'UConfig': return '账号配置';
+    case 'My Tags': return '我的标签';
     case 'Migration': return '迁移状态';
     case 'Migration status': return '迁移状态';
     case 'Open': return '打开';
@@ -597,6 +716,10 @@ export function zhText(text: string): string {
     case 'Original donation entry': return '原应用捐赠入口';
     case 'Download items will be shown here': return '下载项会显示在这里';
     case 'No items match the current filter': return '没有符合当前过滤条件的项目';
+    case 'Pull down to refresh': return '下拉刷新';
+    case 'Release to refresh': return '松开刷新';
+    case 'Refreshing...': return '正在刷新...';
+    case 'All pages loaded': return '已加载全部页面';
     case 'Waiting for toplist.php': return '等待 toplist.php';
     case 'Signing in...': return '正在登录...';
     default: return text;

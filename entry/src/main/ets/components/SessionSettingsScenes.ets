@@ -698,6 +698,47 @@ export struct SettingsScene {
     this.statusText = '';
   }
 
+  private openAccountWebPage(title: string, url: string): void {
+    this.prepareAccountWebViewCookies(url);
+    this.webViewUrl = url;
+    this.webViewTitle = title;
+    this.openPanel(SettingsPanel.WebView);
+  }
+
+  private prepareAccountWebViewCookies(url: string): void {
+    const cookieHeader = ehCookieStore.getCookieHeader();
+    if (cookieHeader.length === 0) {
+      return;
+    }
+
+    syncCookieHeaderToWebView(url, cookieHeader);
+    syncCookieHeaderToWebView(EhUrl.HOST_E, cookieHeader);
+    syncCookieHeaderToWebView(EhUrl.HOST_EX, cookieHeader);
+    syncCookieHeaderToWebView(EhUrl.FORUM_ORIGIN, cookieHeader);
+    try {
+      webview.WebCookieManager.configCookieSync(EhUrl.HOST_E, 'nw=1; path=/');
+      webview.WebCookieManager.configCookieSync(EhUrl.HOST_EX, 'nw=1; path=/');
+      webview.WebCookieManager.saveCookieSync();
+    } catch (error) {
+    }
+  }
+
+  private captureAccountWebCookies(url: string): void {
+    const cookieHeader = collectWebCookies(url);
+    if (!hasLoginCookie(cookieHeader)) {
+      return;
+    }
+
+    ehCookieStore.setCookieHeader(cookieHeader);
+    this.signedIn = ehCookieStore.hasCookies();
+    const context = getAbilityContext();
+    if (context === undefined) {
+      return;
+    }
+    ehCookieStore.save(context).catch(() => {
+    });
+  }
+
   private closeOptionPicker(): void {
     this.optionPickerOpen = false;
     this.optionKey = '';
@@ -792,9 +833,7 @@ export struct SettingsScene {
         return true;
       }
       const isEx = ehSettingsStore.getValue('gallery_site', 'E-Hentai') === 'ExHentai';
-      this.webViewUrl = isEx ? 'https://exhentai.org/uconfig.php' : 'https://e-hentai.org/uconfig.php';
-      this.webViewTitle = 'UConfig';
-      this.openPanel(SettingsPanel.WebView);
+      this.openAccountWebPage('UConfig', isEx ? 'https://exhentai.org/uconfig.php' : 'https://e-hentai.org/uconfig.php');
       return true;
     }
     if (key === 'my_tags') {
@@ -803,9 +842,7 @@ export struct SettingsScene {
         return true;
       }
       const isEx = ehSettingsStore.getValue('gallery_site', 'E-Hentai') === 'ExHentai';
-      this.webViewUrl = isEx ? 'https://exhentai.org/mytags' : 'https://e-hentai.org/mytags';
-      this.webViewTitle = 'My Tags';
-      this.openPanel(SettingsPanel.WebView);
+      this.openAccountWebPage('My Tags', isEx ? 'https://exhentai.org/mytags' : 'https://e-hentai.org/mytags');
       return true;
     }
     if (key === 'filter' || key === 'blacklist') {
@@ -1224,6 +1261,9 @@ export struct SettingsScene {
         Web({ src: this.webViewUrl, controller: this.webViewController })
           .javaScriptAccess(true)
           .domStorageAccess(true)
+          .onPageEnd((event: OnPageEndEvent) => {
+            this.captureAccountWebCookies(event.url);
+          })
           .width('100%')
           .layoutWeight(1)
       }
@@ -1806,6 +1846,29 @@ function collectWebCookies(currentUrl: string): string {
     parts.push(names[i] + '=' + values[i]);
   }
   return parts.join('; ');
+}
+
+function syncCookieHeaderToWebView(url: string, cookieHeader: string): void {
+  if (url.length === 0 || cookieHeader.trim().length === 0) {
+    return;
+  }
+
+  const names: string[] = [];
+  const values: string[] = [];
+  absorbCookieHeaderText(cookieHeader, names, values);
+  for (let i = 0; i < names.length; i++) {
+    if (names[i].length === 0 || values[i].length === 0) {
+      continue;
+    }
+    try {
+      webview.WebCookieManager.configCookieSync(url, names[i] + '=' + values[i] + '; path=/');
+    } catch (error) {
+    }
+  }
+  try {
+    webview.WebCookieManager.saveCookieSync();
+  } catch (error) {
+  }
 }
 
 interface CookieIdentity {
