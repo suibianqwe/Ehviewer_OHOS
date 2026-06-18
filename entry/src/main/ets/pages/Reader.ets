@@ -1,8 +1,13 @@
 import { ReaderHostScene } from '../components/ReaderHostScene';
+import { runReaderActiveBackHandler } from '../shared/EhShared';
 
 @Entry
 @Component
 struct ReaderPage {
+  onBackPress(): boolean {
+    return runReaderActiveBackHandler();
+  }
+
   build() {
     Column() {
       ReaderHostScene()

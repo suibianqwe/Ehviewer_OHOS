@@ -728,6 +728,7 @@ export function zhText(text: string): string {
 }
 
 let activeBackHandler: (() => boolean) | null = null;
+let readerActiveBackHandler: (() => boolean) | null = null;
 
 export function setActiveBackHandler(handler: (() => boolean) | null): void {
   activeBackHandler = handler;
@@ -735,6 +736,14 @@ export function setActiveBackHandler(handler: (() => boolean) | null): void {
 
 export function runActiveBackHandler(): boolean {
   return activeBackHandler !== null && activeBackHandler();
+}
+
+export function setReaderActiveBackHandler(handler: (() => boolean) | null): void {
+  readerActiveBackHandler = handler;
+}
+
+export function runReaderActiveBackHandler(): boolean {
+  return readerActiveBackHandler !== null && readerActiveBackHandler();
 }
 export const STATUS_BAR_HEIGHT_KEY: string = 'statusBarHeight';
 export const BOTTOM_NAV_HEIGHT_KEY: string = 'bottomNavHeight';

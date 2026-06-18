@@ -323,10 +323,6 @@ export struct GalleryListScene {
   }
 
   private handleSystemBack(): boolean {
-    if (this.showSearchResultScene) {
-      this.closeSearchResultScene();
-      return true;
-    }
     if (this.showReader) {
       this.closeReader();
       return true;
@@ -337,6 +333,10 @@ export struct GalleryListScene {
     }
     if (this.showDetail) {
       this.closeDetail();
+      return true;
+    }
+    if (this.showSearchResultScene) {
+      this.closeSearchResultScene();
       return true;
     }
     if (this.isSearchResultScene) {

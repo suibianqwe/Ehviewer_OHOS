@@ -15,7 +15,8 @@ import {
   readerPageReferer,
   readerPreloadCount,
   readerStartIndex,
-  saveGalleryReadPosition
+  saveGalleryReadPosition,
+  setReaderActiveBackHandler
 } from '../shared/EhShared';
 import { ReaderScene } from './ReaderScenes';
 
@@ -38,6 +39,7 @@ export struct ReaderHostScene {
   private readerPreviewPageSize: number = 0;
 
   aboutToAppear(): void {
+    setReaderActiveBackHandler(() => this.handleSystemBack());
     this.loadCurrentSession();
   }
 
@@ -78,6 +80,12 @@ export struct ReaderHostScene {
 
   aboutToDisappear(): void {
     this.persistSession();
+    setReaderActiveBackHandler(null);
+  }
+
+  private handleSystemBack(): boolean {
+    this.closeReader();
+    return true;
   }
 
   private persistSession(): void {
