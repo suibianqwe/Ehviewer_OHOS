@@ -181,6 +181,7 @@ export struct GallerySearchScene {
   @State advancedPanelVisible: boolean = false;
   @State suggestions: SearchSuggestionItem[] = [];
   @State selectedTagNamespaces: string[] = [];
+  @State suggestionRevision: number = 0;
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
@@ -208,6 +209,11 @@ export struct GallerySearchScene {
 
   private refreshSuggestions(namespaces: string[] = this.selectedTagNamespaces): void {
     this.suggestions = buildSearchSuggestions(this.keywordDraft, 40, namespaces);
+    this.suggestionRevision++;
+  }
+
+  private selectedTagNamespaceKey(): string {
+    return this.selectedTagNamespaces.slice().sort().join('|');
   }
 
   private applySuggestion(suggestion: SearchSuggestionItem): void {
@@ -295,6 +301,8 @@ export struct GallerySearchScene {
         Column() {
           SearchSummaryStrip({
             selectedTagNamespaces: this.selectedTagNamespaces,
+            selectedTagNamespaceKey: this.selectedTagNamespaceKey(),
+            revision: this.suggestionRevision,
             onToggleTagNamespace: (namespace: string) => {
               this.toggleTagNamespace(namespace);
             }
@@ -302,15 +310,16 @@ export struct GallerySearchScene {
           if (this.suggestions.length > 0) {
             SearchSuggestionList({
               suggestions: this.suggestions,
+              revision: this.suggestionRevision,
               onSelect: (suggestion: SearchSuggestionItem) => {
                 this.applySuggestion(suggestion);
               }
             })
-              .margin({ top: 6 })
+              .margin({ top: 4 })
           }
         }
         .width('100%')
-        .padding({ left: 8, right: 8, top: 8 })
+        .padding({ left: 8, right: 8, top: 4 })
         .layoutWeight(1)
         .backgroundColor($r('app.color.page_background'))
       }
@@ -377,6 +386,8 @@ export struct GallerySearchScene {
 @Component
 export struct SearchSummaryStrip {
   @Prop selectedTagNamespaces: string[] = [];
+  @Prop selectedTagNamespaceKey: string = '';
+  @Prop revision: number = 0;
   onToggleTagNamespace: (namespace: string) => void = (_namespace: string) => {};
 
   build() {
@@ -387,6 +398,7 @@ export struct SearchSummaryStrip {
             label: option.label,
             paletteIndex: index,
             isActive: this.namespaceSelected(option.value),
+            revision: this.revision,
             onClickAction: () => {
               this.onToggleTagNamespace(option.value);
             }
@@ -395,20 +407,22 @@ export struct SearchSummaryStrip {
       }
     }
     .width('100%')
-    .height(46)
-    .padding({ top: 6, bottom: 6 })
+    .height(42)
+    .padding({ top: 2, bottom: 2 })
     .scrollable(ScrollDirection.Horizontal)
     .scrollBar(BarState.Off)
   }
 
   private namespaceSelected(namespace: string): boolean {
-    return this.selectedTagNamespaces.indexOf(namespace) >= 0;
+    return ('|' + this.selectedTagNamespaceKey + '|').indexOf('|' + namespace + '|') >= 0 ||
+      this.selectedTagNamespaces.indexOf(namespace) >= 0;
   }
 }
 
 @Component
 export struct SearchSuggestionList {
   @Prop suggestions: SearchSuggestionItem[] = [];
+  @Prop revision: number = 0;
   onSelect: (suggestion: SearchSuggestionItem) => void = (_suggestion: SearchSuggestionItem) => {};
   @State contentWidth: number = 0;
 
@@ -416,51 +430,51 @@ export struct SearchSuggestionList {
     if (this.contentWidth <= 0) {
       return 1;
     }
-    const minWidth = 154;
-    const maxColumns = this.contentWidth >= 980 ? 5 : (this.contentWidth >= 740 ? 4 :
-      (this.contentWidth >= 500 ? 3 : (this.contentWidth >= 320 ? 2 : 1)));
-    return Math.max(1, Math.min(maxColumns, Math.floor((this.contentWidth + 6) / (minWidth + 6))));
-  }
-
-  private itemWidth(): number {
-    const columns = this.columnCount();
-    return Math.floor((Math.max(0, this.contentWidth) - (columns - 1) * 6) / columns);
-  }
-
-  private suggestionRows(): SearchSuggestionItem[][] {
-    const columns = this.columnCount();
-    const rows: SearchSuggestionItem[][] = [];
-    for (let i = 0; i < this.suggestions.length; i += columns) {
-      rows.push(this.suggestions.slice(i, i + columns));
+    if (this.contentWidth < 320) {
+      return 1;
     }
-    return rows;
+    if (this.contentWidth < 520) {
+      return 2;
+    }
+    if (this.contentWidth < 760) {
+      return 3;
+    }
+    if (this.contentWidth < 980) {
+      return 4;
+    }
+    return 5;
+  }
+
+  private columnsTemplate(): string {
+    const columns = this.columnCount();
+    let value = '1fr';
+    for (let i = 1; i < columns; i++) {
+      value += ' 1fr';
+    }
+    return value;
   }
 
   build() {
-    Column({ space: 6 }) {
-      ForEach(this.suggestionRows(), (row: SearchSuggestionItem[], rowIndex: number) => {
-        Row({ space: 6 }) {
-          ForEach(row, (suggestion: SearchSuggestionItem) => {
-            SearchSuggestionTile({
-              suggestion: suggestion,
-              widthValue: this.itemWidth(),
-              onSelect: (item: SearchSuggestionItem) => {
-                this.onSelect(item);
-              }
-            })
-          }, (suggestion: SearchSuggestionItem) => suggestion.kind + ':' + suggestion.query + ':' +
-            suggestion.subtitle)
-          if (row.length < this.columnCount()) {
-            Blank().layoutWeight(1)
-          }
+    Grid() {
+      ForEach(this.suggestions, (suggestion: SearchSuggestionItem) => {
+        GridItem() {
+          SearchSuggestionTile({
+            suggestion: suggestion,
+            onSelect: (item: SearchSuggestionItem) => {
+              this.onSelect(item);
+            }
+          })
         }
-        .width('100%')
-      }, (_row: SearchSuggestionItem[], index: number) => index.toString())
+      }, (suggestion: SearchSuggestionItem) => this.revision.toString() + ':' + suggestion.kind + ':' +
+        suggestion.query + ':' + suggestion.subtitle)
     }
+    .columnsTemplate(this.columnsTemplate())
+    .columnsGap(6)
+    .rowsGap(6)
     .width('100%')
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       const width = newArea.width as number;
-      if (width > 0 && !Number.isNaN(width)) {
+      if (width > 0 && !Number.isNaN(width) && Math.abs(width - this.contentWidth) >= 1) {
         this.contentWidth = width;
       }
     })
@@ -469,8 +483,7 @@ export struct SearchSuggestionList {
 
 @Component
 struct SearchSuggestionTile {
-  suggestion: SearchSuggestionItem = { kind: '', title: '', subtitle: '', query: '' };
-  widthValue: number = 260;
+  @Prop suggestion: SearchSuggestionItem = { kind: '', title: '', subtitle: '', query: '' };
   onSelect: (suggestion: SearchSuggestionItem) => void = (_suggestion: SearchSuggestionItem) => {};
 
   private iconForKind(kind: string): Resource {
@@ -506,7 +519,7 @@ struct SearchSuggestionTile {
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
     }
-    .width(this.widthValue > 0 ? this.widthValue : '100%')
+    .width('100%')
     .height(44)
     .padding({ left: 6, right: 6 })
     .alignItems(VerticalAlign.Center)
@@ -521,9 +534,10 @@ struct SearchSuggestionTile {
 
 @Component
 struct SearchNamespaceChip {
-  label: string = '';
-  paletteIndex: number = 0;
-  isActive: boolean = false;
+  @Prop label: string = '';
+  @Prop paletteIndex: number = 0;
+  @Prop isActive: boolean = false;
+  @Prop revision: number = 0;
   onClickAction: () => void = () => {};
 
   private activeColor(): string {
@@ -543,13 +557,14 @@ struct SearchNamespaceChip {
 
   build() {
     Button(uiText(this.label), { type: ButtonType.Normal, stateEffect: true })
-      .height(36)
-      .fontSize(15)
-      .fontWeight(FontWeight.Medium)
+      .height(38)
+      .fontSize(16)
+      .fontWeight(FontWeight.Bold)
       .fontColor(this.isActive ? Color.White : this.textColor())
       .backgroundColor(this.isActive ? this.activeColor() : this.softColor())
       .borderRadius(5)
-      .padding({ left: 15, right: 15 })
+      .padding({ left: 16, right: 16 })
+      .opacity(this.isActive ? 1 : 0.72)
       .animation({ duration: 120, curve: Curve.EaseOut })
       .onClick(() => {
         this.onClickAction();

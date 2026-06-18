@@ -1337,7 +1337,7 @@ export struct GalleryListScene {
 export struct GalleryListContent {
   @Prop sceneTitle: string = '';
   @Prop listMode: string = '';
-  @Prop keyword: string = '';
+  @Prop @Watch('onSearchKeywordChanged') keyword: string = '';
   @Prop searchTitle: string = '';
   @Prop actionsExpanded: boolean = false;
   @Prop filterActive: boolean = false;
@@ -1384,6 +1384,8 @@ export struct GalleryListContent {
   @State pageJumpDraft: string = '';
   @State jumpPanelVisible: boolean = false;
   @State selectedTagNamespaces: string[] = [];
+  @State searchSuggestionItems: SearchSuggestionItem[] = [];
+  @State searchSuggestionRevision: number = 0;
   onRefreshPull: (done: () => void) => void = (done: () => void) => { done(); };
   // 下拉刷新自定义 builder 状态
   @State refreshScaleNum: number = 0;
@@ -1409,12 +1411,17 @@ export struct GalleryListContent {
     this.syncPageJumpDraft();
   }
 
+  onSearchKeywordChanged(): void {
+    this.refreshSearchSuggestions();
+  }
+
   private statusBarVp(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx);
   }
 
   aboutToAppear(): void {
     this.syncPageJumpDraft();
+    this.refreshSearchSuggestions();
   }
 
   private syncPageJumpDraft(): void {
@@ -1763,8 +1770,13 @@ export struct GalleryListContent {
     return this.isSearchResultScene && !this.searchSubmitted;
   }
 
-  private searchSuggestions(): SearchSuggestionItem[] {
-    return buildSearchSuggestions(this.keyword, 40, this.selectedTagNamespaces);
+  private refreshSearchSuggestions(namespaces: string[] = this.selectedTagNamespaces): void {
+    this.searchSuggestionItems = buildSearchSuggestions(this.keyword, 40, namespaces);
+    this.searchSuggestionRevision++;
+  }
+
+  private selectedTagNamespaceKey(): string {
+    return this.selectedTagNamespaces.slice().sort().join('|');
   }
 
   private applySearchSuggestion(suggestion: SearchSuggestionItem): void {
@@ -1785,20 +1797,24 @@ export struct GalleryListContent {
       next.push(namespace);
     }
     this.selectedTagNamespaces = next;
+    this.refreshSearchSuggestions(next);
   }
 
   @Builder
   private searchSuggestionPlaceholder() {
-    Column({ space: 10 }) {
+    Column({ space: 4 }) {
       SearchSummaryStrip({
         selectedTagNamespaces: this.selectedTagNamespaces,
+        selectedTagNamespaceKey: this.selectedTagNamespaceKey(),
+        revision: this.searchSuggestionRevision,
         onToggleTagNamespace: (namespace: string) => {
           this.toggleTagNamespace(namespace);
         }
       })
-      if (this.searchSuggestions().length > 0) {
+      if (this.searchSuggestionItems.length > 0) {
         SearchSuggestionList({
-          suggestions: this.searchSuggestions(),
+          suggestions: this.searchSuggestionItems,
+          revision: this.searchSuggestionRevision,
           onSelect: (suggestion: SearchSuggestionItem) => {
             this.applySearchSuggestion(suggestion);
           }
@@ -1824,7 +1840,7 @@ export struct GalleryListContent {
       }
     }
     .width('100%')
-    .padding({ left: 12, right: 12, top: 10 })
+    .padding({ left: 8, right: 8, top: 4 })
   }
 
   build() {
