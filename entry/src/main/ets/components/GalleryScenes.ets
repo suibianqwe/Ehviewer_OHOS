@@ -1334,6 +1334,7 @@ export struct GalleryListContent {
   @State refreshing: boolean = false;
   @State advancedPanelVisible: boolean = false;
   @State pageJumpDraft: string = '';
+  @State jumpPanelVisible: boolean = false;
   onRefreshPull: (done: () => void) => void = (done: () => void) => { done(); };
   // 下拉刷新自定义 builder 状态
   @State refreshScaleNum: number = 0;
@@ -1387,6 +1388,18 @@ export struct GalleryListContent {
 
   private closeAdvancedPanel(): void {
     this.advancedPanelVisible = false;
+  }
+
+  private openJumpPanel(): void {
+    if (!this.canJump) {
+      return;
+    }
+    this.syncPageJumpDraft();
+    this.jumpPanelVisible = true;
+  }
+
+  private closeJumpPanel(): void {
+    this.jumpPanelVisible = false;
   }
 
   private searchResultSubtitle(): string {
@@ -1450,7 +1463,7 @@ export struct GalleryListContent {
   }
 
   private searchResultStripHeight(): number {
-    return this.isSearchResultScene ? 42 : 0;
+    return 0;
   }
 
   private galleryCardPreferredWidth(): number {
@@ -1711,12 +1724,6 @@ export struct GalleryListContent {
                 .width('100%')
             }
 
-            if (this.isSearchResultScene) {
-              ListItem() {
-                this.searchPageStrip()
-              }
-            }
-
             // 空状态或画廊列表
             if (this.galleries.length === 0) {
               ListItem() {
@@ -1877,7 +1884,9 @@ export struct GalleryListContent {
           canRandom: this.canRandom,
           onToggle: this.onToggleActions,
           onFilter: this.onFilter,
-          onJump: this.onJump,
+          onJump: () => {
+            this.openJumpPanel();
+          },
           onRefresh: this.onRefresh,
           onRandom: this.onRandom
         })
@@ -1922,6 +1931,63 @@ export struct GalleryListContent {
           .transition(TransitionEffect.move(TransitionEdge.TOP)
             .animation({ duration: 180, curve: Curve.EaseOut }))
           .zIndex(12)
+      }
+
+      if (this.jumpPanelVisible) {
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor('rgba(0,0,0,0.16)')
+          .onClick(() => {
+            this.closeJumpPanel();
+          })
+          .zIndex(13)
+
+        Column({ space: 10 }) {
+          Text(uiText('Jump'))
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor('#17202A')
+            .width('100%')
+          Row({ space: 8 }) {
+            TextInput({ text: this.pageJumpDraft, placeholder: (this.pageIndex + 1).toString() })
+              .height(38)
+              .layoutWeight(1)
+              .type(InputType.Number)
+              .fontColor('#17202A')
+              .backgroundColor('#EEF2F6')
+              .borderRadius(4)
+              .padding({ left: 10, right: 10 })
+              .onChange((value: string) => {
+                this.pageJumpDraft = value;
+              })
+              .onSubmit(() => {
+                this.submitPageJump();
+                this.closeJumpPanel();
+              })
+            Text('/ ' + (this.totalPages > 0 ? this.totalPages.toString() : '-'))
+              .fontSize(13)
+              .fontColor('#667085')
+          }
+          Button(uiText('Jump'))
+            .height(36)
+            .width('100%')
+            .fontSize(13)
+            .fontColor(Color.White)
+            .backgroundColor(APP_THEME_COLOR)
+            .borderRadius(4)
+            .onClick(() => {
+              this.submitPageJump();
+              this.closeJumpPanel();
+            })
+        }
+        .width(220)
+        .padding(12)
+        .backgroundColor(Color.White)
+        .borderRadius(8)
+        .shadow({ radius: 12, color: '#33000000', offsetX: 0, offsetY: 4 })
+        .position({ x: this.contentWidth > 0 ? Math.max(12, this.contentWidth - 244) : 100, y: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - 210) : 360 })
+        .zIndex(14)
       }
 
       // 浮动导航栏

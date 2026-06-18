@@ -504,10 +504,10 @@ export struct SearchAdvancedPanel {
 
   private searchModeOptions(): SelectOption[] {
     return [
-      { value: uiText('Normal') },
-      { value: uiText('Subscription') },
-      { value: uiText('Uploader') },
-      { value: uiText('Tag') }
+      { value: uiText('一般搜索') },
+      { value: uiText('订阅搜索') },
+      { value: uiText('指定上传者') },
+      { value: uiText('标签搜索') }
     ];
   }
 
@@ -523,16 +523,6 @@ export struct SearchAdvancedPanel {
       { label: 'Non-H', category: GalleryCategory.NonH },
       { label: 'Western', category: GalleryCategory.Western },
       { label: 'Misc', category: GalleryCategory.Misc }
-    ];
-  }
-
-  private ratingOptions(): SelectOption[] {
-    return [
-      { value: uiText('Any rating') },
-      { value: '2+' },
-      { value: '3+' },
-      { value: '4+' },
-      { value: '5' }
     ];
   }
 
@@ -591,18 +581,15 @@ export struct SearchAdvancedPanel {
     return ListMode.Normal;
   }
 
-  private ratingIndex(): number {
+  private ratingLevel(): number {
     if (this.minRating <= 0) {
-      return 0;
+      return 1;
     }
-    return Math.max(1, Math.min(4, this.minRating - 1));
+    return Math.max(1, Math.min(5, this.minRating));
   }
 
-  private ratingForIndex(index: number): number {
-    if (index <= 0) {
-      return -1;
-    }
-    return index + 1;
+  private setRatingLevel(level: number): void {
+    this.onMinRatingChange(level <= 1 ? -1 : level);
   }
 
   private flagOn(flag: number): boolean {
@@ -642,8 +629,8 @@ export struct SearchAdvancedPanel {
           Button(uiText('All categories'))
             .height(32)
             .fontSize(12)
-            .fontColor(Color.White)
-            .backgroundColor(this.allCategoriesSelected() ? APP_THEME_COLOR : '#5A8FA8')
+            .fontColor(this.allCategoriesSelected() ? Color.White : '#40566F')
+            .backgroundColor(this.allCategoriesSelected() ? APP_THEME_COLOR : '#EEF2F6')
             .borderRadius(4)
             .width('100%')
             .onClick(() => {
@@ -716,15 +703,12 @@ export struct SearchAdvancedPanel {
             }
 
             this.sectionTitle('Rating')
-            Row({ space: 8 }) {
-              Select(this.ratingOptions())
-                .selected(this.ratingIndex())
-                .height(38)
-                .width('100%')
-                .onSelect((index: number) => {
-                  this.onMinRatingChange(this.ratingForIndex(index));
-                })
-            }
+            RatingStarBar({
+              level: this.ratingLevel(),
+              onSelect: (level: number) => {
+                this.setRatingLevel(level);
+              }
+            })
           }
         }
         .width('100%')
@@ -894,17 +878,84 @@ export struct SearchCategoryChip {
   selected: boolean = false;
   onToggle: (category: number) => void = (_category: number) => {};
 
+  private softColor(): string {
+    switch (this.category) {
+      case GalleryCategory.Doujinshi:
+        return '#F4E0C6';
+      case GalleryCategory.Manga:
+        return '#E5DFF5';
+      case GalleryCategory.ArtistCg:
+        return '#D8E9EF';
+      case GalleryCategory.GameCg:
+        return '#E9DEC8';
+      case GalleryCategory.ImageSet:
+        return '#D8EADF';
+      case GalleryCategory.Cosplay:
+        return '#F1D8E1';
+      case GalleryCategory.AsianPorn:
+        return '#ECDCCD';
+      case GalleryCategory.NonH:
+        return '#DDE8F2';
+      case GalleryCategory.Western:
+        return '#E0E8D2';
+      case GalleryCategory.Misc:
+        return '#E5E7EB';
+      default:
+        return '#EEF2F6';
+    }
+  }
+
   build() {
     Button(uiText(this.label))
       .height(32)
       .fontSize(12)
       .fontWeight(FontWeight.Bold)
-      .fontColor(this.selected ? Color.White : '#40566F')
-      .backgroundColor(this.selected ? categoryColor(this.category) : '#EEF2F6')
+      .fontColor(this.selected ? Color.White : categoryColor(this.category))
+      .backgroundColor(this.selected ? categoryColor(this.category) : this.softColor())
       .borderRadius(4)
       .layoutWeight(1)
       .onClick(() => {
         this.onToggle(this.category);
       })
+  }
+}
+
+@Component
+export struct RatingStarBar {
+  level: number = 1;
+  onSelect: (level: number) => void = (_level: number) => {};
+
+  private starActive(index: number): boolean {
+    return index <= this.level;
+  }
+
+  private labelText(): string {
+    return this.level <= 1 ? '不限制' : this.level.toString() + ' 星以上';
+  }
+
+  build() {
+    Row({ space: 8 }) {
+      ForEach([1, 2, 3, 4, 5], (index: number) => {
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph(this.starActive(index) ? $r('sys.symbol.star_fill') : $r('sys.symbol.star'))
+            .fontSize(22)
+            .fontColor([this.starActive(index) ? '#D28A1E' : '#9AA8B4'])
+        }
+        .width(36)
+        .height(36)
+        .backgroundColor(this.starActive(index) ? '#FFF0D4' : '#EEF2F6')
+        .onClick(() => {
+          this.onSelect(index);
+        })
+      }, (index: number) => index.toString())
+      Text(uiText(this.labelText()))
+        .fontSize(12)
+        .fontColor('#40566F')
+        .layoutWeight(1)
+        .maxLines(1)
+    }
+    .width('100%')
+    .height(40)
+    .alignItems(VerticalAlign.Center)
   }
 }
