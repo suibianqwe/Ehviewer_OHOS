@@ -7,12 +7,23 @@ export interface PreviewMergeResult {
   previewPageSize: number;
 }
 
-export interface RemainingPreviewLoadOptions {
+export interface NextPreviewPageLoadOptions {
+  client: EhHttpClient;
+  site: GallerySite;
+  referer: string;
+  pageIndex: number;
+  getDetail: () => GalleryDetail;
+  isCurrent: () => boolean;
+  onMerge: (detail: GalleryDetail) => void;
+  onError: (message: string) => void;
+}
+
+export interface DetailPreviewPagerOptions {
   client: EhHttpClient;
   site: GallerySite;
   referer: string;
   getDetail: () => GalleryDetail;
-  isCurrent: () => boolean;
+  isVisible: () => boolean;
   onMerge: (detail: GalleryDetail) => void;
   onError: (message: string) => void;
 }
@@ -60,31 +71,72 @@ export function mergeGalleryPreviewSets(current: GalleryDetail, loaded: GalleryD
   };
 }
 
-export async function loadRemainingGalleryPreviews(options: RemainingPreviewLoadOptions): Promise<void> {
-  const initial = options.getDetail();
-  if (initial.previewPages <= 1 || initial.gid <= 0 || initial.token.length === 0) {
-    return;
+export async function loadGalleryPreviewPage(options: NextPreviewPageLoadOptions): Promise<boolean> {
+  const current = options.getDetail();
+  if (current.previewPages <= 1 || current.gid <= 0 || current.token.length === 0 ||
+    options.pageIndex <= 0 || options.pageIndex >= current.previewPages || !options.isCurrent()) {
+    return false;
   }
 
-  for (let pageIndex = 1; pageIndex < initial.previewPages; pageIndex++) {
+  try {
+    const result = await options.client.loadGalleryDetail(current.gid, current.token, options.pageIndex,
+      options.site, options.referer);
     if (!options.isCurrent()) {
+      return false;
+    }
+    if (result.ok && result.detail !== null && result.detail.previewSet.length > 0) {
+      options.onMerge(result.detail);
+      return true;
+    }
+    options.onError(result.message);
+  } catch (error) {
+    if (options.isCurrent()) {
+      options.onError(String(error));
+    }
+  }
+  return false;
+}
+
+export class DetailPreviewPager {
+  private serial: number = 0;
+  private nextPageIndex: number = 1;
+  private loading: boolean = false;
+
+  start(): void {
+    this.serial++;
+    this.nextPageIndex = 1;
+    this.loading = false;
+  }
+
+  reset(): void {
+    this.start();
+  }
+
+  async loadNext(options: DetailPreviewPagerOptions): Promise<void> {
+    const current = options.getDetail();
+    if (this.loading || current.previewPages <= 1 || this.nextPageIndex >= current.previewPages) {
       return;
     }
 
-    try {
-      const current = options.getDetail();
-      const result = await options.client.loadGalleryDetail(current.gid, current.token, pageIndex,
-        options.site, options.referer);
-      if (!options.isCurrent()) {
-        return;
-      }
-      if (result.ok && result.detail !== null && result.detail.previewSet.length > 0) {
-        options.onMerge(result.detail);
-      }
-    } catch (error) {
-      if (options.isCurrent()) {
-        options.onError(String(error));
-      }
+    const activeSerial = this.serial;
+    const pageIndex = this.nextPageIndex;
+    this.loading = true;
+    const loaded = await loadGalleryPreviewPage({
+      client: options.client,
+      site: options.site,
+      referer: options.referer,
+      pageIndex: pageIndex,
+      getDetail: options.getDetail,
+      isCurrent: () => activeSerial === this.serial && options.isVisible(),
+      onMerge: options.onMerge,
+      onError: options.onError
+    });
+    if (activeSerial !== this.serial) {
+      return;
+    }
+    this.loading = false;
+    if (loaded && this.nextPageIndex === pageIndex) {
+      this.nextPageIndex = pageIndex + 1;
     }
   }
 }

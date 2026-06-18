@@ -6,19 +6,19 @@ import { EhHttpClient, GalleryDetailLoadResult, GalleryListLoadResult, GalleryPa
 import { DEFAULT_ADVANCE_SEARCH, EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder } from '../services/EhUrl';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { ehFilterStore } from '../services/EhFilterStore';
-import { loadRemainingGalleryPreviews, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
+import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { LANGUAGE_REVISION_KEY, APP_THEME_COLOR } from '../shared/EhShared';
 import { EhNavBar } from '../components/NavigationComponents';
 import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard } from './GalleryCards';
-import { GalleryDetailScene } from './GalleryDetailScenes';
+import { GalleryDetailOverlayScene, GalleryDetailScene } from './GalleryDetailScenes';
 import { GallerySearchScene, QuickActionColumn, recordSearchHistory } from './GallerySearchScenes';
 import { CommentsScene, PlaceholderScene, ReaderScene } from './ReaderScenes';
 import { uiText, uiStatusText, setActiveBackHandler, createEmptyGallery, createDetailFromGallery, createEmptyDetail, createEmptyPage, cloneGalleryInfos, applyGalleryFilters, cloneGalleryPreviews, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, listModeForRoute, routeUsesKeyword, defaultKeywordForRoute, gallerySearchTitle, effectiveListSite, galleryListFailureMessage, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, galleryDisplayTitle, galleryListMode, galleryThumbWidth, galleryThumbHeight } from '../shared/EhShared';
 
 export { CategoryBadge, GalleryListRow, GalleryTagChip, GalleryThumb, GalleryThumbCard } from './GalleryCards';
-export { GalleryDetailScene } from './GalleryDetailScenes';
+export { GalleryDetailOverlayScene, GalleryDetailScene } from './GalleryDetailScenes';
 export { ActionBubble, GallerySearchScene, QuickActionColumn, SearchAdvancedPanel, SearchFlagChip, SearchStatusChip, SearchSuggestionList, SearchSummaryStrip } from './GallerySearchScenes';
 export { CommentsScene, PlaceholderScene, ReaderNavButton, ReaderScene, ReaderToolButton } from './ReaderScenes';
 
@@ -219,7 +219,7 @@ export struct GalleryListScene {
   private readerPreviewMap: Map<number, GalleryPreview> = new Map();
   private readerPreviewPageRequests: Map<number, Promise<GalleryPreview | null>> = new Map();
   private readerPreviewPageSize: number = 0;
-  private detailPreviewLoadSerial: number = 0;
+  private detailPreviewPager: DetailPreviewPager = new DetailPreviewPager();
 
   private cacheKey(): string {
     const mode = this.useForcedMode ? this.forcedMode.toString() : listModeForRoute(this.sourceRoute).toString();
@@ -603,7 +603,7 @@ export struct GalleryListScene {
 
   private loadDetail(gallery: GalleryInfo): void {
     this.showDetail = true;
-    this.detailPreviewLoadSerial++;
+    this.detailPreviewPager.start();
     this.detail = createDetailFromGallery(gallery);
     this.resetReaderPreviewCache();
     this.detailStatus = 'Loading detail for gid ' + gallery.gid.toString() + '...';
@@ -631,7 +631,6 @@ export struct GalleryListScene {
       this.favoriteBusy = false;
       this.renderVersion++;
       saveGalleryToHistory(result.detail);
-      this.loadRemainingDetailPreviews(this.detailPreviewLoadSerial);
       this.prewarmReader();
     }).catch((error: Error) => {
       this.detailStatus = 'Detail load failed: ' + error.message;
@@ -651,7 +650,7 @@ export struct GalleryListScene {
     this.detailLoaded = false;
     this.optimisticFavorite = false;
     this.favoriteBusy = false;
-    this.detailPreviewLoadSerial++;
+    this.detailPreviewPager.reset();
     this.readerStatus = 'Reader is ready';
     this.readerPage = createEmptyPage();
     this.readerPreviewIndex = 0;
@@ -958,14 +957,14 @@ export struct GalleryListScene {
     this.renderVersion++;
   }
 
-  private async loadRemainingDetailPreviews(serial: number): Promise<void> {
+  private async loadNextDetailPreviewPage(): Promise<void> {
     const referer = this.detailRequestUrl.length > 0 ? this.detailRequestUrl : this.requestUrl;
-    await loadRemainingGalleryPreviews({
+    await this.detailPreviewPager.loadNext({
       client: this.client,
       site: this.activeSite,
       referer: referer,
       getDetail: () => this.detail,
-      isCurrent: () => serial === this.detailPreviewLoadSerial && this.showDetail,
+      isVisible: () => this.showDetail,
       onMerge: (detail: GalleryDetail) => {
         this.mergeReaderPreviewSet(detail);
       },
@@ -1167,20 +1166,10 @@ export struct GalleryListScene {
         })
           .transition(TransitionEffect.move(TransitionEdge.BOTTOM)
             .animation({ duration: 300, curve: Curve.EaseOut }))
-      } else if (this.showComments) {
-        CommentsScene({
-          renderVersion: this.renderVersion,
-          comments: this.detail.comments,
-          galleryTitle: galleryDisplayTitle(this.detail),
-          onBack: () => {
-            this.closeComments();
-          }
-        })
-          .transition(TransitionEffect.move(TransitionEdge.END)
-            .animation({ duration: 300, curve: Curve.EaseOut }))
       } else if (this.showDetail) {
-        GalleryDetailScene({
+        GalleryDetailOverlayScene({
           renderVersion: this.renderVersion,
+          showComments: this.showComments,
           detail: this.detail,
           isDetailLoaded: this.detailLoaded,
           isFavorited: this.optimisticFavorite,
@@ -1189,6 +1178,9 @@ export struct GalleryListScene {
           downloadText: this.detailDownloadText,
           onBack: () => {
             this.closeDetail();
+          },
+          onCloseComments: () => {
+            this.closeComments();
           },
           onDownload: () => {
             this.toggleDownloadDetail();
@@ -1216,6 +1208,9 @@ export struct GalleryListScene {
           },
           onArchive: () => {
             this.copyDetailLink(this.detail.archiveUrl, 'Archive');
+          },
+          onLoadMorePreviews: () => {
+            this.loadNextDetailPreviewPage();
           },
           initialDetailScrollOffset: this.detailScrollOffset,
           onDetailScrollUpdate: (offset: number) => {

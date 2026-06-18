@@ -23,6 +23,7 @@ import {
   uiText,
   uiValue
 } from '../shared/EhShared';
+import { EhSubNavBar } from './NavigationComponents';
 
 const READER_MIN_SCALE: number = 1;
 const READER_MAX_SCALE: number = 4;
@@ -255,43 +256,33 @@ export struct CommentsScene {
   @Prop comments: GalleryComment[] = [];
   @Prop galleryTitle: string = '';
   onBack: () => void = () => {};
+  @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
+
+  private statusBarVp(): number {
+    return this.getUIContext().px2vp(this.statusBarHeightPx);
+  }
 
   build() {
     Column() {
+      EhSubNavBar({
+        statusBarHeight: this.statusBarVp(),
+        title: uiText('Comments'),
+        onBack: this.onBack
+      })
       Row() {
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.chevron_left'))
-            .fontSize(20)
-            .fontColor([Color.White])
-        }
-        .width(36)
-        .height(36)
-        .backgroundColor('#2F6F8F')
-        .onClick(() => {
-          this.onBack();
-        })
-        Column() {
-          Text(uiText('Comments'))
-            .fontSize(16)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#17202A')
-          Text(this.galleryTitle)
-            .fontSize(11)
-            .fontColor('#667085')
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .margin({ top: 2 })
-        }
-        .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
-        .margin({ left: 12 })
-
+        Text(this.galleryTitle)
+          .fontSize(12)
+          .fontColor('#667085')
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .layoutWeight(1)
         Text(this.comments.length.toString() + ' ' + uiText('total'))
           .fontSize(12)
           .fontColor('#667085')
+          .margin({ left: 12 })
       }
       .width('100%')
-      .padding({ left: 12, right: 12, top: 10, bottom: 8 })
+      .padding({ left: 16, right: 16, top: 8, bottom: 8 })
       .backgroundColor(Color.White)
 
       if (this.comments.length === 0) {

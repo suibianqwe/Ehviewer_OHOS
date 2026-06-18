@@ -223,7 +223,7 @@ export struct PreviewThumb {
   }
 
   private usesSpriteCrop(): boolean {
-    return this.preview.xOffset > 0 || this.preview.yOffset > 0;
+    return this.preview.width > 0 && this.preview.height > 0;
   }
 
   private spriteScale(): number {
@@ -245,6 +245,16 @@ export struct PreviewThumb {
     const scale = this.spriteScale();
     const sourceHeight = this.preview.height > 0 ? this.preview.height : this.heightValue;
     return Math.round(-this.preview.yOffset * scale + (this.heightValue - sourceHeight * scale) / 2);
+  }
+
+  private spriteDisplayWidth(): number {
+    const sourceWidth = this.preview.width > 0 ? this.preview.width : this.widthValue;
+    return Math.max(1, Math.round(sourceWidth * this.spriteScale()));
+  }
+
+  private spriteDisplayHeight(): number {
+    const sourceHeight = this.preview.height > 0 ? this.preview.height : this.heightValue;
+    return Math.max(1, Math.round(sourceHeight * this.spriteScale()));
   }
 
   build() {
@@ -274,7 +284,8 @@ export struct PreviewThumb {
           Image(this.localUrl)
             .fitOriginalSize(true)
             .objectFit(ImageFit.None)
-            .scale({ x: this.spriteScale(), y: this.spriteScale(), centerX: 0, centerY: 0 })
+            .width(this.spriteDisplayWidth())
+            .height(this.spriteDisplayHeight())
             .position({ x: this.spriteXPosition(), y: this.spriteYPosition() })
             .syncLoad(true)
             .onError(() => {

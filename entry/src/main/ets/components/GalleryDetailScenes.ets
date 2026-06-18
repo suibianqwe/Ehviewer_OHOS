@@ -1,12 +1,73 @@
 ﻿import { GalleryDetail, GalleryPreview } from '../model/GalleryModels';
 import { STATUS_BAR_HEIGHT_KEY, createEmptyDetail, galleryDisplayTitle, uiStatusText } from '../shared/EhShared';
 import { EhSubNavBar } from './NavigationComponents';
+import { CommentsScene } from './ReaderScenes';
 import { DetailHeader, DetailLoadStatus } from './detail/DetailHeader';
 import { DetailInfoBlock } from './detail/DetailInfo';
 import { DetailActions, RatingPanel } from './detail/DetailActions';
 import { DetailTags } from './detail/DetailTags';
 import { DetailPreviews } from './detail/DetailPreviews';
 import { DetailComments } from './detail/DetailComments';
+
+@Component
+export struct GalleryDetailOverlayScene {
+  @Prop renderVersion: number = 0;
+  @Prop showComments: boolean = false;
+  @Prop detail: GalleryDetail = createEmptyDetail();
+  @Prop isDetailLoaded: boolean = false;
+  @Prop isFavorited: boolean = false;
+  @Prop statusText: string = '';
+  @Prop requestUrl: string = '';
+  @Prop downloadText: string = 'Download';
+  initialDetailScrollOffset: number = 0;
+  onBack: () => void = () => {};
+  onCloseComments: () => void = () => {};
+  onDownload: () => void = () => {};
+  onRead: () => void = () => {};
+  onSelectPreview: (preview: GalleryPreview) => void = () => {};
+  onComments: () => void = () => {};
+  onFavorite: () => void = () => {};
+  onShare: () => void = () => {};
+  onRate: (rating: number) => void = (_rating: number) => {};
+  onTorrent: () => void = () => {};
+  onArchive: () => void = () => {};
+  onLoadMorePreviews: () => void = () => {};
+  onDetailScrollUpdate: (offset: number) => void = () => {};
+
+  build() {
+    if (this.showComments) {
+      CommentsScene({
+        renderVersion: this.renderVersion,
+        comments: this.detail.comments,
+        galleryTitle: galleryDisplayTitle(this.detail),
+        onBack: this.onCloseComments
+      })
+    } else {
+      GalleryDetailScene({
+        renderVersion: this.renderVersion,
+        detail: this.detail,
+        isDetailLoaded: this.isDetailLoaded,
+        isFavorited: this.isFavorited,
+        statusText: this.statusText,
+        requestUrl: this.requestUrl,
+        downloadText: this.downloadText,
+        onBack: this.onBack,
+        onDownload: this.onDownload,
+        onRead: this.onRead,
+        onSelectPreview: this.onSelectPreview,
+        onComments: this.onComments,
+        onFavorite: this.onFavorite,
+        onShare: this.onShare,
+        onRate: this.onRate,
+        onTorrent: this.onTorrent,
+        onArchive: this.onArchive,
+        onLoadMorePreviews: this.onLoadMorePreviews,
+        initialDetailScrollOffset: this.initialDetailScrollOffset,
+        onDetailScrollUpdate: this.onDetailScrollUpdate
+      })
+    }
+  }
+}
 
 @Component
 export struct GalleryDetailScene {
@@ -27,6 +88,7 @@ export struct GalleryDetailScene {
   onRate: (rating: number) => void = (_rating: number) => {};
   onTorrent: () => void = () => {};
   onArchive: () => void = () => {};
+  onLoadMorePreviews: () => void = () => {};
   initialDetailScrollOffset: number = 0;
   onDetailScrollUpdate: (offset: number) => void = () => {};
   private detailScroller: Scroller = new Scroller();
@@ -128,6 +190,9 @@ export struct GalleryDetailScene {
         })
         .onScrollStop(() => {
           this.onDetailScrollUpdate(this.detailScroller.currentOffset().yOffset);
+        })
+        .onReachEnd(() => {
+          this.onLoadMorePreviews();
         })
       }
       .width('100%')
