@@ -147,6 +147,7 @@ export struct GallerySearchScene {
   @State minRatingDraft: number = -1;
   @State pageFromDraft: number = -1;
   @State pageToDraft: number = -1;
+  @State modeLabelDraft: string = '';
   @State advancedPanelVisible: boolean = false;
   @State suggestions: SearchSuggestionItem[] = [];
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
@@ -513,6 +514,7 @@ export struct SearchAdvancedPanel {
   @State minRatingDraft: number = -1;
   @State pageFromDraft: number = -1;
   @State pageToDraft: number = -1;
+  @State modeLabelDraft: string = '';
   onSearchModeChange: (mode: ListMode) => void = (_mode: ListMode) => {};
   onSearchCategoryChange: (category: number) => void = (_category: number) => {};
   onAdvancedEnabledChange: (enabled: boolean) => void = (_enabled: boolean) => {};
@@ -531,6 +533,7 @@ export struct SearchAdvancedPanel {
     this.minRatingDraft = this.minRating;
     this.pageFromDraft = this.pageFrom;
     this.pageToDraft = this.pageTo;
+    this.modeLabelDraft = this.modeLabelForIndex(this.searchModeIndex());
   }
 
   private searchModeOptions(): SelectOption[] {
@@ -567,6 +570,14 @@ export struct SearchAdvancedPanel {
       return 3;
     }
     return 0;
+  }
+
+  private modeLabelForIndex(index: number): string {
+    const options = this.searchModeOptions();
+    if (index < 0 || index >= options.length) {
+      return options[0].value as string;
+    }
+    return options[index].value as string;
   }
 
   private selectedCategoryMask(): number {
@@ -652,11 +663,13 @@ export struct SearchAdvancedPanel {
           Row() {
             Select(this.searchModeOptions())
               .selected(this.searchModeIndex())
+              .value(this.modeLabelDraft.length > 0 ? this.modeLabelDraft : this.modeLabelForIndex(this.searchModeIndex()))
               .height(38)
               .width('100%')
               .onSelect((index: number) => {
                 const next = this.modeForIndex(index);
                 this.modeDraft = next;
+                this.modeLabelDraft = this.modeLabelForIndex(index);
                 this.onSearchModeChange(next);
               })
           }
@@ -755,17 +768,32 @@ export struct SearchAdvancedPanel {
       .width('100%')
       .constraintSize({ maxHeight: 440 })
 
-      Button(uiText('Search'))
-        .height(40)
-        .fontSize(14)
-        .fontColor(Color.White)
+      Column() {
+        Button(uiText('Search'), { type: ButtonType.Normal, stateEffect: true }) {
+          Row({ space: 6 }) {
+            SymbolGlyph($r('sys.symbol.magnifyingglass'))
+              .fontSize(18)
+              .fontColor([Color.White])
+            Text(uiText('Search'))
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(Color.White)
+          }
+          .justifyContent(FlexAlign.Center)
+          .alignItems(VerticalAlign.Center)
+          .width('100%')
+        }
+        .height(44)
         .backgroundColor(APP_THEME_COLOR)
-        .borderRadius(4)
+        .borderRadius(8)
         .width('100%')
-        .margin({ left: 12, right: 12, bottom: 12 })
         .onClick(() => {
           this.onSearch();
         })
+      }
+      .width('100%')
+      .padding({ left: 12, right: 12, top: 10, bottom: 10 })
+      .backgroundColor(Color.White)
     }
     .width('100%')
     .backgroundColor(Color.White)
