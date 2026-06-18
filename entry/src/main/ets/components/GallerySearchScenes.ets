@@ -393,7 +393,7 @@ export struct SearchSummaryStrip {
 
   build() {
     Scroll() {
-      Row({ space: 8 }) {
+      Row({ space: 6 }) {
         ForEach(TAG_NAMESPACE_OPTIONS, (option: TagNamespaceOption, index: number) => {
           SearchNamespaceChip({
             label: option.label,
@@ -408,10 +408,10 @@ export struct SearchSummaryStrip {
       }
     }
     .width('100%')
-    .height(42)
-    .padding({ top: 2, bottom: 2 })
+    .height(36)
+    .padding({ top: 1, bottom: 1 })
     .scrollable(ScrollDirection.Horizontal)
-    .scrollBar(BarState.Auto)
+    .scrollBar(BarState.Off)
   }
 
   private namespaceSelected(namespace: string): boolean {
@@ -560,13 +560,14 @@ struct SearchNamespaceChip {
 
   build() {
     Button(uiText(this.label), { type: ButtonType.Normal, stateEffect: true })
-      .height(38)
+      .width(102)
+      .height(34)
       .fontSize(16)
       .fontWeight(FontWeight.Bold)
       .fontColor(this.isActive ? Color.White : this.textColor())
       .backgroundColor(this.isActive ? this.activeColor() : this.softColor())
       .borderRadius(5)
-      .padding({ left: 16, right: 16 })
+      .padding({ left: 4, right: 4 })
       .opacity(this.isActive ? 1 : 0.72)
       .animation({ duration: 120, curve: Curve.EaseOut })
       .onClick(() => {
@@ -755,7 +756,7 @@ export struct SearchAdvancedPanel {
           this.sectionTitle('Categories')
           Button(uiText('All categories'))
             .height(32)
-            .fontSize(12)
+            .fontSize(14)
             .fontColor(this.allCategoriesSelected() ? Color.White : '#40566F')
             .backgroundColor(this.allCategoriesSelected() ? APP_THEME_COLOR : '#EEF2F6')
             .borderRadius(4)
@@ -1005,7 +1006,7 @@ export struct SearchFlagChip {
   build() {
     Button(uiText(this.label))
       .height(30)
-      .fontSize(11)
+      .fontSize(13)
       .fontColor(this.isOn ? Color.White : '#40566F')
       .backgroundColor(this.isOn ? APP_THEME_COLOR : '#EEF2F6')
       .borderRadius(4)
@@ -1053,7 +1054,7 @@ export struct SearchCategoryChip {
   build() {
     Button(uiText(this.label))
       .height(32)
-      .fontSize(12)
+      .fontSize(14)
       .fontWeight(FontWeight.Bold)
       .fontColor(this.selected ? Color.White : categoryColor(this.category))
       .backgroundColor(this.selected ? categoryColor(this.category) : this.softColor())
@@ -1078,28 +1079,31 @@ export struct RatingStarBar {
     return this.level <= 1 ? 'No rating limit' : this.level.toString() + ' stars and up';
   }
   build() {
-    Row({ space: 8 }) {
-      ForEach([1, 2, 3, 4, 5], (index: number) => {
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph(this.starActive(index) ? $r('sys.symbol.star_fill') : $r('sys.symbol.star'))
-            .fontSize(22)
-            .fontColor([this.starActive(index) ? '#D28A1E' : '#9AA8B4'])
-        }
-        .width(36)
-        .height(36)
-        .backgroundColor(this.starActive(index) ? '#FFF0D4' : '#EEF2F6')
-        .onClick(() => {
-          this.onSelect(index);
-        })
-      }, (index: number) => index.toString())
+    Column({ space: 4 }) {
+      Row({ space: 8 }) {
+        ForEach([1, 2, 3, 4, 5], (index: number) => {
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph(this.starActive(index) ? $r('sys.symbol.star_fill') : $r('sys.symbol.star'))
+              .fontSize(22)
+              .fontColor([this.starActive(index) ? '#D28A1E' : '#9AA8B4'])
+          }
+          .width(36)
+          .height(36)
+          .backgroundColor(this.starActive(index) ? '#FFF0D4' : '#EEF2F6')
+          .onClick(() => {
+            this.onSelect(index);
+          })
+        }, (index: number) => index.toString())
+      }
+      .justifyContent(FlexAlign.Center)
+      .width('100%')
       Text(uiText(this.labelText()))
-        .fontSize(12)
+        .fontSize(13)
         .fontColor('#40566F')
-        .layoutWeight(1)
         .maxLines(1)
+        .textAlign(TextAlign.Center)
     }
     .width('100%')
-    .height(40)
-    .alignItems(VerticalAlign.Center)
+    .alignItems(HorizontalAlign.Center)
   }
 }

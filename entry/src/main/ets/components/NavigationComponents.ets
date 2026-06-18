@@ -176,7 +176,7 @@ struct DrawerNavItem {
       Column() {
         SymbolGlyph(this.symbolForRoute(this.item.route))
           .fontSize(20)
-          .fontColor([this.selected ? APP_THEME_COLOR : $r('app.color.secondary_text')])
+          .fontColor([this.selected ? APP_THEME_COLOR : '#667085'])
       }
       .width(38)
       .height(38)
@@ -189,13 +189,13 @@ struct DrawerNavItem {
         Text(uiText(this.item.title))
           .fontSize(15)
           .fontWeight(this.selected ? FontWeight.Medium : FontWeight.Normal)
-          .fontColor(this.selected ? APP_THEME_COLOR : $r('app.color.primary_text'))
+          .fontColor(this.selected ? APP_THEME_COLOR : '#17202A')
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
 
         Text(uiText(this.item.subtitle))
           .fontSize(11)
-          .fontColor($r('app.color.secondary_text'))
+          .fontColor('#667085')
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .margin({ top: 1 })
