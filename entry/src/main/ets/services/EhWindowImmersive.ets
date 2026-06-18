@@ -1,9 +1,9 @@
 import { window } from '@kit.ArkUI';
+import { themePrimaryColor } from '../shared/EhTheme';
 
 export const MAIN_WINDOW_KEY: string = 'mainWindow';
 export const READER_WINDOW_KEY: string = 'readerWindow';
 export const EMBEDDED_READER_ACTIVE_KEY: string = 'embeddedReaderActive';
-const APP_STATUS_BAR_COLOR: string = '#FF2F6F8F';
 
 export function rememberMainWindow(win: window.Window): void {
   AppStorage.set<window.Window | undefined>(MAIN_WINDOW_KEY, win);
@@ -69,9 +69,16 @@ async function applyAppChromeImmersiveModeAsync(target: window.Window): Promise<
   await ignoreWindowError(() => target.setSpecificSystemBarEnabled('navigationIndicator', false));
   await ignoreWindowError(() => target.setWindowLayoutFullScreen(true));
   await ignoreWindowError(() => target.setWindowSystemBarProperties({
-    statusBarColor: APP_STATUS_BAR_COLOR,
+    statusBarColor: opaqueSystemColor(themePrimaryColor()),
     isStatusBarLightIcon: true
   }));
+}
+
+function opaqueSystemColor(color: string): string {
+  if (color.length === 7 && color.charAt(0) === '#') {
+    return '#FF' + color.substring(1);
+  }
+  return color;
 }
 
 async function applyReaderFullscreenImmersiveModeAsync(target: window.Window): Promise<void> {

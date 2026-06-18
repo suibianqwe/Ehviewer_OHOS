@@ -18,6 +18,7 @@ import { CacheClearResult, readerImageCache } from '../services/ReaderImageCache
 import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
 import { MigrationTask, migrationTasks } from '../services/MigrationStatus';
 import { FilterRule, FILTER_MODE_TITLE, FILTER_MODE_UPLOADER, FILTER_MODE_TAG, FILTER_MODE_TAG_NAMESPACE, ehFilterStore } from '../services/EhFilterStore';
+import { applyAppChromeImmersiveMode } from '../services/EhWindowImmersive';
 import { applyWindowPrivacyMode } from '../services/EhWindowPrivacy';
 import {
   EH_APP_VERSION_CODE,
@@ -562,6 +563,7 @@ export struct SettingsScene {
   @State filterRules: FilterRule[] = [];
   @State filterNewText: string = '';
   @State filterNewMode: number = FILTER_MODE_TITLE;
+  @State settingsRenderRevision: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   private webViewController: webview.WebviewController = new webview.WebviewController();
   private client: EhHttpClient = new EhHttpClient();
@@ -652,6 +654,8 @@ export struct SettingsScene {
     }
     if (key === 'theme') {
       notifyThemeChanged();
+      this.settingsRenderRevision++;
+      applyAppChromeImmersiveMode();
     }
     if (key === 'enable_secure') {
       applyWindowPrivacyMode(value === 'On', (status: string) => {
@@ -1324,6 +1328,7 @@ export struct SettingsScene {
         signedIn: this.signedIn,
         statusText: this.statusText,
         themeName: this.themeName,
+        renderRevision: this.settingsRenderRevision,
         settingEntries: this.settingEntries,
         onBack: () => {
           this.closePanel();
@@ -1479,6 +1484,7 @@ export struct SettingsDetailPanel {
   @Prop signedIn: boolean = false;
   @Prop statusText: string = '';
   @Prop themeName: string = 'Light';
+  @Prop renderRevision: number = 0;
   @Prop settingEntries: SettingEntry[] = [];
   onBack: () => void = () => {};
   onOpenSession: () => void = () => {};
@@ -1523,6 +1529,7 @@ export struct SettingsDetailPanel {
             ListItem() {
               SettingsStaticRow({
                 row: row,
+                renderRevision: this.renderRevision,
                 onTextChange: (key: string, value: string) => {
                   this.onSetSetting(key, value);
                 },
@@ -1543,6 +1550,7 @@ export struct SettingsDetailPanel {
             ListItem() {
               SettingsStaticRow({
                 row: row,
+                renderRevision: this.renderRevision,
                 onTextChange: (key: string, value: string) => {
                   this.onSetSetting(key, value);
                 },
@@ -1571,6 +1579,7 @@ export struct SettingsDetailPanel {
             ListItem() {
               SettingsStaticRow({
                 row: row,
+                renderRevision: this.renderRevision,
                 onTextChange: (key: string, value: string) => {
                   this.onSetSetting(key, value);
                 },
@@ -1696,75 +1705,111 @@ export struct SettingsActionRow {
 @Component
 export struct SettingsStaticRow {
   row: SettingsRowItem = { title: '', summary: '', value: '', type: '' };
+  @Prop @Watch('onRenderRevisionChanged') renderRevision: number = 0;
+  @State themeOptionsVisible: boolean = false;
   onTap: () => void = () => {};
   onTextChange: (key: string, value: string) => void = () => {};
   onSwitchChange: (key: string, isOn: boolean) => void = () => {};
   onOptionSelect: (key: string, value: string) => void = () => {};
 
+  onRenderRevisionChanged(): void {
+    this.themeOptionsVisible = false;
+  }
+
   build() {
-    Row() {
-      SettingsTextBlock({
-        title: uiText(this.row.title),
-        summary: uiText(this.row.summary)
-      })
-      .layoutWeight(1)
-      if (this.row.type === 'input') {
-        TextInput({ text: this.row.value, placeholder: this.row.summary })
-          .width(150)
-          .height(38)
-          .fontSize(13)
-          .fontColor(themePrimaryText())
-          .placeholderColor(themeSecondaryText())
-          .backgroundColor(themeFieldBackground())
-          .margin({ left: 12 })
-          .onChange((value: string) => {
-            if (this.row.key !== undefined) {
-              this.onTextChange(this.row.key, value.trim());
+    Column() {
+      Row() {
+        SettingsTextBlock({
+          title: uiText(this.row.title),
+          summary: uiText(this.row.summary)
+        })
+        .layoutWeight(1)
+        if (this.row.key === 'theme') {
+          ThemeDropdown({
+            value: this.row.value,
+            expanded: this.themeOptionsVisible,
+            onToggle: () => {
+              this.themeOptionsVisible = !this.themeOptionsVisible;
+            },
+            onSelect: (value: string) => {
+              if (this.row.key !== undefined) {
+                this.themeOptionsVisible = false;
+                this.onOptionSelect(this.row.key, value);
+              }
             }
           })
-      } else if (this.row.type === 'switch') {
-        Row() {
-          Text(this.row.value === 'On' ? uiText('On') : uiText('Off'))
-            .fontSize(12)
-            .fontColor(this.row.value === 'On' ? themePrimaryColor() : themeTertiaryText())
-            .margin({ right: 8 })
-          Toggle({ type: ToggleType.Switch, isOn: this.row.value === 'On' })
-            .selectedColor(themePrimaryColor())
-            .switchPointColor(Color.White)
-            .onChange((isOn: boolean) => {
+        } else if (this.row.type === 'input') {
+          TextInput({ text: this.row.value, placeholder: this.row.summary })
+            .width(150)
+            .height(38)
+            .fontSize(13)
+            .fontColor(themePrimaryText())
+            .placeholderColor(themeSecondaryText())
+            .backgroundColor(themeFieldBackground())
+            .margin({ left: 12 })
+            .onChange((value: string) => {
               if (this.row.key !== undefined) {
-                this.onSwitchChange(this.row.key, isOn);
+                this.onTextChange(this.row.key, value.trim());
               }
             })
-        }
-        .alignItems(VerticalAlign.Center)
-        .margin({ left: 12 })
-      } else if (this.row.type === 'list' && this.row.options !== undefined && this.row.options.length > 0) {
-        Select(buildSelectOptions(this.row.options))
-          .selected(optionIndex(this.row.options, this.row.value))
-          .value(uiValue(this.row.value))
-          .font({ size: 13 })
-          .fontColor(themePrimaryColor())
-          .selectedOptionBgColor(themeSurfaceVariant())
-          .selectedOptionFontColor(themePrimaryColor())
-          .optionBgColor(themeSurface())
-          .optionFont({ size: 13 })
-          .margin({ left: 8 })
-          .onSelect((index: number) => {
-            if (this.row.key !== undefined && this.row.options !== undefined) {
-              this.onOptionSelect(this.row.key, this.row.options[index]);
-            }
-          })
-      } else {
-        Button(settingsRowActionText(this.row))
-          .height(34)
-          .fontSize(12)
-          .fontColor(themeSecondaryText())
-          .backgroundColor(themeSurfaceVariant())
+        } else if (this.row.type === 'switch') {
+          Row() {
+            Text(this.row.value === 'On' ? uiText('On') : uiText('Off'))
+              .fontSize(12)
+              .fontColor(this.row.value === 'On' ? themePrimaryColor() : themeTertiaryText())
+              .margin({ right: 8 })
+            Toggle({ type: ToggleType.Switch, isOn: this.row.value === 'On' })
+              .selectedColor(themePrimaryColor())
+              .switchPointColor(Color.White)
+              .onChange((isOn: boolean) => {
+                if (this.row.key !== undefined) {
+                  this.onSwitchChange(this.row.key, isOn);
+                }
+              })
+          }
+          .alignItems(VerticalAlign.Center)
           .margin({ left: 12 })
-          .onClick(() => {
-            this.onTap();
-          })
+        } else if (this.row.type === 'list' && this.row.options !== undefined && this.row.options.length > 0) {
+          Select(buildSelectOptions(this.row.options))
+            .selected(optionIndex(this.row.options, this.row.value))
+            .value(uiValue(this.row.value))
+            .font({ size: 13 })
+            .fontColor(themePrimaryText())
+            .selectedOptionBgColor(themeSurfaceVariant())
+            .selectedOptionFontColor(themePrimaryText())
+            .optionBgColor(themeSurface())
+            .optionFont({ size: 13 })
+            .margin({ left: 8 })
+            .onSelect((index: number) => {
+              if (this.row.key !== undefined && this.row.options !== undefined) {
+                this.onOptionSelect(this.row.key, this.row.options[index]);
+              }
+            })
+        } else {
+          Button(settingsRowActionText(this.row))
+            .height(34)
+            .fontSize(12)
+            .fontColor(themeSecondaryText())
+            .backgroundColor(themeSurfaceVariant())
+            .margin({ left: 12 })
+            .onClick(() => {
+              this.onTap();
+            })
+        }
+      }
+      .width('100%')
+
+      if (this.row.key === 'theme' && this.themeOptionsVisible) {
+        ThemeDropdownOptions({
+          value: this.row.value,
+          onSelect: (value: string) => {
+            if (this.row.key !== undefined) {
+              this.themeOptionsVisible = false;
+              this.onOptionSelect(this.row.key, value);
+            }
+          }
+        })
+          .margin({ top: 10 })
       }
     }
     .width('100%')
@@ -1772,10 +1817,81 @@ export struct SettingsStaticRow {
     .backgroundColor(themeSurface())
     .borderRadius(6)
     .onClick(() => {
-      if (this.row.type !== 'input' && this.row.type !== 'switch' && this.row.type !== 'list') {
+      if (this.row.type !== 'input' && this.row.type !== 'switch' && this.row.type !== 'list' && this.row.key !== 'theme') {
         this.onTap();
       }
     })
+  }
+}
+
+@Component
+struct ThemeDropdown {
+  value: string = 'Light';
+  expanded: boolean = false;
+  onToggle: () => void = () => {};
+  onSelect: (value: string) => void = (_value: string) => {};
+
+  build() {
+    Row({ space: 8 }) {
+      Text(uiValue(this.value))
+        .fontSize(13)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(themePrimaryText())
+        .maxLines(1)
+      SymbolGlyph(this.expanded ? $r('sys.symbol.chevron_up') : $r('sys.symbol.chevron_down'))
+        .fontSize(14)
+        .fontColor([themePrimaryText()])
+    }
+    .height(36)
+    .padding({ left: 12, right: 10 })
+    .backgroundColor(themeFieldBackground())
+    .border({ width: 1, color: themePrimaryColor() })
+    .borderRadius(6)
+    .margin({ left: 12 })
+    .onClick(() => {
+      this.onToggle();
+    })
+  }
+}
+
+@Component
+struct ThemeDropdownOptions {
+  value: string = 'Light';
+  onSelect: (value: string) => void = (_value: string) => {};
+
+  private options(): string[] {
+    return ['Light', 'Dark', 'Black'];
+  }
+
+  build() {
+    Column() {
+      ForEach(this.options(), (option: string) => {
+        Row() {
+          Text(uiValue(option))
+            .fontSize(14)
+            .fontWeight(option === this.value ? FontWeight.Bold : FontWeight.Medium)
+            .fontColor(option === this.value ? themePrimaryText() : themeSecondaryText())
+            .layoutWeight(1)
+          if (option === this.value) {
+            SymbolGlyph($r('sys.symbol.checkmark'))
+              .fontSize(16)
+              .fontColor([themePrimaryColor()])
+          }
+        }
+        .width('100%')
+        .height(38)
+        .padding({ left: 12, right: 12 })
+        .backgroundColor(option === this.value ? themeSurfaceVariant() : themeFieldBackground())
+        .onClick(() => {
+          this.onSelect(option);
+        })
+      }, (option: string) => option)
+    }
+    .width('100%')
+    .clip(true)
+    .border({ width: 1, color: themePrimaryColor() })
+    .borderRadius(6)
+    .backgroundColor(themeFieldBackground())
   }
 }
 
