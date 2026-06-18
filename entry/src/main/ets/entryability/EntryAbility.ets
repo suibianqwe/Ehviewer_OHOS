@@ -2,7 +2,7 @@ import { UIAbility } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { preferences } from '@kit.ArkData';
 import { userAuth } from '@kit.UserAuthenticationKit';
-import { applyAppChromeImmersiveMode, MAIN_WINDOW_KEY, rememberMainWindow } from '../services/EhWindowImmersive';
+import { MAIN_WINDOW_KEY, rememberMainWindow } from '../services/EhWindowImmersive';
 import { applyWindowPrivacyMode, WINDOW_PRIVACY_STATUS_KEY } from '../services/EhWindowPrivacy';
 
 const SETTINGS_PREF_NAME: string = 'ehviewer_settings';
@@ -35,7 +35,6 @@ export default class EntryAbility extends UIAbility {
     stage.getMainWindow().then((win) => {
       this.mainWindow = win;
       rememberMainWindow(win);
-      applyAppChromeImmersiveMode(win);
       this.updateSystemAvoidArea(win);
       win.on('avoidAreaChange', (data: window.AvoidAreaOptions) => {
         if (data.type === window.AvoidAreaType.TYPE_SYSTEM) {

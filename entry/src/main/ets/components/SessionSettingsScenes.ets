@@ -69,6 +69,7 @@ export struct SessionScene {
   onSignedIn: () => void = () => {};
 
   aboutToAppear(): void {
+    applyAppChromeImmersiveMode();
     this.cookieInput = ehCookieStore.getEditableCookieHeader();
     const context = getAbilityContext();
     if (context !== undefined) {
@@ -572,6 +573,7 @@ export struct SettingsScene {
   onSignedIn: () => void = () => {};
 
   aboutToAppear(): void {
+    applyAppChromeImmersiveMode();
     setActiveBackHandler(() => this.handleSystemBack());
     const context = getAbilityContext();
     if (context !== undefined) {

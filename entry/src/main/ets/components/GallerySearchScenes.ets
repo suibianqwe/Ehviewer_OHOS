@@ -1,6 +1,7 @@
 import { ALL_CATEGORY, GalleryCategory, GalleryRoute } from '../model/GalleryModels';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
+import { applyAppChromeImmersiveMode } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, categoryColor, uiText } from '../shared/EhShared';
 import {
   themeFieldBackground,
@@ -200,6 +201,7 @@ export struct GallerySearchScene {
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
   aboutToAppear(): void {
+    applyAppChromeImmersiveMode();
     this.keywordDraft = this.initialKeyword;
     this.modeDraft = this.initialMode;
     this.categoryDraft = this.initialCategory;

@@ -9,6 +9,7 @@ import { ehFilterStore } from '../services/EhFilterStore';
 import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
+import { applyAppChromeImmersiveMode } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY } from '../shared/EhShared';
 import {
   themeFieldBackground,
@@ -308,6 +309,7 @@ export struct GalleryListScene {
 
 
   aboutToAppear(): void {
+    applyAppChromeImmersiveMode();
     if (!this.restoreListCache()) {
       this.keyword = this.initialKeyword.length > 0 ? this.initialKeyword : defaultKeywordForRoute(this.sourceRoute);
       this.searchMode = this.initialSearchMode;
@@ -727,6 +729,7 @@ export struct GalleryListScene {
     this.readerStatus = 'Reader is ready';
     this.readerPage = createEmptyPage();
     this.readerPreviewIndex = 0;
+    applyAppChromeImmersiveMode();
     this.renderVersion++;
   }
 

@@ -5,7 +5,6 @@ import { KeyCode } from '@ohos.multimodalInput.keyCode';
 import { KeyEvent } from '@ohos.multimodalInput.keyEvent';
 import { GalleryComment, GalleryPage } from '../model/GalleryModels';
 import {
-  applyAppChromeImmersiveMode,
   applyReaderFullscreenImmersiveMode,
   applyReaderStatusVisibleImmersiveMode,
   getMainWindow,
@@ -447,7 +446,6 @@ export struct ReaderScene {
     if (win === undefined) {
       return;
     }
-    applyAppChromeImmersiveMode(win);
     try {
       win.setWindowKeepScreenOn(false).catch(() => {});
     } catch (e) {}

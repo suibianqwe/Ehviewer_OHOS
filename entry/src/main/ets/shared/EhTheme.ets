@@ -1,5 +1,7 @@
 import { ehSettingsStore } from '../services/EhSettingsStore';
 
+// Keep this file limited to theme color palettes and color accessors only.
+// Component styles, modifiers, and window/UI behavior belong in focused helper files.
 export const EH_THEME_PRIMARY_COLOR: string = '#2F6F8F';
 
 export interface EhColorPalette {
