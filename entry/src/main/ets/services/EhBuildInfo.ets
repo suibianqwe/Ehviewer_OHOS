@@ -7,5 +7,5 @@ export const EH_RELEASE_TAG: string = 'v0.2.10';
 export const EH_RELEASE_URL: string = EH_REPOSITORY_URL + '/releases/tag/' + EH_RELEASE_TAG;
 export const EH_ISSUES_URL: string = EH_REPOSITORY_URL + '/issues';
 export const EH_GIT_BRANCH: string = 'main';
-export const EH_GIT_COMMIT: string = '8dbb9f8';
-export const EH_GIT_DESCRIBE: string = 'v0.2.4-12-g8dbb9f8';
+export const EH_GIT_COMMIT: string = '3bb9d96';
+export const EH_GIT_DESCRIBE: string = 'v0.2.4-12-g3bb9d96';
