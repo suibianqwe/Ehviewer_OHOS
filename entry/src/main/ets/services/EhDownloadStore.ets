@@ -35,6 +35,8 @@ export interface DownloadLabel {
   time: number;
 }
 
+type DownloadStoreListener = (items: DownloadInfo[], labels: DownloadLabel[]) => void;
+
 interface StoredDownloadInfo {
   gid?: number;
   token?: string;
@@ -75,6 +77,21 @@ interface StoredDownloadLabel {
 export class EhDownloadStore {
   private items: DownloadInfo[] = [];
   private labels: DownloadLabel[] = [];
+  private listeners: DownloadStoreListener[] = [];
+
+  subscribe(listener: DownloadStoreListener): () => void {
+    this.listeners.push(listener);
+    listener(this.getItems(), this.getLabels());
+    return () => {
+      const next: DownloadStoreListener[] = [];
+      for (let i = 0; i < this.listeners.length; i++) {
+        if (this.listeners[i] !== listener) {
+          next.push(this.listeners[i]);
+        }
+      }
+      this.listeners = next;
+    };
+  }
 
   getItems(): DownloadInfo[] {
     return cloneDownloadInfos(this.items);
@@ -107,11 +124,13 @@ export class EhDownloadStore {
       updated.total = this.items[index].total;
       updated.fileSize = this.items[index].fileSize;
       this.items[index] = updated;
+      this.notifyChanged();
       return cloneDownloadInfo(updated);
     }
 
     const item = galleryToDownloadInfo(gallery, label);
     this.items.unshift(item);
+    this.notifyChanged();
     return cloneDownloadInfo(item);
   }
 
@@ -123,6 +142,7 @@ export class EhDownloadStore {
       }
     }
     this.items = next;
+    this.notifyChanged();
   }
 
   setState(gid: number, state: DownloadState): void {
@@ -131,6 +151,7 @@ export class EhDownloadStore {
       return;
     }
     this.items[index].state = state;
+    this.notifyChanged();
   }
 
   updateGallery(gallery: GalleryInfo): void {
@@ -151,6 +172,7 @@ export class EhDownloadStore {
     updated.total = previous.total > 0 ? previous.total : updated.total;
     updated.fileSize = previous.fileSize;
     this.items[index] = updated;
+    this.notifyChanged();
   }
 
   setProgress(gid: number, finished: number, total: number, downloaded: number = 0): void {
@@ -161,6 +183,17 @@ export class EhDownloadStore {
     this.items[index].finished = finished;
     this.items[index].downloaded = downloaded;
     this.items[index].total = total;
+    this.notifyChanged();
+  }
+
+  setTransfer(gid: number, speed: number, remaining: number): void {
+    const index = this.findIndex(gid);
+    if (index < 0) {
+      return;
+    }
+    this.items[index].speed = Math.max(0, speed);
+    this.items[index].remaining = Math.max(0, remaining);
+    this.notifyChanged();
   }
 
   setStorage(gid: number, archiveUri: string, fileSize: number): void {
@@ -170,6 +203,7 @@ export class EhDownloadStore {
     }
     this.items[index].archiveUri = archiveUri;
     this.items[index].fileSize = fileSize;
+    this.notifyChanged();
   }
 
   setLabel(gid: number, label: string): void {
@@ -178,6 +212,7 @@ export class EhDownloadStore {
       return;
     }
     this.items[index].label = label;
+    this.notifyChanged();
   }
 
   addLabel(label: string): boolean {
@@ -186,6 +221,7 @@ export class EhDownloadStore {
       return false;
     }
     this.labels.push({ label: normalized, time: Date.now() });
+    this.notifyChanged();
     return true;
   }
 
@@ -203,6 +239,7 @@ export class EhDownloadStore {
         this.items[i].label = '';
       }
     }
+    this.notifyChanged();
   }
 
   private containsLabel(label: string): boolean {
@@ -221,6 +258,7 @@ export class EhDownloadStore {
         this.items[i].state = DownloadState.Wait;
       }
     }
+    this.notifyChanged();
   }
 
   startGallery(gid: number): void {
@@ -230,6 +268,7 @@ export class EhDownloadStore {
     }
     if (this.items[index].state !== DownloadState.Wait && this.items[index].state !== DownloadState.Downloading) {
       this.items[index].state = DownloadState.Wait;
+      this.notifyChanged();
     }
   }
 
@@ -240,6 +279,7 @@ export class EhDownloadStore {
     }
     if (this.items[index].state === DownloadState.Wait || this.items[index].state === DownloadState.Downloading) {
       this.items[index].state = DownloadState.None;
+      this.notifyChanged();
     }
   }
 
@@ -249,6 +289,7 @@ export class EhDownloadStore {
         this.items[i].state = DownloadState.None;
       }
     }
+    this.notifyChanged();
   }
 
   clearFinished(): void {
@@ -259,6 +300,7 @@ export class EhDownloadStore {
       }
     }
     this.items = next;
+    this.notifyChanged();
   }
 
   async load(context: common.UIAbilityContext): Promise<void> {
@@ -270,6 +312,7 @@ export class EhDownloadStore {
       this.labels = [];
       if (typeof raw !== 'string' || raw.length === 0) {
         this.loadLabels(rawLabels);
+        this.notifyChanged();
         return;
       }
 
@@ -285,6 +328,7 @@ export class EhDownloadStore {
         }
       }
       this.loadLabels(rawLabels);
+      this.notifyChanged();
     } catch (error) {
       throw new Error(String(error));
     }
@@ -324,6 +368,14 @@ export class EhDownloadStore {
       }
     }
     return -1;
+  }
+
+  private notifyChanged(): void {
+    const items = this.getItems();
+    const labels = this.getLabels();
+    for (let i = 0; i < this.listeners.length; i++) {
+      this.listeners[i](items, labels);
+    }
   }
 }
 

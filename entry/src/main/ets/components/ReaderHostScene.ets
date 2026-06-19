@@ -71,11 +71,13 @@ export struct ReaderHostScene {
     this.pageIndex = session.pageIndex >= 0 ? session.pageIndex : readerStartIndex(this.detail);
     this.seedReaderPreviewCache(this.detail.previewSet);
     this.page = this.isPageForIndex(session.page, this.pageIndex) ? cloneGalleryPage(session.page) : createEmptyPage();
-    if (this.page.imageUrl.length > 0 || this.page.pageUrl.length > 0) {
+    if (this.page.imageUrl.length > 0 || this.page.pageUrl.length > 0 ||
+      (this.page.cachedImagePath !== undefined && this.page.cachedImagePath.length > 0)) {
       this.setReaderPage(this.pageIndex, this.page);
     }
     this.renderVersion++;
-    if (this.page.imageUrl.length === 0) {
+    if (this.page.imageUrl.length === 0 &&
+      (this.page.cachedImagePath === undefined || this.page.cachedImagePath.length === 0)) {
       this.loadReaderPageByIndex(this.pageIndex);
     } else {
       this.cacheReaderImage(this.pageIndex, this.page);

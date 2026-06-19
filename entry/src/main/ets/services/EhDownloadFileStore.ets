@@ -74,6 +74,22 @@ export class EhDownloadFileStore {
     return '';
   }
 
+  listPageImages(context: common.UIAbilityContext, gallery: GalleryInfo): string[] {
+    const directory = this.galleryDirectory(context, gallery);
+    const images: string[] = [];
+    try {
+      const names = fs.listFileSync(directory);
+      names.sort();
+      for (let i = 0; i < names.length; i++) {
+        if (isSupportedImageFile(names[i])) {
+          images.push(directory + '/' + names[i]);
+        }
+      }
+    } catch (error) {
+    }
+    return images;
+  }
+
   directorySize(context: common.UIAbilityContext, gallery: GalleryInfo): number {
     const directory = this.galleryDirectory(context, gallery);
     return this.directorySizeByPath(directory);

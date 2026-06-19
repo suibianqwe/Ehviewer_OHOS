@@ -1,43 +1,58 @@
-import { common } from '@kit.AbilityKit';
-import { window } from '@kit.ArkUI';
-import { pasteboard } from '@kit.BasicServicesKit';
-import { picker } from '@kit.CoreFileKit';
-import { fileIo as fs } from '@kit.CoreFileKit';
-import { util } from '@kit.ArkTS';
-import { webview } from '@kit.ArkWeb';
-import { GalleryCategory, GalleryComment, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite, GalleryTagGroup, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
-import { ehCookieStore } from '../services/EhCookieStore';
-import { DownloadDirectoryScanResult, RestoredDownloadGallery, ehDownloadFileStore } from '../services/EhDownloadFileStore';
-import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
-import { ehHistoryStore } from '../services/EhHistoryStore';
-import { ehSettingsStore, SettingEntry, defaultSettingEntries } from '../services/EhSettingsStore';
-import { EhHttpClient, GalleryDetailLoadResult, GalleryListLoadResult, GalleryPageLoadResult, NetworkDiagnosticResult, RateGalleryResult, SignInResult, ToggleFavoriteResult, TopListLoadResult } from '../services/EhHttpClient';
-import { EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder } from '../services/EhUrl';
-import { galleryPageCache } from '../services/GalleryPageCache';
-import { CacheClearResult, readerImageCache } from '../services/ReaderImageCache';
-import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
-import { MigrationTask, migrationTasks } from '../services/MigrationStatus';
-import { FilterRule, FILTER_MODE_TITLE, FILTER_MODE_UPLOADER, FILTER_MODE_TAG, FILTER_MODE_TAG_NAMESPACE, ehFilterStore } from '../services/EhFilterStore';
-import { applyAppChromeImmersiveMode } from '../services/EhWindowImmersive';
-import { APP_THEME_COLOR, LANGUAGE_REVISION_KEY } from '../shared/EhShared';
-import { themeDividerColor, themeMutedText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSelectedBackgroundLight, themeSurface, themeSurfaceVariant, themeTertiaryText } from '../shared/EhTheme';
-import { EhBackupBundle, DrawerItem, SettingsHeaderItem, SettingsRowItem, SessionMode, SettingsPanel, DRAWER_ITEMS, SETTINGS_HEADERS, STATUS_BAR_HEIGHT_KEY, ON_OFF_OPTIONS, shouldUseChineseUi, uiText, uiValue, uiStatusText, uiPageText, zhText, setActiveBackHandler, runActiveBackHandler, createEmptyGallery, createEmptyDownloadInfo, createDetailFromGallery, createEmptyDetail, createEmptyPreview, createEmptyPage, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneStringArray, cloneRequiredStringArray, cloneGalleryInfo, cloneGalleryInfos, padTwo, applyGalleryFilters, cloneGalleryTagGroups, cloneGalleryComments, cloneGalleryPreviews, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, cloneTopListItem, cloneTopListBucket, cloneTopListInfo, cloneTopListDetail, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, saveDownloadsQuietly, filterDownloadItems, downloadItemMatches, sortDownloadItems, nextDownloadStatusFilter, nextDownloadLabelFilter, nextDownloadSortMode, nextStringOption, nextDownloadState, nextDownloadLabel, downloadLabelName, downloadStateLabel, downloadStateColor, downloadProgressText, downloadSizeText, downloadImageUrlForPage, downloadThreadLimit, downloadPageIndexes, downloadQueueSummary, parseHistoryMaxSize, routeTitle, routeSubtitle, launchRouteFromSetting, settingsPanelTitle, settingsRowsForPanel, optionSettingsRow, textSettingsRow, staticSettingsRow, settingEntryValue, cloneStringOptions, settingMigrationMessage, nextOption, isValidProxyPortText, formatNetworkDiagnostics, listModeForRoute, routeUsesKeyword, usesGallerySearchToolbar, usesEmbeddedToolbar, defaultKeywordForRoute, gallerySearchTitle, currentGallerySite, effectiveListSite, gallerySiteName, galleryListFailureMessage, withGalleryListMessage, readerPageReferer, readerDisplayImageUrl, cacheReaderImageForPage, cacheThumbnailImage, cloneGalleryPageWithCache, readerLocalImageSource, readerZoomSize, readerFullImageWidth, readerFullImageHeight, readerImageFit, readerShortUrl, readerPreloadCount, readerIsRightToLeft, categoryName, categoryColor, ratingText, galleryDisplayTitle, showGalleryPages, galleryListMode, galleryThumbWidth, galleryThumbHeight, galleryRowHeight, galleryTagPreview, detailTitleFontSize, detailTitleMaxLines, detailHeadingFontSize, readerShowProgress, readerShowClock, readerClockText, padTimeNumber, topListChipColor } from '../shared/EhShared';
-import { CategoryBadge, GalleryThumb, PlaceholderScene } from './GalleryScenes';
-import { EhNavBar } from './NavigationComponents';
-import { SessionScene, SettingsSubToolbar } from './SessionSettingsScenes';
+import { DownloadInfo, DownloadState } from '../services/EhDownloadStore';
+import {
+  createEmptyDownloadInfo,
+  downloadProgressText,
+  downloadSizeText,
+  downloadStateLabel,
+  downloadStateColor,
+  galleryDisplayTitle,
+  galleryThumbHeight,
+  galleryThumbWidth,
+  ratingText,
+  uiText,
+  uiValue
+} from '../shared/EhShared';
+import { themeDividerColor, themePrimaryText, themeSecondaryText, themeSurface, themeTertiaryText } from '../shared/EhTheme';
+import { CategoryBadge, GalleryThumb } from './GalleryScenes';
 
 @Component
 export struct DownloadRow {
   item: DownloadInfo = createEmptyDownloadInfo();
+  onOpen: () => void = () => {};
   onState: () => void = () => {};
-  onLabel: () => void = () => {};
   onRemove: () => void = () => {};
 
-  private stateActionText(): string {
-    if (this.item.state === DownloadState.Wait || this.item.state === DownloadState.Downloading) {
-      return uiText('Stop');
+  private isActive(): boolean {
+    return this.item.state === DownloadState.Wait || this.item.state === DownloadState.Downloading;
+  }
+
+  private isDownloading(): boolean {
+    return this.item.state === DownloadState.Downloading;
+  }
+
+  private actionIcon(): Resource {
+    return this.isActive() ? $r('sys.symbol.pause_fill') : $r('sys.symbol.play_fill');
+  }
+
+  private progressTotal(): number {
+    const total = this.item.total > 0 ? this.item.total : this.item.pages;
+    return Math.max(0, total);
+  }
+
+  private progressPercent(): string {
+    const total = this.progressTotal();
+    if (total <= 0) {
+      return '0%';
     }
-    return uiText('Start');
+    const value = Math.max(0, Math.min(100, Math.round(this.item.finished * 100 / total)));
+    return value.toString() + '%';
+  }
+
+  private speedText(): string {
+    if (this.item.speed <= 0) {
+      return '0 B/s';
+    }
+    return downloadSizeText(this.item.speed) + '/s';
   }
 
   build() {
@@ -47,6 +62,9 @@ export struct DownloadRow {
         widthValue: galleryThumbWidth(),
         heightValue: galleryThumbHeight()
       })
+        .onClick(() => {
+          this.onOpen();
+        })
 
       Column() {
         Row() {
@@ -59,83 +77,108 @@ export struct DownloadRow {
             .layoutWeight(1)
           Text(uiValue(downloadStateLabel(this.item.state)))
             .fontSize(11)
-            .fontWeight(FontWeight.Bold)
             .fontColor(Color.White)
-            .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+            .padding({ left: 7, right: 7, top: 2, bottom: 2 })
             .backgroundColor(downloadStateColor(this.item.state))
             .borderRadius(3)
         }
         .width('100%')
 
-        Row() {
-          CategoryBadge({ category: this.item.category })
-          if (showGalleryPages()) {
-            Text(this.item.pages.toString() + 'p')
-              .fontSize(12)
-              .fontColor(themeSecondaryText())
-              .margin({ left: 8 })
-          }
-          Text(this.item.label.length === 0 ? uiText('Default') : this.item.label)
-            .fontSize(12)
-            .fontColor(themeSecondaryText())
-            .margin({ left: 8 })
-          Blank()
-          Text(downloadProgressText(this.item))
-            .fontSize(12)
-            .fontColor(themeSecondaryText())
-        }
-        .width('100%')
-        .margin({ top: 8 })
-
-        if (this.item.archiveUri.length > 0 || this.item.fileSize > 0) {
+        if (this.isDownloading()) {
           Row() {
-            Text(downloadSizeText(this.item.fileSize))
+            Text(downloadProgressText(this.item))
               .fontSize(11)
               .fontColor(themeSecondaryText())
-            Text(this.item.archiveUri)
+            Blank()
+            Text(this.speedText())
               .fontSize(11)
-              .fontColor(themeTertiaryText())
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-              .layoutWeight(1)
-              .margin({ left: 8 })
+              .fontColor(themeSecondaryText())
           }
           .width('100%')
-          .margin({ top: 6 })
-        }
+          .margin({ top: 8 })
 
-        Row() {
-          Text(this.item.uploader === undefined || this.item.uploader.length === 0 ? uiText('unknown uploader') : this.item.uploader)
+          Stack({ alignContent: Alignment.Start }) {
+            Row()
+              .height(4)
+              .width('100%')
+              .backgroundColor(themeDividerColor())
+              .borderRadius(2)
+            Row()
+              .height(4)
+              .width(this.progressPercent())
+              .backgroundColor(downloadStateColor(this.item.state))
+              .borderRadius(2)
+          }
+          .width('100%')
+          .height(4)
+          .margin({ top: 6 })
+        } else {
+          Text(this.item.uploader === undefined || this.item.uploader.length === 0 ? uiText('unknown uploader') :
+            this.item.uploader)
             .fontSize(12)
             .fontColor(themeTertiaryText())
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .layoutWeight(1)
-          Button(this.stateActionText())
-            .height(30)
-            .onClick(() => {
-              this.onState();
-            })
-          Button(uiText('Label'))
-            .height(30)
-            .margin({ left: 6 })
-            .onClick(() => {
-              this.onLabel();
-            })
-          Button(uiText('Remove'))
-            .height(30)
-            .margin({ left: 6 })
-            .onClick(() => {
-              this.onRemove();
-            })
+            .margin({ top: 5 })
+
+          Row() {
+            CategoryBadge({ category: this.item.category })
+            Text(ratingText(this.item.rating))
+              .fontSize(12)
+              .fontColor(themeSecondaryText())
+              .margin({ left: 8 })
+            Text(downloadProgressText(this.item))
+              .fontSize(12)
+              .fontColor(themeSecondaryText())
+              .margin({ left: 8 })
+            if (this.item.label.length > 0) {
+              Text(this.item.label)
+                .fontSize(12)
+                .fontColor(themeSecondaryText())
+                .margin({ left: 8 })
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+            }
+          }
+          .width('100%')
+          .margin({ top: 8 })
         }
-        .width('100%')
-        .margin({ top: 8 })
       }
-      .height(galleryRowHeight())
+      .height(galleryThumbHeight())
       .layoutWeight(1)
       .margin({ left: 10 })
       .alignItems(HorizontalAlign.Start)
+      .onClick(() => {
+        this.onOpen();
+      })
+
+      Column({ space: 8 }) {
+        Button({ type: ButtonType.Circle }) {
+          SymbolGlyph(this.actionIcon())
+            .fontSize(18)
+            .fontColor([Color.White])
+        }
+        .width(38)
+        .height(38)
+        .backgroundColor(this.isActive() ? '#475467' : '#2F6F8F')
+        .onClick(() => {
+          this.onState();
+        })
+
+        Button({ type: ButtonType.Circle }) {
+          SymbolGlyph($r('sys.symbol.trash'))
+            .fontSize(17)
+            .fontColor([themeSecondaryText()])
+        }
+        .width(34)
+        .height(34)
+        .backgroundColor('transparent')
+        .onClick(() => {
+          this.onRemove();
+        })
+      }
+      .justifyContent(FlexAlign.Center)
+      .margin({ left: 8 })
     }
     .width('100%')
     .padding(8)
