@@ -6,9 +6,9 @@ import { KeyEvent } from '@ohos.multimodalInput.keyEvent';
 import { GalleryComment, GalleryPage } from '../model/GalleryModels';
 import {
   applyReaderFullscreenImmersiveMode,
-  applyAppChromeImmersiveMode,
   getMainWindow,
   getReaderWindow,
+  leaveEmbeddedReaderFullscreen,
   setEmbeddedReaderActive
 } from '../services/EhWindowImmersive';
 import { ehSettingsStore } from '../services/EhSettingsStore';
@@ -441,7 +441,6 @@ export struct ReaderScene {
     if (!this.restoreAppChromeOnExit) {
       return;
     }
-    setEmbeddedReaderActive(false);
     const win = getMainWindow();
     if (win === undefined) {
       return;
@@ -452,7 +451,7 @@ export struct ReaderScene {
     try {
       win.setPreferredOrientation(window.Orientation.UNSPECIFIED).catch(() => {});
     } catch (e) {}
-    applyAppChromeImmersiveMode(win);
+    leaveEmbeddedReaderFullscreen();
   }
 
   private applyReaderWindowSettings(): void {
