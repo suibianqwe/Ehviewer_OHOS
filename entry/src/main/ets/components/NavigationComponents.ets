@@ -15,13 +15,22 @@ import {
 import {
   themeDividerColor,
   themeFieldBackground,
+  themeOnPrimaryActionBackground,
+  themeOnPrimaryActionDisabledBackground,
+  themeOnPrimaryActionStrongBackground,
+  themeOnPrimaryDangerBackground,
+  themeOnPrimarySecondaryText,
+  themeOnPrimaryText,
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
   themeSelectedBackground,
   themeSelectedBackgroundLight,
+  themeSelectedIndicatorColor,
+  themeSelectedText,
   themeSurface,
-  themeSurfaceVariant
+  themeSurfaceVariant,
+  themeTransparentColor
 } from '../shared/EhTheme';
 
 // ===================================================================
@@ -88,11 +97,11 @@ export struct EhDrawer {
             Text('EhViewer')
               .fontSize(17)
               .fontWeight(FontWeight.Bold)
-              .fontColor($r('app.color.on_primary'))
+              .fontColor(themeOnPrimaryText())
 
             Text(this.signedIn ? uiText('Signed in') : uiText('Guest mode'))
               .fontSize(13)
-              .fontColor('rgba(255,255,255,0.72)')
+              .fontColor(themeOnPrimarySecondaryText())
               .margin({ top: 3 })
           }
           .alignItems(HorizontalAlign.Start)
@@ -127,10 +136,10 @@ export struct EhDrawer {
         Row() {
           SymbolGlyph($r('sys.symbol.arrow_down_circle'))
             .fontSize(16)
-            .fontColor([$r('app.color.secondary_text')])
+            .fontColor([themeSecondaryText()])
           Text(uiStatusText('Downloads: ' + this.downloadSummary))
             .fontSize(12)
-            .fontColor($r('app.color.secondary_text'))
+            .fontColor(themeSecondaryText())
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .layoutWeight(1)
@@ -179,27 +188,27 @@ struct DrawerNavItem {
         .width(3)
         .height(28)
         .borderRadius(2)
-        .backgroundColor(this.selected ? themePrimaryColor() : Color.Transparent)
+        .backgroundColor(this.selected ? themeSelectedIndicatorColor() : themeTransparentColor())
         .margin({ right: 10 })
 
       // Icon badge
       Column() {
         SymbolGlyph(this.symbolForRoute(this.item.route))
           .fontSize(20)
-          .fontColor([this.selected ? themePrimaryColor() : themeSecondaryText()])
+          .fontColor([this.selected ? themeSelectedText() : themeSecondaryText()])
       }
       .width(38)
       .height(38)
       .justifyContent(FlexAlign.Center)
       .alignItems(HorizontalAlign.Center)
-      .backgroundColor(this.selected ? themeSelectedBackground() : Color.Transparent)
+      .backgroundColor(this.selected ? themeSelectedBackgroundLight() : themeTransparentColor())
       .borderRadius(10)
 
       Column() {
         Text(uiText(this.item.title))
           .fontSize(15)
           .fontWeight(this.selected ? FontWeight.Medium : FontWeight.Normal)
-          .fontColor(this.selected ? themePrimaryColor() : themePrimaryText())
+          .fontColor(this.selected ? themeSelectedText() : themePrimaryText())
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
 
@@ -217,7 +226,7 @@ struct DrawerNavItem {
     .width('100%')
     .height(60)
     .padding({ left: 8, right: 16 })
-    .backgroundColor(this.selected ? themeSelectedBackgroundLight() : Color.Transparent)
+    .backgroundColor(this.selected ? themeSelectedBackground() : themeTransparentColor())
     .alignItems(VerticalAlign.Center)
     .onClick(() => { this.onTap(); })
   }
@@ -268,11 +277,11 @@ export struct EhNavBar {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph(this.showBackButton ? $r('sys.symbol.chevron_left') : $r('sys.symbol.open_sidebar'))
             .fontSize(22)
-            .fontColor([Color.White])
+            .fontColor([themeOnPrimaryText()])
         }
         .width(40)
         .height(40)
-        .backgroundColor('rgba(255,255,255,0.14)')
+        .backgroundColor(themeOnPrimaryActionBackground())
         .flexShrink(0)
         .onClick(() => {
           if (this.showBackButton) {
@@ -303,8 +312,8 @@ export struct EhNavBar {
             if (this.filterActive) {
               Text(uiText('Filter'))
                 .fontSize(9)
-                .fontColor(Color.White)
-                .backgroundColor('rgba(255,255,255,0.25)')
+                .fontColor(themeOnPrimaryText())
+                .backgroundColor(themeOnPrimaryActionStrongBackground())
                 .padding({ left: 5, right: 5, top: 1, bottom: 1 })
                 .borderRadius(3)
                 .margin({ left: 10, bottom: 5 })
@@ -318,11 +327,11 @@ export struct EhNavBar {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.magnifyingglass'))
               .fontSize(20)
-              .fontColor([Color.White])
+              .fontColor([themeOnPrimaryText()])
           }
           .width(40)
           .height(40)
-          .backgroundColor('rgba(255,255,255,0.14)')
+          .backgroundColor(themeOnPrimaryActionBackground())
           .flexShrink(0)
           .margin({ left: 8 })
           .onClick(() => { this.onSearch(); })
@@ -333,14 +342,14 @@ export struct EhNavBar {
             Text(uiText(this.title))
               .fontSize(19)
               .fontWeight(FontWeight.Medium)
-              .fontColor(Color.White)
+              .fontColor(themeOnPrimaryText())
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
 
             if (this.subtitle.length > 0) {
               Text(uiText(this.subtitle))
                 .fontSize(12)
-                .fontColor('rgba(255,255,255,0.7)')
+                .fontColor(themeOnPrimarySecondaryText())
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
                 .margin({ top: 1 })
@@ -354,11 +363,11 @@ export struct EhNavBar {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.play_arrow_triangle_2_circlepath'))
               .fontSize(20)
-              .fontColor([Color.White])
+              .fontColor([themeOnPrimaryText()])
           }
           .width(40)
           .height(40)
-          .backgroundColor('rgba(255,255,255,0.14)')
+          .backgroundColor(themeOnPrimaryActionBackground())
           .flexShrink(0)
           .margin({ left: 6 })
           .onClick(() => { this.onRefresh(); })
@@ -367,11 +376,11 @@ export struct EhNavBar {
             Button({ type: ButtonType.Circle, stateEffect: true }) {
               SymbolGlyph($r('sys.symbol.magnifyingglass'))
                 .fontSize(20)
-                .fontColor([Color.White])
+                .fontColor([themeOnPrimaryText()])
             }
             .width(40)
             .height(40)
-            .backgroundColor('rgba(255,255,255,0.14)')
+            .backgroundColor(themeOnPrimaryActionBackground())
             .flexShrink(0)
             .margin({ left: 6 })
             .onClick(() => { this.onSearch(); })
@@ -382,12 +391,12 @@ export struct EhNavBar {
             Button({ type: ButtonType.Circle, stateEffect: true }) {
               SymbolGlyph($r('sys.symbol.trash'))
                 .fontSize(19)
-                .fontColor([Color.White])
+                .fontColor([themeOnPrimaryText()])
             }
             .width(40)
             .height(40)
             .enabled(this.canClear)
-            .backgroundColor(this.canClear ? 'rgba(220,60,50,0.75)' : 'rgba(255,255,255,0.10)')
+            .backgroundColor(this.canClear ? themeOnPrimaryDangerBackground() : themeOnPrimaryActionDisabledBackground())
             .flexShrink(0)
             .margin({ left: 6 })
             .onClick(() => { this.onClear(); })
@@ -428,18 +437,18 @@ export struct EhSubNavBar {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(22)
-            .fontColor([Color.White])
+            .fontColor([themeOnPrimaryText()])
         }
         .width(40)
         .height(40)
-        .backgroundColor('rgba(255,255,255,0.14)')
+        .backgroundColor(themeOnPrimaryActionBackground())
         .flexShrink(0)
         .onClick(() => { this.onBack(); })
 
         Text(uiText(this.title))
           .fontSize(19)
           .fontWeight(FontWeight.Medium)
-          .fontColor(Color.White)
+          .fontColor(themeOnPrimaryText())
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
@@ -620,10 +629,10 @@ struct LegacySearchBar {
     Row() {
       Button({ type: ButtonType.Circle, stateEffect: true }) {
         SymbolGlyph($r('sys.symbol.open_sidebar'))
-          .fontSize(22).fontColor([Color.White])
+          .fontSize(22).fontColor([themeOnPrimaryText()])
       }
       .width(40).height(40)
-      .backgroundColor('rgba(255,255,255,0.14)')
+      .backgroundColor(themeOnPrimaryActionBackground())
       .flexShrink(0)
       .onClick(() => { this.onMenu(); })
 
@@ -641,10 +650,10 @@ struct LegacySearchBar {
 
       Button({ type: ButtonType.Circle, stateEffect: true }) {
         SymbolGlyph($r('sys.symbol.magnifyingglass'))
-          .fontSize(20).fontColor([Color.White])
+          .fontSize(20).fontColor([themeOnPrimaryText()])
       }
       .width(40).height(40)
-      .backgroundColor('rgba(255,255,255,0.14)')
+      .backgroundColor(themeOnPrimaryActionBackground())
       .flexShrink(0)
       .margin({ left: 8 })
       .onClick(() => { this.onSearch(); })
@@ -672,17 +681,17 @@ struct LegacyActionBar {
     Row() {
       Button({ type: ButtonType.Circle, stateEffect: true }) {
         SymbolGlyph($r('sys.symbol.open_sidebar'))
-          .fontSize(22).fontColor([Color.White])
+          .fontSize(22).fontColor([themeOnPrimaryText()])
       }
       .width(40).height(40)
-      .backgroundColor('rgba(255,255,255,0.14)')
+      .backgroundColor(themeOnPrimaryActionBackground())
       .flexShrink(0)
       .onClick(() => { this.onMenu(); })
 
       Text(uiText(this.title))
         .fontSize(18)
         .fontWeight(FontWeight.Medium)
-        .fontColor(Color.White)
+        .fontColor(themeOnPrimaryText())
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .layoutWeight(1)
@@ -690,10 +699,10 @@ struct LegacyActionBar {
 
       Button({ type: ButtonType.Circle, stateEffect: true }) {
         SymbolGlyph($r('sys.symbol.play_arrow_triangle_2_circlepath'))
-          .fontSize(20).fontColor([Color.White])
+          .fontSize(20).fontColor([themeOnPrimaryText()])
       }
       .width(40).height(40)
-      .backgroundColor('rgba(255,255,255,0.14)')
+      .backgroundColor(themeOnPrimaryActionBackground())
       .flexShrink(0)
       .margin({ left: 6 })
       .onClick(() => { this.onRefresh(); })
@@ -701,11 +710,11 @@ struct LegacyActionBar {
       if (this.showClear) {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.trash'))
-            .fontSize(19).fontColor([Color.White])
+            .fontSize(19).fontColor([themeOnPrimaryText()])
         }
         .width(40).height(40)
         .enabled(this.canClear)
-        .backgroundColor(this.canClear ? 'rgba(220,60,50,0.75)' : 'rgba(255,255,255,0.10)')
+        .backgroundColor(this.canClear ? themeOnPrimaryDangerBackground() : themeOnPrimaryActionDisabledBackground())
         .flexShrink(0)
         .margin({ left: 6 })
         .onClick(() => { this.onClear(); })
@@ -777,23 +786,23 @@ export struct AppTopBar {
       Button({ type: ButtonType.Circle, stateEffect: true }) {
         SymbolGlyph(this.symbol)
           .fontSize(22)
-          .fontColor([Color.White])
+          .fontColor([themeOnPrimaryText()])
       }
       .width(40).height(40)
-      .backgroundColor('rgba(255,255,255,0.14)')
+      .backgroundColor(themeOnPrimaryActionBackground())
       .onClick(() => { this.onAction(); })
 
       Column() {
         Text(uiText(this.title))
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
-          .fontColor(Color.White)
+          .fontColor(themeOnPrimaryText())
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         if (this.subtitle.length > 0) {
           Text(uiText(this.subtitle))
             .fontSize(12)
-            .fontColor('rgba(255,255,255,0.7)')
+            .fontColor(themeOnPrimarySecondaryText())
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .margin({ top: 1 })

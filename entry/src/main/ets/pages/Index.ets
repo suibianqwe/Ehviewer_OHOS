@@ -17,7 +17,7 @@ import {
   launchRouteFromSetting,
   runActiveBackHandler
 } from '../shared/EhShared';
-import { themePageBackground } from '../shared/EhTheme';
+import { themePageBackground, themeScrimColor, themeShadowColor } from '../shared/EhTheme';
 
 // ----------------------------------------------------------------
 // Root page: full-screen immersive shell with slide-in side drawer
@@ -128,7 +128,7 @@ struct Index {
         Column()
           .width('100%')
           .height('100%')
-          .backgroundColor(Color.Black)
+          .backgroundColor(themeScrimColor())
           .opacity(this.drawerOverlayOpacity)
           .onClick(() => { this.closeDrawer(); })
           .zIndex(8)
@@ -140,7 +140,7 @@ struct Index {
         })
           .translate({ x: this.drawerOffsetX })
           .zIndex(9)
-          .shadow({ radius: 32, color: '#55000000', offsetX: 8, offsetY: 0 })
+          .shadow({ radius: 32, color: themeShadowColor(), offsetX: 8, offsetY: 0 })
       }
     }
     .width('100%')

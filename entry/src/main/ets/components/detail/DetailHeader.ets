@@ -1,5 +1,18 @@
 ﻿import { GalleryDetail } from '../../model/GalleryModels';
-import { APP_THEME_COLOR, createEmptyDetail, detailTitleFontSize, detailTitleMaxLines, galleryDisplayTitle, galleryThumbHeight, galleryThumbWidth, uiStatusText, uiText } from '../../shared/EhShared';
+import { createEmptyDetail, detailTitleFontSize, detailTitleMaxLines, galleryDisplayTitle, galleryThumbHeight, galleryThumbWidth, uiStatusText, uiText } from '../../shared/EhShared';
+import {
+  themeAccentBackground,
+  themeDangerBackground,
+  themeDangerText,
+  themeInfoBackground,
+  themeInfoText,
+  themeOnAccentText,
+  themeOnPrimaryActionBackground,
+  themeOnPrimaryActionStrongBackground,
+  themeOnPrimarySecondaryText,
+  themeOnPrimaryText,
+  themePrimaryColor
+} from '../../shared/EhTheme';
 import { CategoryBadge, GalleryThumb } from '../GalleryCards';
 @Component
 export struct DetailHeader {
@@ -20,13 +33,13 @@ export struct DetailHeader {
           Text(galleryDisplayTitle(this.detail))
             .fontSize(detailTitleFontSize())
             .fontWeight(FontWeight.Bold)
-            .fontColor(Color.White)
+            .fontColor(themeOnPrimaryText())
             .maxLines(detailTitleMaxLines())
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           Text(this.detail.uploader === undefined || this.detail.uploader.length === 0 ? uiText('unknown uploader') :
             this.detail.uploader)
             .fontSize(12)
-            .fontColor('#DDE7F2')
+            .fontColor(themeOnPrimarySecondaryText())
             .margin({ top: 8 })
           CategoryBadge({ category: this.detail.category })
             .margin({ top: 12 })
@@ -47,7 +60,7 @@ export struct DetailHeader {
         Column()
           .width(1)
           .height(32)
-          .backgroundColor('#5E8EA5')
+          .backgroundColor(themeOnPrimaryActionStrongBackground())
         HeaderActionButton({
           symbolIcon: $r('sys.symbol.play_fill'),
           text: uiText('Read'),
@@ -60,12 +73,12 @@ export struct DetailHeader {
       .height(56)
       .margin({ top: 16 })
       .padding(4)
-      .backgroundColor('#225A73')
+      .backgroundColor(themeOnPrimaryActionBackground())
       .borderRadius(6)
     }
     .width('100%')
     .padding(16)
-    .backgroundColor('#2F6F8F')
+    .backgroundColor(themePrimaryColor())
   }
 }
 
@@ -81,18 +94,18 @@ export struct HeaderActionButton {
     Row() {
       SymbolGlyph(this.symbolIcon)
         .fontSize(22)
-        .fontColor([this.accent ? '#17202A' : Color.White])
+        .fontColor([this.accent ? themeOnAccentText() : themeOnPrimaryText()])
       Text(this.text)
         .fontSize(14)
         .fontWeight(FontWeight.Bold)
-        .fontColor(this.accent ? '#17202A' : Color.White)
+        .fontColor(this.accent ? themeOnAccentText() : themeOnPrimaryText())
         .margin({ left: 10 })
     }
     .justifyContent(FlexAlign.Center)
     .alignItems(VerticalAlign.Center)
     .height(48)
     .width('100%')
-    .backgroundColor(this.accent ? '#F7C948' : '#2B6B87')
+    .backgroundColor(this.accent ? themeAccentBackground() : themeOnPrimaryActionStrongBackground())
     .borderRadius(4)
     .scale({ x: this.pressed ? 0.96 : 1, y: this.pressed ? 0.96 : 1 })
     .animation({ duration: 120, curve: Curve.EaseOut })
@@ -120,22 +133,22 @@ export struct DetailLoadStatus {
         LoadingProgress()
           .width(18)
           .height(18)
-          .color(APP_THEME_COLOR)
+          .color(themePrimaryColor())
           .margin({ right: 10 })
       } else {
         SymbolGlyph($r('sys.symbol.exclamationmark_circle'))
           .fontSize(18)
-          .fontColor(['#B42318'])
+          .fontColor([themeDangerText()])
           .margin({ right: 10 })
       }
       Text(uiStatusText(this.statusText))
         .fontSize(12)
-        .fontColor(this.isError ? '#B42318' : '#40566F')
+        .fontColor(this.isError ? themeDangerText() : themeInfoText())
         .layoutWeight(1)
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 10, bottom: 10 })
-    .backgroundColor(this.isError ? '#FEF3F2' : '#EEF6FA')
+    .backgroundColor(this.isError ? themeDangerBackground() : themeInfoBackground())
   }
 }
 

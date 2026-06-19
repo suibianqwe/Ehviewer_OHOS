@@ -1,4 +1,5 @@
 import { window } from '@kit.ArkUI';
+import { isDarkTheme, themeSystemBarContentColor, themeTransparentColor } from '../shared/EhTheme';
 
 export const MAIN_WINDOW_KEY: string = 'mainWindow';
 export const READER_WINDOW_KEY: string = 'readerWindow';
@@ -97,15 +98,16 @@ export function scheduleReaderFullscreenImmersiveMode(win: window.Window, delayM
 }
 
 async function applyAppChromeImmersiveModeAsync(target: window.Window): Promise<void> {
+  const useLightSystemBarIcons = isDarkTheme();
   await ignoreWindowError(() => target.setWindowLayoutFullScreen(true));
   await ignoreWindowError(() => target.setWindowSystemBarEnable(VISIBLE_SYSTEM_BARS));
   await ignoreWindowError(() => target.setWindowSystemBarProperties({
-    statusBarColor: '#00000000',
-    navigationBarColor: '#00000000',
-    isStatusBarLightIcon: false,
-    isNavigationBarLightIcon: false,
-    statusBarContentColor: '#2B2027',
-    navigationBarContentColor: '#2B2027'
+    statusBarColor: themeTransparentColor(),
+    navigationBarColor: themeTransparentColor(),
+    isStatusBarLightIcon: useLightSystemBarIcons,
+    isNavigationBarLightIcon: useLightSystemBarIcons,
+    statusBarContentColor: themeSystemBarContentColor(),
+    navigationBarContentColor: themeSystemBarContentColor()
   }));
 }
 
@@ -116,25 +118,26 @@ export async function applyReaderWindowState(target: window.Window, keepScreenOn
   await ignoreWindowError(() => target.setWindowLayoutFullScreen(true), 'set reader full-screen layout');
   await ignoreWindowError(() => target.setWindowSystemBarEnable(HIDDEN_SYSTEM_BARS), 'hide reader system bar set');
   await ignoreWindowError(() => target.setWindowSystemBarProperties({
-    statusBarColor: '#00000000',
-    navigationBarColor: '#00000000',
+    statusBarColor: themeTransparentColor(),
+    navigationBarColor: themeTransparentColor(),
     isStatusBarLightIcon: true,
     isNavigationBarLightIcon: true
   }), 'set reader transparent system bars');
 }
 
 export async function restoreAppWindowState(target: window.Window): Promise<void> {
+  const useLightSystemBarIcons = isDarkTheme();
   await ignoreWindowError(() => target.setWindowKeepScreenOn(false), 'restore app keep screen on');
   await ignoreWindowError(() => target.setPreferredOrientation(window.Orientation.UNSPECIFIED), 'restore app orientation');
   await ignoreWindowError(() => target.setWindowLayoutFullScreen(true), 'keep app full-screen layout');
   await ignoreWindowError(() => target.setWindowSystemBarEnable(VISIBLE_SYSTEM_BARS), 'restore app system bar set');
   await ignoreWindowError(() => target.setWindowSystemBarProperties({
-    statusBarColor: '#00000000',
-    navigationBarColor: '#00000000',
-    isStatusBarLightIcon: false,
-    isNavigationBarLightIcon: false,
-    statusBarContentColor: '#2B2027',
-    navigationBarContentColor: '#2B2027'
+    statusBarColor: themeTransparentColor(),
+    navigationBarColor: themeTransparentColor(),
+    isStatusBarLightIcon: useLightSystemBarIcons,
+    isNavigationBarLightIcon: useLightSystemBarIcons,
+    statusBarContentColor: themeSystemBarContentColor(),
+    navigationBarContentColor: themeSystemBarContentColor()
   }), 'restore app transparent system bars');
 }
 

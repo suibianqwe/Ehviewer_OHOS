@@ -12,7 +12,17 @@ import {
   uiText,
   uiValue
 } from '../shared/EhShared';
-import { themeDividerColor, themePrimaryText, themeSecondaryText, themeSurface, themeTertiaryText } from '../shared/EhTheme';
+import {
+  themeControlMutedBackground,
+  themeDividerColor,
+  themeOnPrimaryText,
+  themePrimaryColor,
+  themePrimaryText,
+  themeSecondaryText,
+  themeSurface,
+  themeTertiaryText,
+  themeTransparentColor
+} from '../shared/EhTheme';
 import { CategoryBadge, GalleryThumb } from './GalleryScenes';
 
 @Component
@@ -78,7 +88,7 @@ export struct DownloadRow {
             .layoutWeight(1)
           Text(uiValue(downloadStateLabel(this.item.state)))
             .fontSize(11)
-            .fontColor(Color.White)
+            .fontColor(themeOnPrimaryText())
             .padding({ left: 7, right: 7, top: 2, bottom: 2 })
             .backgroundColor(downloadStateColor(this.item.state))
             .borderRadius(3)
@@ -157,11 +167,11 @@ export struct DownloadRow {
         Button({ type: ButtonType.Circle }) {
           SymbolGlyph(this.actionIcon())
             .fontSize(18)
-            .fontColor([Color.White])
+            .fontColor([themeOnPrimaryText()])
         }
         .width(38)
         .height(38)
-        .backgroundColor(this.isActive() ? '#475467' : '#2F6F8F')
+        .backgroundColor(this.isActive() ? themeControlMutedBackground() : themePrimaryColor())
         .onClick(() => {
           this.onState();
         })
@@ -173,7 +183,7 @@ export struct DownloadRow {
         }
         .width(34)
         .height(34)
-        .backgroundColor('transparent')
+        .backgroundColor(themeTransparentColor())
         .onClick(() => {
           this.onRemove();
         })

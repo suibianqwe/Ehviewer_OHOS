@@ -36,13 +36,16 @@ import {
 import { LANGUAGE_REVISION_KEY, notifyLanguageChanged, notifyThemeChanged } from '../shared/EhShared';
 import {
   themeFieldBackground,
+  themeOnPrimaryText,
   themePageBackground,
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
+  themeSuccessText,
   themeSurface,
   themeSurfaceVariant,
-  themeTertiaryText
+  themeTertiaryText,
+  themeTransparentColor
 } from '../shared/EhTheme';
 import {
   selectArrowModifier,
@@ -340,7 +343,7 @@ export struct SessionScene {
 
           Text(uiStatusText(this.statusText))
             .fontSize(13)
-            .fontColor('#0A6B45')
+            .fontColor(themeSuccessText())
             .textAlign(TextAlign.Center)
             .width('100%')
             .constraintSize({ maxWidth: 420 })
@@ -352,14 +355,14 @@ export struct SessionScene {
           Row() {
             Button(uiText('Register'))
               .type(ButtonType.Normal)
-              .fontColor('#2F6F8F')
-              .backgroundColor(Color.Transparent)
+              .fontColor(themePrimaryColor())
+              .backgroundColor(themeTransparentColor())
               .layoutWeight(1)
             Button(this.signingIn ? uiText('Signing in...') : uiText('Sign in'))
               .type(ButtonType.Normal)
-              .fontColor('#2F6F8F')
+              .fontColor(themePrimaryColor())
               .fontWeight(FontWeight.Bold)
-              .backgroundColor(Color.Transparent)
+              .backgroundColor(themeTransparentColor())
               .layoutWeight(1)
               .enabled(!this.signingIn)
               .onClick(() => {
@@ -387,7 +390,7 @@ export struct SessionScene {
             })
           Text(uiText('Guest mode'))
             .fontSize(14)
-            .fontColor('#2F6F8F')
+            .fontColor(themePrimaryColor())
             .margin({ top: 10, bottom: 18 })
             .onClick(() => {
               this.onSignedIn();
@@ -410,11 +413,11 @@ export struct SessionScene {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(20)
-            .fontColor([Color.White])
+            .fontColor([themeOnPrimaryText()])
         }
         .width(36)
         .height(36)
-        .backgroundColor('#2F6F8F')
+        .backgroundColor(themePrimaryColor())
         .onClick(() => {
           this.switchMode(SessionMode.Password);
         })
@@ -476,7 +479,7 @@ export struct SessionScene {
 
           Text(uiStatusText(this.statusText))
             .fontSize(13)
-            .fontColor('#0A6B45')
+            .fontColor(themeSuccessText())
             .textAlign(TextAlign.Center)
             .width('100%')
             .constraintSize({ maxWidth: 420 })
@@ -492,17 +495,17 @@ export struct SessionScene {
       Row() {
         Button(uiText('Clear'))
           .type(ButtonType.Normal)
-          .fontColor('#2F6F8F')
-          .backgroundColor(Color.Transparent)
+          .fontColor(themePrimaryColor())
+          .backgroundColor(themeTransparentColor())
           .layoutWeight(1)
           .onClick(() => {
             this.clearCookie();
           })
         Button(uiText('OK'))
           .type(ButtonType.Normal)
-          .fontColor('#2F6F8F')
+          .fontColor(themePrimaryColor())
           .fontWeight(FontWeight.Bold)
-          .backgroundColor(Color.Transparent)
+          .backgroundColor(themeTransparentColor())
           .layoutWeight(1)
           .onClick(() => {
             this.saveCookie();
@@ -522,11 +525,11 @@ export struct SessionScene {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(20)
-            .fontColor([Color.White])
+            .fontColor([themeOnPrimaryText()])
         }
         .width(36)
         .height(36)
-        .backgroundColor('#2F6F8F')
+        .backgroundColor(themePrimaryColor())
         .onClick(() => {
           this.switchMode(SessionMode.Password);
         })
@@ -565,7 +568,7 @@ export struct SignInMark {
     Text(this.label)
       .fontSize(24)
       .fontWeight(FontWeight.Bold)
-      .fontColor(Color.White)
+      .fontColor(themeOnPrimaryText())
       .textAlign(TextAlign.Center)
       .width(72)
       .height(72)

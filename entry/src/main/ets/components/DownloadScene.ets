@@ -35,7 +35,16 @@ import {
   uiText,
   uiValue
 } from '../shared/EhShared';
-import { themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSurface } from '../shared/EhTheme';
+import {
+  themeControlMutedBackground,
+  themeControlNeutralBackground,
+  themeOnPrimaryText,
+  themePageBackground,
+  themePrimaryColor,
+  themePrimaryText,
+  themeSecondaryText,
+  themeSurface
+} from '../shared/EhTheme';
 import { EhNavBar } from './NavigationComponents';
 import { ReaderPageState, ReaderScene } from './ReaderScenes';
 import { DownloadRow } from './DownloadRow';
@@ -911,7 +920,7 @@ export struct DownloadScene {
         Button({ type: ButtonType.Circle }) {
           SymbolGlyph($r('sys.symbol.play_fill'))
             .fontSize(20)
-            .fontColor([Color.White])
+            .fontColor([themeOnPrimaryText()])
         }
         .width(46)
         .height(46)
@@ -923,11 +932,11 @@ export struct DownloadScene {
         Button({ type: ButtonType.Circle }) {
           SymbolGlyph($r('sys.symbol.pause_fill'))
             .fontSize(20)
-            .fontColor([Color.White])
+            .fontColor([themeOnPrimaryText()])
         }
         .width(46)
         .height(46)
-        .backgroundColor('#475467')
+        .backgroundColor(themeControlMutedBackground())
         .margin({ left: 12 })
         .onClick(() => {
           this.stopAll();
@@ -936,11 +945,11 @@ export struct DownloadScene {
         Button({ type: ButtonType.Circle }) {
           SymbolGlyph($r('sys.symbol.play_arrow_triangle_2_circlepath'))
             .fontSize(19)
-            .fontColor([Color.White])
+            .fontColor([themeOnPrimaryText()])
         }
         .width(46)
         .height(46)
-        .backgroundColor('#667085')
+        .backgroundColor(themeControlNeutralBackground())
         .margin({ left: 12 })
         .onClick(() => {
           this.restoreDownloadedItems();

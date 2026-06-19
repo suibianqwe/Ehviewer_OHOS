@@ -13,12 +13,17 @@ import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../s
 import { LANGUAGE_REVISION_KEY } from '../shared/EhShared';
 import {
   themeFieldBackground,
+  themeDangerText,
+  themeOnPrimaryActionBackground,
+  themeOnPrimaryActionStrongBackground,
+  themeOnPrimaryText,
   themePageBackground,
   themePlaceholderColor,
   themePrimaryColor,
   themePrimaryText,
   themeScrimColor,
   themeSecondaryText,
+  themeShadowColor,
   themeSurface,
   themeSurfaceVariant,
   themeTertiaryText
@@ -1657,11 +1662,11 @@ export struct GalleryListContent {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(22)
-            .fontColor([Color.White])
+            .fontColor([themeOnPrimaryText()])
         }
         .width(40)
         .height(40)
-        .backgroundColor('rgba(255,255,255,0.14)')
+        .backgroundColor(themeOnPrimaryActionBackground())
         .flexShrink(0)
         .onClick(() => {
           this.onBack();
@@ -1687,12 +1692,12 @@ export struct GalleryListContent {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.plus'))
             .fontSize(22)
-            .fontColor([Color.White])
+            .fontColor([themeOnPrimaryText()])
         }
         .width(40)
         .height(40)
-        .backgroundColor(this.advancedPanelVisible || this.advancedSearchEnabled ? 'rgba(255,255,255,0.28)' :
-          'rgba(255,255,255,0.14)')
+        .backgroundColor(this.advancedPanelVisible || this.advancedSearchEnabled ? themeOnPrimaryActionStrongBackground() :
+          themeOnPrimaryActionBackground())
         .flexShrink(0)
         .onClick(() => {
           this.toggleAdvancedPanel();
@@ -1855,8 +1860,8 @@ export struct GalleryListContent {
               if (this.isLoadingMore) {
                 ListItem() {
                   Row() {
-                    LoadingProgress().width(20).height(20).color('#9BB8CB')
-                    Text(uiText('Loading...')).fontSize(12).fontColor('#9BB8CB').margin({ left: 6 })
+                    LoadingProgress().width(20).height(20).color(themePlaceholderColor())
+                    Text(uiText('Loading...')).fontSize(12).fontColor(themePlaceholderColor()).margin({ left: 6 })
                   }
                   .width('100%')
                   .height(40)
@@ -2060,7 +2065,7 @@ export struct GalleryListContent {
             .height(36)
             .width('100%')
             .fontSize(13)
-            .fontColor(Color.White)
+            .fontColor(themeOnPrimaryText())
             .backgroundColor(themePrimaryColor())
             .borderRadius(4)
             .onClick(() => {
@@ -2072,7 +2077,7 @@ export struct GalleryListContent {
         .padding(12)
         .backgroundColor(themeSurface())
         .borderRadius(8)
-        .shadow({ radius: 12, color: '#33000000', offsetX: 0, offsetY: 4 })
+        .shadow({ radius: 12, color: themeShadowColor(), offsetX: 0, offsetY: 4 })
         .position({ x: this.contentWidth > 0 ? Math.max(12, this.contentWidth - 244) : 100, y: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - 210) : 360 })
         .zIndex(14)
       }
@@ -2153,11 +2158,11 @@ export struct GalleryListStateView {
         LoadingProgress()
           .width(48)
           .height(48)
-          .color('#2F6F8F')
+          .color(themePrimaryColor())
       } else {
         SymbolGlyph(this.isError() ? $r('sys.symbol.exclamationmark_triangle') : $r('sys.symbol.magnifyingglass'))
           .fontSize(48)
-          .fontColor([this.isError() ? '#B42318' : '#8AA4B5'])
+          .fontColor([this.isError() ? themeDangerText() : themeTertiaryText()])
       }
 
       Text(uiText(this.titleText()))
@@ -2191,7 +2196,7 @@ export struct GalleryListStateView {
         Button(uiText('Refresh'))
           .height(38)
           .fontSize(13)
-          .fontColor(Color.White)
+          .fontColor(themeOnPrimaryText())
           .backgroundColor(themePrimaryColor())
           .margin({ top: 16 })
           .onClick(() => {

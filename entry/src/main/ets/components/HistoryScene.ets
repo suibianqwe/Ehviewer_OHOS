@@ -23,6 +23,7 @@ import { FilterRule, FILTER_MODE_TITLE, FILTER_MODE_UPLOADER, FILTER_MODE_TAG, F
 import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
 import { APP_THEME_COLOR, LANGUAGE_REVISION_KEY, nextFloatingToolbarOffset } from '../shared/EhShared';
 import {
+  themeDangerText,
   themePageBackground,
   themePrimaryColor,
   themePrimaryText,
@@ -877,7 +878,7 @@ export struct HistoryScene {
                           Row() {
                             Text(uiText('Remove'))
                               .fontSize(12)
-                              .fontColor('#C33A2C')
+                              .fontColor(themeDangerText())
                               .padding({ left: 8, right: 8, top: 4, bottom: 4 })
                               .onClick(() => {
                                 this.removeHistory(gallery);

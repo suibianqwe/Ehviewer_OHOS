@@ -3,7 +3,7 @@ import {
   plainTextFromHtml,
   uiText
 } from '../../shared/EhShared';
-import { themePrimaryText, themeSecondaryText, themeSurface, themeSurfaceVariant } from '../../shared/EhTheme';
+import { themePrimaryColor, themePrimaryText, themeSecondaryText, themeSurface, themeSurfaceVariant } from '../../shared/EhTheme';
 @Component
 export struct DetailComments {
   @Prop comments: GalleryComment[] = [];
@@ -25,7 +25,7 @@ export struct DetailComments {
         } else if (this.comments.length > 0) {
           Text(uiText('See all') + ' (' + this.comments.length.toString() + ')')
             .fontSize(13)
-            .fontColor('#2F6F8F')
+            .fontColor(themePrimaryColor())
             .onClick(() => {
               this.onComments();
             })
@@ -80,7 +80,7 @@ export struct DetailComments {
         if (this.comments.length > 2) {
           Text(uiText('View all') + ' ' + this.comments.length.toString() + ' ' + uiText('comments') + ' ->')
             .fontSize(13)
-            .fontColor('#2F6F8F')
+            .fontColor(themePrimaryColor())
             .margin({ top: 6 })
             .onClick(() => {
               this.onComments();

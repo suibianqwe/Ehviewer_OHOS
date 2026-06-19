@@ -3,6 +3,12 @@ import {
   themeDividerColor,
   themeFieldBackground,
   themePrimaryText,
+  themeReaderSelectBackground,
+  themeReaderSelectOutline,
+  themeReaderSelectPanel,
+  themeReaderSelectSelectedBackground,
+  themeReaderSelectSelectedText,
+  themeReaderSelectText,
   themeSelectedBackground
 } from './EhTheme';
 
@@ -34,15 +40,15 @@ export function themedSelectColors(): SelectColorSet {
 
 export function readerSelectColors(): SelectColorSet {
   return {
-    buttonText: '#E5E7EB',
-    buttonBackground: '#1F2937',
-    menuBackground: '#111827',
-    optionBackground: '#111827',
-    optionText: '#E5E7EB',
-    selectedOptionBackground: '#374151',
-    selectedOptionText: '#F9FAFB',
-    arrow: '#E5E7EB',
-    outline: '#4B5563'
+    buttonText: themeReaderSelectText(),
+    buttonBackground: themeReaderSelectBackground(),
+    menuBackground: themeReaderSelectPanel(),
+    optionBackground: themeReaderSelectPanel(),
+    optionText: themeReaderSelectText(),
+    selectedOptionBackground: themeReaderSelectSelectedBackground(),
+    selectedOptionText: themeReaderSelectSelectedText(),
+    arrow: themeReaderSelectText(),
+    outline: themeReaderSelectOutline()
   };
 }
 

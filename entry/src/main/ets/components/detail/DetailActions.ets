@@ -3,7 +3,17 @@ import {
   createEmptyDetail,
   uiText
 } from '../../shared/EhShared';
-import { themePrimaryText, themeSecondaryText, themeSurface, themeSurfaceVariant } from '../../shared/EhTheme';
+import {
+  themeFavoriteText,
+  themeInactiveActionText,
+  themeOnPrimaryText,
+  themePrimaryColor,
+  themePrimaryText,
+  themeSecondaryText,
+  themeSurface,
+  themeSurfaceVariant,
+  themeTransparentColor
+} from '../../shared/EhTheme';
 @Component
 export struct DetailActions {
   @Prop detail: GalleryDetail = createEmptyDetail();
@@ -151,8 +161,8 @@ export struct RatingPanel {
           .type(ButtonType.Normal)
           .height(38)
           .fontSize(13)
-          .fontColor(Color.White)
-          .backgroundColor('#2F6F8F')
+          .fontColor(themeOnPrimaryText())
+          .backgroundColor(themePrimaryColor())
           .borderRadius(4)
           .layoutWeight(1)
           .onClick(() => {
@@ -182,10 +192,11 @@ export struct DetailActionItem {
     Column({ space: 6 }) {
       SymbolGlyph(this.symbolIcon)
         .fontSize(26)
-        .fontColor([this.isActive ? (this.isFilled ? '#E05C4B' : '#2F6F8F') : '#B8CDD8'])
+        .fontColor([this.isActive ? (this.isFilled ? themeFavoriteText() : themePrimaryColor()) :
+          themeInactiveActionText()])
       Text(this.label)
         .fontSize(11)
-        .fontColor(this.isActive ? '#2F6F8F' : '#B8CDD8')
+        .fontColor(this.isActive ? themePrimaryColor() : themeInactiveActionText())
         .textAlign(TextAlign.Center)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -193,7 +204,7 @@ export struct DetailActionItem {
     .width(72)
     .height(68)
     .justifyContent(FlexAlign.Center)
-    .backgroundColor(this.pressed ? themeSurfaceVariant() : '#00FFFFFF')
+    .backgroundColor(this.pressed ? themeSurfaceVariant() : themeTransparentColor())
     .borderRadius(6)
     .scale({ x: this.pressed ? 0.92 : 1, y: this.pressed ? 0.92 : 1 })
     .animation({ duration: 120, curve: Curve.EaseOut })

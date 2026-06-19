@@ -1,5 +1,6 @@
 ﻿import { GalleryDetail, GalleryPreview } from '../model/GalleryModels';
 import { STATUS_BAR_HEIGHT_KEY, createEmptyDetail, galleryDisplayTitle, uiStatusText } from '../shared/EhShared';
+import { themeScrimColor, themeSuccessBackground, themeSuccessText } from '../shared/EhTheme';
 import { EhSubNavBar } from './NavigationComponents';
 import { CommentsScene } from './ReaderScenes';
 import { DetailHeader, DetailLoadStatus } from './detail/DetailHeader';
@@ -124,10 +125,10 @@ export struct GalleryDetailScene {
         if (this.statusText.length > 0) {
           Text(uiStatusText(this.statusText))
             .fontSize(12)
-            .fontColor('#0A6B45')
+            .fontColor(themeSuccessText())
             .width('100%')
             .padding({ left: 14, right: 14, top: 6, bottom: 6 })
-            .backgroundColor('#F0FBF6')
+            .backgroundColor(themeSuccessBackground())
         }
 
         List({ space: 0, scroller: this.detailScroller }) {
@@ -226,7 +227,7 @@ export struct GalleryDetailScene {
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
         .padding(24)
-        .backgroundColor('#66000000')
+        .backgroundColor(themeScrimColor())
       }
     }
     .width('100%')

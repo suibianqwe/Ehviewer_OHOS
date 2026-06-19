@@ -22,10 +22,16 @@ import { MigrationTask, migrationTasks } from '../services/MigrationStatus';
 import { FilterRule, FILTER_MODE_TITLE, FILTER_MODE_UPLOADER, FILTER_MODE_TAG, FILTER_MODE_TAG_NAMESPACE, ehFilterStore } from '../services/EhFilterStore';
 import { EH_APP_VERSION_NAME, EH_GIT_BRANCH, EH_GIT_COMMIT, EH_GIT_DESCRIBE, EH_RELEASE_TAG } from '../services/EhBuildInfo';
 import {
+  EH_THEME_PRIMARY_COLOR,
   currentThemeName as themeCurrentThemeName,
   isBlackTheme as themeIsBlackTheme,
   isDarkTheme as themeIsDarkTheme,
   themeDividerColor as paletteDividerColor,
+  themeDownloadStateActiveColor as paletteDownloadStateActiveColor,
+  themeDownloadStateDoneColor as paletteDownloadStateDoneColor,
+  themeDownloadStateFailedColor as paletteDownloadStateFailedColor,
+  themeDownloadStateIdleColor as paletteDownloadStateIdleColor,
+  themeDownloadStateWaitColor as paletteDownloadStateWaitColor,
   themeFieldBackground as paletteFieldBackground,
   themeMutedText as paletteMutedText,
   themePageBackground as palettePageBackground,
@@ -1360,21 +1366,21 @@ export function downloadStateLabel(state: DownloadState): string {
 
 export function downloadStateColor(state: DownloadState): string {
   if (state === DownloadState.Wait) {
-    return '#5A8FA8';
+    return paletteDownloadStateWaitColor();
   }
   if (state === DownloadState.Downloading) {
-    return '#2F6F8F';
+    return paletteDownloadStateActiveColor();
   }
   if (state === DownloadState.Finish) {
-    return '#0A6B45';
+    return paletteDownloadStateDoneColor();
   }
   if (state === DownloadState.Failed || state === DownloadState.Invalid) {
-    return '#B42318';
+    return paletteDownloadStateFailedColor();
   }
-  return '#667085';
+  return paletteDownloadStateIdleColor();
 }
 
-export const APP_THEME_COLOR: string = '#2F6F8F';
+export const APP_THEME_COLOR: string = EH_THEME_PRIMARY_COLOR;
 
 export function currentThemeName(): string {
   return themeCurrentThemeName();

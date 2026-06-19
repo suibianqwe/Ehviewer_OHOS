@@ -21,13 +21,15 @@ import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
 import { MigrationTask, migrationTasks } from '../services/MigrationStatus';
 import { FilterRule, FILTER_MODE_TITLE, FILTER_MODE_UPLOADER, FILTER_MODE_TAG, FILTER_MODE_TAG_NAMESPACE, ehFilterStore } from '../services/EhFilterStore';
 import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
-import { APP_THEME_COLOR, LANGUAGE_REVISION_KEY, nextFloatingToolbarOffset } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, nextFloatingToolbarOffset } from '../shared/EhShared';
 import {
+  themeOnPrimaryText,
   themePageBackground,
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
-  themeSurface
+  themeSurface,
+  themeTransparentColor
 } from '../shared/EhTheme';
 import { EhBackupBundle, DrawerItem, SettingsHeaderItem, SettingsRowItem, SessionMode, SettingsPanel, DRAWER_ITEMS, SETTINGS_HEADERS, STATUS_BAR_HEIGHT_KEY, ON_OFF_OPTIONS, shouldUseChineseUi, uiText, uiValue, uiStatusText, uiPageText, zhText, setActiveBackHandler, runActiveBackHandler, createEmptyGallery, createEmptyDownloadInfo, createDetailFromGallery, createEmptyDetail, createEmptyPreview, createEmptyPage, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneStringArray, cloneRequiredStringArray, cloneGalleryInfo, cloneGalleryInfos, padTwo, applyGalleryFilters, cloneGalleryTagGroups, cloneGalleryComments, cloneGalleryPreviews, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, cloneTopListItem, cloneTopListBucket, cloneTopListInfo, cloneTopListDetail, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, saveDownloadsQuietly, filterDownloadItems, downloadItemMatches, sortDownloadItems, nextDownloadStatusFilter, nextDownloadLabelFilter, nextDownloadSortMode, nextStringOption, nextDownloadState, nextDownloadLabel, downloadLabelName, downloadStateLabel, downloadStateColor, downloadProgressText, downloadSizeText, downloadImageUrlForPage, downloadThreadLimit, downloadPageIndexes, downloadQueueSummary, parseHistoryMaxSize, routeTitle, routeSubtitle, launchRouteFromSetting, settingsPanelTitle, settingsRowsForPanel, optionSettingsRow, textSettingsRow, staticSettingsRow, settingEntryValue, cloneStringOptions, settingMigrationMessage, nextOption, isValidProxyPortText, formatNetworkDiagnostics, listModeForRoute, routeUsesKeyword, usesGallerySearchToolbar, usesEmbeddedToolbar, defaultKeywordForRoute, gallerySearchTitle, currentGallerySite, effectiveListSite, gallerySiteName, galleryListFailureMessage, withGalleryListMessage, readerPageReferer, readerDisplayImageUrl, cacheReaderImageForPage, cacheThumbnailImage, cloneGalleryPageWithCache, readerLocalImageSource, readerZoomSize, readerFullImageWidth, readerFullImageHeight, readerImageFit, readerShortUrl, readerPreloadCount, readerIsRightToLeft, categoryName, categoryColor, ratingText, galleryDisplayTitle, showGalleryPages, galleryListMode, galleryThumbWidth, galleryThumbHeight, galleryRowHeight, galleryTagPreview, detailTitleFontSize, detailTitleMaxLines, detailHeadingFontSize, readerShowProgress, readerShowClock, readerClockText, padTimeNumber, topListChipColor } from '../shared/EhShared';
 import { GalleryDetailOverlayScene, GalleryListRow, GalleryListScene, GalleryListStateView, PlaceholderScene, ReaderPageState, ReaderScene } from './GalleryScenes';
@@ -770,11 +772,11 @@ export struct TopListScene {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.chevron_left'))
               .fontSize(20)
-              .fontColor([Color.White])
+              .fontColor([themeOnPrimaryText()])
           }
           .width(36)
           .height(36)
-          .backgroundColor(APP_THEME_COLOR)
+          .backgroundColor(themePrimaryColor())
           .onClick(() => {
             this.closeGalleryList();
           })
@@ -892,8 +894,8 @@ export struct TopListTabs {
             .stateEffect(false)
             .height(34)
             .fontSize(12)
-            .fontColor(index === this.selectedIndex ? Color.White : themePrimaryColor())
-            .backgroundColor(index === this.selectedIndex ? themePrimaryColor() : Color.Transparent)
+            .fontColor(index === this.selectedIndex ? themeOnPrimaryText() : themePrimaryColor())
+            .backgroundColor(index === this.selectedIndex ? themePrimaryColor() : themeTransparentColor())
             .border({ width: 1, color: index === this.selectedIndex ? themePrimaryColor() : themeSecondaryText() })
             .onClick(() => {
               this.onSelect(index);
@@ -943,11 +945,11 @@ export struct TopListBoard {
       })
         .width('100%')
         .padding({ top: 4, bottom: 4 })
-        .backgroundColor(Color.Transparent)
+        .backgroundColor(themeTransparentColor())
     }
       .width('100%')
       .height(this.TABS_BAR_HEIGHT)
-      .backgroundColor(Color.Transparent)
+      .backgroundColor(themeTransparentColor())
   }
 
   build() {
@@ -988,7 +990,7 @@ export struct TopListBoard {
       }
       .width('100%')
       .padding({ left: 12, right: 12, top: this.tabsVisualTop() })
-      .backgroundColor(Color.Transparent)
+      .backgroundColor(themeTransparentColor())
       .zIndex(8)
     }
     .width('100%')
@@ -1049,13 +1051,13 @@ export struct TopListBucketCard {
 @Component
 export struct TopListChip {
   item: TopListItem = createEmptyTopListItem();
-  color: string = '#2F6F8F';
+  color: string = themePrimaryColor();
   onTap: () => void = () => {};
 
   build() {
     Text(this.item.value)
       .fontSize(13)
-      .fontColor(Color.White)
+      .fontColor(themeOnPrimaryText())
       .maxLines(2)
       .textOverflow({ overflow: TextOverflow.Ellipsis })
       .padding({ left: 10, right: 10, top: 6, bottom: 6 })

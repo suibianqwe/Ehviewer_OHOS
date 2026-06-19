@@ -3,11 +3,17 @@ import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { LANGUAGE_REVISION_KEY, categoryColor, uiText } from '../shared/EhShared';
 import {
+  themeControlMutedBackground,
+  themeControlNeutralBackground,
   themeFieldBackground,
+  themeInactiveActionText,
+  themeOnPrimaryText,
   themePageBackground,
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
+  themeSelectedBackgroundLight,
+  themeShadowColor,
   themeSurface,
   themeSurfaceVariant
 } from '../shared/EhTheme';
@@ -336,7 +342,7 @@ struct SearchSuggestionTile {
     .alignItems(VerticalAlign.Center)
     .backgroundColor(themeSurface())
     .borderRadius(5)
-    .shadow({ radius: 3, color: '#10000000', offsetX: 0, offsetY: 1 })
+    .shadow({ radius: 3, color: themeShadowColor(), offsetX: 0, offsetY: 1 })
     .onClick(() => {
       this.onSelect(this.suggestion);
     })
@@ -372,7 +378,7 @@ struct SearchNamespaceChip {
       .height(34)
       .fontSize(16)
       .fontWeight(FontWeight.Bold)
-      .fontColor(this.isActive ? Color.White : this.textColor())
+      .fontColor(this.isActive ? themeOnPrimaryText() : this.textColor())
       .backgroundColor(this.isActive ? this.activeColor() : this.softColor())
       .borderRadius(5)
       .padding({ left: 4, right: 4 })
@@ -578,7 +584,7 @@ export struct SearchAdvancedPanel {
           Button(uiText('All categories'))
             .height(32)
             .fontSize(14)
-            .fontColor(this.allCategoriesSelected() ? Color.White : themeSecondaryText())
+            .fontColor(this.allCategoriesSelected() ? themeOnPrimaryText() : themeSecondaryText())
             .backgroundColor(this.allCategoriesSelected() ? themePrimaryColor() : themeSurfaceVariant())
             .borderRadius(4)
             .width('100%')
@@ -672,11 +678,11 @@ export struct SearchAdvancedPanel {
           Row({ space: 6 }) {
             SymbolGlyph($r('sys.symbol.magnifyingglass'))
               .fontSize(18)
-              .fontColor([Color.White])
+              .fontColor([themeOnPrimaryText()])
             Text(uiText('Search'))
               .fontSize(15)
               .fontWeight(FontWeight.Medium)
-              .fontColor(Color.White)
+              .fontColor(themeOnPrimaryText())
           }
           .justifyContent(FlexAlign.Center)
           .alignItems(VerticalAlign.Center)
@@ -699,7 +705,7 @@ export struct SearchAdvancedPanel {
     .backgroundColor(themeSurface())
     .borderRadius(8)
     .clip(true)
-    .shadow({ radius: 12, color: '#33000000', offsetX: 0, offsetY: 4 })
+    .shadow({ radius: 12, color: themeShadowColor(), offsetX: 0, offsetY: 4 })
   }
 
   private categoryRows(): SearchCategoryOption[][] {
@@ -792,13 +798,14 @@ export struct ActionBubble {
       Button({ type: ButtonType.Circle, stateEffect: true }) {
         SymbolGlyph(this.symbolIcon)
           .fontSize(this.primary ? 26 : 20)
-          .fontColor([this.isEnabled ? Color.White : '#A0BFCC'])
+          .fontColor([this.isEnabled ? themeOnPrimaryText() : themeInactiveActionText()])
       }
       .width(this.primary ? 54 : 44)
       .height(this.primary ? 54 : 44)
       .enabled(this.isEnabled)
-      .backgroundColor(this.isEnabled ? (this.primary ? themePrimaryColor() : '#5A8FA8') : '#A8C0CC')
-      .shadow({ radius: this.primary ? 14 : 8, color: '#33000000', offsetX: 0, offsetY: 3 })
+      .backgroundColor(this.isEnabled ? (this.primary ? themePrimaryColor() : themeControlNeutralBackground()) :
+        themeControlMutedBackground())
+      .shadow({ radius: this.primary ? 14 : 8, color: themeShadowColor(), offsetX: 0, offsetY: 3 })
       .onClick(() => {
         this.onTapAction();
       })
@@ -808,7 +815,7 @@ export struct ActionBubble {
           .fontSize(10)
           .fontColor(themePrimaryColor())
           .textAlign(TextAlign.Center)
-          .backgroundColor('#DEEAF2')
+          .backgroundColor(themeSelectedBackgroundLight())
           .padding({ left: 6, right: 6, top: 2, bottom: 2 })
           .borderRadius(8)
           .maxLines(1)
@@ -828,7 +835,7 @@ export struct SearchFlagChip {
     Button(uiText(this.label))
       .height(30)
       .fontSize(13)
-      .fontColor(this.isOn ? Color.White : themeSecondaryText())
+      .fontColor(this.isOn ? themeOnPrimaryText() : themeSecondaryText())
       .backgroundColor(this.isOn ? themePrimaryColor() : themeSurfaceVariant())
       .borderRadius(4)
       .layoutWeight(1)
@@ -877,7 +884,7 @@ export struct SearchCategoryChip {
       .height(32)
       .fontSize(14)
       .fontWeight(FontWeight.Bold)
-      .fontColor(this.selected ? Color.White : categoryColor(this.category))
+      .fontColor(this.selected ? themeOnPrimaryText() : categoryColor(this.category))
       .backgroundColor(this.selected ? categoryColor(this.category) : this.softColor())
       .borderRadius(4)
       .layoutWeight(1)
