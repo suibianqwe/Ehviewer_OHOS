@@ -1,15 +1,17 @@
 ﻿import { window } from '@kit.ArkUI';
+import { common } from '@kit.AbilityKit';
 import { batteryInfo } from '@kit.BasicServicesKit';
 import inputConsumer from '@ohos.multimodalInput.inputConsumer';
 import { KeyCode } from '@ohos.multimodalInput.keyCode';
 import { KeyEvent } from '@ohos.multimodalInput.keyEvent';
 import { GalleryComment, GalleryPage } from '../model/GalleryModels';
 import {
-  applyReaderFullscreenImmersiveMode,
-  enterEmbeddedReaderFullscreen,
+  applyReaderWindowState,
   getMainWindow,
   getReaderWindow,
-  leaveEmbeddedReaderFullscreen
+  rememberMainWindow,
+  restoreAppWindowState,
+  setEmbeddedReaderActive
 } from '../services/EhWindowImmersive';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import {
@@ -378,6 +380,7 @@ export struct ReaderScene {
   @State menuCustomBrightness: boolean = false;
   @State menuBrightnessLevel: string = '50%';
   private readerWindowActive: boolean = false;
+  private hostReaderWindow: window.Window | undefined = undefined;
   private autoTransferTimer: number = -1;
   private volumeUpConfig: inputConsumer.KeyPressedConfig = {
     key: KeyCode.KEYCODE_VOLUME_UP,
@@ -397,7 +400,7 @@ export struct ReaderScene {
   aboutToAppear(): void {
     this.readerWindowActive = true;
     if (this.restoreAppChromeOnExit) {
-      enterEmbeddedReaderFullscreen();
+      setEmbeddedReaderActive(true);
     }
     this.fitMode = ehSettingsStore.getValue('page_scaling', 'Fit width');
     this.menuVisible = false;
@@ -407,7 +410,7 @@ export struct ReaderScene {
     this.syncDirectionState();
     this.refreshBattery();
     this.applyReaderWindowSettings();
-    this.applyBrightnessFromSettings();
+    this.applyBrightnessFromSettings().catch(() => {});
     this.updateVolumePageBinding();
   }
 
@@ -416,7 +419,7 @@ export struct ReaderScene {
     this.clearSliderTimer();
     this.clearAutoTransferTimer();
     this.unregisterVolumePageKeys();
-    this.resetReaderBrightness();
+    this.resetReaderBrightness().catch(() => {});
     this.restoreWindowSettings();
   }
 
@@ -424,54 +427,70 @@ export struct ReaderScene {
     if (!this.restoreAppChromeOnExit) {
       return;
     }
-    const win = getMainWindow();
-    if (win === undefined) {
-      return;
-    }
-    try {
-      win.setWindowKeepScreenOn(false).catch(() => {});
-    } catch (e) {}
-    try {
-      win.setPreferredOrientation(window.Orientation.UNSPECIFIED).catch(() => {});
-    } catch (e) {}
-    leaveEmbeddedReaderFullscreen();
+    this.restoreWindowSettingsAsync().catch(() => {});
   }
 
   private applyReaderWindowSettings(): void {
     const keepOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
     const orientation = ehSettingsStore.getValue('screen_rotation', 'System');
-    const win = this.readerWindow();
-    if (win === undefined) {
-      return;
+    this.applyReaderWindowSettingsAsync(keepOn, orientation).catch(() => {});
+  }
+
+  private async obtainReaderWindow(): Promise<window.Window | undefined> {
+    if (!this.restoreAppChromeOnExit) {
+      return getReaderWindow();
     }
-    this.applyReaderWindowSettingsFor(win, keepOn, orientation);
+    if (this.hostReaderWindow !== undefined) {
+      return this.hostReaderWindow;
+    }
+    try {
+      const hostContext = this.getUIContext().getHostContext() as common.UIAbilityContext | undefined;
+      if (hostContext !== undefined) {
+        const win = await window.getLastWindow(hostContext);
+        this.hostReaderWindow = win;
+        rememberMainWindow(win);
+        return win;
+      }
+    } catch (error) {
+    }
+    return getMainWindow();
   }
 
-  private readerWindow(): window.Window | undefined {
-    return this.restoreAppChromeOnExit ? getMainWindow() : getReaderWindow();
+  private readerOrientation(orientation: string): window.Orientation {
+    if (orientation === 'Portrait') {
+      return window.Orientation.PORTRAIT;
+    }
+    if (orientation === 'Landscape') {
+      return window.Orientation.LANDSCAPE;
+    }
+    return window.Orientation.UNSPECIFIED;
   }
 
-  private applyReaderWindowSettingsFor(win: window.Window, keepOn: boolean, orientation: string): void {
-    this.applyReaderChromeMode(win);
+  private async applyReaderWindowSettingsAsync(keepOn: boolean, orientation: string): Promise<void> {
+    await this.applyReaderWindowSettingsOnce(keepOn, orientation);
     this.scheduleReaderChromeMode(80);
     this.scheduleReaderChromeMode(260);
     this.scheduleReaderChromeMode(620);
-    try {
-      win.setWindowKeepScreenOn(keepOn).catch(() => {});
-    } catch (e) {}
-    try {
-      let o: window.Orientation = window.Orientation.UNSPECIFIED;
-      if (orientation === 'Portrait') {
-        o = window.Orientation.PORTRAIT;
-      } else if (orientation === 'Landscape') {
-        o = window.Orientation.LANDSCAPE;
-      }
-      win.setPreferredOrientation(o).catch(() => {});
-    } catch (e) {}
   }
 
-  private applyReaderChromeMode(win: window.Window): void {
-    applyReaderFullscreenImmersiveMode(win);
+  private async applyReaderWindowSettingsOnce(keepOn: boolean, orientation: string): Promise<void> {
+    const win = await this.obtainReaderWindow();
+    if (win === undefined) {
+      return;
+    }
+    if (this.restoreAppChromeOnExit) {
+      setEmbeddedReaderActive(true);
+    }
+    await applyReaderWindowState(win, keepOn, this.readerOrientation(orientation));
+  }
+
+  private async restoreWindowSettingsAsync(): Promise<void> {
+    setEmbeddedReaderActive(false);
+    const win = await this.obtainReaderWindow();
+    if (win === undefined) {
+      return;
+    }
+    await restoreAppWindowState(win);
   }
 
   private onRenderVersionChange(): void {
@@ -483,10 +502,9 @@ export struct ReaderScene {
       if (!this.readerWindowActive) {
         return;
       }
-      const win = this.readerWindow();
-      if (win !== undefined) {
-        this.applyReaderChromeMode(win);
-      }
+      const keepOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
+      const orientation = ehSettingsStore.getValue('screen_rotation', 'System');
+      this.applyReaderWindowSettingsOnce(keepOn, orientation).catch(() => {});
     }, delay);
   }
 
@@ -618,7 +636,7 @@ export struct ReaderScene {
     this.syncOverlayState();
     this.syncDirectionState();
     this.refreshBattery();
-    this.applyBrightness();
+    this.applyBrightness().catch(() => {});
     const context = getAbilityContext();
     if (context !== undefined) {
       ehSettingsStore.save(context).catch(() => {});
@@ -628,21 +646,10 @@ export struct ReaderScene {
     if (this.autoTransferPlaying) {
       this.scheduleAutoTransfer();
     }
-    const win = this.readerWindow();
-    if (win !== undefined) {
-      win.setWindowKeepScreenOn(this.menuKeepScreenOn).catch(() => {});
-      let o: window.Orientation = window.Orientation.UNSPECIFIED;
-      if (this.menuScreenRotation === 'Portrait') {
-        o = window.Orientation.PORTRAIT;
-      } else if (this.menuScreenRotation === 'Landscape') {
-        o = window.Orientation.LANDSCAPE;
-      }
-      win.setPreferredOrientation(o).catch(() => {});
-    }
   }
 
-  private applyBrightness(): void {
-    const win = this.readerWindow();
+  private async applyBrightness(): Promise<void> {
+    const win = await this.obtainReaderWindow();
     if (win === undefined) {
       return;
     }
@@ -655,8 +662,8 @@ export struct ReaderScene {
     win.setWindowBrightness(brightness).catch(() => {});
   }
 
-  private applyBrightnessFromSettings(): void {
-    const win = this.readerWindow();
+  private async applyBrightnessFromSettings(): Promise<void> {
+    const win = await this.obtainReaderWindow();
     if (win === undefined) {
       return;
     }
@@ -669,8 +676,8 @@ export struct ReaderScene {
     win.setWindowBrightness(brightness).catch(() => {});
   }
 
-  private resetReaderBrightness(): void {
-    const win = this.readerWindow();
+  private async resetReaderBrightness(): Promise<void> {
+    const win = await this.obtainReaderWindow();
     if (win !== undefined) {
       win.setWindowBrightness(-1).catch(() => {});
     }

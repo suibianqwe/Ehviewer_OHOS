@@ -1,9 +1,12 @@
 import { window } from '@kit.ArkUI';
-import { themePrimaryColor } from '../shared/EhTheme';
 
 export const MAIN_WINDOW_KEY: string = 'mainWindow';
 export const READER_WINDOW_KEY: string = 'readerWindow';
 export const EMBEDDED_READER_ACTIVE_KEY: string = 'embeddedReaderActive';
+type SystemBarName = 'status' | 'navigation';
+
+const VISIBLE_SYSTEM_BARS: SystemBarName[] = ['status', 'navigation'];
+const HIDDEN_SYSTEM_BARS: SystemBarName[] = [];
 
 export function rememberMainWindow(win: window.Window): void {
   AppStorage.set<window.Window | undefined>(MAIN_WINDOW_KEY, win);
@@ -39,7 +42,7 @@ export function applyAppChromeImmersiveMode(win?: window.Window): void {
   if (target === undefined) {
     return;
   }
-  if (target === getMainWindow() && isEmbeddedReaderActive()) {
+  if (isEmbeddedReaderActive()) {
     return;
   }
   applyAppChromeImmersiveModeAsync(target).catch(() => {});
@@ -55,7 +58,7 @@ export function applyReaderFullscreenImmersiveMode(win?: window.Window): void {
   if (target === undefined) {
     return;
   }
-  applyReaderFullscreenImmersiveModeAsync(target).catch(() => {});
+  applyReaderWindowState(target, false, window.Orientation.UNSPECIFIED).catch(() => {});
 }
 
 export function enterEmbeddedReaderFullscreen(): void {
@@ -64,7 +67,7 @@ export function enterEmbeddedReaderFullscreen(): void {
   if (target === undefined) {
     return;
   }
-  applyReaderFullscreenImmersiveModeAsync(target).catch(() => {});
+  applyReaderWindowState(target, false, window.Orientation.UNSPECIFIED).catch(() => {});
   scheduleReaderFullscreenImmersiveMode(target, 32);
   scheduleReaderFullscreenImmersiveMode(target, 120);
   scheduleReaderFullscreenImmersiveMode(target, 320);
@@ -77,7 +80,7 @@ export function leaveEmbeddedReaderFullscreen(): void {
   if (target === undefined) {
     return;
   }
-  restoreStatusBarLayoutAsync(target).then(() => {
+  restoreAppWindowState(target).then(() => {
     setTimeout(() => {
       applyAppChromeImmersiveMode(target);
     }, 32);
@@ -89,36 +92,29 @@ export function scheduleReaderFullscreenImmersiveMode(win: window.Window, delayM
     if (win === getMainWindow() && !isEmbeddedReaderActive()) {
       return;
     }
-    applyReaderFullscreenImmersiveModeAsync(win).catch(() => {});
+    applyReaderWindowState(win, false, window.Orientation.UNSPECIFIED).catch(() => {});
   }, delayMs);
 }
 
 async function applyAppChromeImmersiveModeAsync(target: window.Window): Promise<void> {
   await ignoreWindowError(() => target.setWindowLayoutFullScreen(true));
-  await ignoreWindowError(() => target.setWindowSystemBarEnable(['status', 'navigation']));
-  await ignoreWindowError(() => target.setSpecificSystemBarEnabled('status', true));
-  await ignoreWindowError(() => target.setSpecificSystemBarEnabled('navigationIndicator', false));
+  await ignoreWindowError(() => target.setWindowSystemBarEnable(VISIBLE_SYSTEM_BARS));
   await ignoreWindowError(() => target.setWindowSystemBarProperties({
-    statusBarColor: opaqueSystemColor(themePrimaryColor()),
+    statusBarColor: '#00000000',
     navigationBarColor: '#00000000',
-    isStatusBarLightIcon: true,
-    isNavigationBarLightIcon: true
+    isStatusBarLightIcon: false,
+    isNavigationBarLightIcon: false,
+    statusBarContentColor: '#2B2027',
+    navigationBarContentColor: '#2B2027'
   }));
 }
 
-function opaqueSystemColor(color: string): string {
-  if (color.length === 7 && color.charAt(0) === '#') {
-    return '#FF' + color.substring(1);
-  }
-  return color;
-}
-
-async function applyReaderFullscreenImmersiveModeAsync(target: window.Window): Promise<void> {
+export async function applyReaderWindowState(target: window.Window, keepScreenOn: boolean,
+  orientation: window.Orientation): Promise<void> {
+  await ignoreWindowError(() => target.setWindowKeepScreenOn(keepScreenOn), 'set reader keep screen on');
+  await ignoreWindowError(() => target.setPreferredOrientation(orientation), 'set reader orientation');
   await ignoreWindowError(() => target.setWindowLayoutFullScreen(true), 'set reader full-screen layout');
-  await ignoreWindowError(() => target.setSpecificSystemBarEnabled('status', false), 'hide reader status bar');
-  await ignoreWindowError(() => target.setSpecificSystemBarEnabled('navigationIndicator', false),
-    'hide reader navigation indicator');
-  await ignoreWindowError(() => target.setWindowSystemBarEnable([]), 'hide reader system bar set');
+  await ignoreWindowError(() => target.setWindowSystemBarEnable(HIDDEN_SYSTEM_BARS), 'hide reader system bar set');
   await ignoreWindowError(() => target.setWindowSystemBarProperties({
     statusBarColor: '#00000000',
     navigationBarColor: '#00000000',
@@ -127,12 +123,19 @@ async function applyReaderFullscreenImmersiveModeAsync(target: window.Window): P
   }), 'set reader transparent system bars');
 }
 
-async function restoreStatusBarLayoutAsync(target: window.Window): Promise<void> {
+export async function restoreAppWindowState(target: window.Window): Promise<void> {
+  await ignoreWindowError(() => target.setWindowKeepScreenOn(false), 'restore app keep screen on');
+  await ignoreWindowError(() => target.setPreferredOrientation(window.Orientation.UNSPECIFIED), 'restore app orientation');
   await ignoreWindowError(() => target.setWindowLayoutFullScreen(true), 'keep app full-screen layout');
-  await ignoreWindowError(() => target.setWindowSystemBarEnable(['status', 'navigation']), 'restore app status bar set');
-  await ignoreWindowError(() => target.setSpecificSystemBarEnabled('status', true), 'show app status bar');
-  await ignoreWindowError(() => target.setSpecificSystemBarEnabled('navigationIndicator', false),
-    'hide app navigation indicator');
+  await ignoreWindowError(() => target.setWindowSystemBarEnable(VISIBLE_SYSTEM_BARS), 'restore app system bar set');
+  await ignoreWindowError(() => target.setWindowSystemBarProperties({
+    statusBarColor: '#00000000',
+    navigationBarColor: '#00000000',
+    isStatusBarLightIcon: false,
+    isNavigationBarLightIcon: false,
+    statusBarContentColor: '#2B2027',
+    navigationBarContentColor: '#2B2027'
+  }), 'restore app transparent system bars');
 }
 
 async function ignoreWindowError(task: () => Promise<void>, operation: string = 'update window chrome'): Promise<void> {

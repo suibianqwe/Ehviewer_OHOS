@@ -1,7 +1,11 @@
+import { common } from '@kit.AbilityKit';
+import { window } from '@kit.ArkUI';
 import { ReaderHostScene } from '../components/ReaderHostScene';
 import {
   applyReaderFullscreenImmersiveMode,
   getReaderWindow,
+  rememberReaderWindow,
+  applyReaderWindowState,
   scheduleReaderFullscreenImmersiveMode
 } from '../services/EhWindowImmersive';
 import { runReaderActiveBackHandler } from '../shared/EhShared';
@@ -22,6 +26,23 @@ struct ReaderPage {
   }
 
   private applyReaderEntryChrome(): void {
+    this.applyReaderEntryChromeAsync().catch(() => {});
+  }
+
+  private async applyReaderEntryChromeAsync(): Promise<void> {
+    try {
+      const hostContext = this.getUIContext().getHostContext() as common.UIAbilityContext | undefined;
+      if (hostContext !== undefined) {
+        const win = await window.getLastWindow(hostContext);
+        rememberReaderWindow(win);
+        await applyReaderWindowState(win, false, window.Orientation.UNSPECIFIED);
+        scheduleReaderFullscreenImmersiveMode(win, 16);
+        scheduleReaderFullscreenImmersiveMode(win, 80);
+        scheduleReaderFullscreenImmersiveMode(win, 240);
+        return;
+      }
+    } catch (error) {
+    }
     const win = getReaderWindow();
     if (win === undefined) {
       applyReaderFullscreenImmersiveMode();
