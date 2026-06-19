@@ -13,10 +13,13 @@ import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../s
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY } from '../shared/EhShared';
 import {
   cloneGalleryPage,
+  cloneGalleryDetail,
   createDetailFromGallery,
   createEmptyDetail,
   createEmptyPage,
+  createReaderLoadingPage,
   currentGallerySite,
+  downloadButtonText,
   downloadImageUrlForPage,
   downloadPageIndexes,
   downloadSizeText,
@@ -36,6 +39,7 @@ import { themePageBackground, themePrimaryColor, themePrimaryText, themeSecondar
 import { EhNavBar } from './NavigationComponents';
 import { ReaderPageState, ReaderScene } from './ReaderScenes';
 import { DownloadRow } from './DownloadRow';
+import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
 
 @Component
 export struct DownloadScene {
@@ -52,6 +56,12 @@ export struct DownloadScene {
   @State categoryFilter: string = 'All';
   @State statusText: string = 'Downloads: idle';
   @State isProcessing: boolean = false;
+  @State showDetail: boolean = false;
+  @State detail: GalleryDetail = createEmptyDetail();
+  @State detailStatus: string = '';
+  @State detailRequestUrl: string = '';
+  @State detailLoaded: boolean = false;
+  @State detailRenderVersion: number = 0;
   @State showReader: boolean = false;
   @State localReaderDetail: GalleryDetail = createEmptyDetail();
   @State localReaderPage: GalleryPage = createEmptyPage();
@@ -61,6 +71,7 @@ export struct DownloadScene {
   @State localReaderRenderVersion: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
+  private detailItem: DownloadInfo | null = null;
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
@@ -208,6 +219,45 @@ export struct DownloadScene {
     this.persistDownloads();
   }
 
+  private openDetail(item: DownloadInfo): void {
+    this.detailItem = item;
+    this.showDetail = true;
+    this.detail = createDetailFromGallery(item);
+    this.detailStatus = 'Loading gallery detail...';
+    this.detailRequestUrl = '';
+    this.detailLoaded = false;
+    this.detailRenderVersion++;
+    this.client.loadGalleryDetail(item.gid, item.token, 0, currentGallerySite(), EhUrl.getReferer(currentGallerySite()))
+      .then((result) => {
+        if (!result.ok || result.detail === null) {
+          this.detailStatus = 'Detail load failed: ' + result.message;
+          this.detailRenderVersion++;
+          return;
+        }
+        this.detail = cloneGalleryDetail(result.detail);
+        this.detailRequestUrl = result.url;
+        this.detailStatus = 'Gallery detail loaded';
+        this.detailLoaded = true;
+        ehDownloadStore.updateGallery(result.detail);
+        this.persistDownloads();
+        this.detailRenderVersion++;
+      }).catch((error: Error) => {
+        this.detailStatus = 'Detail load failed: ' + error.message;
+        this.detailRenderVersion++;
+      });
+  }
+
+  private closeDetail(): void {
+    this.showDetail = false;
+    this.detailStatus = '';
+  }
+
+  private readDetail(): void {
+    if (this.detailItem !== null) {
+      this.openDownloadedItem(this.detailItem);
+    }
+  }
+
   private async runDownloadQueue(): Promise<void> {
     if (this.isProcessing) {
       return;
@@ -309,7 +359,9 @@ export struct DownloadScene {
           throw new Error('Image URL missing');
         }
 
-        const cachedPath = await readerImageCache.ensureCached(context, imageUrl, pageResult.page.pageUrl, false);
+        const existingCachedPath = readerImageCache.getCachedPath(context, imageUrl);
+        const cachedPath = existingCachedPath.length > 0 ? existingCachedPath :
+          await readerImageCache.ensureCached(context, imageUrl, pageResult.page.pageUrl, false);
         const savedPath = ehDownloadFileStore.savePageImage(context, detailResult.detail, pageResult.page, i, cachedPath);
         fileSize += ehDownloadFileStore.statFileSize(savedPath);
         finished++;
@@ -343,21 +395,32 @@ export struct DownloadScene {
   }
 
   private openDownloadedItem(item: DownloadInfo): void {
+    this.openDownloadedItemAt(item, ehHistoryStore.getReadPage(item.gid));
+  }
+
+  private openDownloadedItemAt(item: DownloadInfo, requestedIndex: number): void {
+    this.openDownloadedItemAtAsync(item, requestedIndex).catch((error: Error) => {
+      this.statusText = 'Reader launch failed: ' + error.message;
+    });
+  }
+
+  private async openDownloadedItemAtAsync(item: DownloadInfo, requestedIndex: number): Promise<void> {
     const context = getAbilityContext();
     if (context === undefined) {
       this.statusText = 'Reader launch failed: Ability context is not ready';
       return;
     }
-    const images = ehDownloadFileStore.listPageImages(context, item);
-    if (images.length === 0) {
+    const total = Math.max(item.total, item.pages, item.finished);
+    const images = ehDownloadFileStore.listPageImageSlots(context, item, total);
+    if (!this.hasAnyImage(images)) {
       this.statusText = item.state === DownloadState.Finish ? 'Downloaded files are missing: ' + item.title :
         'Download is not ready: ' + item.title;
       return;
     }
 
-    const session = this.createLocalReaderSession(item, images);
+    const session = await this.createLocalReaderSession(context, item, images, requestedIndex);
     readerSessionStore.setSession(createReaderSessionState(session.detail, session.page, session.status,
-      '', '', currentGallerySite(), session.index));
+      session.detailRequestUrl, '', currentGallerySite(), session.index));
 
     if (ehSettingsStore.getValue('reader_standalone', 'On') !== 'On') {
       this.localReaderDetail = session.detail;
@@ -368,6 +431,9 @@ export struct DownloadScene {
       this.localReaderRenderVersion++;
       enterEmbeddedReaderFullscreen();
       this.showReader = true;
+      if (!this.pageHasLocalImage(this.localReaderPage)) {
+        this.loadMissingLocalReaderPage(session.index);
+      }
       return;
     }
 
@@ -380,43 +446,99 @@ export struct DownloadScene {
     });
   }
 
-  private createLocalReaderSession(item: DownloadInfo, images: string[]): LocalReaderSession {
-    const detail = createDetailFromGallery(item);
+  private async createLocalReaderSession(context: common.UIAbilityContext, item: DownloadInfo, images: string[],
+    requestedIndex: number): Promise<LocalReaderSession> {
+    let detail = createDetailFromGallery(item);
+    let detailRequestUrl = '';
+    try {
+      const result = await this.client.loadGalleryDetail(item.gid, item.token, 0, currentGallerySite(),
+        EhUrl.getReferer(currentGallerySite()));
+      if (result.ok && result.detail !== null) {
+        detail = cloneGalleryDetail(result.detail);
+        detailRequestUrl = result.url;
+        ehDownloadStore.updateGallery(result.detail);
+        this.persistDownloads();
+      }
+    } catch (error) {
+    }
+
+    const total = Math.max(detail.pages, item.total, item.pages, images.length);
     const previews: GalleryPreview[] = [];
     const pages: ReaderPageState[] = [];
-    for (let i = 0; i < images.length; i++) {
-      const pageUrl = this.localPageUrl(item.gid, i);
+    const slots = images.length >= total ? images : ehDownloadFileStore.listPageImageSlots(context, item, total);
+    for (let i = 0; i < total; i++) {
+      const preview = this.previewForIndex(detail, i);
+      const pageUrl = preview.pageUrl.length > 0 ? preview.pageUrl : this.localPageUrl(item.gid, i);
       previews.push({
         index: i,
         pageUrl: pageUrl,
-        imageUrl: '',
-        width: 0,
-        height: 0,
-        xOffset: 0,
-        yOffset: 0
+        imageUrl: preview.imageUrl,
+        width: preview.width,
+        height: preview.height,
+        xOffset: preview.xOffset,
+        yOffset: preview.yOffset
       });
-      const page: GalleryPage = {
-        pageUrl: pageUrl,
-        imageUrl: '',
-        skipHathKey: '',
-        originImageUrl: '',
-        showKey: '',
-        cachedImagePath: images[i]
-      };
-      galleryPageCache.put(pageUrl, page);
+      const path = i < slots.length ? slots[i] : '';
+      const page = path.length > 0 ? this.createLocalReaderPage(pageUrl, preview.imageUrl, path) :
+        createReaderLoadingPage(pageUrl);
+      if (pageUrl.length > 0) {
+        galleryPageCache.put(pageUrl, page);
+      }
       pages.push({ index: i, page: cloneGalleryPage(page) });
     }
-    detail.pages = images.length;
-    detail.previewPages = 1;
+    detail.pages = total;
+    detail.previewPages = Math.max(detail.previewPages, 1);
     detail.previewSet = previews;
-    const savedIndex = ehHistoryStore.getReadPage(item.gid);
-    const index = savedIndex >= 0 && savedIndex < images.length ? savedIndex : 0;
+    const index = requestedIndex >= 0 && requestedIndex < total ? requestedIndex : 0;
     return {
       detail: detail,
       page: cloneGalleryPage(pages[index].page),
       pages: pages,
       index: index,
-      status: 'Page loaded from downloads'
+      status: this.pageHasLocalImage(pages[index].page) ?
+        'Page loaded from downloads' : 'Page is not downloaded yet',
+      detailRequestUrl: detailRequestUrl
+    };
+  }
+
+  private pageHasLocalImage(page: GalleryPage): boolean {
+    return page.cachedImagePath !== undefined && page.cachedImagePath.length > 0;
+  }
+
+  private hasAnyImage(images: string[]): boolean {
+    for (let i = 0; i < images.length; i++) {
+      if (images[i].length > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private previewForIndex(detail: GalleryDetail, index: number): GalleryPreview {
+    for (let i = 0; i < detail.previewSet.length; i++) {
+      if (detail.previewSet[i].index === index) {
+        return detail.previewSet[i];
+      }
+    }
+    return {
+      index: index,
+      pageUrl: '',
+      imageUrl: '',
+      width: 0,
+      height: 0,
+      xOffset: 0,
+      yOffset: 0
+    };
+  }
+
+  private createLocalReaderPage(pageUrl: string, imageUrl: string, path: string): GalleryPage {
+    return {
+      pageUrl: pageUrl,
+      imageUrl: imageUrl,
+      skipHathKey: '',
+      originImageUrl: '',
+      showKey: '',
+      cachedImagePath: path
     };
   }
 
@@ -431,11 +553,156 @@ export struct DownloadScene {
     }
     this.localReaderIndex = index;
     this.localReaderPage = cloneGalleryPage(this.localReaderPages[index].page);
-    this.localReaderStatus = 'Page loaded from downloads';
+    this.localReaderStatus = this.pageHasLocalImage(this.localReaderPage) ? 'Page loaded from downloads' :
+      'Page is not downloaded yet';
     saveGalleryReadPosition(this.localReaderDetail.gid, index);
     this.localReaderRenderVersion++;
     readerSessionStore.updateSession(createReaderSessionState(this.localReaderDetail, this.localReaderPage,
       this.localReaderStatus, '', '', GallerySite.E, this.localReaderIndex));
+    if (this.pageHasLocalImage(this.localReaderPage)) {
+      return;
+    }
+    this.loadMissingLocalReaderPage(index);
+  }
+
+  private loadMissingLocalReaderPage(index: number): void {
+    this.loadMissingLocalReaderPageAsync(index).catch((error: Error) => {
+      if (this.localReaderIndex === index) {
+        this.localReaderStatus = 'Page load failed: ' + error.message;
+        this.localReaderRenderVersion++;
+      }
+    });
+  }
+
+  private async loadMissingLocalReaderPageAsync(index: number): Promise<void> {
+    const context = getAbilityContext();
+    if (context === undefined || index < 0 || index >= this.localReaderPages.length) {
+      return;
+    }
+    const downloadedPath = ehDownloadFileStore.findPageImage(context, this.localReaderDetail, index);
+    if (downloadedPath.length > 0) {
+      const existing = this.localReaderPages[index].page;
+      this.setLocalReaderPage(index, this.createLocalReaderPage(existing.pageUrl, existing.imageUrl, downloadedPath),
+        'Page loaded from downloads');
+      return;
+    }
+
+    const preview = await this.resolveLocalReaderPreview(index);
+    if (preview.pageUrl.length === 0) {
+      throw new Error('Page URL is unavailable');
+    }
+
+    if (this.localReaderIndex === index) {
+      this.localReaderStatus = 'Loading page ' + (index + 1).toString() + '...';
+      this.localReaderRenderVersion++;
+    }
+
+    const result = await this.client.loadGalleryPage(preview.pageUrl, currentGallerySite(),
+      readerPageReferer('', this.localReaderDetail.previewSet, index, currentGallerySite()));
+    if (!result.ok || result.page === null) {
+      throw new Error(result.message);
+    }
+
+    const imageUrl = downloadImageUrlForPage(result.page);
+    if (imageUrl.length === 0) {
+      throw new Error('Image URL missing');
+    }
+
+    const cachedPath = readerImageCache.getCachedPath(context, imageUrl);
+    const readyPath = cachedPath.length > 0 ? cachedPath :
+      await readerImageCache.ensureCached(context, imageUrl, result.page.pageUrl, false);
+    const savedPath = ehDownloadFileStore.savePageImage(context, this.localReaderDetail, result.page, index, readyPath);
+    this.refreshDownloadProgressAfterRead(context, this.localReaderDetail);
+    const page = this.createLocalReaderPage(result.page.pageUrl.length > 0 ? result.page.pageUrl : preview.pageUrl,
+      result.page.imageUrl, savedPath);
+    galleryPageCache.put(page.pageUrl, page);
+    this.setLocalReaderPage(index, page, 'Page loaded from downloads');
+  }
+
+  private setLocalReaderPage(index: number, page: GalleryPage, status: string): void {
+    const next: ReaderPageState[] = [];
+    for (let i = 0; i < this.localReaderPages.length; i++) {
+      if (this.localReaderPages[i].index === index) {
+        next.push({ index: index, page: cloneGalleryPage(page) });
+      } else {
+        next.push({ index: this.localReaderPages[i].index, page: cloneGalleryPage(this.localReaderPages[i].page) });
+      }
+    }
+    this.localReaderPages = next;
+    if (this.localReaderIndex === index) {
+      this.localReaderPage = cloneGalleryPage(page);
+      this.localReaderStatus = status;
+      this.localReaderRenderVersion++;
+      readerSessionStore.updateSession(createReaderSessionState(this.localReaderDetail, this.localReaderPage,
+        this.localReaderStatus, '', '', GallerySite.E, this.localReaderIndex));
+    }
+  }
+
+  private refreshDownloadProgressAfterRead(context: common.UIAbilityContext, detail: GalleryDetail): void {
+    const total = Math.max(detail.pages, 0);
+    const images = ehDownloadFileStore.listPageImageSlots(context, detail, total);
+    let finished = 0;
+    for (let i = 0; i < images.length; i++) {
+      if (images[i].length > 0) {
+        finished++;
+      }
+    }
+    ehDownloadStore.setProgress(detail.gid, finished, total, finished);
+    ehDownloadStore.setStorage(detail.gid, ehDownloadFileStore.galleryDirectory(context, detail),
+      ehDownloadFileStore.directorySize(context, detail));
+    this.persistDownloads();
+  }
+
+  private async resolveLocalReaderPreview(index: number): Promise<GalleryPreview> {
+    let preview = this.previewForIndex(this.localReaderDetail, index);
+    if (preview.pageUrl.length > 0 || this.localReaderDetail.gid <= 0 || this.localReaderDetail.token.length === 0) {
+      return preview;
+    }
+
+    const pageSize = Math.max(1, this.localReaderDetail.previewSet.length);
+    const previewPageIndex = Math.floor(index / pageSize);
+    const result = await this.client.loadGalleryDetail(this.localReaderDetail.gid, this.localReaderDetail.token,
+      previewPageIndex, currentGallerySite(), EhUrl.getReferer(currentGallerySite()));
+    if (result.ok && result.detail !== null) {
+      this.mergeLocalReaderPreviews(result.detail);
+      preview = this.previewForIndex(this.localReaderDetail, index);
+      if (preview.pageUrl.length > 0) {
+        const current = this.localReaderPages[index].page;
+        const cachedPath = current.cachedImagePath === undefined ? '' : current.cachedImagePath;
+        const page = this.pageHasLocalImage(current) ?
+          this.createLocalReaderPage(preview.pageUrl, preview.imageUrl, cachedPath) :
+          createReaderLoadingPage(preview.pageUrl);
+        this.setLocalReaderPage(index, page, this.pageHasLocalImage(page) ? 'Page loaded from downloads' :
+          'Page is not downloaded yet');
+      }
+    }
+    return preview;
+  }
+
+  private mergeLocalReaderPreviews(loaded: GalleryDetail): void {
+    const merged: GalleryPreview[] = [];
+    for (let i = 0; i < this.localReaderDetail.previewSet.length; i++) {
+      merged.push(this.localReaderDetail.previewSet[i]);
+    }
+    for (let i = 0; i < loaded.previewSet.length; i++) {
+      let replaced = false;
+      for (let j = 0; j < merged.length; j++) {
+        if (merged[j].index === loaded.previewSet[i].index) {
+          merged[j] = loaded.previewSet[i];
+          replaced = true;
+          break;
+        }
+      }
+      if (!replaced) {
+        merged.push(loaded.previewSet[i]);
+      }
+    }
+    merged.sort((left: GalleryPreview, right: GalleryPreview) => left.index - right.index);
+    const nextDetail = cloneGalleryDetail(this.localReaderDetail);
+    nextDetail.previewSet = merged;
+    nextDetail.previewPages = Math.max(nextDetail.previewPages, loaded.previewPages);
+    nextDetail.pages = Math.max(nextDetail.pages, loaded.pages);
+    this.localReaderDetail = nextDetail;
   }
 
   private localPageUrl(gid: number, index: number): string {
@@ -492,6 +759,41 @@ export struct DownloadScene {
         onRetry: () => {
           this.jumpLocalReader(this.localReaderIndex);
         }
+      })
+    } else if (this.showDetail) {
+      GalleryDetailOverlayScene({
+        renderVersion: this.detailRenderVersion,
+        showComments: false,
+        detail: this.detail,
+        isDetailLoaded: this.detailLoaded,
+        isFavorited: this.detail.isFavorited,
+        statusText: this.detailStatus,
+        requestUrl: this.detailRequestUrl,
+        downloadText: downloadButtonText(this.detail.gid),
+        onBack: () => {
+          this.closeDetail();
+        },
+        onDownload: () => {
+          if (this.detailItem !== null) {
+            this.cycleItemState(this.detailItem);
+          }
+        },
+        onRead: () => {
+          this.readDetail();
+        },
+        onSelectPreview: (preview: GalleryPreview) => {
+          if (this.detailItem !== null) {
+            this.openDownloadedItemAt(this.detailItem, preview.index);
+          }
+        },
+        onComments: () => {},
+        onFavorite: () => {},
+        onShare: () => {},
+        onRate: (_rating: number) => {},
+        onTorrent: () => {},
+        onArchive: () => {},
+        onLoadMorePreviews: () => {},
+        onTagSearch: (_namespace: string, _tag: string) => {}
       })
     } else {
       Column() {
@@ -583,6 +885,9 @@ export struct DownloadScene {
             ListItem() {
               DownloadRow({
                 item: item,
+                onThumb: () => {
+                  this.openDetail(item);
+                },
                 onOpen: () => {
                   this.openDownloadedItem(item);
                 },
@@ -667,4 +972,5 @@ interface LocalReaderSession {
   pages: ReaderPageState[];
   index: number;
   status: string;
+  detailRequestUrl: string;
 }

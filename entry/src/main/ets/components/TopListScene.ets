@@ -319,7 +319,7 @@ export struct TopListScene {
         this.readerStatus = 'Page loaded from local cache';
         this.renderVersion++;
       }
-    });
+    }, this.detail, index);
   }
 
   private async preloadReaderPages(index: number): Promise<void> {

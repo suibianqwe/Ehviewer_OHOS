@@ -175,7 +175,7 @@ export struct ReaderHostScene {
         this.renderVersion++;
         this.persistSession();
       }
-    });
+    }, this.detail, index);
   }
 
   private async preloadReaderPages(index: number): Promise<void> {

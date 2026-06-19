@@ -63,8 +63,8 @@ export class EhDownloadFileStore {
     return destination;
   }
 
-  findPageImage(context: common.UIAbilityContext, detail: GalleryDetail, index: number): string {
-    const directory = this.galleryDirectory(context, detail);
+  findPageImage(context: common.UIAbilityContext, gallery: GalleryInfo, index: number): string {
+    const directory = this.galleryDirectory(context, gallery);
     for (let i = 0; i < SUPPORTED_IMAGE_EXTENSIONS.length; i++) {
       const path = directory + '/' + pageFileName(index, SUPPORTED_IMAGE_EXTENSIONS[i]);
       if (exists(path)) {
@@ -86,6 +86,15 @@ export class EhDownloadFileStore {
         }
       }
     } catch (error) {
+    }
+    return images;
+  }
+
+  listPageImageSlots(context: common.UIAbilityContext, gallery: GalleryInfo, total: number): string[] {
+    const count = Math.max(0, total);
+    const images: string[] = [];
+    for (let i = 0; i < count; i++) {
+      images.push(this.findPageImage(context, gallery, i));
     }
     return images;
   }

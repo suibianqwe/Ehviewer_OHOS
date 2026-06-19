@@ -1923,9 +1923,22 @@ export function readerDisplayImageUrl(page: GalleryPage, preferOriginal: boolean
   return page.imageUrl;
 }
 
-export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: GalleryPage) => void): void {
+export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: GalleryPage) => void,
+  gallery?: GalleryInfo, index?: number): void {
   const context = getAbilityContext();
-  if (context === undefined || page.imageUrl.length === 0) {
+  if (context === undefined) {
+    return;
+  }
+
+  if (gallery !== undefined && index !== undefined) {
+    const downloadedPath = ehDownloadFileStore.findPageImage(context, gallery, index);
+    if (downloadedPath.length > 0) {
+      onReady(cloneGalleryPageWithCache(page, downloadedPath));
+      return;
+    }
+  }
+
+  if (page.imageUrl.length === 0) {
     return;
   }
 

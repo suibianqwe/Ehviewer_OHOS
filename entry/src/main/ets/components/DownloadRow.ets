@@ -19,6 +19,7 @@ import { CategoryBadge, GalleryThumb } from './GalleryScenes';
 export struct DownloadRow {
   item: DownloadInfo = createEmptyDownloadInfo();
   onOpen: () => void = () => {};
+  onThumb: () => void = () => {};
   onState: () => void = () => {};
   onRemove: () => void = () => {};
 
@@ -63,7 +64,7 @@ export struct DownloadRow {
         heightValue: galleryThumbHeight()
       })
         .onClick(() => {
-          this.onOpen();
+          this.onThumb();
         })
 
       Column() {
