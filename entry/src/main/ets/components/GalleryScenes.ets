@@ -72,6 +72,7 @@ interface SearchResultDraft {
   minRating: number;
   pageFrom: number;
   pageTo: number;
+  submitted: boolean;
 }
 
 const galleryListSceneCache: Map<string, GalleryListSceneCache> = new Map();
@@ -85,7 +86,8 @@ function createEmptySearchResultDraft(): SearchResultDraft {
     advanceSearch: DEFAULT_ADVANCE_SEARCH,
     minRating: -1,
     pageFrom: -1,
-    pageTo: -1
+    pageTo: -1,
+    submitted: false
   };
 }
 
@@ -520,7 +522,8 @@ export struct GalleryListScene {
       advanceSearch: this.advanceSearch,
       minRating: this.minRating,
       pageFrom: -1,
-      pageTo: -1
+      pageTo: -1,
+      submitted: false
     };
     this.showSearchResultScene = true;
   }
@@ -551,7 +554,8 @@ export struct GalleryListScene {
       advanceSearch: DEFAULT_ADVANCE_SEARCH,
       minRating: -1,
       pageFrom: -1,
-      pageTo: -1
+      pageTo: -1,
+      submitted: true
     };
     this.showSearchResultScene = true;
     this.fabExpanded = false;
@@ -1125,7 +1129,7 @@ export struct GalleryListScene {
           initialMinRating: this.searchResultDraft.minRating,
           initialPageFrom: this.searchResultDraft.pageFrom,
           initialPageTo: this.searchResultDraft.pageTo,
-          initialSearchSubmitted: true,
+          initialSearchSubmitted: this.searchResultDraft.submitted,
           isSearchResultScene: true,
           onBack: () => {
             this.closeSearchResultScene();
