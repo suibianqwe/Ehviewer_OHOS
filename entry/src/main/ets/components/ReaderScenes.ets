@@ -319,6 +319,7 @@ export struct CommentsScene {
         }
         .divider({ strokeWidth: 1, color: '#F0F0F0' })
         .width('100%')
+        .height('100%')
         .layoutWeight(1)
       }
     }

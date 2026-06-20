@@ -128,6 +128,7 @@ export struct EhDrawer {
         }, (item: DrawerItem) => item.route + ':' + this.activeRoute.toString())
       }
       .width('100%')
+      .height('100%')
       .layoutWeight(1)
       .divider({ strokeWidth: 0.5, color: themeDividerColor(), startMargin: 56, endMargin: 0 })
 

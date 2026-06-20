@@ -190,6 +190,7 @@ export struct GalleryDetailScene {
           }
         }
         .width('100%')
+        .height('100%')
         .layoutWeight(1)
         .onAppear(() => {
           if (this.initialDetailScrollOffset > 0) {

@@ -22,7 +22,6 @@ import {
   downloadButtonText,
   downloadImageUrlForPage,
   downloadPageIndexes,
-  downloadSizeText,
   downloadThreadLimit,
   filterDownloadItems,
   getAbilityContext,
@@ -912,6 +911,7 @@ export struct DownloadScene {
             item.total.toString() + '-' + item.speed.toString())
         }
         .width('100%')
+        .height('100%')
         .layoutWeight(1)
         .padding({ left: 8, right: 8, top: 8, bottom: 8 })
       }

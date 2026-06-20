@@ -901,6 +901,7 @@ export struct SettingsHomePanel {
         }, (item: SettingsHeaderItem) => item.panel)
       }
       .width('100%')
+      .height('100%')
       .layoutWeight(1)
       .padding({ left: 12, right: 12, top: 0, bottom: 0 })
     }
@@ -1114,6 +1115,7 @@ export struct SettingsDetailPanel {
 
       }
       .width('100%')
+      .height('100%')
       .layoutWeight(1)
       .padding({ left: 12, right: 12, top: 0, bottom: 0 })
     }
@@ -1175,6 +1177,7 @@ export struct SettingsOptionPanel {
         }, (option: string) => option)
       }
       .width('100%')
+      .height('100%')
       .layoutWeight(1)
       .padding({ left: 12, right: 12, top: 0, bottom: 0 })
     }
