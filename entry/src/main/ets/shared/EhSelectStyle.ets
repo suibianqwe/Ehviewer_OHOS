@@ -76,6 +76,7 @@ export function themedSelectOptionBackground(): ResourceColor {
   return themedSelectColors().optionBackground;
 }
 
+
 export function themedSelectOptionText(): ResourceColor {
   return themedSelectColors().optionText;
 }

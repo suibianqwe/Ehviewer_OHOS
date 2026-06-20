@@ -935,7 +935,7 @@ export struct HistoryScene {
             }
             .scrollable(ScrollDirection.Vertical)
             .scrollBar(BarState.Auto)
-            .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false, effectEdge: EffectEdge.START })
+            .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false, effectEdge: EffectEdge.START | EffectEdge.END })
             .width('100%')
             .height('100%')
             .onAppear(() => {

@@ -1907,6 +1907,12 @@ export struct GalleryListContent {
       Column() {
         Refresh({ refreshing: $$this.refreshing }) {
           List({ space: 0, scroller: this.listScroller }) {
+            ListItem() {
+              Column()
+                .height(this.galleryCardGap())
+                .width('100%')
+                .backgroundColor(Color.Transparent)
+            }
             if (this.shouldShowSearchSuggestions()) {
               ListItem() {
                 this.searchSuggestionPlaceholder()
@@ -1973,7 +1979,6 @@ export struct GalleryListContent {
                   .justifyContent(FlexAlign.Center)
                 }
               }
-
             }
           }
           .scrollBar(BarState.Auto)

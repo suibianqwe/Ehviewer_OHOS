@@ -958,7 +958,7 @@ export struct TopListBoard {
   }
 
   private contentTopPadding(): number {
-    return this.tabsVisualTop() + this.TABS_BAR_HEIGHT + 8;
+    return this.tabsVisualTop() + this.TABS_BAR_HEIGHT + 5;
   }
 
   @Builder
@@ -998,7 +998,7 @@ export struct TopListBoard {
       .padding({ left: 12, right: 12, top: this.contentTopPadding(), bottom: 0 })
       .backgroundColor(themePageBackground())
       .scrollBar(BarState.Auto)
-      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false, effectEdge: EffectEdge.START })
+      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false, effectEdge: EffectEdge.START | EffectEdge.END })
       .onAppear(() => {
         if (this.initialScrollOffset > 0) {
           this.boardScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
