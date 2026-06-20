@@ -1392,12 +1392,7 @@ export struct GalleryListContent {
   @State searchSuggestionItems: SearchSuggestionItem[] = [];
   @State searchSuggestionRevision: number = 0;
   onRefreshPull: (done: () => void) => void = (done: () => void) => { done(); };
-  // 下拉刷新自定义 builder 状态
-  @State refreshScaleNum: number = 0;
-  @State refreshShowLogo: boolean = true;
-  @State refreshMsg: string = '';
   private readonly REFRESH_OFFSET: number = 42;
-  private readonly REFRESH_HEADER_HEIGHT: number = 52;
   @State viewportHeight: number = 0;
   private listScroller: Scroller = new Scroller();
   private loadMorePending: boolean = false;
@@ -1559,12 +1554,6 @@ export struct GalleryListContent {
     this.onScrollUpdate(yOffset);
   }
 
-  private resetRefreshVisual(): void {
-    this.refreshShowLogo = true;
-    this.refreshMsg = '';
-    this.refreshScaleNum = 0;
-  }
-
   private galleryCardWidth(): number {
     const availableWidth = Math.max(0, this.contentWidth - this.galleryContentPadding() * 2);
     if (availableWidth <= 0 || Number.isNaN(availableWidth)) {
@@ -1614,34 +1603,6 @@ export struct GalleryListContent {
     });
   }
 
-
-  @Builder
-  private customRefreshComponent() {
-    Stack({ alignContent: Alignment.Bottom }) {
-      Column({ space: 2 }) {
-        Image($r('app.media.app_icon'))
-          .width(26)
-          .height(26)
-          .scale({ x: this.refreshScaleNum, y: this.refreshScaleNum })
-          .visibility(this.refreshShowLogo ? Visibility.Visible : Visibility.None)
-        LoadingProgress()
-          .width(26)
-          .height(26)
-          .color(themePrimaryColor())
-          .visibility(this.refreshShowLogo ? Visibility.None : Visibility.Visible)
-        if (this.refreshMsg.length > 0) {
-          Text(this.refreshMsg)
-            .fontSize(10)
-            .fontColor($r('app.color.secondary_text'))
-        }
-      }
-      .alignItems(HorizontalAlign.Center)
-      .margin({ bottom: 4 })
-    }
-    .width('100%')
-    .height(this.REFRESH_HEADER_HEIGHT)
-    .clip(true)
-  }
 
   @Builder
   private searchResultNavBar() {
@@ -1789,18 +1750,8 @@ export struct GalleryListContent {
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
-        Refresh({ refreshing: $$this.refreshing, builder: this.customRefreshComponent() }) {
+        Refresh({ refreshing: $$this.refreshing }) {
           List({ space: 0, scroller: this.listScroller }) {
-            ListItem() {
-              Column() {
-                Blank()
-                  .width('100%')
-                  .height(this.totalBarHeight())
-              }
-                .width('100%')
-                .margin({ bottom: this.galleryCardGap() })
-            }
-
             if (this.shouldShowSearchSuggestions()) {
               ListItem() {
                 this.searchSuggestionPlaceholder()
@@ -1907,41 +1858,10 @@ export struct GalleryListContent {
         }
         .refreshOffset(this.REFRESH_OFFSET)
         .pullToRefresh(true)
-        .onOffsetChange((value: number) => {
-          const offset = Math.max(0, value);
-          if (this.refreshing) {
-            return;
-          }
-          if (offset <= 0) {
-            this.resetRefreshVisual();
-          } else if (offset < this.REFRESH_OFFSET) {
-            this.refreshShowLogo = true;
-            this.refreshMsg = uiText('Pull down to refresh');
-            this.refreshScaleNum = offset / this.REFRESH_OFFSET;
-          } else {
-            this.refreshShowLogo = true;
-            this.refreshMsg = uiText('Release to refresh');
-            this.refreshScaleNum = Math.max(0.5, this.REFRESH_OFFSET / offset);
-          }
-        })
-        .onStateChange((refreshStatus: RefreshStatus) => {
-          if (refreshStatus === RefreshStatus.Refresh) {
-            this.refreshShowLogo = false;
-            this.refreshMsg = uiText('Refreshing...');
-            this.refreshScaleNum = 1;
-          } else if (!this.refreshing && (refreshStatus === RefreshStatus.Inactive || refreshStatus === RefreshStatus.Done)) {
-            this.resetRefreshVisual();
-          }
-        })
+        .pullUpToCancelRefresh(true)
         .onRefreshing(() => {
-          this.refreshShowLogo = false;
-          this.refreshMsg = uiText('Refreshing...');
-          this.refreshScaleNum = 1;
           this.onRefreshPull(() => {
             this.refreshing = false;
-            setTimeout(() => {
-              this.resetRefreshVisual();
-            }, 120);
           });
         })
         .width('100%')
