@@ -9,9 +9,9 @@ import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
 import { APP_THEME_COLOR, LANGUAGE_REVISION_KEY, nextFloatingToolbarOffset } from '../shared/EhShared';
-import { themeDangerText, themePageBackground, themeSurface } from '../shared/EhTheme';
-import { STATUS_BAR_HEIGHT_KEY, uiText, setActiveBackHandler, createDetailFromGallery, createEmptyDetail, createEmptyPage, cloneGalleryInfos, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, currentGallerySite, readerPageReferer, cacheReaderImageForPage, readerPreloadCount } from '../shared/EhShared';
-import { GalleryDetailOverlayScene, GalleryListRow, GalleryListScene, PlaceholderScene, ReaderPageState, ReaderScene } from './GalleryScenes';
+import { themeOnPrimaryText, themeOnPrimaryDangerBackground, themePageBackground } from '../shared/EhTheme';
+import { STATUS_BAR_HEIGHT_KEY, uiText, setActiveBackHandler, createDetailFromGallery, createEmptyDetail, createEmptyPage, cloneGalleryInfos, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, currentGallerySite, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, galleryListMode, galleryThumbWidth } from '../shared/EhShared';
+import { GalleryDetailOverlayScene, GalleryListRow, GalleryListScene, GalleryThumbCard, PlaceholderScene, ReaderPageState, ReaderScene } from './GalleryScenes';
 import { FloatingToolbarHost } from './NavigationComponents';
 
 function normalizeSceneScrollOffset(offset: number): number {
@@ -62,6 +62,7 @@ export struct HistoryScene {
   @State historyRefreshMsg: string = '';
   @State showTagSearch: boolean = false;
   @State tagSearchKeyword: string = '';
+  @State selectedHistoryGids: string = '';
   private readonly HISTORY_REFRESH_OFFSET: number = 42;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   @State historyContentWidth: number = 0;
@@ -141,18 +142,66 @@ export struct HistoryScene {
   }
 
 
-  private clearHistory(): void {
-    ehHistoryStore.clear();
-    this.histories = [];
-    this.statusText = 'History cleared';
-    this.renderVersion++;
-    this.persistHistory();
+  private selectedKey(gid: number): string {
+    return '|' + gid.toString() + '|';
   }
 
-  private removeHistory(gallery: GalleryInfo): void {
-    ehHistoryStore.removeGallery(gallery.gid);
+  private historySelectionCount(): number {
+    if (this.selectedHistoryGids.length === 0) {
+      return 0;
+    }
+    const parts = this.selectedHistoryGids.split('|');
+    let count = 0;
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i].length > 0) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  private isHistorySelected(gid: number): boolean {
+    return this.selectedHistoryGids.indexOf(this.selectedKey(gid)) >= 0;
+  }
+
+  private toggleHistorySelection(gallery: GalleryInfo): void {
+    const key = this.selectedKey(gallery.gid);
+    if (this.selectedHistoryGids.indexOf(key) >= 0) {
+      this.selectedHistoryGids = this.selectedHistoryGids.replace(key, '|');
+      if (this.selectedHistoryGids === '|') {
+        this.selectedHistoryGids = '';
+      }
+      return;
+    }
+    if (this.selectedHistoryGids.length === 0) {
+      this.selectedHistoryGids = key;
+    } else {
+      this.selectedHistoryGids += gallery.gid.toString() + '|';
+    }
+  }
+
+  private handleHistoryCardTap(gallery: GalleryInfo): void {
+    if (this.historySelectionCount() > 0) {
+      this.toggleHistorySelection(gallery);
+      return;
+    }
+    this.loadDetail(gallery);
+  }
+
+  private deleteSelectedHistory(): void {
+    const count = this.historySelectionCount();
+    if (count <= 0) {
+      this.statusText = 'Long press cards to select history items';
+      return;
+    }
+    for (let i = 0; i < this.histories.length; i++) {
+      if (this.isHistorySelected(this.histories[i].gid)) {
+        ehHistoryStore.removeGallery(this.histories[i].gid);
+      }
+    }
     this.histories = cloneGalleryInfos(ehHistoryStore.getItems());
-    this.statusText = 'Removed from history: ' + gallery.title;
+    this.selectedHistoryGids = '';
+    this.statusText = 'Removed ' + count.toString() + ' history items';
     this.renderVersion++;
     this.persistHistory();
   }
@@ -352,6 +401,16 @@ export struct HistoryScene {
   }
 
   private historyCardPreferredWidth(): number {
+    if (galleryListMode() === 'Thumb') {
+      const value = galleryThumbWidth();
+      if (value <= 70) {
+        return 116;
+      }
+      if (value >= 104) {
+        return 164;
+      }
+      return 136;
+    }
     return 340;
   }
 
@@ -382,7 +441,11 @@ export struct HistoryScene {
       return this.historyCardPreferredWidth();
     }
     const columns = this.historyColumnCount();
-    return Math.max(300, Math.floor((availableWidth - this.historyCardGap() * (columns - 1)) / columns));
+    return Math.max(this.historyCardMinWidth(), Math.floor((availableWidth - this.historyCardGap() * (columns - 1)) / columns));
+  }
+
+  private historyCardMinWidth(): number {
+    return galleryListMode() === 'Thumb' ? 104 : 300;
   }
 
   private updateHistoryContentWidth(width: number): void {
@@ -905,8 +968,8 @@ export struct HistoryScene {
         kind: 'title',
         title: 'History',
         requestUrl: '',
-        showClear: true,
-        canClear: this.histories.length > 0,
+        showClear: false,
+        canClear: false,
         toolbarOffsetY: this.toolbarOffsetY,
         toolbarHeight: 56,
         onMenu: this.onMenu,
@@ -916,10 +979,9 @@ export struct HistoryScene {
           this.historyRefreshing = true;
           this.loadHistory();
         },
-        onClear: () => {
-          this.clearHistory();
-        }
+        onClear: () => {}
       }) {
+        Stack({ alignContent: Alignment.BottomEnd }) {
         Column() {
           Refresh({ refreshing: $$this.historyRefreshing, builder: this.historyRefreshComponent() }) {
             Scroll(this.historyScroller) {
@@ -934,29 +996,29 @@ export struct HistoryScene {
                   ForEach(this.buildHistoryRows(), (row: GalleryInfo[]) => {
                     Row() {
                       ForEach(row, (gallery: GalleryInfo, colIndex: number) => {
-                        Column() {
-                          GalleryListRow({ gallery: gallery })
+                        if (galleryListMode() === 'Thumb') {
+                          GalleryThumbCard({ gallery: gallery, selected: this.isHistorySelected(gallery.gid) })
+                            .width(this.historyCardWidth())
+                            .margin({ right: colIndex < row.length - 1 ? this.historyCardGap() : 0 })
+                            .animation({ duration: 220, curve: Curve.EaseOut })
                             .onClick(() => {
-                              this.loadDetail(gallery);
+                              this.handleHistoryCardTap(gallery);
                             })
-                          Row() {
-                            Text(uiText('Remove'))
-                              .fontSize(12)
-                              .fontColor(themeDangerText())
-                              .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-                              .onClick(() => {
-                                this.removeHistory(gallery);
-                              })
-                            Blank()
-                          }
-                          .width('100%')
-                          .padding({ right: 8, bottom: 6 })
-                          .backgroundColor(themeSurface())
+                            .gesture(LongPressGesture({ repeat: false }).onAction(() => {
+                              this.toggleHistorySelection(gallery);
+                            }))
+                        } else {
+                          GalleryListRow({ gallery: gallery, selected: this.isHistorySelected(gallery.gid) })
+                            .width(this.historyCardWidth())
+                            .margin({ right: colIndex < row.length - 1 ? this.historyCardGap() : 0 })
+                            .animation({ duration: 220, curve: Curve.EaseOut })
+                            .onClick(() => {
+                              this.handleHistoryCardTap(gallery);
+                            })
+                            .gesture(LongPressGesture({ repeat: false }).onAction(() => {
+                              this.toggleHistorySelection(gallery);
+                            }))
                         }
-                        .width(this.historyCardWidth())
-                        .borderRadius(6)
-                        .margin({ right: colIndex < row.length - 1 ? this.historyCardGap() : 0 })
-                        .animation({ duration: 220, curve: Curve.EaseOut })
                       }, (gallery: GalleryInfo) => gallery.gid.toString())
                     }
                     .width('100%')
@@ -975,7 +1037,7 @@ export struct HistoryScene {
                 left: this.historyContentHorizontalPadding(),
                 right: this.historyContentHorizontalPadding(),
                 top: this.historyContentTopPadding(),
-                bottom: 0
+                bottom: 72
               })
               .onAreaChange((_oldArea: Area, newArea: Area) => {
                 this.updateHistoryContentWidth(newArea.width as number);
@@ -1032,6 +1094,21 @@ export struct HistoryScene {
         .width('100%')
         .height('100%')
         .backgroundColor(themePageBackground())
+        if (this.historySelectionCount() > 0) {
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.trash'))
+              .fontSize(24)
+              .fontColor([themeOnPrimaryText()])
+          }
+          .width(56)
+          .height(56)
+          .backgroundColor(themeOnPrimaryDangerBackground())
+          .margin({ right: 18, bottom: 18 })
+          .onClick(() => {
+            this.deleteSelectedHistory();
+          })
+        }
+        }
       }
     }
   }

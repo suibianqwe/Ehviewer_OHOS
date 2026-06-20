@@ -17,6 +17,8 @@ import {
   themePlaceholderColor,
   themePrimaryText,
   themeSecondaryText,
+  themeSelectedBackground,
+  themeSelectedIndicatorColor,
   themeSurface,
   themeSurfaceVariant,
   themeTertiaryText
@@ -25,6 +27,7 @@ import {
 @Component
 export struct GalleryListRow {
   gallery: GalleryInfo = createEmptyGallery();
+  selected: boolean = false;
 
   private cardHeight(): number {
     return galleryThumbHeight();
@@ -210,8 +213,9 @@ export struct GalleryListRow {
     }
     .width('100%')
     .height(this.cardHeight())
-    .backgroundColor(themeSurface())
+    .backgroundColor(this.selected ? themeSelectedBackground() : themeSurface())
     .borderRadius(6)
+    .border({ width: this.selected ? 2 : 0, color: themeSelectedIndicatorColor() })
     .clip(true)
   }
 }
@@ -335,48 +339,59 @@ export struct GalleryThumb {
 @Component
 export struct GalleryThumbCard {
   gallery: GalleryInfo = createEmptyGallery();
+  selected: boolean = false;
 
   build() {
-    Column() {
-      GalleryThumb({
-        url: this.gallery.thumb === undefined ? '' : this.gallery.thumb,
-        widthValue: 0,
-        heightValue: 0
-      })
-        .width('100%')
-        .aspectRatio(0.75)
-
+    Stack({ alignContent: Alignment.TopEnd }) {
       Column() {
-        Column() {
-          Text(galleryDisplayTitle(this.gallery))
-            .fontSize(12)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(themePrimaryText())
-            .maxLines(2)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .width('100%')
-        }
-        .width('100%')
-        .height(32)
-        .clip(true)
-        .justifyContent(FlexAlign.Start)
-        .alignItems(HorizontalAlign.Start)
+        GalleryThumb({
+          url: this.gallery.thumb === undefined ? '' : this.gallery.thumb,
+          widthValue: 0,
+          heightValue: 0
+        })
+          .width('100%')
+          .aspectRatio(0.75)
 
-        Row() {
-          CategoryBadge({ category: this.gallery.category })
-          Blank()
-          Text(this.gallery.pages.toString() + 'p')
-            .fontSize(11)
-            .fontColor(themeTertiaryText())
+        Column() {
+          Column() {
+            Text(galleryDisplayTitle(this.gallery))
+              .fontSize(12)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(themePrimaryText())
+              .maxLines(2)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .width('100%')
+          }
+          .width('100%')
+          .height(32)
+          .clip(true)
+          .justifyContent(FlexAlign.Start)
+          .alignItems(HorizontalAlign.Start)
+
+          Row() {
+            CategoryBadge({ category: this.gallery.category })
+            Blank()
+            Text(this.gallery.pages.toString() + 'p')
+              .fontSize(11)
+              .fontColor(themeTertiaryText())
+          }
+          .width('100%')
+          .margin({ top: 4 })
         }
-        .width('100%')
-        .margin({ top: 4 })
+        .padding({ left: 6, right: 6, top: 6, bottom: 6 })
+        .alignItems(HorizontalAlign.Start)
       }
-      .padding({ left: 6, right: 6, top: 6, bottom: 6 })
-      .alignItems(HorizontalAlign.Start)
+
+      if (this.selected) {
+        SymbolGlyph($r('sys.symbol.checkmark_circle_fill'))
+          .fontSize(24)
+          .fontColor([themeSelectedIndicatorColor()])
+          .margin({ top: 6, right: 6 })
+      }
     }
-    .backgroundColor(themeSurface())
+    .backgroundColor(this.selected ? themeSelectedBackground() : themeSurface())
     .borderRadius(6)
+    .border({ width: this.selected ? 2 : 0, color: themeSelectedIndicatorColor() })
     .clip(true)
   }
 }

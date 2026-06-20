@@ -13,6 +13,7 @@ import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../s
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, setActiveBackHandler } from '../shared/EhShared';
 import {
   cloneGalleryPage,
+  createEmptyDownloadInfo,
   cloneGalleryDetail,
   createDetailFromGallery,
   createEmptyDetail,
@@ -22,8 +23,14 @@ import {
   downloadButtonText,
   downloadImageUrlForPage,
   downloadPageIndexes,
+  downloadProgressText,
+  downloadSizeText,
+  downloadStateColor,
+  downloadStateLabel,
   downloadThreadLimit,
   filterDownloadItems,
+  galleryListMode,
+  galleryThumbWidth,
   getAbilityContext,
   nextDownloadCategoryFilter,
   nextDownloadSortMode,
@@ -37,16 +44,18 @@ import {
 import {
   themeControlMutedBackground,
   themeControlNeutralBackground,
+  themeDividerColor,
+  themeOnPrimaryDangerBackground,
   themeOnPrimaryText,
   themePageBackground,
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
-  themeSurface
+  themeSurface,
+  themeTertiaryText
 } from '../shared/EhTheme';
 import { EhNavBar } from './NavigationComponents';
-import { GalleryListScene, ReaderPageState, ReaderScene } from './GalleryScenes';
-import { DownloadRow } from './DownloadRow';
+import { GalleryListRow, GalleryListScene, GalleryThumbCard, ReaderPageState, ReaderScene } from './GalleryScenes';
 import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
 
 @Component
@@ -79,6 +88,8 @@ export struct DownloadScene {
   @State localReaderRenderVersion: number = 0;
   @State showTagSearch: boolean = false;
   @State tagSearchKeyword: string = '';
+  @State downloadContentWidth: number = 0;
+  @State selectedDownloadGids: string = '';
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   private detailItem: DownloadInfo | null = null;
@@ -146,6 +157,63 @@ export struct DownloadScene {
     return filterDownloadItems(this.items, this.query, this.statusFilter, 'All', this.sortMode, this.categoryFilter);
   }
 
+  private selectedKey(gid: number): string {
+    return '|' + gid.toString() + '|';
+  }
+
+  private downloadSelectionCount(): number {
+    if (this.selectedDownloadGids.length === 0) {
+      return 0;
+    }
+    const parts = this.selectedDownloadGids.split('|');
+    let count = 0;
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i].length > 0) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  private isDownloadSelected(gid: number): boolean {
+    return this.selectedDownloadGids.indexOf(this.selectedKey(gid)) >= 0;
+  }
+
+  private toggleDownloadSelection(item: DownloadInfo): void {
+    const key = this.selectedKey(item.gid);
+    if (this.selectedDownloadGids.indexOf(key) >= 0) {
+      this.selectedDownloadGids = this.selectedDownloadGids.replace(key, '|');
+      if (this.selectedDownloadGids === '|') {
+        this.selectedDownloadGids = '';
+      }
+      return;
+    }
+    if (this.selectedDownloadGids.length === 0) {
+      this.selectedDownloadGids = key;
+    } else {
+      this.selectedDownloadGids += item.gid.toString() + '|';
+    }
+  }
+
+  private handleDownloadCardTap(item: DownloadInfo): void {
+    if (this.downloadSelectionCount() > 0) {
+      this.toggleDownloadSelection(item);
+      return;
+    }
+    this.openDetail(item);
+  }
+
+  private selectedDownloadItems(): DownloadInfo[] {
+    const selected: DownloadInfo[] = [];
+    const visible = this.visibleDownloadItems();
+    for (let i = 0; i < visible.length; i++) {
+      if (this.isDownloadSelected(visible[i].gid)) {
+        selected.push(visible[i]);
+      }
+    }
+    return selected;
+  }
+
   private activeSummary(): string {
     let wait = 0;
     let active = 0;
@@ -166,6 +234,86 @@ export struct DownloadScene {
       failed.toString() + ' failed';
   }
 
+  private downloadCardPreferredWidth(): number {
+    if (galleryListMode() === 'Thumb') {
+      const value = galleryThumbWidth();
+      if (value <= 70) {
+        return 116;
+      }
+      if (value >= 104) {
+        return 164;
+      }
+      return 136;
+    }
+    return 340;
+  }
+
+  private downloadCardGap(): number {
+    return 8;
+  }
+
+  private downloadContentPadding(): number {
+    return 8;
+  }
+
+  private downloadCardMinWidth(): number {
+    return galleryListMode() === 'Thumb' ? 104 : 300;
+  }
+
+  private downloadColumnCount(): number {
+    return this.downloadColumnCountForWidth(this.downloadContentWidth);
+  }
+
+  private downloadColumnCountForWidth(width: number): number {
+    const availableWidth = Math.max(0, width - this.downloadContentPadding() * 2);
+    if (availableWidth <= 0 || Number.isNaN(availableWidth)) {
+      return 1;
+    }
+    const preferred = this.downloadCardPreferredWidth();
+    const gap = this.downloadCardGap();
+    return Math.max(1, Math.floor((availableWidth + gap) / (preferred + gap)));
+  }
+
+  private downloadCardWidth(): number {
+    const availableWidth = Math.max(0, this.downloadContentWidth - this.downloadContentPadding() * 2);
+    if (availableWidth <= 0 || Number.isNaN(availableWidth)) {
+      return this.downloadCardPreferredWidth();
+    }
+    const columns = this.downloadColumnCount();
+    const gap = this.downloadCardGap();
+    return Math.max(this.downloadCardMinWidth(), Math.floor((availableWidth - gap * (columns - 1)) / columns));
+  }
+
+  private updateDownloadContentWidth(width: number): void {
+    if (width <= 0 || Number.isNaN(width) || this.downloadContentWidth === width) {
+      return;
+    }
+    const oldColumns = this.downloadColumnCount();
+    const nextColumns = this.downloadColumnCountForWidth(width);
+    if (this.downloadContentWidth <= 0 || oldColumns === nextColumns) {
+      this.downloadContentWidth = width;
+      return;
+    }
+    this.getUIContext().animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
+      this.downloadContentWidth = width;
+    });
+  }
+
+  private buildDownloadRows(): DownloadInfo[][] {
+    const visible = this.visibleDownloadItems();
+    const columns = this.downloadColumnCount();
+    const rows: DownloadInfo[][] = [];
+    for (let i = 0; i < visible.length; i += columns) {
+      rows.push(visible.slice(i, i + columns));
+    }
+    return rows;
+  }
+
+  private downloadRowKey(row: DownloadInfo[]): string {
+    return row.map((item: DownloadInfo) => item.gid.toString() + ':' + item.state + ':' +
+      item.finished.toString() + ':' + item.total.toString()).join('-');
+  }
+
   private startAll(): void {
     this.shouldStop = false;
     this.stoppedGids = [];
@@ -175,11 +323,43 @@ export struct DownloadScene {
     this.runDownloadQueue();
   }
 
+  private startSelectedOrAll(): void {
+    const selected = this.selectedDownloadItems();
+    if (selected.length === 0) {
+      this.startAll();
+      return;
+    }
+    this.shouldStop = false;
+    for (let i = 0; i < selected.length; i++) {
+      this.removeStoppedGid(selected[i].gid);
+      ehDownloadStore.startGallery(selected[i].gid);
+    }
+    this.statusText = 'Queued ' + selected.length.toString() + ' selected downloads';
+    this.selectedDownloadGids = '';
+    this.persistDownloads();
+    this.runDownloadQueue();
+  }
+
   private stopAll(): void {
     this.shouldStop = true;
     this.stoppedGids = [];
     ehDownloadStore.stopAll();
     this.statusText = 'Stopped waiting downloads';
+    this.persistDownloads();
+  }
+
+  private stopSelectedOrAll(): void {
+    const selected = this.selectedDownloadItems();
+    if (selected.length === 0) {
+      this.stopAll();
+      return;
+    }
+    for (let i = 0; i < selected.length; i++) {
+      this.addStoppedGid(selected[i].gid);
+      ehDownloadStore.stopGallery(selected[i].gid);
+    }
+    this.statusText = 'Stopped ' + selected.length.toString() + ' selected downloads';
+    this.selectedDownloadGids = '';
     this.persistDownloads();
   }
 
@@ -244,6 +424,20 @@ export struct DownloadScene {
     }
     ehDownloadStore.removeGallery(item.gid);
     this.statusText = 'Removed: ' + item.title;
+    this.persistDownloads();
+  }
+
+  private deleteSelectedDownloads(): void {
+    const selected = this.selectedDownloadItems();
+    if (selected.length === 0) {
+      this.statusText = 'Long press cards to select downloads';
+      return;
+    }
+    for (let i = 0; i < selected.length; i++) {
+      this.removeItem(selected[i]);
+    }
+    this.selectedDownloadGids = '';
+    this.statusText = 'Removed ' + selected.length.toString() + ' downloads';
     this.persistDownloads();
   }
 
@@ -936,101 +1130,140 @@ export struct DownloadScene {
       .padding({ left: 12, right: 12, top: 10, bottom: 10 })
       .backgroundColor(themeSurface())
 
-      if (this.visibleDownloadItems().length === 0) {
-        Column() {
-          Text(uiText('Downloads'))
-            .fontSize(22)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(themePrimaryText())
-          Text(this.items.length === 0 ? uiText('Download items will be shown here') :
-            uiText('No items match the current filter'))
-            .fontSize(14)
-            .fontColor(themeSecondaryText())
-            .margin({ top: 10 })
-        }
-        .layoutWeight(1)
-        .width('100%')
-        .justifyContent(FlexAlign.Center)
-      } else {
-        List({ space: 8 }) {
-          ForEach(this.visibleDownloadItems(), (item: DownloadInfo) => {
-            ListItem() {
-              DownloadRow({
-                item: item,
-                onThumb: () => {
-                  this.openDetail(item);
-                },
-                onOpen: () => {
-                  this.openDownloadedItem(item);
-                },
-                onState: () => {
-                  this.cycleItemState(item);
-                },
-                onRemove: () => {
-                  this.removeItem(item);
+      Stack({ alignContent: Alignment.BottomEnd }) {
+        if (this.visibleDownloadItems().length === 0) {
+          Column() {
+            Text(uiText('Downloads'))
+              .fontSize(22)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(themePrimaryText())
+            Text(this.items.length === 0 ? uiText('Download items will be shown here') :
+              uiText('No items match the current filter'))
+              .fontSize(14)
+              .fontColor(themeSecondaryText())
+              .margin({ top: 10 })
+          }
+          .width('100%')
+          .height('100%')
+          .justifyContent(FlexAlign.Center)
+        } else {
+          List({ space: 8 }) {
+            ForEach(this.buildDownloadRows(), (row: DownloadInfo[]) => {
+              ListItem() {
+                Row() {
+                  ForEach(row, (item: DownloadInfo, colIndex: number) => {
+                    Column() {
+                      if (galleryListMode() === 'Thumb') {
+                        GalleryThumbCard({ gallery: item, selected: this.isDownloadSelected(item.gid) })
+                          .width('100%')
+                      } else {
+                        GalleryListRow({ gallery: item, selected: this.isDownloadSelected(item.gid) })
+                          .width('100%')
+                      }
+                      DownloadCardStatus({ item: item })
+                        .margin({ top: 4 })
+                    }
+                    .width(this.downloadCardWidth())
+                    .margin({ right: colIndex < row.length - 1 ? this.downloadCardGap() : 0 })
+                    .animation({ duration: 220, curve: Curve.EaseOut })
+                    .onClick(() => {
+                      this.handleDownloadCardTap(item);
+                    })
+                    .gesture(LongPressGesture({ repeat: false }).onAction(() => {
+                      this.toggleDownloadSelection(item);
+                    }))
+                  }, (item: DownloadInfo) => item.gid.toString())
                 }
-              })
+                .width('100%')
+                .justifyContent(FlexAlign.Start)
+                .animation({ duration: 220, curve: Curve.EaseOut })
+              }
+              .margin({ bottom: this.downloadCardGap() })
+            }, (row: DownloadInfo[], rowIndex: number) => {
+              return this.downloadColumnCount().toString() + ':' + rowIndex.toString() + ':' + this.downloadRowKey(row);
+            })
+          }
+          .width('100%')
+          .height('100%')
+          .padding({
+            left: this.downloadContentPadding(),
+            right: this.downloadContentPadding(),
+            top: 8,
+            bottom: 82
+          })
+          .onAreaChange((_oldArea: Area, newArea: Area) => {
+            this.updateDownloadContentWidth(newArea.width as number);
+          })
+        }
+
+        Column({ space: 10 }) {
+          if (this.downloadSelectionCount() > 0) {
+            Button({ type: ButtonType.Circle, stateEffect: true }) {
+              SymbolGlyph($r('sys.symbol.trash'))
+                .fontSize(22)
+                .fontColor([themeOnPrimaryText()])
             }
-          }, (item: DownloadInfo) => item.gid.toString() + '-' + item.state + '-' + item.finished.toString() + '-' +
-            item.total.toString() + '-' + item.speed.toString())
-        }
-        .width('100%')
-        .height('100%')
-        .layoutWeight(1)
-        .padding({ left: 8, right: 8, top: 8, bottom: 8 })
-      }
+            .width(52)
+            .height(52)
+            .backgroundColor(themeOnPrimaryDangerBackground())
+            .onClick(() => {
+              this.deleteSelectedDownloads();
+            })
+          }
 
-      Row() {
-        Button({ type: ButtonType.Circle }) {
-          SymbolGlyph($r('sys.symbol.play_fill'))
-            .fontSize(20)
-            .fontColor([themeOnPrimaryText()])
-        }
-        .width(46)
-        .height(46)
-        .backgroundColor(themePrimaryColor())
-        .onClick(() => {
-          this.startAll();
-        })
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.play_fill'))
+              .fontSize(20)
+              .fontColor([themeOnPrimaryText()])
+          }
+          .width(52)
+          .height(52)
+          .backgroundColor(themePrimaryColor())
+          .onClick(() => {
+            this.startSelectedOrAll();
+          })
 
-        Button({ type: ButtonType.Circle }) {
-          SymbolGlyph($r('sys.symbol.pause_fill'))
-            .fontSize(20)
-            .fontColor([themeOnPrimaryText()])
-        }
-        .width(46)
-        .height(46)
-        .backgroundColor(themeControlMutedBackground())
-        .margin({ left: 12 })
-        .onClick(() => {
-          this.stopAll();
-        })
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.pause_fill'))
+              .fontSize(20)
+              .fontColor([themeOnPrimaryText()])
+          }
+          .width(52)
+          .height(52)
+          .backgroundColor(themeControlMutedBackground())
+          .onClick(() => {
+            this.stopSelectedOrAll();
+          })
 
-        Button({ type: ButtonType.Circle }) {
-          SymbolGlyph($r('sys.symbol.play_arrow_triangle_2_circlepath'))
-            .fontSize(19)
-            .fontColor([themeOnPrimaryText()])
-        }
-        .width(46)
-        .height(46)
-        .backgroundColor(themeControlNeutralBackground())
-        .margin({ left: 12 })
-        .onClick(() => {
-          this.restoreDownloadedItems();
-        })
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.play_arrow_triangle_2_circlepath'))
+              .fontSize(19)
+              .fontColor([themeOnPrimaryText()])
+          }
+          .width(52)
+          .height(52)
+          .backgroundColor(themeControlNeutralBackground())
+          .onClick(() => {
+            this.restoreDownloadedItems();
+          })
 
-        Blank()
-
-        Button(uiText('Clear done'))
-          .height(40)
-          .fontSize(13)
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.checkmark_circle'))
+              .fontSize(20)
+              .fontColor([themeOnPrimaryText()])
+          }
+          .width(52)
+          .height(52)
           .enabled(this.items.length > 0)
+          .backgroundColor(themeControlNeutralBackground())
           .onClick(() => {
             this.clearFinished();
           })
+        }
+        .margin({ right: 18, bottom: 18 })
       }
       .width('100%')
-      .padding({ left: 12, right: 12, bottom: 12 })
+      .layoutWeight(1)
       }
       .width('100%')
       .height('100%')
@@ -1046,4 +1279,79 @@ interface LocalReaderSession {
   index: number;
   status: string;
   detailRequestUrl: string;
+}
+
+@Component
+struct DownloadCardStatus {
+  item: DownloadInfo = createEmptyDownloadInfo();
+
+  private isDownloading(): boolean {
+    return this.item.state === DownloadState.Downloading;
+  }
+
+  private progressPercent(): string {
+    const total = this.item.total > 0 ? this.item.total : this.item.pages;
+    if (total <= 0) {
+      return '0%';
+    }
+    const value = Math.max(0, Math.min(100, Math.round(this.item.finished * 100 / total)));
+    return value.toString() + '%';
+  }
+
+  private speedText(): string {
+    if (this.item.speed <= 0) {
+      return '';
+    }
+    return downloadSizeText(this.item.speed) + '/s';
+  }
+
+  build() {
+    Column() {
+      Row() {
+        Text(uiValue(downloadStateLabel(this.item.state)))
+          .fontSize(10)
+          .fontColor(themeOnPrimaryText())
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+          .backgroundColor(downloadStateColor(this.item.state))
+          .borderRadius(3)
+        Text(downloadProgressText(this.item))
+          .fontSize(11)
+          .fontColor(themeSecondaryText())
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .margin({ left: 6 })
+          .layoutWeight(1)
+        if (this.isDownloading() && this.speedText().length > 0) {
+          Text(this.speedText())
+            .fontSize(11)
+            .fontColor(themeTertiaryText())
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+      }
+      .width('100%')
+
+      Stack({ alignContent: Alignment.Start }) {
+        Row()
+          .height(4)
+          .width('100%')
+          .backgroundColor(themeDividerColor())
+          .borderRadius(2)
+        Row()
+          .height(4)
+          .width(this.progressPercent())
+          .backgroundColor(downloadStateColor(this.item.state))
+          .borderRadius(2)
+      }
+      .width('100%')
+      .height(4)
+      .margin({ top: 5 })
+    }
+    .width('100%')
+    .padding({ left: 8, right: 8, top: 6, bottom: 7 })
+    .backgroundColor(themeSurface())
+    .borderRadius(6)
+  }
 }
