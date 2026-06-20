@@ -1655,7 +1655,7 @@ export struct GalleryListContent {
   }
 
   private contentStartOffset(): number {
-    return this.visibleBarHeight() + this.galleryContentPadding();
+    return this.visibleBarHeight();
   }
 
   private listViewportHeight(): number {
