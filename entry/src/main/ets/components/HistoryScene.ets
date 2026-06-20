@@ -8,7 +8,7 @@ import { galleryPageCache } from '../services/GalleryPageCache';
 import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
-import { APP_THEME_COLOR, LANGUAGE_REVISION_KEY, nextFloatingToolbarOffset } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, nextFloatingToolbarOffset } from '../shared/EhShared';
 import { themeOnPrimaryText, themeOnPrimaryDangerBackground, themePageBackground } from '../shared/EhTheme';
 import { STATUS_BAR_HEIGHT_KEY, uiText, setActiveBackHandler, createDetailFromGallery, createEmptyDetail, createEmptyPage, cloneGalleryInfos, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, currentGallerySite, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, galleryListMode, galleryThumbWidth } from '../shared/EhShared';
 import { GalleryDetailOverlayScene, GalleryListRow, GalleryListScene, GalleryThumbCard, PlaceholderScene, ReaderPageState, ReaderScene } from './GalleryScenes';
@@ -56,14 +56,9 @@ export struct HistoryScene {
   @State renderVersion: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @State toolbarOffsetY: number = 0;
-  @State historyRefreshing: boolean = false;
-  @State historyRefreshScaleNum: number = 0;
-  @State historyRefreshShowLogo: boolean = true;
-  @State historyRefreshMsg: string = '';
   @State showTagSearch: boolean = false;
   @State tagSearchKeyword: string = '';
   @State selectedHistoryGids: string = '';
-  private readonly HISTORY_REFRESH_OFFSET: number = 42;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   @State historyContentWidth: number = 0;
   private historyScroller: Scroller = new Scroller();
@@ -124,7 +119,6 @@ export struct HistoryScene {
     if (context === undefined) {
       this.histories = cloneGalleryInfos(ehHistoryStore.getItems());
       this.statusText = this.histories.length.toString() + ' local history items';
-      this.historyRefreshing = false;
       this.renderVersion++;
       return;
     }
@@ -132,11 +126,9 @@ export struct HistoryScene {
     ehHistoryStore.load(context).then(() => {
       this.histories = cloneGalleryInfos(ehHistoryStore.getItems());
       this.statusText = this.histories.length.toString() + ' history items';
-      this.historyRefreshing = false;
       this.renderVersion++;
     }).catch((error: Error) => {
       this.statusText = 'History load failed: ' + error.message;
-      this.historyRefreshing = false;
       this.renderVersion++;
     });
   }
@@ -835,35 +827,6 @@ export struct HistoryScene {
     this.renderVersion++;
   }
 
-
-  @Builder
-  private historyRefreshComponent() {
-    Stack({ alignContent: Alignment.Bottom }) {
-      Column({ space: 2 }) {
-        Image($r('app.media.app_icon'))
-          .width(26)
-          .height(26)
-          .scale({ x: this.historyRefreshScaleNum, y: this.historyRefreshScaleNum })
-          .visibility(this.historyRefreshShowLogo ? Visibility.Visible : Visibility.None)
-        LoadingProgress()
-          .width(26)
-          .height(26)
-          .color(APP_THEME_COLOR)
-          .visibility(this.historyRefreshShowLogo ? Visibility.None : Visibility.Visible)
-        if (this.historyRefreshMsg.length > 0) {
-          Text(this.historyRefreshMsg)
-            .fontSize(10)
-            .fontColor($r('app.color.secondary_text'))
-        }
-      }
-      .alignItems(HorizontalAlign.Center)
-      .margin({ bottom: 4 })
-    }
-    .width('100%')
-    .height(52)
-    .clip(true)
-  }
-
   build() {
     if (this.showTagSearch) {
       GalleryListScene({
@@ -970,21 +933,16 @@ export struct HistoryScene {
         requestUrl: '',
         showClear: false,
         canClear: false,
+        showRefreshButton: false,
         toolbarOffsetY: this.toolbarOffsetY,
         toolbarHeight: 56,
         onMenu: this.onMenu,
-        onRefresh: () => {
-          this.historyRefreshShowLogo = false;
-          this.historyRefreshMsg = uiText('Refreshing...');
-          this.historyRefreshing = true;
-          this.loadHistory();
-        },
+        onRefresh: () => {},
         onClear: () => {}
       }) {
         Stack({ alignContent: Alignment.BottomEnd }) {
         Column() {
-          Refresh({ refreshing: $$this.historyRefreshing, builder: this.historyRefreshComponent() }) {
-            Scroll(this.historyScroller) {
+          Scroll(this.historyScroller) {
               Column({ space: 8 }) {
                 if (this.histories.length === 0) {
                   PlaceholderScene({
@@ -1058,42 +1016,14 @@ export struct HistoryScene {
             .onScrollFrameBegin((offset: number, _state: ScrollState) => {
               return { offsetRemain: this.updateToolbarForScrollFrame(offset) };
             })
+            .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
+              this.historyScrollOffset = normalizeSceneScrollOffset(this.historyScroller.currentOffset().yOffset);
+            })
             .onScrollStop(() => {
               const offset = normalizeSceneScrollOffset(this.historyScroller.currentOffset().yOffset);
               this.historyScrollOffset = offset;
             })
           }
-          .refreshOffset(this.HISTORY_REFRESH_OFFSET)
-          .pullToRefresh(true)
-          .onOffsetChange((value: number) => {
-            if (value < this.HISTORY_REFRESH_OFFSET) {
-              this.historyRefreshShowLogo = true;
-              this.historyRefreshMsg = uiText('Pull down to refresh');
-              this.historyRefreshScaleNum = value / this.HISTORY_REFRESH_OFFSET;
-            } else {
-              this.historyRefreshMsg = uiText('Release to refresh');
-              this.historyRefreshScaleNum = this.HISTORY_REFRESH_OFFSET / value;
-            }
-          })
-          .onStateChange((refreshStatus: RefreshStatus) => {
-            if (refreshStatus === RefreshStatus.Refresh) {
-              this.historyRefreshShowLogo = false;
-              this.historyRefreshMsg = uiText('Refreshing...');
-            }
-          })
-          .onRefreshing(() => {
-            this.historyRefreshScaleNum = 0;
-            this.historyRefreshShowLogo = false;
-            this.historyRefreshMsg = uiText('Refreshing...');
-            this.historyRefreshing = true;
-            this.loadHistory();
-          })
-          .width('100%')
-          .height('100%')
-        }
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themePageBackground())
         if (this.historySelectionCount() > 0) {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.trash'))
@@ -1109,6 +1039,9 @@ export struct HistoryScene {
           })
         }
         }
+        .width('100%')
+        .height('100%')
+        .backgroundColor(themePageBackground())
       }
     }
   }

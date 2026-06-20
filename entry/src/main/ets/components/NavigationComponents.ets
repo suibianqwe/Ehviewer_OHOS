@@ -239,6 +239,7 @@ export struct EhNavBar {
   @Prop showClear: boolean = false;
   @Prop canClear: boolean = false;
   @Prop showSearchButton: boolean = false;
+  @Prop showRefreshButton: boolean = true;
   @Prop showBackButton: boolean = false;
   // translate offset injected by parent for scroll-hide; 0 = visible, negative = hidden
   @Prop translateY: number = 0;
@@ -358,18 +359,19 @@ export struct EhNavBar {
           .layoutWeight(1)
           .margin({ left: 12 })
 
-          // Refresh button
-          Button({ type: ButtonType.Circle, stateEffect: true }) {
-            SymbolGlyph($r('sys.symbol.play_arrow_triangle_2_circlepath'))
-              .fontSize(20)
-              .fontColor([themeOnPrimaryText()])
+          if (this.showRefreshButton) {
+            Button({ type: ButtonType.Circle, stateEffect: true }) {
+              SymbolGlyph($r('sys.symbol.play_arrow_triangle_2_circlepath'))
+                .fontSize(20)
+                .fontColor([themeOnPrimaryText()])
+            }
+            .width(40)
+            .height(40)
+            .backgroundColor(themeOnPrimaryActionBackground())
+            .flexShrink(0)
+            .margin({ left: 6 })
+            .onClick(() => { this.onRefresh(); })
           }
-          .width(40)
-          .height(40)
-          .backgroundColor(themeOnPrimaryActionBackground())
-          .flexShrink(0)
-          .margin({ left: 6 })
-          .onClick(() => { this.onRefresh(); })
 
           if (this.showSearchButton) {
             Button({ type: ButtonType.Circle, stateEffect: true }) {
@@ -575,6 +577,7 @@ export struct FloatingToolbarHost {
   @Prop requestUrl: string = '';
   @Prop showClear: boolean = false;
   @Prop canClear: boolean = false;
+  @Prop showRefreshButton: boolean = true;
   @Prop toolbarOffsetY: number = 0;
   @Prop toolbarHeight: number = 62;
   @BuilderParam content: () => void = this.EmptyContent;
@@ -608,6 +611,7 @@ export struct FloatingToolbarHost {
           filterActive: this.filterActive,
           showClear: this.showClear,
           canClear: this.canClear,
+          showRefreshButton: this.showRefreshButton,
           onKeywordChange: this.onKeywordChange,
           onMenu: this.onMenu,
           onSearch: this.onSearch,

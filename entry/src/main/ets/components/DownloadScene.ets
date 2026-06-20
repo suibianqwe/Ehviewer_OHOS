@@ -10,7 +10,7 @@ import { galleryPageCache } from '../services/GalleryPageCache';
 import { readerImageCache } from '../services/ReaderImageCache';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
-import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, setActiveBackHandler } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, nextFloatingToolbarOffset, setActiveBackHandler } from '../shared/EhShared';
 import {
   cloneGalleryPage,
   createEmptyDownloadInfo,
@@ -54,9 +54,16 @@ import {
   themeSurface,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { EhNavBar } from './NavigationComponents';
+import { FloatingToolbarHost } from './NavigationComponents';
 import { GalleryListRow, GalleryListScene, GalleryThumbCard, ReaderPageState, ReaderScene } from './GalleryScenes';
 import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
+
+function normalizeSceneScrollOffset(offset: number): number {
+  if (offset <= 1 || Number.isNaN(offset)) {
+    return 0;
+  }
+  return offset;
+}
 
 @Component
 export struct DownloadScene {
@@ -90,9 +97,13 @@ export struct DownloadScene {
   @State tagSearchKeyword: string = '';
   @State downloadContentWidth: number = 0;
   @State selectedDownloadGids: string = '';
+  @State toolbarOffsetY: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   private detailItem: DownloadInfo | null = null;
+  private downloadScroller: Scroller = new Scroller();
+  private downloadScrollOffset: number = 0;
+  private toolbarRestoring: boolean = false;
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
@@ -126,6 +137,51 @@ export struct DownloadScene {
 
   private statusBarVp(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx);
+  }
+
+  private floatingToolbarHeight(): number {
+    return this.statusBarVp() + 56;
+  }
+
+  private toolbarVisibleHeight(): number {
+    return Math.max(0, Math.min(this.floatingToolbarHeight(), this.floatingToolbarHeight() + this.toolbarOffsetY));
+  }
+
+  private downloadContentTopPadding(): number {
+    return this.toolbarVisibleHeight();
+  }
+
+  private updateToolbarForScrollFrame(scrollOffset: number): number {
+    const offset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
+    if (offset <= 4) {
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = 0;
+      return scrollOffset;
+    }
+    if (scrollOffset > 0 && this.toolbarVisibleHeight() > 0) {
+      const previousOffsetY = this.toolbarOffsetY;
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, offset, this.floatingToolbarHeight());
+      const consumedOffset = Math.max(0, previousOffsetY - this.toolbarOffsetY);
+      return Math.max(0, scrollOffset - consumedOffset);
+    }
+    if (scrollOffset < 0 && this.toolbarOffsetY < 0) {
+      this.restoreToolbarOnReverseScroll();
+    }
+    return scrollOffset;
+  }
+
+  private restoreToolbarOnReverseScroll(): void {
+    if (this.toolbarRestoring) {
+      return;
+    }
+    this.toolbarRestoring = true;
+    this.getUIContext().animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
+      this.toolbarOffsetY = 0;
+    });
+    setTimeout(() => {
+      this.toolbarRestoring = false;
+    }, 320);
   }
 
   private loadDownloads(): void {
@@ -1062,22 +1118,20 @@ export struct DownloadScene {
         }
       })
     } else {
-      Column() {
-      EhNavBar({
-        statusBarHeight: this.statusBarVp(),
+      FloatingToolbarHost({
+        kind: 'search',
         title: 'Downloads',
-        searchMode: true,
         keyword: this.query,
+        showRefreshButton: false,
+        toolbarOffsetY: this.toolbarOffsetY,
+        toolbarHeight: 56,
         onMenu: this.onMenu,
         onKeywordChange: (value: string) => {
           this.query = value;
         },
-        onSearch: () => {},
-        onRefresh: () => {
-          this.loadDownloads();
-        }
-      })
-
+        onSearch: () => {}
+      }) {
+      Column() {
       Column() {
         Row() {
           Button(uiText('Status') + ': ' + uiValue(this.statusFilter))
@@ -1127,7 +1181,7 @@ export struct DownloadScene {
           .margin({ top: 4 })
       }
       .width('100%')
-      .padding({ left: 12, right: 12, top: 10, bottom: 10 })
+      .padding({ left: 12, right: 12, top: this.downloadContentTopPadding() + 10, bottom: 10 })
       .backgroundColor(themeSurface())
 
       Stack({ alignContent: Alignment.BottomEnd }) {
@@ -1147,7 +1201,7 @@ export struct DownloadScene {
           .height('100%')
           .justifyContent(FlexAlign.Center)
         } else {
-          List({ space: 8 }) {
+          List({ space: 8, scroller: this.downloadScroller }) {
             ForEach(this.buildDownloadRows(), (row: DownloadInfo[]) => {
               ListItem() {
                 Row() {
@@ -1193,6 +1247,22 @@ export struct DownloadScene {
           })
           .onAreaChange((_oldArea: Area, newArea: Area) => {
             this.updateDownloadContentWidth(newArea.width as number);
+          })
+          .onAppear(() => {
+            if (this.downloadScrollOffset > 0) {
+              setTimeout(() => {
+                this.downloadScroller.scrollTo({ xOffset: 0, yOffset: this.downloadScrollOffset });
+              }, 0);
+            }
+          })
+          .onScrollFrameBegin((offset: number, _state: ScrollState) => {
+            return { offsetRemain: this.updateToolbarForScrollFrame(offset) };
+          })
+          .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
+            this.downloadScrollOffset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
+          })
+          .onScrollStop(() => {
+            this.downloadScrollOffset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
           })
         }
 
@@ -1270,6 +1340,8 @@ export struct DownloadScene {
       .backgroundColor(themePageBackground())
     }
   }
+}
+
 }
 
 interface LocalReaderSession {
