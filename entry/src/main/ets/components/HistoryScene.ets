@@ -66,6 +66,7 @@ export struct HistoryScene {
   private historyScroller: Scroller = new Scroller();
   private historyScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
+  private toolbarRestoring: boolean = false;
   private readerPreviewMap: Map<number, GalleryPreview> = new Map();
   private readerPreviewPageRequests: Map<number, Promise<GalleryPreview | null>> = new Map();
   private readerPreviewPageSize: number = 0;
@@ -274,15 +275,36 @@ export struct HistoryScene {
 
   private updateToolbarForScrollFrame(scrollOffset: number): void {
     const offset = normalizeSceneScrollOffset(this.historyScroller.currentOffset().yOffset);
-    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, offset, this.floatingToolbarHeight());
+    if (offset <= 4) {
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = 0;
+      return;
+    }
+    if (scrollOffset > 0 && this.toolbarVisibleHeight() > 0) {
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, offset, this.floatingToolbarHeight());
+      return;
+    }
+    if (scrollOffset < 0 && this.toolbarVisibleHeight() <= 1) {
+      this.restoreToolbarOnReverseScroll();
+    }
   }
 
-  private restoreToolbarAfterScroll(): void {
+  private toolbarVisibleHeight(): number {
+    return Math.max(0, Math.min(this.floatingToolbarHeight(), this.floatingToolbarHeight() + this.toolbarOffsetY));
+  }
+
+  private restoreToolbarOnReverseScroll(): void {
+    if (this.toolbarRestoring) {
+      return;
+    }
+    this.toolbarRestoring = true;
+    this.getUIContext().animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
+      this.toolbarOffsetY = 0;
+    });
     setTimeout(() => {
-      this.getUIContext().animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
-        this.toolbarOffsetY = 0;
-      });
-    }, 500);
+      this.toolbarRestoring = false;
+    }, 320);
   }
 
   private statusBarVp(): number {
@@ -926,11 +948,6 @@ export struct HistoryScene {
             })
             .onScrollStop(() => {
               const offset = normalizeSceneScrollOffset(this.historyScroller.currentOffset().yOffset);
-              if (offset <= 4) {
-                this.toolbarOffsetY = 0;
-              } else {
-                this.restoreToolbarAfterScroll();
-              }
               this.historyScrollOffset = offset;
             })
           }

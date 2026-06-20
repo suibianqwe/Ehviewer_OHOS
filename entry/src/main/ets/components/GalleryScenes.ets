@@ -1,7 +1,22 @@
 ﻿import { pasteboard } from '@kit.BasicServicesKit';
-import { GalleryCategory, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite } from '../model/GalleryModels';
+import {
+  GalleryCategory,
+  GalleryDetail,
+  GalleryInfo,
+  GalleryPage,
+  GalleryPreview,
+  GalleryRoute,
+  GallerySite
+} from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
-import { EhHttpClient, GalleryDetailLoadResult, GalleryListLoadResult, GalleryPageLoadResult, RateGalleryResult, ToggleFavoriteResult } from '../services/EhHttpClient';
+import {
+  EhHttpClient,
+  GalleryDetailLoadResult,
+  GalleryListLoadResult,
+  GalleryPageLoadResult,
+  RateGalleryResult,
+  ToggleFavoriteResult
+} from '../services/EhHttpClient';
 import { DEFAULT_ADVANCE_SEARCH, EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder } from '../services/EhUrl';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { ehFilterStore } from '../services/EhFilterStore';
@@ -10,18 +25,90 @@ import { createReaderSessionState, readerSessionStore } from '../services/Reader
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY } from '../shared/EhShared';
-import { themeFieldBackground, themeDangerText, themeOnPrimaryActionBackground, themeOnPrimaryActionStrongBackground, themeOnPrimaryText, themePageBackground, themePlaceholderColor, themePrimaryColor, themePrimaryText, themeScrimColor, themeSecondaryText, themeShadowColor, themeSurface, themeTertiaryText } from '../shared/EhTheme';
+import {
+  themeFieldBackground,
+  themeDangerText,
+  themeOnPrimaryActionBackground,
+  themeOnPrimaryActionStrongBackground,
+  themeOnPrimaryText,
+  themePageBackground,
+  themePlaceholderColor,
+  themePrimaryColor,
+  themePrimaryText,
+  themeScrimColor,
+  themeSecondaryText,
+  themeShadowColor,
+  themeSurface,
+  themeTertiaryText
+} from '../shared/EhTheme';
 import { EhNavBar } from '../components/NavigationComponents';
 import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard } from './GalleryCards';
 import { GalleryDetailOverlayScene, GalleryDetailScene } from './GalleryDetailScenes';
-import { applyTagSuggestionToKeyword, buildSearchSuggestions, gallerySuggestionUrl, QuickActionColumn, SearchAdvancedPanel, SearchSuggestionItem, SearchSuggestionList, SearchSummaryStrip, recordSearchHistory } from './GallerySearchScenes';
+import {
+  applyTagSuggestionToKeyword,
+  buildSearchSuggestions,
+  gallerySuggestionUrl,
+  QuickActionColumn,
+  SearchAdvancedPanel,
+  SearchSuggestionItem,
+  SearchSuggestionList,
+  SearchSummaryStrip,
+  recordSearchHistory
+} from './GallerySearchScenes';
 import { CommentsScene, PlaceholderScene, ReaderPageState, ReaderScene } from './ReaderScenes';
-import { uiText, uiStatusText, setActiveBackHandler, createEmptyGallery, createDetailFromGallery, createEmptyDetail, createEmptyPage, cloneGalleryInfos, applyGalleryFilters, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, getAbilityContext, immersiveChromeHeightFromOffset, immersiveChromeOpacityFromOffset, nextFloatingToolbarOffset, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, listModeForRoute, routeUsesKeyword, defaultKeywordForRoute, gallerySearchTitle, effectiveListSite, galleryListFailureMessage, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, galleryListMode, galleryThumbWidth, galleryThumbHeight } from '../shared/EhShared';
+import {
+  uiText,
+  uiStatusText,
+  setActiveBackHandler,
+  createEmptyGallery,
+  createDetailFromGallery,
+  createEmptyDetail,
+  createEmptyPage,
+  cloneGalleryInfos,
+  applyGalleryFilters,
+  cloneGalleryDetail,
+  cloneGalleryPage,
+  createReaderLoadingPage,
+  getAbilityContext,
+  immersiveChromeHeightFromOffset,
+  immersiveChromeOpacityFromOffset,
+  nextFloatingToolbarOffset,
+  saveGalleryToHistory,
+  saveGalleryReadPosition,
+  readerStartIndex,
+  downloadButtonText,
+  toggleGalleryDownload,
+  listModeForRoute,
+  routeUsesKeyword,
+  defaultKeywordForRoute,
+  gallerySearchTitle,
+  effectiveListSite,
+  galleryListFailureMessage,
+  readerPageReferer,
+  cacheReaderImageForPage,
+  readerPreloadCount,
+  galleryListMode,
+  galleryThumbWidth,
+  galleryThumbHeight
+} from '../shared/EhShared';
 
 export { CategoryBadge, GalleryListRow, GalleryTagChip, GalleryThumb, GalleryThumbCard } from './GalleryCards';
+
 export { GalleryDetailOverlayScene, GalleryDetailScene } from './GalleryDetailScenes';
-export { ActionBubble, QuickActionColumn, SearchAdvancedPanel, SearchFlagChip, SearchSuggestionList, SearchSummaryStrip } from './GallerySearchScenes';
-export { CommentsScene, PlaceholderScene, ReaderNavButton, ReaderPageState, ReaderScene, ReaderToolButton } from './ReaderScenes';
+
+export { ActionBubble,
+  QuickActionColumn,
+  SearchAdvancedPanel,
+  SearchFlagChip,
+  SearchSuggestionList,
+  SearchSummaryStrip } from './GallerySearchScenes';
+
+export { CommentsScene,
+  PlaceholderScene,
+  ReaderNavButton,
+  ReaderPageState,
+  ReaderScene,
+  ReaderToolButton } from './ReaderScenes';
 
 interface GalleryListSceneCache {
   keyword: string;
@@ -91,7 +178,8 @@ function normalizeGalleryListScrollOffset(offset: number): number {
 
 function mergeLoadedGalleryDetail(loaded: GalleryDetail, previous: GalleryDetail): GalleryDetail {
   const next = cloneGalleryDetail(loaded);
-  if ((next.thumb === undefined || next.thumb.length === 0) && previous.thumb !== undefined && previous.thumb.length > 0) {
+  if ((next.thumb === undefined || next.thumb.length === 0) && previous.thumb !== undefined &&
+    previous.thumb.length > 0) {
     next.thumb = previous.thumb;
   }
   if ((next.thumb === undefined || next.thumb.length === 0) && next.previewSet.length > 0) {
@@ -101,13 +189,16 @@ function mergeLoadedGalleryDetail(loaded: GalleryDetail, previous: GalleryDetail
 }
 
 export { HomeGalleryScene } from './HomeGalleryScene';
+
 export { SubscriptionGalleryScene } from './SubscriptionGalleryScene';
+
 export { HotGalleryScene } from './HotGalleryScene';
+
 export { FavoriteGalleryScene } from './FavoriteGalleryScene';
+
 @Component
 export struct GalleryListScene {
   private client: EhHttpClient = new EhHttpClient();
-
   sceneTitle: string = 'Homepage';
   listMode: string = 'Search';
   sourceRoute: GalleryRoute = GalleryRoute.Home;
@@ -124,9 +215,10 @@ export struct GalleryListScene {
   isSearchResultScene: boolean = false;
   useForcedMode: boolean = false;
   forcedMode: ListMode = ListMode.Normal;
-  onMenu: () => void = () => {};
-  onBack: () => void = () => {};
-
+  onMenu: () => void = () => {
+  };
+  onBack: () => void = () => {
+  };
   @State keyword: string = '';
   @State statusText: string = 'Loading galleries...';
   @State requestUrl: string = '';
@@ -244,7 +336,6 @@ export struct GalleryListScene {
     this.listScrollOffset = 0;
     this.saveListCache();
   }
-
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
@@ -386,8 +477,9 @@ export struct GalleryListScene {
     const nextPage = this.pageIndex + 1;
     this.isLoadingMore = true;
 
-    const request = this.nextUrl.length > 0 ? this.client.loadGalleryListUrl(this.absoluteListUrl(this.nextUrl), this.activeSite) :
-      this.loadRoutePageWithFallback(nextPage);
+    const request =
+      this.nextUrl.length > 0 ? this.client.loadGalleryListUrl(this.absoluteListUrl(this.nextUrl), this.activeSite) :
+        this.loadRoutePageWithFallback(nextPage);
 
     request.then((result: GalleryListLoadResult) => {
       this.requestUrl = result.url;
@@ -588,28 +680,30 @@ export struct GalleryListScene {
     this.favoriteBusy = false;
     this.renderVersion++;
 
-    this.client.loadGalleryDetail(gallery.gid, gallery.token, 0, this.activeSite, this.requestUrl).then((result: GalleryDetailLoadResult) => {
-      this.detailRequestUrl = result.url;
-      if (!result.ok || result.detail === null) {
-        this.detailStatus = 'Detail load failed: ' + result.message;
-        this.renderVersion++;
-        return;
-      }
+    this.client.loadGalleryDetail(gallery.gid, gallery.token, 0, this.activeSite, this.requestUrl)
+      .then((result: GalleryDetailLoadResult) => {
+        this.detailRequestUrl = result.url;
+        if (!result.ok || result.detail === null) {
+          this.detailStatus = 'Detail load failed: ' + result.message;
+          this.renderVersion++;
+          return;
+        }
 
-      this.detailStatus = 'Detail loaded';
-      this.detail = mergeLoadedGalleryDetail(result.detail, this.detail);
-      this.seedReaderPreviewCache(this.detail.previewSet);
-      this.detailDownloadText = downloadButtonText(result.detail.gid);
-      this.detailLoaded = true;
-      this.optimisticFavorite = this.detail.isFavorited;
-      this.favoriteBusy = false;
-      this.renderVersion++;
-      saveGalleryToHistory(result.detail);
-      this.prewarmReader();
-    }).catch((error: Error) => {
-      this.detailStatus = 'Detail load failed: ' + error.message;
-      this.renderVersion++;
-    });
+        this.detailStatus = 'Detail loaded';
+        this.detail = mergeLoadedGalleryDetail(result.detail, this.detail);
+        this.seedReaderPreviewCache(this.detail.previewSet);
+        this.detailDownloadText = downloadButtonText(result.detail.gid);
+        this.detailLoaded = true;
+        this.optimisticFavorite = this.detail.isFavorited;
+        this.favoriteBusy = false;
+        this.renderVersion++;
+        saveGalleryToHistory(result.detail);
+        this.prewarmReader();
+      })
+      .catch((error: Error) => {
+        this.detailStatus = 'Detail load failed: ' + error.message;
+        this.renderVersion++;
+      });
   }
 
   private closeDetail(): void {
@@ -681,31 +775,33 @@ export struct GalleryListScene {
     }
 
     this.client.loadGalleryPage(preview.pageUrl, this.activeSite,
-      readerPageReferer(this.detailRequestUrl, this.detail.previewSet, preview.index, this.activeSite)).then((result: GalleryPageLoadResult) => {
-      if (!result.ok || result.page === null) {
-        this.readerStatus = 'Page load failed: ' + result.message;
-        return;
-      }
-      const cacheUrl = result.page.pageUrl.length > 0 ? result.page.pageUrl : preview.pageUrl;
-      galleryPageCache.put(cacheUrl, result.page);
-      galleryPageCache.put(preview.pageUrl, result.page);
-      if (this.readerPreviewIndex !== preview.index) {
+      readerPageReferer(this.detailRequestUrl, this.detail.previewSet, preview.index, this.activeSite))
+      .then((result: GalleryPageLoadResult) => {
+        if (!result.ok || result.page === null) {
+          this.readerStatus = 'Page load failed: ' + result.message;
+          return;
+        }
+        const cacheUrl = result.page.pageUrl.length > 0 ? result.page.pageUrl : preview.pageUrl;
+        galleryPageCache.put(cacheUrl, result.page);
+        galleryPageCache.put(preview.pageUrl, result.page);
+        if (this.readerPreviewIndex !== preview.index) {
+          this.setReaderPage(preview.index, result.page);
+          this.cacheReaderImage(preview.index, result.page);
+          return;
+        }
+        this.readerStatus = 'Page loaded';
+        this.readerPage = cloneGalleryPage(result.page);
         this.setReaderPage(preview.index, result.page);
+        this.renderVersion++;
         this.cacheReaderImage(preview.index, result.page);
-        return;
-      }
-      this.readerStatus = 'Page loaded';
-      this.readerPage = cloneGalleryPage(result.page);
-      this.setReaderPage(preview.index, result.page);
-      this.renderVersion++;
-      this.cacheReaderImage(preview.index, result.page);
-      this.preloadReaderPages(preview.index);
-      this.persistReaderSession();
-    }).catch((error: Error) => {
-      this.readerStatus = 'Page load failed: ' + error.message;
-      this.renderVersion++;
-      this.persistReaderSession();
-    });
+        this.preloadReaderPages(preview.index);
+        this.persistReaderSession();
+      })
+      .catch((error: Error) => {
+        this.readerStatus = 'Page load failed: ' + error.message;
+        this.renderVersion++;
+        this.persistReaderSession();
+      });
   }
 
   private cacheReaderImage(index: number, page: GalleryPage): void {
@@ -1364,25 +1460,43 @@ export struct GalleryListContent {
   @Prop isLoadingMore: boolean = false;
   @Prop galleries: GalleryInfo[] = [];
   @Prop @Watch('onScrollReset') scrollResetVersion: number = 0;
-  onKeywordChange: (value: string) => void = () => {};
-  onSearchModeChange: (mode: ListMode) => void = (_mode: ListMode) => {};
-  onSearchCategoryChange: (category: number) => void = (_category: number) => {};
-  onAdvancedEnabledChange: (enabled: boolean) => void = (_enabled: boolean) => {};
-  onAdvanceSearchChange: (flags: number) => void = (_flags: number) => {};
-  onMinRatingChange: (rating: number) => void = (_rating: number) => {};
-  onPageJump: (page: number) => void = (_page: number) => {};
-  onMenu: () => void = () => {};
-  onBack: () => void = () => {};
-  onSearch: () => void = () => {};
-  onRefresh: () => void = () => {};
-  onLoadMore: () => void = () => {};
-  onToggleActions: () => void = () => {};
-  onFilter: () => void = () => {};
-  onJump: () => void = () => {};
-  onRandom: () => void = () => {};
-  onSelectGallery: (gallery: GalleryInfo) => void = () => {};
+  onKeywordChange: (value: string) => void = () => {
+  };
+  onSearchModeChange: (mode: ListMode) => void = (_mode: ListMode) => {
+  };
+  onSearchCategoryChange: (category: number) => void = (_category: number) => {
+  };
+  onAdvancedEnabledChange: (enabled: boolean) => void = (_enabled: boolean) => {
+  };
+  onAdvanceSearchChange: (flags: number) => void = (_flags: number) => {
+  };
+  onMinRatingChange: (rating: number) => void = (_rating: number) => {
+  };
+  onPageJump: (page: number) => void = (_page: number) => {
+  };
+  onMenu: () => void = () => {
+  };
+  onBack: () => void = () => {
+  };
+  onSearch: () => void = () => {
+  };
+  onRefresh: () => void = () => {
+  };
+  onLoadMore: () => void = () => {
+  };
+  onToggleActions: () => void = () => {
+  };
+  onFilter: () => void = () => {
+  };
+  onJump: () => void = () => {
+  };
+  onRandom: () => void = () => {
+  };
+  onSelectGallery: (gallery: GalleryInfo) => void = () => {
+  };
   initialScrollOffset: number = 0;
-  onScrollUpdate: (offset: number) => void = () => {};
+  onScrollUpdate: (offset: number) => void = () => {
+  };
   @State contentWidth: number = 0;
   @State refreshing: boolean = false;
   @State advancedPanelVisible: boolean = false;
@@ -1391,16 +1505,19 @@ export struct GalleryListContent {
   @State selectedTagNamespaces: string[] = [];
   @State searchSuggestionItems: SearchSuggestionItem[] = [];
   @State searchSuggestionRevision: number = 0;
-  onRefreshPull: (done: () => void) => void = (done: () => void) => { done(); };
+  onRefreshPull: (done: () => void) => void = (done: () => void) => {
+    done();
+  };
   private readonly REFRESH_OFFSET: number = 42;
   @State viewportHeight: number = 0;
   private listScroller: Scroller = new Scroller();
   private loadMorePending: boolean = false;
   private restoredScroll: boolean = false;
   @State toolbarOffsetY: number = 0;
+  private toolbarRestoring: boolean = false;
   private barHeight: number = 56; // matches EhNavBar body height
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
-  
+
   onScrollReset(): void {
     // scrollResetVersion 变化时滚回顶部
     this.snapListToTop();
@@ -1471,15 +1588,32 @@ export struct GalleryListContent {
 
   private handleScrollFrame(scrollOffset: number): void {
     const yOffset = normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset);
-    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, yOffset, this.totalBarHeight());
+    if (yOffset <= 4) {
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = 0;
+      return;
+    }
+    if (scrollOffset > 0 && this.visibleBarHeight() > 0) {
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, yOffset, this.totalBarHeight());
+      return;
+    }
+    if (scrollOffset < 0 && this.visibleBarHeight() <= 1) {
+      this.restoreToolbarOnReverseScroll();
+    }
   }
 
-  private restoreToolbarAfterScroll(): void {
+  private restoreToolbarOnReverseScroll(): void {
+    if (this.toolbarRestoring) {
+      return;
+    }
+    this.toolbarRestoring = true;
+    this.getUIContext().animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
+      this.toolbarOffsetY = 0;
+    });
     setTimeout(() => {
-      this.getUIContext().animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
-        this.toolbarOffsetY = 0;
-      });
-    }, 500);
+      this.toolbarRestoring = false;
+    }, 320);
   }
 
   private triggerLoadMoreIfNear(last: number): void {
@@ -1490,7 +1624,9 @@ export struct GalleryListContent {
       this.loadMorePending = true;
       this.onLoadMore();
       // Reset local guard after one frame so rapid scroll events don't queue duplicates
-      setTimeout(() => { this.loadMorePending = false; }, 500);
+      setTimeout(() => {
+        this.loadMorePending = false;
+      }, 500);
     }
   }
 
@@ -1499,7 +1635,8 @@ export struct GalleryListContent {
     const rows = Math.ceil(this.galleries.length / columns);
     const cardHeight = galleryListMode() === 'Thumb' ? Math.max(0, this.galleryCardWidth() / 0.75 + 54) :
       galleryThumbHeight();
-    return this.totalBarHeight() + this.searchResultStripHeight() + rows * cardHeight + Math.max(0, rows - 1) * this.galleryCardGap() +
+    return this.totalBarHeight() + this.searchResultStripHeight() + rows * cardHeight +
+      Math.max(0, rows - 1) * this.galleryCardGap() +
       this.galleryContentPadding();
   }
 
@@ -1512,7 +1649,6 @@ export struct GalleryListContent {
       this.triggerLoadMoreIfNear(this.galleries.length);
     }
   }
-
 
   private contentStartOffset(): number {
     return this.visibleBarHeight() + this.galleryContentPadding();
@@ -1609,7 +1745,6 @@ export struct GalleryListContent {
     });
   }
 
-
   @Builder
   private searchResultNavBar() {
     Column() {
@@ -1656,8 +1791,9 @@ export struct GalleryListContent {
         }
         .width(40)
         .height(40)
-        .backgroundColor(this.advancedPanelVisible || this.advancedSearchEnabled ? themeOnPrimaryActionStrongBackground() :
-          themeOnPrimaryActionBackground())
+        .backgroundColor(
+          this.advancedPanelVisible || this.advancedSearchEnabled ? themeOnPrimaryActionStrongBackground() :
+            themeOnPrimaryActionBackground())
         .flexShrink(0)
         .onClick(() => {
           this.toggleAdvancedPanel();
@@ -1770,8 +1906,8 @@ export struct GalleryListContent {
                   requestUrl: this.requestUrl,
                   onRefresh: this.onRefresh
                 })
-                .width('100%')
-                .height('100%')
+                  .width('100%')
+                  .height('100%')
               }
             } else {
               // 画廊卡片按行分组，每行 galleryColumnCount() 张
@@ -1786,7 +1922,9 @@ export struct GalleryListContent {
                             right: colIndex < row.length - 1 ? this.galleryCardGap() : 0
                           })
                           .animation({ duration: 220, curve: Curve.EaseOut })
-                          .onClick(() => { this.onSelectGallery(gallery); })
+                          .onClick(() => {
+                            this.onSelectGallery(gallery);
+                          })
                       } else {
                         GalleryListRow({ gallery: gallery })
                           .width(this.galleryCardWidth())
@@ -1794,7 +1932,9 @@ export struct GalleryListContent {
                             right: colIndex < row.length - 1 ? this.galleryCardGap() : 0
                           })
                           .animation({ duration: 220, curve: Curve.EaseOut })
-                          .onClick(() => { this.onSelectGallery(gallery); })
+                          .onClick(() => {
+                            this.onSelectGallery(gallery);
+                          })
                       }
                     }, (gallery: GalleryInfo) => gallery.gid.toString())
                   }
@@ -1803,9 +1943,10 @@ export struct GalleryListContent {
                   .justifyContent(FlexAlign.Start)
                   .animation({ duration: 220, curve: Curve.EaseOut })
                 }
-              .margin({ bottom: this.galleryCardGap() })
+                .margin({ bottom: this.galleryCardGap() })
               }, (_row: GalleryInfo[], rowIndex: number) => {
-                return this.galleryColumnCount().toString() + ':' + rowIndex.toString() + ':' + this.galleryRowKey(_row);
+                return this.galleryColumnCount().toString() + ':' + rowIndex.toString() + ':' +
+                  this.galleryRowKey(_row);
               })
 
               // 加载更多指示器
@@ -1825,7 +1966,7 @@ export struct GalleryListContent {
           }
           .contentStartOffset(this.contentStartOffset())
           .scrollBar(BarState.Auto)
-          .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false, effectEdge: EffectEdge.START })
+          .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false, effectEdge: EffectEdge.START | EffectEdge.END })
           .width('100%')
           .height('100%')
           .onAppear(() => {
@@ -1850,7 +1991,6 @@ export struct GalleryListContent {
           .onScrollStop(() => {
             const yOff = normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset);
             this.rememberListOffset(yOff);
-            this.restoreToolbarAfterScroll();
           })
           .onReachEnd(() => {
             if (!this.shouldShowSearchSuggestions()) {
@@ -1977,6 +2117,7 @@ export struct GalleryListContent {
               .fontSize(13)
               .fontColor(themeSecondaryText())
           }
+
           Button(uiText('Jump'))
             .height(36)
             .width('100%')
@@ -1993,8 +2134,16 @@ export struct GalleryListContent {
         .padding(12)
         .backgroundColor(themeSurface())
         .borderRadius(8)
-        .shadow({ radius: 12, color: themeShadowColor(), offsetX: 0, offsetY: 4 })
-        .position({ x: this.contentWidth > 0 ? Math.max(12, this.contentWidth - 244) : 100, y: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - 210) : 360 })
+        .shadow({
+          radius: 12,
+          color: themeShadowColor(),
+          offsetX: 0,
+          offsetY: 4
+        })
+        .position({
+          x: this.contentWidth > 0 ? Math.max(12, this.contentWidth - 244) : 100,
+          y: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - 210) : 360
+        })
         .zIndex(14)
       }
 
@@ -2012,11 +2161,21 @@ export struct GalleryListContent {
             showSearchButton: this.showSearchButton,
             showBackButton: this.showBackButton,
             translateY: this.toolbarOffsetY,
-            onMenu: () => { this.onMenu(); },
-            onBack: () => { this.onBack(); },
-            onSearch: () => { this.onSearch(); },
-            onKeywordChange: (v: string) => { this.onKeywordChange(v); },
-            onRefresh: () => { this.onRefresh(); }
+            onMenu: () => {
+              this.onMenu();
+            },
+            onBack: () => {
+              this.onBack();
+            },
+            onSearch: () => {
+              this.onSearch();
+            },
+            onKeywordChange: (v: string) => {
+              this.onKeywordChange(v);
+            },
+            onRefresh: () => {
+              this.onRefresh();
+            }
           })
         }
       }
@@ -2040,11 +2199,13 @@ export struct GalleryListContent {
     return row.map((gallery: GalleryInfo) => gallery.gid.toString()).join('-');
   }
 }
+
 @Component
 export struct GalleryListStateView {
   @Prop statusText: string = '';
   @Prop requestUrl: string = '';
-  onRefresh: () => void = () => {};
+  onRefresh: () => void = () => {
+  };
 
   private isLoading(): boolean {
     const lower = this.statusText.toLowerCase();

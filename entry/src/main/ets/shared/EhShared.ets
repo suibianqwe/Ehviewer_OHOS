@@ -774,6 +774,8 @@ export function runReaderActiveBackHandler(): boolean {
   return readerActiveBackHandler !== null && readerActiveBackHandler();
 }
 export const STATUS_BAR_HEIGHT_KEY: string = 'statusBarHeight';
+export const TOP_AVOID_HEIGHT_KEY: string = 'topAvoidHeight';
+export const BOTTOM_AVOID_HEIGHT_KEY: string = 'bottomAvoidHeight';
 export const BOTTOM_NAV_HEIGHT_KEY: string = 'bottomNavHeight';
 
 export function createEmptyGallery(): GalleryInfo {
@@ -1490,9 +1492,6 @@ export function nextImmersiveChromeHeight(currentHeight: number, scrollOffset: n
   }
   if (scrollOffset > 0) {
     return Math.max(0, currentHeight - scrollOffset);
-  }
-  if (scrollOffset < 0) {
-    return Math.min(expandedHeight, currentHeight - scrollOffset);
   }
   return Math.max(0, Math.min(expandedHeight, currentHeight));
 }

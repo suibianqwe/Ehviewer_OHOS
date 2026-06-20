@@ -9,6 +9,8 @@ import { ehSettingsStore } from '../services/EhSettingsStore';
 const SETTINGS_PREF_NAME: string = 'ehviewer_settings';
 const SETTINGS_VALUES_KEY: string = 'values';
 const STATUS_BAR_HEIGHT_KEY: string = 'statusBarHeight';
+const TOP_AVOID_HEIGHT_KEY: string = 'topAvoidHeight';
+const BOTTOM_AVOID_HEIGHT_KEY: string = 'bottomAvoidHeight';
 const LANGUAGE_REVISION_KEY: string = 'ehviewer_language_revision';
 
 interface SettingEntry {
@@ -24,17 +26,18 @@ export default class EntryAbility extends UIAbility {
     this.windowStage = stage;
     AppStorage.setOrCreate('abilityContext', this.context);
     AppStorage.setOrCreate<number>(STATUS_BAR_HEIGHT_KEY, 0);
+    AppStorage.setOrCreate<number>(TOP_AVOID_HEIGHT_KEY, 0);
+    AppStorage.setOrCreate<number>(BOTTOM_AVOID_HEIGHT_KEY, 0);
     AppStorage.setOrCreate<window.Window | undefined>(MAIN_WINDOW_KEY, undefined);
     AppStorage.setOrCreate<number>(LANGUAGE_REVISION_KEY, 0);
     AppStorage.setOrCreate<string>(WINDOW_PRIVACY_STATUS_KEY, '');
     const windowReady = stage.getMainWindow().then((win) => {
       rememberMainWindow(win);
+      this.updateWindowAvoidAreas(win);
       return prepareAppChromeBeforeContent(win).then(() => {
-        this.updateSystemAvoidArea(win);
+        this.updateWindowAvoidAreas(win);
         win.on('avoidAreaChange', (data: window.AvoidAreaOptions) => {
-          if (data.type === window.AvoidAreaType.TYPE_SYSTEM) {
-            AppStorage.set<number>(STATUS_BAR_HEIGHT_KEY, data.area.topRect.height);
-          }
+          this.updateChangedAvoidArea(win, data);
         });
         this.applyPersistedSecureScreen();
       });
@@ -55,12 +58,54 @@ export default class EntryAbility extends UIAbility {
     });
   }
 
+  private updateWindowAvoidAreas(win: window.Window): void {
+    this.updateSystemAvoidArea(win);
+    this.updateNavigationAvoidArea(win);
+  }
+
+  private updateChangedAvoidArea(win: window.Window, data: window.AvoidAreaOptions): void {
+    if (data.type === window.AvoidAreaType.TYPE_SYSTEM) {
+      this.setTopAvoidArea(win, data.area);
+      return;
+    }
+    if (data.type === window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR) {
+      this.setBottomAvoidArea(win, data.area);
+    }
+  }
+
   private updateSystemAvoidArea(win: window.Window): void {
     try {
       const area = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-      AppStorage.set<number>(STATUS_BAR_HEIGHT_KEY, area.topRect.height);
+      this.setTopAvoidArea(win, area);
     } catch (error) {
       AppStorage.set<number>(STATUS_BAR_HEIGHT_KEY, 0);
+      AppStorage.set<number>(TOP_AVOID_HEIGHT_KEY, 0);
+    }
+  }
+
+  private updateNavigationAvoidArea(win: window.Window): void {
+    try {
+      const area = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
+      this.setBottomAvoidArea(win, area);
+    } catch (error) {
+      AppStorage.set<number>(BOTTOM_AVOID_HEIGHT_KEY, 0);
+    }
+  }
+
+  private setTopAvoidArea(win: window.Window, area: window.AvoidArea): void {
+    AppStorage.set<number>(STATUS_BAR_HEIGHT_KEY, area.topRect.height);
+    try {
+      AppStorage.set<number>(TOP_AVOID_HEIGHT_KEY, win.getUIContext().px2vp(area.topRect.height));
+    } catch (error) {
+      AppStorage.set<number>(TOP_AVOID_HEIGHT_KEY, 0);
+    }
+  }
+
+  private setBottomAvoidArea(win: window.Window, area: window.AvoidArea): void {
+    try {
+      AppStorage.set<number>(BOTTOM_AVOID_HEIGHT_KEY, win.getUIContext().px2vp(area.bottomRect.height));
+    } catch (error) {
+      AppStorage.set<number>(BOTTOM_AVOID_HEIGHT_KEY, 0);
     }
   }
 

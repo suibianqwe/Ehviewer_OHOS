@@ -76,6 +76,7 @@ export struct TopListScene {
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   private topListScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
+  private toolbarRestoring: boolean = false;
   private readerPreviewMap: Map<number, GalleryPreview> = new Map();
   private readerPreviewPageRequests: Map<number, Promise<GalleryPreview | null>> = new Map();
   private readerPreviewPageSize: number = 0;
@@ -663,21 +664,39 @@ export struct TopListScene {
   }
 
   private updateToolbarForScroll(contentOffset: number, scrollOffset: number): void {
-    if (scrollOffset !== 0) {
-      this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, contentOffset, this.floatingToolbarHeight());
-    } else if (contentOffset <= 4) {
+    if (scrollOffset === 0) {
+      return;
+    }
+    if (contentOffset <= 4) {
+      this.toolbarRestoring = false;
       this.toolbarOffsetY = 0;
-    } else {
-      this.restoreToolbarAfterScroll();
+      return;
+    }
+    if (scrollOffset > 0 && this.toolbarVisibleHeight() > 0) {
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, contentOffset, this.floatingToolbarHeight());
+      return;
+    }
+    if (scrollOffset < 0 && this.toolbarVisibleHeight() <= 1) {
+      this.restoreToolbarOnReverseScroll();
     }
   }
 
-  private restoreToolbarAfterScroll(): void {
+  private toolbarVisibleHeight(): number {
+    return Math.max(0, Math.min(this.floatingToolbarHeight(), this.floatingToolbarHeight() + this.toolbarOffsetY));
+  }
+
+  private restoreToolbarOnReverseScroll(): void {
+    if (this.toolbarRestoring) {
+      return;
+    }
+    this.toolbarRestoring = true;
+    this.getUIContext().animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
+      this.toolbarOffsetY = 0;
+    });
     setTimeout(() => {
-      this.getUIContext().animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
-        this.toolbarOffsetY = 0;
-      });
-    }, 500);
+      this.toolbarRestoring = false;
+    }, 320);
   }
 
   private statusBarVp(): number {
