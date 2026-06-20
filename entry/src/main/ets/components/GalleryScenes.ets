@@ -16,7 +16,7 @@ import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard } from '.
 import { GalleryDetailOverlayScene, GalleryDetailScene } from './GalleryDetailScenes';
 import { applyTagSuggestionToKeyword, buildSearchSuggestions, gallerySuggestionUrl, QuickActionColumn, SearchAdvancedPanel, SearchSuggestionItem, SearchSuggestionList, SearchSummaryStrip, recordSearchHistory } from './GallerySearchScenes';
 import { CommentsScene, PlaceholderScene, ReaderPageState, ReaderScene } from './ReaderScenes';
-import { uiText, uiStatusText, setActiveBackHandler, createEmptyGallery, createDetailFromGallery, createEmptyDetail, createEmptyPage, cloneGalleryInfos, applyGalleryFilters, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, listModeForRoute, routeUsesKeyword, defaultKeywordForRoute, gallerySearchTitle, effectiveListSite, galleryListFailureMessage, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, galleryListMode, galleryThumbWidth, galleryThumbHeight } from '../shared/EhShared';
+import { uiText, uiStatusText, setActiveBackHandler, createEmptyGallery, createDetailFromGallery, createEmptyDetail, createEmptyPage, cloneGalleryInfos, applyGalleryFilters, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, getAbilityContext, immersiveChromeHeightFromOffset, immersiveChromeOpacityFromOffset, nextFloatingToolbarOffset, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, listModeForRoute, routeUsesKeyword, defaultKeywordForRoute, gallerySearchTitle, effectiveListSite, galleryListFailureMessage, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, galleryListMode, galleryThumbWidth, galleryThumbHeight } from '../shared/EhShared';
 
 export { CategoryBadge, GalleryListRow, GalleryTagChip, GalleryThumb, GalleryThumbCard } from './GalleryCards';
 export { GalleryDetailOverlayScene, GalleryDetailScene } from './GalleryDetailScenes';
@@ -1398,7 +1398,6 @@ export struct GalleryListContent {
   private loadMorePending: boolean = false;
   private restoredScroll: boolean = false;
   @State toolbarOffsetY: number = 0;
-  private lastScrollY: number = 0;
   private barHeight: number = 56; // matches EhNavBar body height
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
   
@@ -1461,18 +1460,26 @@ export struct GalleryListContent {
   private totalBarHeight(): number {
     return this.statusBarVp() + this.barHeight;
   }
-  
-  private handleScrollMove(yOffset: number): void {
-    const delta = yOffset - this.lastScrollY;
-    this.lastScrollY = yOffset;
-    // Hide toolbar when scrolling down, show when scrolling up or at top
-    if (yOffset <= 0) {
-      this.toolbarOffsetY = 0;
-      return;
-    }
-    let newOffset = this.toolbarOffsetY - delta;
-    newOffset = Math.max(-this.totalBarHeight(), Math.min(0, newOffset));
-    this.toolbarOffsetY = newOffset;
+
+  private visibleBarHeight(): number {
+    return immersiveChromeHeightFromOffset(this.toolbarOffsetY, this.totalBarHeight());
+  }
+
+  private toolbarOpacity(): number {
+    return immersiveChromeOpacityFromOffset(this.toolbarOffsetY, this.totalBarHeight());
+  }
+
+  private handleScrollFrame(scrollOffset: number): void {
+    const yOffset = normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset);
+    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, yOffset, this.totalBarHeight());
+  }
+
+  private restoreToolbarAfterScroll(): void {
+    setTimeout(() => {
+      this.getUIContext().animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
+        this.toolbarOffsetY = 0;
+      });
+    }, 500);
   }
 
   private triggerLoadMoreIfNear(last: number): void {
@@ -1508,7 +1515,7 @@ export struct GalleryListContent {
 
 
   private contentStartOffset(): number {
-    return this.galleryContentPadding();
+    return this.visibleBarHeight() + this.galleryContentPadding();
   }
 
   private searchResultStripHeight(): number {
@@ -1543,7 +1550,6 @@ export struct GalleryListContent {
   private snapListToTop(): void {
     this.listScroller.scrollTo({ xOffset: 0, yOffset: 0 });
     this.toolbarOffsetY = 0;
-    this.lastScrollY = 0;
     this.onScrollUpdate(0);
   }
 
@@ -1665,6 +1671,7 @@ export struct GalleryListContent {
     }
     .width('100%')
     .translate({ y: this.toolbarOffsetY })
+    .opacity(this.toolbarOpacity())
     .animation({ duration: 200, curve: Curve.EaseOut })
     .zIndex(10)
   }
@@ -1829,9 +1836,12 @@ export struct GalleryListContent {
               }, 80);
             }
           })
+          .onScrollFrameBegin((offset: number, _state: ScrollState) => {
+            this.handleScrollFrame(offset);
+            return { offsetRemain: offset };
+          })
           .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
             const yOff = normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset);
-            this.handleScrollMove(yOff);
             this.rememberListOffset(yOff);
             if (!this.shouldShowSearchSuggestions()) {
               this.triggerLoadMoreByOffset(yOff);
@@ -1840,15 +1850,7 @@ export struct GalleryListContent {
           .onScrollStop(() => {
             const yOff = normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset);
             this.rememberListOffset(yOff);
-            if (this.toolbarOffsetY < -this.totalBarHeight() / 2) {
-              this.getUIContext().animateTo({ duration: 180, curve: Curve.EaseOut }, () => {
-                this.toolbarOffsetY = -this.totalBarHeight();
-              });
-            } else {
-              this.getUIContext().animateTo({ duration: 180, curve: Curve.EaseOut }, () => {
-                this.toolbarOffsetY = 0;
-              });
-            }
+            this.restoreToolbarAfterScroll();
           })
           .onReachEnd(() => {
             if (!this.shouldShowSearchSuggestions()) {

@@ -1464,13 +1464,44 @@ export function themeSurfaceColor(amount: number = 0.88): string {
   return mixHexColor(APP_THEME_COLOR, '#FFFFFF', amount);
 }
 
+export function immersiveChromeHeightFromOffset(offsetY: number, expandedHeight: number): number {
+  return Math.max(0, Math.min(expandedHeight, expandedHeight + offsetY));
+}
+
+export function immersiveChromeOffsetFromHeight(height: number, expandedHeight: number): number {
+  return Math.max(-expandedHeight, Math.min(0, height - expandedHeight));
+}
+
+export function immersiveChromeOpacityFromHeight(height: number, expandedHeight: number): number {
+  if (expandedHeight <= 0) {
+    return 1;
+  }
+  return Math.max(0, Math.min(1, height / expandedHeight));
+}
+
+export function immersiveChromeOpacityFromOffset(offsetY: number, expandedHeight: number): number {
+  return immersiveChromeOpacityFromHeight(immersiveChromeHeightFromOffset(offsetY, expandedHeight), expandedHeight);
+}
+
+export function nextImmersiveChromeHeight(currentHeight: number, scrollOffset: number, contentOffset: number,
+  expandedHeight: number): number {
+  if (contentOffset <= 4) {
+    return expandedHeight;
+  }
+  if (scrollOffset > 0) {
+    return Math.max(0, currentHeight - scrollOffset);
+  }
+  if (scrollOffset < 0) {
+    return Math.min(expandedHeight, currentHeight - scrollOffset);
+  }
+  return Math.max(0, Math.min(expandedHeight, currentHeight));
+}
+
 export function nextFloatingToolbarOffset(currentOffset: number, scrollOffset: number, contentOffset: number,
   barHeight: number): number {
-  if (contentOffset <= 4) {
-    return 0;
-  }
-  const nextOffset = currentOffset - scrollOffset;
-  return Math.max(-barHeight, Math.min(0, nextOffset));
+  const currentHeight = immersiveChromeHeightFromOffset(currentOffset, barHeight);
+  const nextHeight = nextImmersiveChromeHeight(currentHeight, scrollOffset, contentOffset, barHeight);
+  return immersiveChromeOffsetFromHeight(nextHeight, barHeight);
 }
 
 export function downloadProgressText(item: DownloadInfo): string {

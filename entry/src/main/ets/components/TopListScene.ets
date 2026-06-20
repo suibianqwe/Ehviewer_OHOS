@@ -75,7 +75,6 @@ export struct TopListScene {
   @State toolbarOffsetY: number = 0;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   private topListScrollOffset: number = 0;
-  private topListToolbarScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
   private readerPreviewMap: Map<number, GalleryPreview> = new Map();
   private readerPreviewPageRequests: Map<number, Promise<GalleryPreview | null>> = new Map();
@@ -663,10 +662,22 @@ export struct TopListScene {
     return this.topList.lists[this.selectedIndex];
   }
 
-  private updateToolbarForScroll(contentOffset: number): void {
-    const delta = contentOffset - this.topListToolbarScrollOffset;
-    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, delta, contentOffset, this.floatingToolbarHeight());
-    this.topListToolbarScrollOffset = contentOffset;
+  private updateToolbarForScroll(contentOffset: number, scrollOffset: number): void {
+    if (scrollOffset !== 0) {
+      this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, contentOffset, this.floatingToolbarHeight());
+    } else if (contentOffset <= 4) {
+      this.toolbarOffsetY = 0;
+    } else {
+      this.restoreToolbarAfterScroll();
+    }
+  }
+
+  private restoreToolbarAfterScroll(): void {
+    setTimeout(() => {
+      this.getUIContext().animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
+        this.toolbarOffsetY = 0;
+      });
+    }, 500);
   }
 
   private statusBarVp(): number {
@@ -840,7 +851,6 @@ export struct TopListScene {
                   }
                   this.selectedIndex = index;
                   this.topListScrollOffset = 0;
-                  this.topListToolbarScrollOffset = 0;
                   this.toolbarOffsetY = 0;
                   this.renderVersion++;
                 },
@@ -851,8 +861,8 @@ export struct TopListScene {
                   this.openTopListItem(item, info);
                 },
                 initialScrollOffset: this.topListScrollOffset,
-                onScrollUpdate: (offset: number) => {
-                  this.updateToolbarForScroll(offset);
+                onScrollUpdate: (offset: number, scrollOffset: number) => {
+                  this.updateToolbarForScroll(offset, scrollOffset);
                   this.topListScrollOffset = offset;
                 }
               })
@@ -969,11 +979,13 @@ export struct TopListBoard {
           this.boardScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
         }
       })
-      .onDidScroll((scrollOffset: number) => {
-        this.onScrollUpdate(normalizeSceneScrollOffset(this.boardScroller.currentOffset().yOffset), scrollOffset);
+      .onScrollFrameBegin((offset: number, _state: ScrollState) => {
+        this.onScrollUpdate(normalizeSceneScrollOffset(this.boardScroller.currentOffset().yOffset), offset);
+        return { offsetRemain: offset };
       })
       .onScrollStop(() => {
-        this.onScrollUpdate(normalizeSceneScrollOffset(this.boardScroller.currentOffset().yOffset), 0);
+        const offset = normalizeSceneScrollOffset(this.boardScroller.currentOffset().yOffset);
+        this.onScrollUpdate(offset, 0);
       })
 
       Column() {

@@ -65,7 +65,6 @@ export struct HistoryScene {
   @State historyContentWidth: number = 0;
   private historyScroller: Scroller = new Scroller();
   private historyScrollOffset: number = 0;
-  private historyToolbarScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
   private readerPreviewMap: Map<number, GalleryPreview> = new Map();
   private readerPreviewPageRequests: Map<number, Promise<GalleryPreview | null>> = new Map();
@@ -273,11 +272,17 @@ export struct HistoryScene {
     });
   }
 
-  private updateToolbarForScroll(): void {
+  private updateToolbarForScrollFrame(scrollOffset: number): void {
     const offset = normalizeSceneScrollOffset(this.historyScroller.currentOffset().yOffset);
-    const delta = offset - this.historyToolbarScrollOffset;
-    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, delta, offset, this.floatingToolbarHeight());
-    this.historyToolbarScrollOffset = offset;
+    this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, offset, this.floatingToolbarHeight());
+  }
+
+  private restoreToolbarAfterScroll(): void {
+    setTimeout(() => {
+      this.getUIContext().animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
+        this.toolbarOffsetY = 0;
+      });
+    }, 500);
   }
 
   private statusBarVp(): number {
@@ -915,16 +920,18 @@ export struct HistoryScene {
                 }, 0);
               }
             })
-            .onDidScroll(() => {
-              this.updateToolbarForScroll();
+            .onScrollFrameBegin((offset: number, _state: ScrollState) => {
+              this.updateToolbarForScrollFrame(offset);
+              return { offsetRemain: offset };
             })
             .onScrollStop(() => {
               const offset = normalizeSceneScrollOffset(this.historyScroller.currentOffset().yOffset);
               if (offset <= 4) {
                 this.toolbarOffsetY = 0;
+              } else {
+                this.restoreToolbarAfterScroll();
               }
               this.historyScrollOffset = offset;
-              this.historyToolbarScrollOffset = offset;
             })
           }
           .refreshOffset(this.HISTORY_REFRESH_OFFSET)

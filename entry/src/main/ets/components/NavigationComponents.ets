@@ -1,7 +1,7 @@
 import { GalleryRoute } from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
 import { ehDownloadStore } from '../services/EhDownloadStore';
-import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, downloadQueueSummary, getAbilityContext, uiText, uiStatusText, DrawerItem, DRAWER_ITEMS } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, downloadQueueSummary, getAbilityContext, immersiveChromeOpacityFromOffset, uiText, uiStatusText, DrawerItem, DRAWER_ITEMS } from '../shared/EhShared';
 import {
   themeDividerColor,
   themeFieldBackground,
@@ -254,6 +254,14 @@ export struct EhNavBar {
     return 56;
   }
 
+  private totalBarHeight(): number {
+    return this.statusBarHeight + this.barBodyHeight();
+  }
+
+  private barOpacity(): number {
+    return immersiveChromeOpacityFromOffset(this.translateY, this.totalBarHeight());
+  }
+
   build() {
     Column() {
       // Status bar spacer (colour-matched)
@@ -402,6 +410,7 @@ export struct EhNavBar {
     }
     .width('100%')
     .translate({ y: this.translateY })
+    .opacity(this.barOpacity())
     .animation({ duration: 200, curve: Curve.EaseOut })
     .zIndex(10)
   }
@@ -539,12 +548,17 @@ export struct FloatingToolbar {
     return this.visible ? 0 : -this.barHeight;
   }
 
+  private toolbarOpacity(): number {
+    return immersiveChromeOpacityFromOffset(this.toolbarOffset(), this.barHeight);
+  }
+
   build() {
     Column() {
       this.content()
     }
     .width('100%')
     .translate({ y: this.toolbarOffset() })
+    .opacity(this.toolbarOpacity())
     .animation({ duration: 200, curve: Curve.EaseOut })
     .zIndex(10)
   }
