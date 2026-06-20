@@ -1635,23 +1635,31 @@ export struct GalleryListContent {
     const rows = Math.ceil(this.galleries.length / columns);
     const cardHeight = galleryListMode() === 'Thumb' ? Math.max(0, this.galleryCardWidth() / 0.75 + 54) :
       galleryThumbHeight();
-    return this.totalBarHeight() + this.searchResultStripHeight() + rows * cardHeight +
+    return this.searchResultStripHeight() + rows * cardHeight +
       Math.max(0, rows - 1) * this.galleryCardGap() +
       this.galleryContentPadding();
   }
 
   private triggerLoadMoreByOffset(offset: number): void {
-    if (this.viewportHeight <= 0) {
+    const viewportHeight = this.listViewportHeight();
+    if (viewportHeight <= 0) {
       return;
     }
-    const remaining = this.estimateContentHeight() - offset - this.viewportHeight;
-    if (remaining <= Math.max(720, this.viewportHeight * 1.3)) {
+    const remaining = this.estimateContentHeight() - offset - viewportHeight;
+    if (remaining <= Math.max(720, viewportHeight * 1.3)) {
       this.triggerLoadMoreIfNear(this.galleries.length);
     }
   }
 
   private contentStartOffset(): number {
     return this.visibleBarHeight() + this.galleryContentPadding();
+  }
+
+  private listViewportHeight(): number {
+    if (this.viewportHeight <= 0) {
+      return 1;
+    }
+    return Math.max(1, this.viewportHeight - this.contentStartOffset());
   }
 
   private searchResultStripHeight(): number {
@@ -1965,11 +1973,10 @@ export struct GalleryListContent {
 
             }
           }
-          .padding({ top: this.contentStartOffset() })
           .scrollBar(BarState.Auto)
           .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false, effectEdge: EffectEdge.START | EffectEdge.END })
           .width('100%')
-          .height('100%')
+          .height(this.listViewportHeight())
           .onAppear(() => {
             if (!this.restoredScroll && this.initialScrollOffset > 0) {
               this.restoredScroll = true;
@@ -2008,7 +2015,8 @@ export struct GalleryListContent {
           });
         })
         .width('100%')
-        .layoutWeight(1)
+        .height(this.listViewportHeight())
+        .translate({ y: this.contentStartOffset() })
         .backgroundColor(themePageBackground())
       }
       .width('100%')
