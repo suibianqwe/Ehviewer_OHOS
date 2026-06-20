@@ -1,8 +1,8 @@
 ﻿import { pasteboard } from '@kit.BasicServicesKit';
-import { GalleryDetail, GalleryPage, GalleryPreview, GalleryRoute, GallerySite, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
+import { GalleryCategory, GalleryDetail, GalleryPage, GalleryPreview, GalleryRoute, GallerySite, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { EhHttpClient, GalleryDetailLoadResult, GalleryPageLoadResult, RateGalleryResult, ToggleFavoriteResult, TopListLoadResult } from '../services/EhHttpClient';
-import { EhUrl, ListMode } from '../services/EhUrl';
+import { DEFAULT_ADVANCE_SEARCH, EhUrl, ListMode } from '../services/EhUrl';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
@@ -73,6 +73,8 @@ export struct TopListScene {
   @State renderVersion: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @State toolbarOffsetY: number = 0;
+  @State showTagSearch: boolean = false;
+  @State tagSearchKeyword: string = '';
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   private topListScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
@@ -93,11 +95,38 @@ export struct TopListScene {
   }
 
   private handleSystemBack(): boolean {
+    if (this.showTagSearch) { this.closeTagSearch(); return true; }
     if (this.showReader) { this.closeReader(); return true; }
     if (this.showComments) { this.closeComments(); return true; }
     if (this.showDetail) { this.closeDetail(); return true; }
     if (this.showGalleryList) { this.closeGalleryList(); return true; }
     return false;
+  }
+
+  private openTagSearch(namespace: string, tag: string): void {
+    const keyword = this.buildTagSearchKeyword(namespace, tag);
+    if (keyword.length === 0) {
+      return;
+    }
+    this.tagSearchKeyword = keyword;
+    this.showTagSearch = true;
+  }
+
+  private closeTagSearch(): void {
+    this.showTagSearch = false;
+    setTimeout(() => {
+      setActiveBackHandler(() => this.handleSystemBack());
+    }, 0);
+  }
+
+  private buildTagSearchKeyword(namespace: string, tag: string): string {
+    const trimmedNamespace = namespace.trim();
+    const trimmedTag = tag.trim();
+    if (trimmedNamespace.length === 0 || trimmedTag.length === 0) {
+      return '';
+    }
+    const tagQuery = trimmedTag.indexOf(' ') >= 0 ? '"' + trimmedTag.replace(/"/g, '\\"') + '"' : trimmedTag;
+    return trimmedNamespace + ':' + tagQuery;
   }
 
   private loadTopList(): void {
@@ -711,7 +740,23 @@ export struct TopListScene {
   }
 
   build() {
-    if (this.showReader) {
+    if (this.showTagSearch) {
+      GalleryListScene({
+        sceneTitle: this.tagSearchKeyword.length > 0 ? this.tagSearchKeyword : 'Search',
+        listMode: 'Search',
+        sourceRoute: GalleryRoute.Home,
+        initialKeyword: this.tagSearchKeyword,
+        initialSearchMode: ListMode.Tag,
+        initialSearchCategory: GalleryCategory.None,
+        initialAdvancedSearchEnabled: false,
+        initialAdvanceSearch: DEFAULT_ADVANCE_SEARCH,
+        initialSearchSubmitted: true,
+        isSearchResultScene: true,
+        onBack: () => {
+          this.closeTagSearch();
+        }
+      })
+    } else if (this.showReader) {
       ReaderScene({
         renderVersion: this.renderVersion,
         page: this.readerPage,
@@ -786,6 +831,9 @@ export struct TopListScene {
         initialDetailScrollOffset: this.detailScrollOffset,
         onDetailScrollUpdate: (offset: number) => {
           this.detailScrollOffset = offset;
+        },
+        onTagSearch: (namespace: string, tag: string) => {
+          this.openTagSearch(namespace, tag);
         }
       })
         .transition(TransitionEffect.move(TransitionEdge.END)

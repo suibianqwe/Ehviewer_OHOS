@@ -1,9 +1,9 @@
 ﻿import { pasteboard } from '@kit.BasicServicesKit';
-import { GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GallerySite } from '../model/GalleryModels';
+import { GalleryCategory, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite } from '../model/GalleryModels';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { EhHttpClient, GalleryDetailLoadResult, GalleryPageLoadResult, RateGalleryResult, ToggleFavoriteResult } from '../services/EhHttpClient';
-import { EhUrl } from '../services/EhUrl';
+import { DEFAULT_ADVANCE_SEARCH, EhUrl, ListMode } from '../services/EhUrl';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
@@ -11,7 +11,7 @@ import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../s
 import { APP_THEME_COLOR, LANGUAGE_REVISION_KEY, nextFloatingToolbarOffset } from '../shared/EhShared';
 import { themeDangerText, themePageBackground, themeSurface } from '../shared/EhTheme';
 import { STATUS_BAR_HEIGHT_KEY, uiText, setActiveBackHandler, createDetailFromGallery, createEmptyDetail, createEmptyPage, cloneGalleryInfos, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, currentGallerySite, readerPageReferer, cacheReaderImageForPage, readerPreloadCount } from '../shared/EhShared';
-import { GalleryDetailOverlayScene, GalleryListRow, PlaceholderScene, ReaderPageState, ReaderScene } from './GalleryScenes';
+import { GalleryDetailOverlayScene, GalleryListRow, GalleryListScene, PlaceholderScene, ReaderPageState, ReaderScene } from './GalleryScenes';
 import { FloatingToolbarHost } from './NavigationComponents';
 
 function normalizeSceneScrollOffset(offset: number): number {
@@ -60,6 +60,8 @@ export struct HistoryScene {
   @State historyRefreshScaleNum: number = 0;
   @State historyRefreshShowLogo: boolean = true;
   @State historyRefreshMsg: string = '';
+  @State showTagSearch: boolean = false;
+  @State tagSearchKeyword: string = '';
   private readonly HISTORY_REFRESH_OFFSET: number = 42;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   @State historyContentWidth: number = 0;
@@ -83,10 +85,37 @@ export struct HistoryScene {
   }
 
   private handleSystemBack(): boolean {
+    if (this.showTagSearch) { this.closeTagSearch(); return true; }
     if (this.showReader) { this.closeReader(); return true; }
     if (this.showComments) { this.closeComments(); return true; }
     if (this.showDetail) { this.closeDetail(); return true; }
     return false;
+  }
+
+  private openTagSearch(namespace: string, tag: string): void {
+    const keyword = this.buildTagSearchKeyword(namespace, tag);
+    if (keyword.length === 0) {
+      return;
+    }
+    this.tagSearchKeyword = keyword;
+    this.showTagSearch = true;
+  }
+
+  private closeTagSearch(): void {
+    this.showTagSearch = false;
+    setTimeout(() => {
+      setActiveBackHandler(() => this.handleSystemBack());
+    }, 0);
+  }
+
+  private buildTagSearchKeyword(namespace: string, tag: string): string {
+    const trimmedNamespace = namespace.trim();
+    const trimmedTag = tag.trim();
+    if (trimmedNamespace.length === 0 || trimmedTag.length === 0) {
+      return '';
+    }
+    const tagQuery = trimmedTag.indexOf(' ') >= 0 ? '"' + trimmedTag.replace(/"/g, '\\"') + '"' : trimmedTag;
+    return trimmedNamespace + ':' + tagQuery;
   }
 
   private loadHistory(): void {
@@ -773,7 +802,23 @@ export struct HistoryScene {
   }
 
   build() {
-    if (this.showReader) {
+    if (this.showTagSearch) {
+      GalleryListScene({
+        sceneTitle: this.tagSearchKeyword.length > 0 ? this.tagSearchKeyword : 'Search',
+        listMode: 'Search',
+        sourceRoute: GalleryRoute.Home,
+        initialKeyword: this.tagSearchKeyword,
+        initialSearchMode: ListMode.Tag,
+        initialSearchCategory: GalleryCategory.None,
+        initialAdvancedSearchEnabled: false,
+        initialAdvanceSearch: DEFAULT_ADVANCE_SEARCH,
+        initialSearchSubmitted: true,
+        isSearchResultScene: true,
+        onBack: () => {
+          this.closeTagSearch();
+        }
+      })
+    } else if (this.showReader) {
       ReaderScene({
         renderVersion: this.renderVersion,
         page: this.readerPage,
@@ -848,6 +893,9 @@ export struct HistoryScene {
         initialDetailScrollOffset: this.detailScrollOffset,
         onDetailScrollUpdate: (offset: number) => {
           this.detailScrollOffset = offset;
+        },
+        onTagSearch: (namespace: string, tag: string) => {
+          this.openTagSearch(namespace, tag);
         }
       })
         .transition(TransitionEffect.move(TransitionEdge.END)

@@ -617,10 +617,8 @@ export struct GalleryListScene {
       return;
     }
     const tagQuery = trimmedTag.indexOf(' ') >= 0 ? '"' + trimmedTag.replace(/"/g, '\\"') + '"' : trimmedTag;
-    this.showDetail = false;
     this.showComments = false;
     this.showReader = false;
-    this.detailScrollOffset = 0;
     this.searchResultDraft = {
       keyword: trimmedNamespace + ':' + tagQuery,
       mode: ListMode.Tag,

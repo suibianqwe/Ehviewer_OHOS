@@ -1,16 +1,16 @@
 import { common } from '@kit.AbilityKit';
-import { GalleryDetail, GalleryPage, GalleryPreview, GallerySite } from '../model/GalleryModels';
+import { GalleryCategory, GalleryDetail, GalleryPage, GalleryPreview, GalleryRoute, GallerySite } from '../model/GalleryModels';
 import { ehDownloadFileStore, RestoredDownloadGallery } from '../services/EhDownloadFileStore';
 import { DownloadInfo, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import { EhHttpClient } from '../services/EhHttpClient';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
-import { EhUrl } from '../services/EhUrl';
+import { DEFAULT_ADVANCE_SEARCH, EhUrl, ListMode } from '../services/EhUrl';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { readerImageCache } from '../services/ReaderImageCache';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
-import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, setActiveBackHandler } from '../shared/EhShared';
 import {
   cloneGalleryPage,
   cloneGalleryDetail,
@@ -45,7 +45,7 @@ import {
   themeSurface
 } from '../shared/EhTheme';
 import { EhNavBar } from './NavigationComponents';
-import { ReaderPageState, ReaderScene } from './ReaderScenes';
+import { GalleryListScene, ReaderPageState, ReaderScene } from './GalleryScenes';
 import { DownloadRow } from './DownloadRow';
 import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
 
@@ -77,12 +77,15 @@ export struct DownloadScene {
   @State localReaderIndex: number = 0;
   @State localReaderStatus: string = 'Page loaded from downloads';
   @State localReaderRenderVersion: number = 0;
+  @State showTagSearch: boolean = false;
+  @State tagSearchKeyword: string = '';
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   private detailItem: DownloadInfo | null = null;
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
+    setActiveBackHandler(() => this.handleSystemBack());
     this.unsubscribeStore = ehDownloadStore.subscribe((items: DownloadInfo[]) => {
       this.items = items;
     });
@@ -90,7 +93,24 @@ export struct DownloadScene {
   }
 
   aboutToDisappear(): void {
+    setActiveBackHandler(null);
     this.unsubscribeStore();
+  }
+
+  private handleSystemBack(): boolean {
+    if (this.showTagSearch) {
+      this.closeTagSearch();
+      return true;
+    }
+    if (this.showReader) {
+      this.closeLocalReader();
+      return true;
+    }
+    if (this.showDetail) {
+      this.closeDetail();
+      return true;
+    }
+    return false;
   }
 
   private statusBarVp(): number {
@@ -258,6 +278,32 @@ export struct DownloadScene {
   private closeDetail(): void {
     this.showDetail = false;
     this.detailStatus = '';
+  }
+
+  private openTagSearch(namespace: string, tag: string): void {
+    const keyword = this.buildTagSearchKeyword(namespace, tag);
+    if (keyword.length === 0) {
+      return;
+    }
+    this.tagSearchKeyword = keyword;
+    this.showTagSearch = true;
+  }
+
+  private closeTagSearch(): void {
+    this.showTagSearch = false;
+    setTimeout(() => {
+      setActiveBackHandler(() => this.handleSystemBack());
+    }, 0);
+  }
+
+  private buildTagSearchKeyword(namespace: string, tag: string): string {
+    const trimmedNamespace = namespace.trim();
+    const trimmedTag = tag.trim();
+    if (trimmedNamespace.length === 0 || trimmedTag.length === 0) {
+      return '';
+    }
+    const tagQuery = trimmedTag.indexOf(' ') >= 0 ? '"' + trimmedTag.replace(/"/g, '\\"') + '"' : trimmedTag;
+    return trimmedNamespace + ':' + tagQuery;
   }
 
   private readDetail(): void {
@@ -743,7 +789,23 @@ export struct DownloadScene {
   }
 
   build() {
-    if (this.showReader) {
+    if (this.showTagSearch) {
+      GalleryListScene({
+        sceneTitle: this.tagSearchKeyword.length > 0 ? this.tagSearchKeyword : 'Search',
+        listMode: 'Search',
+        sourceRoute: GalleryRoute.Home,
+        initialKeyword: this.tagSearchKeyword,
+        initialSearchMode: ListMode.Tag,
+        initialSearchCategory: GalleryCategory.None,
+        initialAdvancedSearchEnabled: false,
+        initialAdvanceSearch: DEFAULT_ADVANCE_SEARCH,
+        initialSearchSubmitted: true,
+        isSearchResultScene: true,
+        onBack: () => {
+          this.closeTagSearch();
+        }
+      })
+    } else if (this.showReader) {
       ReaderScene({
         renderVersion: this.localReaderRenderVersion,
         page: this.localReaderPage,
@@ -801,7 +863,9 @@ export struct DownloadScene {
         onTorrent: () => {},
         onArchive: () => {},
         onLoadMorePreviews: () => {},
-        onTagSearch: (_namespace: string, _tag: string) => {}
+        onTagSearch: (namespace: string, tag: string) => {
+          this.openTagSearch(namespace, tag);
+        }
       })
     } else {
       Column() {
