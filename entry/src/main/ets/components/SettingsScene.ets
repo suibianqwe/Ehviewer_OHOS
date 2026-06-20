@@ -1272,6 +1272,7 @@ export struct SettingsStaticRow {
             .fontColor(themedSelectButtonText())
             .backgroundColor(themedSelectButtonBackground())
             .menuBackgroundColor(themedSelectMenuBackground())
+            .menuBackgroundBlurStyle(undefined)
             .optionBgColor(themedSelectOptionBackground())
             .optionFontColor(themedSelectOptionText())
             .optionFont({ size: 13 })
