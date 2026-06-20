@@ -10,7 +10,7 @@ import { EhUrl, ListMode } from '../services/EhUrl';
 import { readerImageCache } from '../services/ReaderImageCache';
 import { previewThumbnailCache } from '../services/PreviewThumbnailCache';
 import { FilterRule, ehFilterStore } from '../services/EhFilterStore';
-import { EH_APP_VERSION_NAME, EH_GIT_BRANCH, EH_GIT_COMMIT, EH_GIT_DESCRIBE, EH_RELEASE_TAG } from '../services/EhBuildInfo';
+import { EH_APP_VERSION_NAME, EH_GIT_BRANCH, EH_RELEASE_TAG } from '../services/EhBuildInfo';
 import {
   EH_THEME_PRIMARY_COLOR,
   currentThemeName as themeCurrentThemeName,
@@ -744,8 +744,10 @@ export function zhText(text: string): string {
     case 'Open-source license view': return '开源许可证查看';
     case 'Version': return '版本';
     case 'HarmonyOS port workspace version': return 'HarmonyOS 移植工作区版本';
+    case 'Release': return '发布版本';
     case 'Git commit': return 'Git 提交';
     case 'Branch and describe from the build workspace': return '构建工作区分支和 describe 信息';
+    case 'Branch and release from the build workspace': return '构建工作区分支和发布版本';
     case 'Check for updates': return '检查更新';
     case 'Original AppUpdater entry': return '原 AppUpdater 入口';
     case 'Close automatic updates': return '关闭自动更新';
@@ -1737,8 +1739,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       staticSettingsRow('issue_help', 'Issue help', 'Issue tracker for the current port', 'Issues', 'url'),
       staticSettingsRow('license', 'License', 'Open-source license view', 'GPL', 'activity'),
       staticSettingsRow('version', 'Version', 'HarmonyOS port workspace version', EH_APP_VERSION_NAME, 'version'),
-      staticSettingsRow('git_commit', 'Git commit', 'Branch and describe from the build workspace',
-        EH_GIT_BRANCH + ' / ' + EH_GIT_COMMIT + ' / ' + EH_GIT_DESCRIBE, 'version'),
+      staticSettingsRow('git_commit', 'Release', 'Branch and release from the build workspace',
+        EH_GIT_BRANCH + ' / ' + EH_RELEASE_TAG, 'version'),
       staticSettingsRow('check_for_updates', 'Check for updates', 'Original AppUpdater entry', 'Open', 'action'),
       optionSettingsRow('close_auto_updates', 'Close automatic updates', 'Disable startup update check', entries, ON_OFF_OPTIONS),
       staticSettingsRow('donate', 'Donate', 'Original donation entry', 'Not migrated', 'url')

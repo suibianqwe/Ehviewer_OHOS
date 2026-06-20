@@ -26,7 +26,8 @@ import {
   normalizeReadingDirectionOption,
   normalizeStartPositionOption,
   uiStatusText,
-  uiText
+  uiText,
+  uiValue
 } from '../shared/EhShared';
 import { readerSelectColors, selectArrowModifier } from '../shared/EhSelectStyle';
 import { themeOnPrimaryText, themeOnPrimarySecondaryText, themeScrimColor } from '../shared/EhTheme';
@@ -374,10 +375,10 @@ export struct ReaderScene {
   private sliderHideTimer: number = -1;
 
   // Menu settings state (reflects ehSettingsStore, applied on menu close)
-  @State menuScreenRotation: string = 'System';
+  @State menuScreenRotation: string = 'Default';
   @State menuReadingDirection: string = 'Right to left';
-  @State menuPageScaling: string = 'Fit width';
-  @State menuStartPosition: string = 'Beginning';
+  @State menuPageScaling: string = 'Fit screen';
+  @State menuStartPosition: string = 'Top right';
   @State menuKeepScreenOn: boolean = false;
   @State menuShowClock: boolean = true;
   @State menuShowProgress: boolean = true;
@@ -1228,9 +1229,10 @@ struct ReaderMenuSelect {
         .fontSize(14)
         .fontColor('#E5E7EB')
         .layoutWeight(1)
-      Select(this.options.map((o: string) => ({ value: o } as SelectOption)))
+      Select(this.options.map((o: string) => ({ value: uiValue(o) } as SelectOption)))
         .id('reader-menu-select-' + this.label + '-' + this.value)
-        .value(this.value)
+        .selected(readerMenuOptionIndex(this.options, this.value))
+        .value(uiValue(this.value))
         .font({ size: 13 })
         .fontColor(readerSelectColors().buttonText)
         .backgroundColor(readerSelectColors().buttonBackground)
@@ -1243,12 +1245,25 @@ struct ReaderMenuSelect {
         .selectedOptionFontColor(readerSelectColors().selectedOptionText)
         .menuOutline({ width: 1, color: readerSelectColors().outline })
         .arrowModifier(selectArrowModifier(readerSelectColors().arrow))
-        .onSelect((_idx: number, v: string) => { this.onChange(v); })
+        .onSelect((idx: number) => {
+          if (idx >= 0 && idx < this.options.length) {
+            this.onChange(this.options[idx]);
+          }
+        })
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 8, bottom: 8 })
     .alignItems(VerticalAlign.Center)
   }
+}
+
+function readerMenuOptionIndex(options: string[], value: string): number {
+  for (let i = 0; i < options.length; i++) {
+    if (options[i] === value) {
+      return i;
+    }
+  }
+  return 0;
 }
 
 @Component

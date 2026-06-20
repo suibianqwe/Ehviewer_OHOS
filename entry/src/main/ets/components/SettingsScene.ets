@@ -19,8 +19,6 @@ import {
   EH_APP_VERSION_CODE,
   EH_APP_VERSION_NAME,
   EH_GIT_BRANCH,
-  EH_GIT_COMMIT,
-  EH_GIT_DESCRIBE,
   EH_ISSUES_URL,
   EH_RELEASE_TAG,
   EH_RELEASE_URL,
@@ -334,7 +332,7 @@ export struct SettingsScene {
       return true;
     }
     if (key === 'git_commit') {
-      this.statusText = 'Git: ' + EH_GIT_BRANCH + ' / ' + EH_GIT_COMMIT + ' / ' + EH_GIT_DESCRIBE + '.';
+      this.statusText = 'Git: ' + EH_GIT_BRANCH + ' / ' + EH_RELEASE_TAG + '.';
       return true;
     }
     if (key === 'check_for_updates') {
