@@ -566,6 +566,26 @@ export struct ReaderScene {
     return createEmptyPage();
   }
 
+  private prewarmPageIndexes(): number[] {
+    const total = this.totalPages <= 0 ? 1 : this.totalPages;
+    const indexes: number[] = [];
+    for (let offset = 1; offset <= 2; offset++) {
+      const next = this.currentIndex + offset;
+      if (next < total && this.hasDisplayImage(next)) {
+        indexes.push(next);
+      }
+      const previous = this.currentIndex - offset;
+      if (previous >= 0 && this.hasDisplayImage(previous)) {
+        indexes.push(previous);
+      }
+    }
+    return indexes;
+  }
+
+  private hasDisplayImage(index: number): boolean {
+    return readerDisplayImageUrl(this.pageForIndex(index), this.preferOriginal).length > 0;
+  }
+
   private issueViewportCommand(command: string): void {
     this.viewportCommand = command;
     this.viewportCommandVersion++;
@@ -942,6 +962,20 @@ export struct ReaderScene {
       .height('100%')
       .backgroundColor('#050608')
 
+      Stack() {
+        ForEach(this.prewarmPageIndexes(), (index: number) => {
+          ReaderImagePrewarm({
+            page: this.pageForIndex(index),
+            preferOriginal: this.preferOriginal
+          })
+        }, (index: number) => index.toString() + ':' + readerDisplayImageUrl(this.pageForIndex(index), this.preferOriginal))
+      }
+      .width(1)
+      .height(1)
+      .opacity(0.01)
+      .hitTestBehavior(HitTestMode.Transparent)
+      .zIndex(0)
+
       // Floating progress / clock / battery overlay (when no panel shown)
       if (!this.menuVisible && !this.sliderVisible) {
         Column({ space: 4 }) {
@@ -1288,6 +1322,30 @@ struct ReaderMenuToggle {
     .width('100%')
     .padding({ left: 16, right: 16, top: 6, bottom: 6 })
     .alignItems(VerticalAlign.Center)
+  }
+}
+
+@Component
+struct ReaderImagePrewarm {
+  @Prop page: GalleryPage = createEmptyPage();
+  @Prop preferOriginal: boolean = false;
+
+  private imageUrl(): string {
+    return readerDisplayImageUrl(this.page, this.preferOriginal);
+  }
+
+  build() {
+    if (this.imageUrl().length > 0) {
+      Image(this.imageUrl())
+        .width(1)
+        .height(1)
+        .objectFit(ImageFit.Contain)
+        .opacity(0.01)
+    } else {
+      Blank()
+        .width(1)
+        .height(1)
+    }
   }
 }
 
