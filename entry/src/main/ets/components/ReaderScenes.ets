@@ -22,7 +22,6 @@ import {
   plainTextFromHtml,
   readerClockText,
   readerDisplayImageUrl,
-  readerPreloadCount,
   normalizePageScalingOption,
   normalizeReadingDirectionOption,
   normalizeStartPositionOption,
@@ -40,6 +39,7 @@ const READER_MAX_SCALE: number = 4;
 const READER_DOUBLE_TAP_SCALE: number = 2.25;
 const SLIDER_AUTO_HIDE_DELAY: number = 3000;
 const READER_AUTO_TRANSFER_OFF: string = 'Off';
+const READER_OFFSCREEN_RENDER_COUNT: number = 2;
 
 export interface ReaderPageState {
   index: number;
@@ -581,7 +581,7 @@ export struct ReaderScene {
   }
 
   private readerRenderCacheCount(): number {
-    return readerPreloadCount();
+    return READER_OFFSCREEN_RENDER_COUNT;
   }
 
   private syncReaderPageIndexSource(): void {
