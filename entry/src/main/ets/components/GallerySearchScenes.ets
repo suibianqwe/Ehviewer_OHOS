@@ -1,6 +1,7 @@
 import { ALL_CATEGORY, GalleryCategory } from '../model/GalleryModels';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
+import { getMainWindow } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, categoryColor, uiText } from '../shared/EhShared';
 import { themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSelectedBackgroundLight, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
 import {
@@ -200,7 +201,11 @@ export struct SearchSuggestionList {
   @State renderLimit: number = SEARCH_SUGGESTION_RENDER_BATCH;
 
   aboutToAppear(): void {
+    this.syncContentWidthFromWindow();
     this.resetRenderLimit();
+    setTimeout(() => {
+      this.syncContentWidthFromWindow();
+    }, 0);
   }
 
   onRevisionChanged(): void {
@@ -252,6 +257,20 @@ export struct SearchSuggestionList {
     return value;
   }
 
+  private syncContentWidthFromWindow(): void {
+    if (this.contentWidth > 0) {
+      return;
+    }
+    const win = getMainWindow();
+    if (win === undefined) {
+      return;
+    }
+    try {
+      this.contentWidth = Math.floor(this.getUIContext().px2vp(win.getWindowProperties().windowRect.width));
+    } catch (_error) {
+    }
+  }
+
   build() {
     Grid() {
       ForEach(this.visibleSuggestions(), (suggestion: SearchSuggestionItem) => {
@@ -272,6 +291,9 @@ export struct SearchSuggestionList {
     .width('100%')
     .height('100%')
     .scrollBar(BarState.Auto)
+    .onAppear(() => {
+      this.syncContentWidthFromWindow();
+    })
     .onReachEnd(() => {
       this.loadMoreVisibleSuggestions();
     })

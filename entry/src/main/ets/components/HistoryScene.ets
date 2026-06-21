@@ -7,7 +7,7 @@ import { DEFAULT_ADVANCE_SEARCH, EhUrl, ListMode } from '../services/EhUrl';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
-import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
+import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen, getMainWindow } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, nextFloatingToolbarOffset } from '../shared/EhShared';
 import { themeOnPrimaryText, themeOnPrimaryDangerBackground, themePageBackground, themeShadowColor } from '../shared/EhTheme';
 import { ArrayDataSource } from '../shared/ListDataSource';
@@ -73,8 +73,12 @@ export struct HistoryScene {
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
+    this.syncHistoryContentWidthFromWindow();
     setActiveBackHandler(() => this.handleSystemBack());
     this.loadHistory();
+    setTimeout(() => {
+      this.syncHistoryContentWidthFromWindow();
+    }, 0);
   }
 
   aboutToDisappear(): void {
@@ -456,6 +460,20 @@ export struct HistoryScene {
       return;
     }
     this.historyContentWidth = normalizedWidth;
+  }
+
+  private syncHistoryContentWidthFromWindow(): void {
+    if (this.historyContentWidth > 0) {
+      return;
+    }
+    const win = getMainWindow();
+    if (win === undefined) {
+      return;
+    }
+    try {
+      this.updateHistoryContentWidth(this.getUIContext().px2vp(win.getWindowProperties().windowRect.width));
+    } catch (_error) {
+    }
   }
 
   private buildHistoryRows(): GalleryInfo[][] {
@@ -1011,6 +1029,7 @@ export struct HistoryScene {
               this.updateHistoryContentWidth(newArea.width as number);
             })
             .onAppear(() => {
+              this.syncHistoryContentWidthFromWindow();
               if (this.historyScrollOffset > 0) {
                 setTimeout(() => {
                   this.historyScroller.scrollTo({ xOffset: 0, yOffset: this.historyScrollOffset });

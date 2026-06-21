@@ -1,4 +1,5 @@
 ﻿import { GalleryPreview } from '../../model/GalleryModels';
+import { getMainWindow } from '../../services/EhWindowImmersive';
 import {
   cachePreviewThumbnail,
   createEmptyPreview,
@@ -61,6 +62,20 @@ export struct DetailPreviews {
     return rows;
   }
 
+  private syncContentWidthFromWindow(): void {
+    if (this.contentWidth > 0) {
+      return;
+    }
+    const win = getMainWindow();
+    if (win === undefined) {
+      return;
+    }
+    try {
+      this.contentWidth = Math.floor(this.getUIContext().px2vp(win.getWindowProperties().windowRect.width));
+    } catch (_error) {
+    }
+  }
+
   build() {
     Column() {
       Text(uiText('Previews'))
@@ -110,6 +125,9 @@ export struct DetailPreviews {
     .width('100%')
     .padding(16)
     .backgroundColor(themeSurface())
+    .onAppear(() => {
+      this.syncContentWidthFromWindow();
+    })
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       const width = Math.floor(newArea.width as number);
       if (width > 0 && !Number.isNaN(width) && Math.abs(this.contentWidth - width) >= 1) {

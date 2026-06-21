@@ -10,7 +10,7 @@ import { galleryPageCache } from '../services/GalleryPageCache';
 import { mergeGalleryPreviewSets } from '../services/GalleryPreviewLoader';
 import { readerImageCache } from '../services/ReaderImageCache';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
-import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
+import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen, getMainWindow } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, nextFloatingToolbarOffset, setActiveBackHandler } from '../shared/EhShared';
 import {
   cloneGalleryPage,
@@ -107,12 +107,16 @@ export struct DownloadScene {
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
+    this.syncDownloadContentWidthFromWindow();
     setActiveBackHandler(() => this.handleSystemBack());
     this.unsubscribeStore = ehDownloadStore.subscribe((items: DownloadInfo[]) => {
       this.items = items;
       this.downloadProgressRevision++;
     });
     this.loadDownloads();
+    setTimeout(() => {
+      this.syncDownloadContentWidthFromWindow();
+    }, 0);
   }
 
   aboutToDisappear(): void {
@@ -339,6 +343,20 @@ export struct DownloadScene {
       return;
     }
     this.downloadContentWidth = normalizedWidth;
+  }
+
+  private syncDownloadContentWidthFromWindow(): void {
+    if (this.downloadContentWidth > 0) {
+      return;
+    }
+    const win = getMainWindow();
+    if (win === undefined) {
+      return;
+    }
+    try {
+      this.updateDownloadContentWidth(this.getUIContext().px2vp(win.getWindowProperties().windowRect.width));
+    } catch (_error) {
+    }
   }
 
   private buildDownloadRows(): DownloadInfo[][] {
@@ -1231,6 +1249,7 @@ export struct DownloadScene {
             this.updateDownloadContentWidth(newArea.width as number);
           })
           .onAppear(() => {
+            this.syncDownloadContentWidthFromWindow();
             if (this.downloadScrollOffset > 0) {
               setTimeout(() => {
                 this.downloadScroller.scrollTo({ xOffset: 0, yOffset: this.downloadScrollOffset });

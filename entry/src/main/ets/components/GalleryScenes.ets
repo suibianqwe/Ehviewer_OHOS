@@ -23,7 +23,7 @@ import { ehFilterStore } from '../services/EhFilterStore';
 import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
-import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
+import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen, getMainWindow } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY } from '../shared/EhShared';
 import {
   themeFieldBackground,
@@ -1534,8 +1534,12 @@ export struct GalleryListContent {
   }
 
   aboutToAppear(): void {
+    this.syncContentWidthFromWindow();
     this.syncPageJumpDraft();
     this.refreshSearchSuggestions();
+    setTimeout(() => {
+      this.syncContentWidthFromWindow();
+    }, 0);
   }
 
   private syncPageJumpDraft(): void {
@@ -1746,6 +1750,20 @@ export struct GalleryListContent {
       return;
     }
     this.contentWidth = normalizedWidth;
+  }
+
+  private syncContentWidthFromWindow(): void {
+    if (this.contentWidth > 0) {
+      return;
+    }
+    const win = getMainWindow();
+    if (win === undefined) {
+      return;
+    }
+    try {
+      this.updateContentWidth(this.getUIContext().px2vp(win.getWindowProperties().windowRect.width));
+    } catch (_error) {
+    }
   }
 
   @Builder
@@ -1980,6 +1998,7 @@ export struct GalleryListContent {
           .width('100%')
           .height(this.listViewportHeight())
           .onAppear(() => {
+            this.syncContentWidthFromWindow();
             if (!this.restoredScroll && this.initialScrollOffset > 0) {
               this.restoredScroll = true;
               setTimeout(() => {
