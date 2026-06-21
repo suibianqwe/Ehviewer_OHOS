@@ -1281,11 +1281,16 @@ export struct ReaderScene {
               })
               ReaderMenuDivider()
 
-              ReaderMenuSelect({
+              ReaderMenuSlider({
                 label: uiText('Auto transfer time'),
-                options: [READER_AUTO_TRANSFER_OFF, '2s', '5s', '10s', '15s'],
-                value: this.menuAutoTransferTime,
-                onChange: (v: string) => { this.menuAutoTransferTime = v; }
+                value: readerAutoTransferSliderValue(this.menuAutoTransferTime),
+                min: 0,
+                max: readerAutoTransferOptions().length - 1,
+                step: 1,
+                displayText: uiValue(this.menuAutoTransferTime),
+                onChange: (value: number) => {
+                  this.menuAutoTransferTime = readerAutoTransferValue(value);
+                }
               })
               ReaderMenuDivider()
 
@@ -1339,30 +1344,24 @@ export struct ReaderScene {
 
               if (this.menuCustomBrightness) {
                 ReaderMenuDivider()
-                ReaderMenuSelect({
+                ReaderMenuSlider({
                   label: uiText('Screen lightness'),
-                  options: ['0%', '25%', '50%', '75%', '100%'],
-                  value: this.menuBrightnessLevel,
-                  onChange: (v: string) => { this.menuBrightnessLevel = v; }
+                  value: readerBrightnessSliderValue(this.menuBrightnessLevel),
+                  min: 0,
+                  max: 100,
+                  step: 1,
+                  displayText: readerBrightnessDisplayText(this.menuBrightnessLevel),
+                  onChange: (value: number) => {
+                    this.menuBrightnessLevel = readerBrightnessValue(value);
+                    this.applyBrightness().catch(() => {});
+                  }
                 })
               }
-
-              // Bottom close button
-              Button(uiText('Close'))
-                .width('100%')
-                .height(42)
-                .fontSize(14)
-                .fontColor(Color.White)
-                .backgroundColor('#2F6F8F')
-                .borderRadius(0)
-                .margin({ top: 8 })
-                .onClick(() => { this.hideMenu(); })
             }
             .width('100%')
           }
           .scrollable(ScrollDirection.Vertical)
           .scrollBar(BarState.Off)
-          .layoutWeight(1)
         }
         .width('92%')
         .constraintSize({ maxWidth: 520, maxHeight: '82%' })
@@ -1516,6 +1515,48 @@ struct ReaderMenuSelect {
   }
 }
 
+@Component
+struct ReaderMenuSlider {
+  label: string = '';
+  value: number = 0;
+  min: number = 0;
+  max: number = 100;
+  step: number = 1;
+  displayText: string = '';
+  onChange: (v: number) => void = () => {};
+
+  build() {
+    Column({ space: 8 }) {
+      Row() {
+        Text(this.label)
+          .fontSize(14)
+          .fontColor('#E5E7EB')
+          .layoutWeight(1)
+        Text(this.displayText)
+          .fontSize(13)
+          .fontColor('#CBD5E1')
+          .width(54)
+          .textAlign(TextAlign.End)
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+
+      Slider({
+        value: this.value,
+        min: this.min,
+        max: this.max,
+        step: this.step
+      })
+        .width('100%')
+        .onChange((value: number, _mode: SliderChangeMode) => {
+          this.onChange(value);
+        })
+    }
+    .width('100%')
+    .padding({ left: 16, right: 16, top: 8, bottom: 10 })
+  }
+}
+
 function readerMenuOptionIndex(options: string[], value: string): number {
   for (let i = 0; i < options.length; i++) {
     if (options[i] === value) {
@@ -1523,6 +1564,42 @@ function readerMenuOptionIndex(options: string[], value: string): number {
     }
   }
   return 0;
+}
+
+function readerAutoTransferOptions(): string[] {
+  return [READER_AUTO_TRANSFER_OFF, '2s', '5s', '10s', '15s'];
+}
+
+function readerAutoTransferSliderValue(value: string): number {
+  const options = readerAutoTransferOptions();
+  for (let i = 0; i < options.length; i++) {
+    if (options[i] === value) {
+      return i;
+    }
+  }
+  return 0;
+}
+
+function readerAutoTransferValue(value: number): string {
+  const options = readerAutoTransferOptions();
+  const index = Math.max(0, Math.min(options.length - 1, Math.round(value)));
+  return options[index];
+}
+
+function readerBrightnessSliderValue(value: string): number {
+  const numberValue = Number.parseInt(value);
+  if (Number.isNaN(numberValue)) {
+    return 50;
+  }
+  return Math.max(0, Math.min(100, numberValue));
+}
+
+function readerBrightnessValue(value: number): string {
+  return Math.max(0, Math.min(100, Math.round(value))).toString() + '%';
+}
+
+function readerBrightnessDisplayText(value: string): string {
+  return readerBrightnessSliderValue(value).toString() + '%';
 }
 
 function stripFileScheme(path: string): string {
