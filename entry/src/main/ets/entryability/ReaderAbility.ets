@@ -3,7 +3,8 @@ import { window } from '@kit.ArkUI';
 import {
   applyReaderFullscreenImmersiveMode,
   clearReaderWindow,
-  rememberReaderWindow
+  rememberReaderWindow,
+  restoreAppWindowState
 } from '../services/EhWindowImmersive';
 
 export const READER_ABILITY_CONTEXT_KEY: string = 'readerAbilityContext';
@@ -69,11 +70,17 @@ export default class ReaderAbility extends UIAbility {
   }
 
   onWindowStageDestroy(): void {
+    if (this.readerWindow !== undefined) {
+      restoreAppWindowState(this.readerWindow).catch(() => {});
+    }
     clearReaderWindow();
     this.readerWindow = undefined;
   }
 
   onDestroy(): void {
+    if (this.readerWindow !== undefined) {
+      restoreAppWindowState(this.readerWindow).catch(() => {});
+    }
     clearReaderWindow();
     AppStorage.set<common.UIAbilityContext | undefined>(READER_ABILITY_CONTEXT_KEY, undefined);
   }

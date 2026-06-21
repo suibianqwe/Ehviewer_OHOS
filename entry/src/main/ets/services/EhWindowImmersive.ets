@@ -10,6 +10,7 @@ type SystemBarName = 'status' | 'navigation';
 
 const VISIBLE_SYSTEM_BARS: SystemBarName[] = ['status', 'navigation'];
 const HIDDEN_SYSTEM_BARS: SystemBarName[] = [];
+const savedReaderPreferredOrientations: Map<number, window.Orientation> = new Map();
 
 export function rememberMainWindow(win: window.Window): void {
   AppStorage.set<window.Window | undefined>(MAIN_WINDOW_KEY, win);
@@ -112,6 +113,7 @@ export function enterEmbeddedReaderFullscreen(): void {
   if (target === undefined) {
     return;
   }
+  rememberWindowPreferredOrientation(target);
   applyReaderWindowStateFromSettings(target).catch(() => {});
   scheduleReaderFullscreenImmersiveMode(target, 32);
   scheduleReaderFullscreenImmersiveMode(target, 120);
@@ -157,6 +159,7 @@ async function applyAppChromeImmersiveModeAsync(target: window.Window): Promise<
 
 export async function applyReaderWindowState(target: window.Window, keepScreenOn: boolean,
   orientation: window.Orientation): Promise<void> {
+  rememberWindowPreferredOrientation(target);
   await setWindowKeepScreenOnQuietly(target, keepScreenOn, 'set reader keep screen on');
   await setPreferredOrientationQuietly(target, orientation, 'set reader orientation');
   await setWindowLayoutFullScreenQuietly(target, true, 'set reader full-screen layout');
@@ -172,6 +175,18 @@ export async function applyReaderWindowState(target: window.Window, keepScreenOn
 export async function applyReaderWindowStateFromSettings(target: window.Window): Promise<void> {
   const keepScreenOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
   await applyReaderWindowState(target, keepScreenOn, readerOrientationFromSetting(readerScreenRotationSetting()));
+}
+
+export function rememberWindowPreferredOrientation(target: window.Window): void {
+  try {
+    const windowId = target.getWindowProperties().id;
+    if (savedReaderPreferredOrientations.has(windowId)) {
+      return;
+    }
+    savedReaderPreferredOrientations.set(windowId, target.getPreferredOrientation());
+  } catch (error) {
+    logWindowError('remember reader previous orientation', error);
+  }
 }
 
 export function readerScreenRotationSetting(): string {
@@ -208,7 +223,7 @@ export function normalizeReaderScreenRotationSetting(value: string): string {
 export async function restoreAppWindowState(target: window.Window): Promise<void> {
   const useLightSystemBarIcons = isDarkTheme();
   await setWindowKeepScreenOnQuietly(target, false, 'restore app keep screen on');
-  await setPreferredOrientationQuietly(target, window.Orientation.UNSPECIFIED, 'restore app orientation');
+  await restoreWindowPreferredOrientation(target);
   await setWindowLayoutFullScreenQuietly(target, true, 'keep app full-screen layout');
   await setWindowSystemBarEnableQuietly(target, VISIBLE_SYSTEM_BARS, 'restore app system bar set');
   await setWindowSystemBarPropertiesQuietly(target, {
@@ -219,6 +234,21 @@ export async function restoreAppWindowState(target: window.Window): Promise<void
     statusBarContentColor: themeSystemBarContentColor(),
     navigationBarContentColor: themeSystemBarContentColor()
   }, 'restore app transparent system bars');
+}
+
+async function restoreWindowPreferredOrientation(target: window.Window): Promise<void> {
+  let orientation = window.Orientation.UNSPECIFIED;
+  try {
+    const windowId = target.getWindowProperties().id;
+    const saved = savedReaderPreferredOrientations.get(windowId);
+    if (saved !== undefined) {
+      orientation = saved;
+      savedReaderPreferredOrientations.delete(windowId);
+    }
+  } catch (error) {
+    logWindowError('read previous orientation', error);
+  }
+  await setPreferredOrientationQuietly(target, orientation, 'restore app orientation');
 }
 
 async function setWindowKeepScreenOnQuietly(target: window.Window, keepScreenOn: boolean,
