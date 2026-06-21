@@ -1464,7 +1464,7 @@ export struct GalleryListContent {
   @Prop statusText: string = '';
   @Prop requestUrl: string = '';
   @Prop isLoadingMore: boolean = false;
-  @Prop galleries: GalleryInfo[] = [];
+  @Prop @Watch('onGalleriesChanged') galleries: GalleryInfo[] = [];
   @Prop @Watch('onScrollReset') scrollResetVersion: number = 0;
   onKeywordChange: (value: string) => void = () => {
   };
@@ -1522,6 +1522,7 @@ export struct GalleryListContent {
   @State toolbarOffsetY: number = 0;
   private toolbarRestoring: boolean = false;
   private galleryRowsDataSource: ArrayDataSource<GalleryInfo[]> = new ArrayDataSource<GalleryInfo[]>([]);
+  private galleryRowStructureKeys: string[] = [];
   private barHeight: number = 56; // matches EhNavBar body height
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
 
@@ -1538,16 +1539,22 @@ export struct GalleryListContent {
     this.refreshSearchSuggestions();
   }
 
+  onGalleriesChanged(): void {
+    this.refreshGalleryRows();
+  }
+
   private statusBarVp(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx);
   }
 
   aboutToAppear(): void {
     this.syncContentWidthFromWindow();
+    this.refreshGalleryRows();
     this.syncPageJumpDraft();
     this.refreshSearchSuggestions();
     setTimeout(() => {
       this.syncContentWidthFromWindow();
+      this.refreshGalleryRows();
     }, 0);
   }
 
@@ -1760,6 +1767,7 @@ export struct GalleryListContent {
     }
     this.contentWidth = normalizedWidth;
     rememberMainContentWidthVp(normalizedWidth);
+    this.refreshGalleryRows();
   }
 
   private syncContentWidthFromWindow(): void {
@@ -2231,8 +2239,25 @@ export struct GalleryListContent {
   }
 
   private galleryRowsSource(): ArrayDataSource<GalleryInfo[]> {
-    this.galleryRowsDataSource.setItems(this.buildRows());
     return this.galleryRowsDataSource;
+  }
+
+  private refreshGalleryRows(): void {
+    const rows = this.buildRows();
+    const structureKeys: string[] = [];
+    let structureChanged = rows.length !== this.galleryRowStructureKeys.length;
+    for (let i = 0; i < rows.length; i++) {
+      const structureKey = this.galleryColumnCount().toString() + ':' + this.galleryRowKey(rows[i]);
+      structureKeys.push(structureKey);
+      if (!structureChanged && structureKey !== this.galleryRowStructureKeys[i]) {
+        structureChanged = true;
+      }
+    }
+    this.galleryRowsDataSource.replaceItems(rows);
+    if (structureChanged) {
+      this.galleryRowStructureKeys = structureKeys;
+      this.galleryRowsDataSource.notifyReload();
+    }
   }
 
   private galleryRowKey(row: GalleryInfo[]): string {
