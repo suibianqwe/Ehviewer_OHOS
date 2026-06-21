@@ -1884,6 +1884,7 @@ struct ReaderImageViewport {
           .width(this.imageDisplayWidth())
           .height(this.imageDisplayHeight())
           .objectFit(this.imageFit())
+          .draggable(false)
           .backgroundColor('#050608')
           .opacity(this.failedImageUrl === this.imageUrl() ? 0 : 1)
           .onComplete((event?: ReaderImageCompleteEvent) => {
@@ -1981,6 +1982,23 @@ struct ReaderImageViewport {
                 this.onImageLongPress();
               }
             }),
+          PanGesture({ fingers: 1, distance: this.imageModel.disableSwipe ? 3 : 50 })
+            .onActionStart(() => {
+              this.imageModel.panStart();
+              this.reportState();
+            })
+            .onActionUpdate((event: GestureEvent) => {
+              this.imageModel.panUpdate(event.offsetX, event.offsetY);
+              this.reportState();
+            })
+            .onActionEnd(() => {
+              this.imageModel.panEnd();
+              this.reportState();
+            })
+            .onActionCancel(() => {
+              this.imageModel.panEnd();
+              this.reportState();
+            }),
           PinchGesture({ fingers: 2, distance: 1 })
             .onActionStart((event: GestureEvent) => {
               this.imageModel.pinchStart(event.pinchCenterX, event.pinchCenterY);
@@ -2001,6 +2019,7 @@ struct ReaderImageViewport {
         )
       )
     )
+    .draggable(false)
   }
 }
 @Component
