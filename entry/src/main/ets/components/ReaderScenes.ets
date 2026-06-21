@@ -1127,34 +1127,36 @@ export struct ReaderScene {
 
       // Floating progress / clock / battery overlay (when no panel shown)
       if (!this.menuVisible && !this.sliderVisible) {
-        Column({ space: 4 }) {
-          if (this.overlayShowProgress) {
-            Text(this.progressText())
-              .fontSize(12)
-              .fontColor(themeOnPrimaryText())
-              .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-              .backgroundColor(themeScrimColor())
-              .borderRadius(10)
+        Row() {
+          Row({ space: 8 }) {
+            if (this.overlayShowProgress) {
+              Text(this.progressText())
+                .fontSize(12)
+                .fontColor(themeOnPrimaryText())
+                .lineHeight(16)
+            }
+            if (this.overlayShowClock) {
+              Text(readerClockText())
+                .fontSize(12)
+                .fontColor(themeOnPrimaryText())
+                .lineHeight(16)
+            }
+            if (this.overlayShowBattery) {
+              Text(this.batteryText())
+                .fontSize(12)
+                .fontColor(themeOnPrimaryText())
+                .lineHeight(16)
+            }
           }
-          if (this.overlayShowClock) {
-            Text(readerClockText())
-              .fontSize(12)
-              .fontColor(themeOnPrimaryText())
-              .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-              .backgroundColor(themeScrimColor())
-              .borderRadius(10)
-          }
-          if (this.overlayShowBattery) {
-            Text(this.batteryText())
-              .fontSize(12)
-              .fontColor(themeOnPrimaryText())
-              .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-              .backgroundColor(themeScrimColor())
-              .borderRadius(10)
-          }
+          .alignItems(VerticalAlign.Center)
+          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+          .backgroundColor(themeScrimColor())
+          .borderRadius(10)
         }
-        .alignItems(HorizontalAlign.Start)
-        .position({ x: 12, y: 12 })
+        .width('100%')
+        .justifyContent(FlexAlign.End)
+        .padding({ left: 12, right: 12 })
+        .position({ x: 0, y: 12 })
         .zIndex(3)
       }
 
@@ -1978,23 +1980,6 @@ struct ReaderImageViewport {
               if (this.isImageReady()) {
                 this.onImageLongPress();
               }
-            }),
-          PanGesture({ fingers: 1, distance: this.imageModel.disableSwipe ? 3 : 50 })
-            .onActionStart(() => {
-              this.imageModel.panStart();
-              this.reportState();
-            })
-            .onActionUpdate((event: GestureEvent) => {
-              this.imageModel.panUpdate(event.offsetX, event.offsetY);
-              this.reportState();
-            })
-            .onActionEnd(() => {
-              this.imageModel.panEnd();
-              this.reportState();
-            })
-            .onActionCancel(() => {
-              this.imageModel.panEnd();
-              this.reportState();
             }),
           PinchGesture({ fingers: 2, distance: 1 })
             .onActionStart((event: GestureEvent) => {

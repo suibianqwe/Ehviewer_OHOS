@@ -1,9 +1,9 @@
-export const EH_APP_VERSION_NAME: string = '0.2.85';
-export const EH_APP_VERSION_CODE: number = 285;
+export const EH_APP_VERSION_NAME: string = '0.2.86';
+export const EH_APP_VERSION_CODE: number = 286;
 export const EH_TARGET_PLATFORM: string = 'HarmonyOS 6.1.0 / API 6.1.1 (24)';
 export const EH_REPOSITORY_NAME: string = 'suibianqwe/Ehviewer_OHOS';
 export const EH_REPOSITORY_URL: string = 'https://github.com/suibianqwe/Ehviewer_OHOS';
-export const EH_RELEASE_TAG: string = 'v0.2.85';
+export const EH_RELEASE_TAG: string = 'v0.2.86';
 export const EH_RELEASE_URL: string = EH_REPOSITORY_URL + '/releases/tag/' + EH_RELEASE_TAG;
 export const EH_ISSUES_URL: string = EH_REPOSITORY_URL + '/issues';
 export const EH_GIT_BRANCH: string = 'main';
