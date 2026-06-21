@@ -7,13 +7,13 @@ const ARCHIVE_PATTERN: RegExp = /onclick=["']return popUp\(['"]([^'"]+)['"][^)]*
 const COVER_PATTERN: RegExp = /id=["']gd1["'][\s\S]*?style=["']([^"']*url\([^)]+\)[^"']*)["']/i;
 const COVER_URL_PATTERN: RegExp = /url\(([^)]+)\)/i;
 const PREVIEW_PATTERN: RegExp =
-  /<a[^>]+href=["']([^"']+)["'][^>]*>[\s\S]*?<div[^>]+title=["']Page\s+(\d+):[^"']*["'][^>]+style=["']([^"']*width:\s*(\d+)px;?\s*height:\s*(\d+)px;?[^"']*url\([^)]+\)[^"']*)["'][^>]*>/gi;
+  /<a[^>]+href=["']([^"']+)["'][^>]*>(?:(?!<\/a>)[\s\S])*?<div[^>]+title=["']Page\s+(\d+):[^"']*["'][^>]+style=["']([^"']*width:\s*(\d+)px;?\s*height:\s*(\d+)px;?[^"']*url\([^)]+\)[^"']*)["'][^>]*>/gi;
 const NORMAL_PREVIEW_PATTERN: RegExp =
   /<div[^>]+class=["'][^"']*\bgdtm\b[^"']*["'][^>]*>[\s\S]*?<div[^>]+style=["']([^"']*width:\s*(\d+)px[^"']*height:\s*(\d+)px[^"']*url\([^)]+\)[^"']*)["'][^>]*>[\s\S]*?<a[^>]+href=["']([^"']+)["'][^>]*>[\s\S]*?<img[^>]+alt=["']([\d,]+)["']/gi;
 const LARGE_PREVIEW_PATTERN: RegExp =
   /<div[^>]+class=["'][^"']*\bgdtl\b[^"']*["'][\s\S]*?<a[^>]+href=["']([^"']+)["'][^>]*>\s*<img[^>]+alt=["']([\d,]+)["'][^>]+src=["']([^"']+)["']/gi;
 const LARGE_PREVIEW_NEW_PATTERN: RegExp =
-  /<a[^>]+href=["']([^"']+)["'][^>]*>[\s\S]*?<div[^>]+title=["']Page\s+(\d+):[^"']*["'][^>]+style=["']([^"']*url\([^)]+\)[^"']*0\s+0[^"']*)["'][^>]*>/gi;
+  /<a[^>]+href=["']([^"']+)["'][^>]*>(?:(?!<\/a>)[\s\S])*?<div[^>]+title=["']Page\s+(\d+):[^"']*["'][^>]+style=["']([^"']*url\([^)]+\)[^"']*0\s+0[^"']*)["'][^>]*>/gi;
 
 export interface GalleryDetailParseResult {
   detail: GalleryDetail | null;
