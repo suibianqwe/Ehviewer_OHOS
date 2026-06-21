@@ -9,7 +9,7 @@ import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, nextFloatingToolbarOffset } from '../shared/EhShared';
-import { themeOnPrimaryText, themeOnPrimaryDangerBackground, themePageBackground } from '../shared/EhTheme';
+import { themeOnPrimaryText, themeOnPrimaryDangerBackground, themePageBackground, themeShadowColor } from '../shared/EhTheme';
 import { STATUS_BAR_HEIGHT_KEY, uiText, setActiveBackHandler, createDetailFromGallery, createEmptyDetail, createEmptyPage, cloneGalleryInfos, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, currentGallerySite, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, galleryListMode, galleryThumbWidth } from '../shared/EhShared';
 import { GalleryDetailOverlayScene, GalleryListRow, GalleryListScene, GalleryThumbCard, PlaceholderScene, ReaderPageState, ReaderScene } from './GalleryScenes';
 import { FloatingToolbarHost } from './NavigationComponents';
@@ -995,7 +995,7 @@ export struct HistoryScene {
                 left: this.historyContentHorizontalPadding(),
                 right: this.historyContentHorizontalPadding(),
                 top: this.historyContentTopPadding(),
-                bottom: 72
+                bottom: this.historyCardGap()
               })
               .onAreaChange((_oldArea: Area, newArea: Area) => {
                 this.updateHistoryContentWidth(newArea.width as number);
@@ -1024,20 +1024,28 @@ export struct HistoryScene {
               this.historyScrollOffset = offset;
             })
           }
-        if (this.historySelectionCount() > 0) {
-          Button({ type: ButtonType.Circle, stateEffect: true }) {
-            SymbolGlyph($r('sys.symbol.trash'))
-              .fontSize(24)
-              .fontColor([themeOnPrimaryText()])
+        Column() {
+          if (this.historySelectionCount() > 0) {
+            Button({ type: ButtonType.Circle, stateEffect: true }) {
+              SymbolGlyph($r('sys.symbol.trash'))
+                .fontSize(24)
+                .fontColor([themeOnPrimaryText()])
+            }
+            .width(54)
+            .height(54)
+            .backgroundColor(themeOnPrimaryDangerBackground())
+            .shadow({ radius: 14, color: themeShadowColor(), offsetX: 0, offsetY: 3 })
+            .onClick(() => {
+              this.deleteSelectedHistory();
+            })
           }
-          .width(56)
-          .height(56)
-          .backgroundColor(themeOnPrimaryDangerBackground())
-          .margin({ right: 18, bottom: 18 })
-          .onClick(() => {
-            this.deleteSelectedHistory();
-          })
         }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.End)
+        .alignItems(HorizontalAlign.End)
+        .padding({ right: 16, bottom: 24 })
+        .hitTestBehavior(HitTestMode.Transparent)
         }
         .width('100%')
         .height('100%')

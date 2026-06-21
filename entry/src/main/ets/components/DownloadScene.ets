@@ -1169,7 +1169,7 @@ export struct DownloadScene {
             left: this.downloadContentPadding(),
             right: this.downloadContentPadding(),
             top: this.downloadContentTopPadding() + 8,
-            bottom: 82
+            bottom: this.downloadCardGap()
           })
           .onAreaChange((_oldArea: Area, newArea: Area) => {
             this.updateDownloadContentWidth(newArea.width as number);
@@ -1192,42 +1192,46 @@ export struct DownloadScene {
           })
         }
 
-        DownloadToolColumn({
-          expanded: this.downloadActionsExpanded,
-          hasSelection: this.downloadSelectionCount() > 0,
-          canOperate: this.items.length > 0,
-          statusFilter: this.statusFilter,
-          categoryFilter: this.categoryFilter,
-          sortMode: this.sortMode,
-          onToggle: () => {
-            this.downloadActionsExpanded = !this.downloadActionsExpanded;
-          },
-          onStatus: () => {
-            this.statusFilter = nextDownloadStatusFilter(this.statusFilter);
-          },
-          onCategory: () => {
-            this.categoryFilter = nextDownloadCategoryFilter(this.categoryFilter);
-          },
-          onSort: () => {
-            this.sortMode = nextDownloadSortMode(this.sortMode);
-          },
-          onStart: () => {
-            this.startSelectedOrAll();
-          },
-          onStop: () => {
-            this.stopSelectedOrAll();
-          },
-          onRestore: () => {
-            this.restoreDownloadedItems();
-          },
-          onClearDone: () => {
-            this.clearFinished();
-          },
-          onDelete: () => {
-            this.deleteSelectedDownloads();
-          }
-        })
-        .margin({ right: 18, bottom: 18 })
+        Column() {
+          DownloadToolColumn({
+            expanded: this.downloadActionsExpanded,
+            hasSelection: this.downloadSelectionCount() > 0,
+            canOperate: this.items.length > 0,
+            onToggle: () => {
+              this.downloadActionsExpanded = !this.downloadActionsExpanded;
+            },
+            onStatus: () => {
+              this.statusFilter = nextDownloadStatusFilter(this.statusFilter);
+            },
+            onCategory: () => {
+              this.categoryFilter = nextDownloadCategoryFilter(this.categoryFilter);
+            },
+            onSort: () => {
+              this.sortMode = nextDownloadSortMode(this.sortMode);
+            },
+            onStart: () => {
+              this.startSelectedOrAll();
+            },
+            onStop: () => {
+              this.stopSelectedOrAll();
+            },
+            onRestore: () => {
+              this.restoreDownloadedItems();
+            },
+            onClearDone: () => {
+              this.clearFinished();
+            },
+            onDelete: () => {
+              this.deleteSelectedDownloads();
+            }
+          })
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.End)
+        .alignItems(HorizontalAlign.End)
+        .padding({ right: 16, bottom: 24 })
+        .hitTestBehavior(HitTestMode.Transparent)
       }
       .width('100%')
       .height('100%')
@@ -1252,9 +1256,6 @@ struct DownloadToolColumn {
   @Prop expanded: boolean = false;
   @Prop hasSelection: boolean = false;
   @Prop canOperate: boolean = false;
-  statusFilter: string = 'All';
-  categoryFilter: string = 'All';
-  sortMode: string = 'Default';
   onToggle: () => void = () => {};
   onStatus: () => void = () => {};
   onCategory: () => void = () => {};
@@ -1271,50 +1272,50 @@ struct DownloadToolColumn {
         Column({ space: 8 }) {
           if (this.hasSelection) {
             ActionBubble({
-              label: uiText('Delete'),
+              label: '',
               symbolIcon: $r('sys.symbol.trash'),
               isEnabled: true,
               onTapAction: this.onDelete
             })
           }
           ActionBubble({
-            label: uiText('Status') + ': ' + uiValue(this.statusFilter),
+            label: '',
             symbolIcon: $r('sys.symbol.magnifyingglass'),
             isEnabled: true,
             onTapAction: this.onStatus
           })
           ActionBubble({
-            label: uiText('Category') + ': ' + uiValue(this.categoryFilter),
+            label: '',
             symbolIcon: $r('sys.symbol.list_number'),
             isEnabled: true,
             onTapAction: this.onCategory
           })
           ActionBubble({
-            label: uiText('Sort') + ': ' + uiValue(this.sortMode),
+            label: '',
             symbolIcon: $r('sys.symbol.chevron_forward'),
             isEnabled: true,
             onTapAction: this.onSort
           })
           ActionBubble({
-            label: uiText('Start'),
+            label: '',
             symbolIcon: $r('sys.symbol.play_fill'),
             isEnabled: true,
             onTapAction: this.onStart
           })
           ActionBubble({
-            label: uiText('Stop'),
+            label: '',
             symbolIcon: $r('sys.symbol.pause_fill'),
             isEnabled: this.canOperate,
             onTapAction: this.onStop
           })
           ActionBubble({
-            label: uiText('Restore'),
+            label: '',
             symbolIcon: $r('sys.symbol.play_arrow_triangle_2_circlepath'),
             isEnabled: true,
             onTapAction: this.onRestore
           })
           ActionBubble({
-            label: uiText('Clear done'),
+            label: '',
             symbolIcon: $r('sys.symbol.checkmark_circle'),
             isEnabled: this.canOperate,
             onTapAction: this.onClearDone

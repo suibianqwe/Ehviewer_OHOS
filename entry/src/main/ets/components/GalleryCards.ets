@@ -106,7 +106,7 @@ export struct GalleryListRow {
   }
 
   build() {
-    Stack({ alignContent: Alignment.TopEnd }) {
+    Stack({ alignContent: Alignment.TopStart }) {
       Row() {
         GalleryThumb({
           url: this.gallery.thumb === undefined ? '' : this.gallery.thumb,
@@ -219,14 +219,13 @@ export struct GalleryListRow {
         SymbolGlyph($r('sys.symbol.checkmark_circle_fill'))
           .fontSize(24)
           .fontColor([themeSelectedIndicatorColor()])
-          .margin({ top: 6, right: 6 })
+          .margin({ top: 6, left: 6 })
       }
     }
     .width('100%')
     .height(this.cardHeight())
     .backgroundColor(this.selected ? themeSelectedBackground() : themeSurface())
     .borderRadius(6)
-    .border({ width: this.selected ? 2 : 0, color: themeSelectedIndicatorColor() })
     .clip(true)
   }
 }
@@ -353,7 +352,7 @@ export struct GalleryThumbCard {
   selected: boolean = false;
 
   build() {
-    Stack({ alignContent: Alignment.TopEnd }) {
+    Stack({ alignContent: Alignment.TopStart }) {
       Column() {
         GalleryThumb({
           url: this.gallery.thumb === undefined ? '' : this.gallery.thumb,
@@ -397,12 +396,11 @@ export struct GalleryThumbCard {
         SymbolGlyph($r('sys.symbol.checkmark_circle_fill'))
           .fontSize(24)
           .fontColor([themeSelectedIndicatorColor()])
-          .margin({ top: 6, right: 6 })
+          .margin({ top: 6, left: 6 })
       }
     }
     .backgroundColor(this.selected ? themeSelectedBackground() : themeSurface())
     .borderRadius(6)
-    .border({ width: this.selected ? 2 : 0, color: themeSelectedIndicatorColor() })
     .clip(true)
   }
 }
