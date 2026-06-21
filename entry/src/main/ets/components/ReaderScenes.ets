@@ -22,6 +22,7 @@ import {
   plainTextFromHtml,
   readerClockText,
   readerDisplayImageUrl,
+  readerPreloadCount,
   normalizePageScalingOption,
   normalizeReadingDirectionOption,
   normalizeStartPositionOption,
@@ -29,6 +30,7 @@ import {
   uiText,
   uiValue
 } from '../shared/EhShared';
+import { ArrayDataSource } from '../shared/ListDataSource';
 import { readerSelectColors, selectArrowModifier } from '../shared/EhSelectStyle';
 import { themeOnPrimaryText, themeOnPrimarySecondaryText, themeScrimColor } from '../shared/EhTheme';
 import { EhSubNavBar } from './NavigationComponents';
@@ -346,7 +348,7 @@ export struct ReaderScene {
   @Prop readerPages: ReaderPageState[] = [];
   @Prop statusText: string = '';
   @Prop @Watch('onPageIndexChange') pageIndex: number = 0;
-  @Prop totalPages: number = 0;
+  @Prop @Watch('onTotalPagesChange') totalPages: number = 0;
   onBack: () => void = () => {};
   onPrev: () => void = () => {};
   onNext: () => void = () => {};
@@ -376,6 +378,8 @@ export struct ReaderScene {
   @State batteryLevel: number = -1;
   private swiperController: SwiperController = new SwiperController();
   private sliderHideTimer: number = -1;
+  private readerPageIndexesSource: ArrayDataSource<number> = new ArrayDataSource<number>([]);
+  private readerPageIndexesCount: number = -1;
 
   // Menu settings state (reflects ehSettingsStore, applied on menu close)
   @State menuScreenRotation: string = 'Default';
@@ -411,6 +415,7 @@ export struct ReaderScene {
 
   aboutToAppear(): void {
     this.readerWindowActive = true;
+    this.syncReaderPageIndexSource();
     if (this.restoreAppChromeOnExit) {
       setEmbeddedReaderActive(true);
     }
@@ -500,6 +505,10 @@ export struct ReaderScene {
     this.applyReaderWindowSettings();
   }
 
+  onTotalPagesChange(): void {
+    this.syncReaderPageIndexSource();
+  }
+
   private scheduleReaderChromeMode(delay: number): void {
     setTimeout(() => {
       if (!this.readerWindowActive) {
@@ -566,24 +575,22 @@ export struct ReaderScene {
     return createEmptyPage();
   }
 
-  private prewarmPageIndexes(): number[] {
-    const total = this.totalPages <= 0 ? 1 : this.totalPages;
-    const indexes: number[] = [];
-    for (let offset = 1; offset <= 2; offset++) {
-      const next = this.currentIndex + offset;
-      if (next < total && this.hasDisplayImage(next)) {
-        indexes.push(next);
-      }
-      const previous = this.currentIndex - offset;
-      if (previous >= 0 && this.hasDisplayImage(previous)) {
-        indexes.push(previous);
-      }
-    }
-    return indexes;
+  private readerPageIndexSource(): ArrayDataSource<number> {
+    this.syncReaderPageIndexSource();
+    return this.readerPageIndexesSource;
   }
 
-  private hasDisplayImage(index: number): boolean {
-    return readerDisplayImageUrl(this.pageForIndex(index), this.preferOriginal).length > 0;
+  private readerRenderCacheCount(): number {
+    return readerPreloadCount();
+  }
+
+  private syncReaderPageIndexSource(): void {
+    const count = this.totalPages <= 0 ? 1 : this.totalPages;
+    if (count === this.readerPageIndexesCount) {
+      return;
+    }
+    this.readerPageIndexesCount = count;
+    this.readerPageIndexesSource.setItems(this.pageIndexes());
   }
 
   private issueViewportCommand(command: string): void {
@@ -913,7 +920,7 @@ export struct ReaderScene {
   build() {
     Stack({ alignContent: Alignment.Center }) {
       Swiper(this.swiperController) {
-        ForEach(this.pageIndexes(), (index: number) => {
+        LazyForEach(this.readerPageIndexSource(), (index: number) => {
           ReaderImageViewport({
             page: this.pageForIndex(index),
             statusText: index === this.pageIndex ? this.statusText : uiText('Image page is loading'),
@@ -944,7 +951,7 @@ export struct ReaderScene {
         }, (index: number) => index.toString())
       }
       .index(this.currentIndex)
-      .cachedCount(3)
+      .cachedCount(this.readerRenderCacheCount())
       .indicator(false)
       .loop(false)
       .autoPlay(false)
@@ -961,20 +968,6 @@ export struct ReaderScene {
       .width('100%')
       .height('100%')
       .backgroundColor('#050608')
-
-      Stack() {
-        ForEach(this.prewarmPageIndexes(), (index: number) => {
-          ReaderImagePrewarm({
-            page: this.pageForIndex(index),
-            preferOriginal: this.preferOriginal
-          })
-        }, (index: number) => index.toString() + ':' + readerDisplayImageUrl(this.pageForIndex(index), this.preferOriginal))
-      }
-      .width(1)
-      .height(1)
-      .opacity(0.01)
-      .hitTestBehavior(HitTestMode.Transparent)
-      .zIndex(0)
 
       // Floating progress / clock / battery overlay (when no panel shown)
       if (!this.menuVisible && !this.sliderVisible) {
@@ -1322,30 +1315,6 @@ struct ReaderMenuToggle {
     .width('100%')
     .padding({ left: 16, right: 16, top: 6, bottom: 6 })
     .alignItems(VerticalAlign.Center)
-  }
-}
-
-@Component
-struct ReaderImagePrewarm {
-  @Prop page: GalleryPage = createEmptyPage();
-  @Prop preferOriginal: boolean = false;
-
-  private imageUrl(): string {
-    return readerDisplayImageUrl(this.page, this.preferOriginal);
-  }
-
-  build() {
-    if (this.imageUrl().length > 0) {
-      Image(this.imageUrl())
-        .width(1)
-        .height(1)
-        .objectFit(ImageFit.Contain)
-        .opacity(0.01)
-    } else {
-      Blank()
-        .width(1)
-        .height(1)
-    }
   }
 }
 
