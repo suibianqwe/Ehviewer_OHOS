@@ -7,6 +7,7 @@ import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { DEFAULT_ADVANCE_SEARCH, EhUrl, ListMode } from '../services/EhUrl';
 import { galleryPageCache } from '../services/GalleryPageCache';
+import { mergeGalleryPreviewSets } from '../services/GalleryPreviewLoader';
 import { readerImageCache } from '../services/ReaderImageCache';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
@@ -100,6 +101,7 @@ export struct DownloadScene {
   private downloadScroller: Scroller = new Scroller();
   private downloadScrollOffset: number = 0;
   private toolbarRestoring: boolean = false;
+  private localReaderPreviewPageSize: number = 0;
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
@@ -607,17 +609,17 @@ export struct DownloadScene {
         throw new Error(detailResult.message);
       }
 
-      ehDownloadStore.updateGallery(detailResult.detail);
-      const total = detailResult.detail.previewSet.length > 0 ? detailResult.detail.previewSet.length :
-        detailResult.detail.pages;
-      const downloadDirectory = ehDownloadFileStore.prepareGallery(context, detailResult.detail);
+      const detail = await this.loadCompleteDownloadDetail(detailResult.detail, detailResult.url);
+      ehDownloadStore.updateGallery(detail);
+      const total = Math.max(detail.pages, detail.previewSet.length);
+      const downloadDirectory = ehDownloadFileStore.prepareGallery(context, detail);
       ehDownloadStore.setProgress(item.gid, 0, total, 0);
       ehDownloadStore.setStorage(item.gid, downloadDirectory, 0);
 
       let finished = 0;
-      let fileSize = ehDownloadFileStore.directorySize(context, detailResult.detail);
-      for (let i = 0; i < detailResult.detail.previewSet.length; i++) {
-        if (ehDownloadFileStore.findPageImage(context, detailResult.detail, i).length > 0) {
+      let fileSize = ehDownloadFileStore.directorySize(context, detail);
+      for (let i = 0; i < detail.previewSet.length; i++) {
+        if (ehDownloadFileStore.findPageImage(context, detail, i).length > 0) {
           finished++;
         }
       }
@@ -630,7 +632,7 @@ export struct DownloadScene {
 
       let lastBytes = fileSize;
       let lastTime = Date.now();
-      const pageIndexes = downloadPageIndexes(detailResult.detail.previewSet.length);
+      const pageIndexes = downloadPageIndexes(detail.previewSet.length);
       for (let orderIndex = 0; orderIndex < pageIndexes.length; orderIndex++) {
         const i = pageIndexes[orderIndex];
         if (this.shouldStop || this.isStopped(item.gid)) {
@@ -640,13 +642,13 @@ export struct DownloadScene {
           return;
         }
 
-        const preview = detailResult.detail.previewSet[i];
-        if (preview.pageUrl.length === 0 || ehDownloadFileStore.findPageImage(context, detailResult.detail, i).length > 0) {
+        const preview = detail.previewSet[i];
+        if (preview.pageUrl.length === 0 || ehDownloadFileStore.findPageImage(context, detail, i).length > 0) {
           continue;
         }
 
         const pageResult = await this.client.loadGalleryPage(preview.pageUrl, currentGallerySite(),
-          readerPageReferer(detailResult.url, detailResult.detail.previewSet, i, currentGallerySite()));
+          readerPageReferer(detailResult.url, detail.previewSet, i, currentGallerySite()));
         if (!pageResult.ok || pageResult.page === null) {
           throw new Error(pageResult.message);
         }
@@ -659,7 +661,7 @@ export struct DownloadScene {
         const existingCachedPath = readerImageCache.getCachedPath(context, imageUrl);
         const cachedPath = existingCachedPath.length > 0 ? existingCachedPath :
           await readerImageCache.ensureCached(context, imageUrl, pageResult.page.pageUrl, false);
-        const savedPath = ehDownloadFileStore.savePageImage(context, detailResult.detail, pageResult.page, i, cachedPath);
+        const savedPath = ehDownloadFileStore.savePageImage(context, detail, pageResult.page, i, cachedPath);
         fileSize += ehDownloadFileStore.statFileSize(savedPath);
         finished++;
 
@@ -689,6 +691,24 @@ export struct DownloadScene {
       this.statusText = 'Download failed: ' + String(error);
       this.persistDownloads();
     }
+  }
+
+  private async loadCompleteDownloadDetail(initial: GalleryDetail, referer: string): Promise<GalleryDetail> {
+    let detail = cloneGalleryDetail(initial);
+    if (detail.previewPages <= 1 || detail.gid <= 0 || detail.token.length === 0) {
+      return detail;
+    }
+    for (let pageIndex = 1; pageIndex < detail.previewPages; pageIndex++) {
+      const result = await this.client.loadGalleryDetail(detail.gid, detail.token, pageIndex, currentGallerySite(),
+        referer);
+      if (!result.ok || result.detail === null) {
+        throw new Error('Preview page ' + (pageIndex + 1).toString() + ' load failed: ' + result.message);
+      }
+      detail = mergeGalleryPreviewSets(detail, result.detail).detail;
+      this.statusText = 'Loaded preview page ' + (pageIndex + 1).toString() + '/' + detail.previewPages.toString() +
+        ': ' + detail.title;
+    }
+    return detail;
   }
 
   private openDownloadedItem(item: DownloadInfo): void {
@@ -747,11 +767,13 @@ export struct DownloadScene {
     requestedIndex: number): Promise<LocalReaderSession> {
     let detail = createDetailFromGallery(item);
     let detailRequestUrl = '';
+    this.localReaderPreviewPageSize = 0;
     try {
       const result = await this.client.loadGalleryDetail(item.gid, item.token, 0, currentGallerySite(),
         EhUrl.getReferer(currentGallerySite()));
       if (result.ok && result.detail !== null) {
         detail = cloneGalleryDetail(result.detail);
+        this.localReaderPreviewPageSize = detail.previewSet.length;
         detailRequestUrl = result.url;
         ehDownloadStore.updateGallery(result.detail);
         this.persistDownloads();
@@ -956,7 +978,8 @@ export struct DownloadScene {
       return preview;
     }
 
-    const pageSize = Math.max(1, this.localReaderDetail.previewSet.length);
+    const pageSize = this.localReaderPreviewPageSize > 0 ? this.localReaderPreviewPageSize :
+      Math.max(1, this.localReaderDetail.previewSet.length);
     const previewPageIndex = Math.floor(index / pageSize);
     const result = await this.client.loadGalleryDetail(this.localReaderDetail.gid, this.localReaderDetail.token,
       previewPageIndex, currentGallerySite(), EhUrl.getReferer(currentGallerySite()));
@@ -977,6 +1000,9 @@ export struct DownloadScene {
   }
 
   private mergeLocalReaderPreviews(loaded: GalleryDetail): void {
+    if (this.localReaderPreviewPageSize <= 0 && loaded.previewSet.length > 0) {
+      this.localReaderPreviewPageSize = loaded.previewSet.length;
+    }
     const merged: GalleryPreview[] = [];
     for (let i = 0; i < this.localReaderDetail.previewSet.length; i++) {
       merged.push(this.localReaderDetail.previewSet[i]);

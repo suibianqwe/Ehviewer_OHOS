@@ -30,10 +30,7 @@ export interface DetailPreviewPagerOptions {
 
 export function seedPreviewMap(previewMap: Map<number, GalleryPreview>, previews: GalleryPreview[],
   currentPageSize: number): number {
-  let nextPageSize = currentPageSize;
-  if (previews.length > 0 && (nextPageSize <= 0 || previews.length > nextPageSize)) {
-    nextPageSize = previews.length;
-  }
+  const nextPageSize = currentPageSize > 0 ? currentPageSize : previews.length;
   for (let i = 0; i < previews.length; i++) {
     previewMap.set(previews[i].index, previews[i]);
   }
@@ -63,7 +60,9 @@ export function mergeGalleryPreviewSets(current: GalleryDetail, loaded: GalleryD
   nextDetail.pages = Math.max(nextDetail.pages, loaded.pages);
 
   if (previewMap !== undefined) {
-    nextPageSize = seedPreviewMap(previewMap, nextDetail.previewSet, nextPageSize);
+    for (let i = 0; i < nextDetail.previewSet.length; i++) {
+      previewMap.set(nextDetail.previewSet[i].index, nextDetail.previewSet[i]);
+    }
   }
   return {
     detail: nextDetail,

@@ -244,7 +244,7 @@ export struct ReaderHostScene {
   }
 
   private seedReaderPreviewCache(previews: GalleryPreview[]): void {
-    if (previews.length > 0 && (this.readerPreviewPageSize <= 0 || previews.length > this.readerPreviewPageSize)) {
+    if (previews.length > 0 && this.readerPreviewPageSize <= 0) {
       this.readerPreviewPageSize = previews.length;
     }
     for (let i = 0; i < previews.length; i++) {
@@ -359,7 +359,9 @@ export struct ReaderHostScene {
     nextDetail.previewPages = Math.max(nextDetail.previewPages, loaded.previewPages);
     nextDetail.pages = Math.max(nextDetail.pages, loaded.pages);
     this.detail = nextDetail;
-    this.seedReaderPreviewCache(this.detail.previewSet);
+    for (let i = 0; i < this.detail.previewSet.length; i++) {
+      this.readerPreviewMap.set(this.detail.previewSet[i].index, this.detail.previewSet[i]);
+    }
     this.renderVersion++;
     this.persistSession();
   }
