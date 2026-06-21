@@ -43,7 +43,7 @@ export struct GalleryListRow {
   }
 
   private metaTopGap(): number {
-    return galleryListMode() === 'Extended' ? 6 : this.metaGap();
+    return galleryListMode() === 'Extended' ? 8 : this.metaGap();
   }
 
   private titleMaxLines(): number {
@@ -52,6 +52,10 @@ export struct GalleryListRow {
 
   private titleHeight(): number {
     return galleryListMode() === 'Extended' ? 38 : 56;
+  }
+
+  private uploaderTopGap(): number {
+    return galleryListMode() === 'Extended' ? 1 : 3;
   }
 
   private hasTags(): boolean {
@@ -76,9 +80,16 @@ export struct GalleryListRow {
   }
 
   private readPageText(): string {
+    if (this.gallery.pages <= 0) {
+      return '';
+    }
     const readIndex = ehHistoryStore.getReadPage(this.gallery.gid);
     const readPages = readIndex >= 0 ? Math.min(this.gallery.pages, readIndex + 1) : 0;
     return readPages.toString() + '/' + this.gallery.pages.toString() + ' P';
+  }
+
+  private showReadPageText(): boolean {
+    return showGalleryPages() && this.gallery.pages > 0;
   }
 
   private languageText(): string {
@@ -140,7 +151,7 @@ export struct GalleryListRow {
             .fontColor(themeSecondaryText())
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .margin({ top: 3 })
+            .margin({ top: this.uploaderTopGap() })
         }
         .width('100%')
         .layoutWeight(1)
@@ -155,11 +166,14 @@ export struct GalleryListRow {
                 .fontWeight(FontWeight.Medium)
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
-              if (showGalleryPages()) {
+                .layoutWeight(1)
+              if (this.showReadPageText()) {
                 Text(this.readPageText())
                   .fontSize(13)
                   .fontColor(themeSecondaryText())
                   .fontWeight(FontWeight.Medium)
+                  .maxLines(1)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
                   .margin({ left: 8 })
               }
             }
