@@ -81,11 +81,19 @@ export struct HistoryScene {
   }
 
   private handleSystemBack(): boolean {
+    if (this.historySelectionCount() > 0) {
+      this.clearHistorySelection();
+      return true;
+    }
     if (this.showTagSearch) { this.closeTagSearch(); return true; }
     if (this.showReader) { this.closeReader(); return true; }
     if (this.showComments) { this.closeComments(); return true; }
     if (this.showDetail) { this.closeDetail(); return true; }
     return false;
+  }
+
+  private clearHistorySelection(): void {
+    this.selectedHistoryGids = '';
   }
 
   private openTagSearch(namespace: string, tag: string): void {
@@ -192,7 +200,7 @@ export struct HistoryScene {
       }
     }
     this.histories = cloneGalleryInfos(ehHistoryStore.getItems());
-    this.selectedHistoryGids = '';
+    this.clearHistorySelection();
     this.statusText = 'Removed ' + count.toString() + ' history items';
     this.renderVersion++;
     this.persistHistory();

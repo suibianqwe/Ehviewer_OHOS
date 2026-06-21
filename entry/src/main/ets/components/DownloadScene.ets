@@ -116,6 +116,10 @@ export struct DownloadScene {
   }
 
   private handleSystemBack(): boolean {
+    if (this.downloadSelectionCount() > 0) {
+      this.clearDownloadSelection();
+      return true;
+    }
     if (this.showTagSearch) {
       this.closeTagSearch();
       return true;
@@ -129,6 +133,11 @@ export struct DownloadScene {
       return true;
     }
     return false;
+  }
+
+  private clearDownloadSelection(): void {
+    this.selectedDownloadGids = '';
+    this.downloadActionsExpanded = false;
   }
 
   private statusBarVp(): number {
@@ -237,6 +246,7 @@ export struct DownloadScene {
       this.selectedDownloadGids = this.selectedDownloadGids.replace(key, '|');
       if (this.selectedDownloadGids === '|') {
         this.selectedDownloadGids = '';
+        this.downloadActionsExpanded = false;
       }
       return;
     }
@@ -343,8 +353,7 @@ export struct DownloadScene {
   }
 
   private downloadRowKey(row: DownloadInfo[]): string {
-    return row.map((item: DownloadInfo) => item.gid.toString() + ':' + item.state + ':' +
-      item.finished.toString() + ':' + item.total.toString()).join('-');
+    return row.map((item: DownloadInfo) => item.gid.toString()).join('-');
   }
 
   private startAll(): void {
@@ -368,7 +377,7 @@ export struct DownloadScene {
       ehDownloadStore.startGallery(selected[i].gid);
     }
     this.statusText = 'Queued ' + selected.length.toString() + ' selected downloads';
-    this.selectedDownloadGids = '';
+    this.clearDownloadSelection();
     this.persistDownloads();
     this.runDownloadQueue();
   }
@@ -392,7 +401,7 @@ export struct DownloadScene {
       ehDownloadStore.stopGallery(selected[i].gid);
     }
     this.statusText = 'Stopped ' + selected.length.toString() + ' selected downloads';
-    this.selectedDownloadGids = '';
+    this.clearDownloadSelection();
     this.persistDownloads();
   }
 
@@ -434,6 +443,13 @@ export struct DownloadScene {
     this.startItem(item);
   }
 
+  private toggleItemFromProgress(item: DownloadInfo): void {
+    if (item.state === DownloadState.Finish) {
+      return;
+    }
+    this.cycleItemState(item);
+  }
+
   private startItem(item: DownloadInfo): void {
     this.shouldStop = false;
     this.removeStoppedGid(item.gid);
@@ -469,7 +485,7 @@ export struct DownloadScene {
     for (let i = 0; i < selected.length; i++) {
       this.removeItem(selected[i]);
     }
-    this.selectedDownloadGids = '';
+    this.clearDownloadSelection();
     this.statusText = 'Removed ' + selected.length.toString() + ' downloads';
     this.persistDownloads();
   }
@@ -1139,7 +1155,12 @@ export struct DownloadScene {
                         GalleryListRow({ gallery: item, selected: this.isDownloadSelected(item.gid) })
                           .width('100%')
                       }
-                      DownloadCardStatus({ item: item })
+                      DownloadCardStatus({
+                        item: item,
+                        onProgressTap: (downloadItem: DownloadInfo) => {
+                          this.toggleItemFromProgress(downloadItem);
+                        }
+                      })
                         .margin({ top: 4 })
                     }
                     .width(this.downloadCardWidth())
@@ -1159,8 +1180,7 @@ export struct DownloadScene {
               }
               .margin({ bottom: this.downloadCardGap() })
             }, (row: DownloadInfo[], rowIndex: number) => {
-              return this.downloadColumnCount().toString() + ':' + rowIndex.toString() + ':' +
-                this.selectedDownloadGids + ':' + this.downloadRowKey(row);
+              return this.downloadColumnCount().toString() + ':' + rowIndex.toString() + ':' + this.downloadRowKey(row);
             })
           }
           .width('100%')
@@ -1340,9 +1360,14 @@ struct DownloadToolColumn {
 @Component
 struct DownloadCardStatus {
   item: DownloadInfo = createEmptyDownloadInfo();
+  onProgressTap: (item: DownloadInfo) => void = (_item: DownloadInfo) => {};
 
   private isDownloading(): boolean {
     return this.item.state === DownloadState.Downloading;
+  }
+
+  private showProgressBar(): boolean {
+    return this.item.state !== DownloadState.Finish;
   }
 
   private progressPercent(): string {
@@ -1389,25 +1414,34 @@ struct DownloadCardStatus {
       }
       .width('100%')
 
-      Stack({ alignContent: Alignment.Start }) {
-        Row()
-          .height(4)
-          .width('100%')
-          .backgroundColor(themeDividerColor())
-          .borderRadius(2)
-        Row()
-          .height(4)
-          .width(this.progressPercent())
-          .backgroundColor(downloadStateColor(this.item.state))
-          .borderRadius(2)
+      if (this.showProgressBar()) {
+        Stack({ alignContent: Alignment.Start }) {
+          Row()
+            .height(4)
+            .width('100%')
+            .backgroundColor(themeDividerColor())
+            .borderRadius(2)
+          Row()
+            .height(4)
+            .width(this.progressPercent())
+            .backgroundColor(downloadStateColor(this.item.state))
+            .borderRadius(2)
+        }
+        .width('100%')
+        .height(14)
+        .margin({ top: 1 })
+        .clip(true)
+        .onClick(() => {
+          this.onProgressTap(this.item);
+        })
+        .transition(TransitionEffect.move(TransitionEdge.TOP)
+          .animation({ duration: 180, curve: Curve.EaseOut }))
       }
-      .width('100%')
-      .height(4)
-      .margin({ top: 5 })
     }
     .width('100%')
     .padding({ left: 8, right: 8, top: 6, bottom: 7 })
     .backgroundColor(themeSurface())
     .borderRadius(6)
+    .animation({ duration: 180, curve: Curve.EaseOut })
   }
 }
