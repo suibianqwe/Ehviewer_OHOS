@@ -118,6 +118,7 @@ export struct DownloadScene {
     setActiveBackHandler(() => this.handleSystemBack());
     this.unsubscribeStore = ehDownloadStore.subscribe((items: DownloadInfo[]) => {
       this.items = items;
+      this.refreshDownloadRows();
       this.downloadProgressRevision++;
     });
     this.loadDownloads();
@@ -358,6 +359,7 @@ export struct DownloadScene {
     }
     this.downloadContentWidth = normalizedWidth;
     rememberMainContentWidthVp(normalizedWidth);
+    this.refreshDownloadRows();
   }
 
   private syncDownloadContentWidthFromWindow(): void {
@@ -378,12 +380,20 @@ export struct DownloadScene {
   }
 
   private downloadRowsSource(): ArrayDataSource<DownloadInfo[]> {
-    this.downloadRowsDataSource.setItems(this.buildDownloadRows());
     return this.downloadRowsDataSource;
   }
 
+  private refreshDownloadRows(): void {
+    this.downloadRowsDataSource.setItems(this.buildDownloadRows());
+  }
+
   private downloadRowKey(row: DownloadInfo[]): string {
-    return row.map((item: DownloadInfo) => item.gid.toString()).join('-');
+    return row.map((item: DownloadInfo) => this.downloadItemRenderKey(item)).join('-');
+  }
+
+  private downloadItemRenderKey(item: DownloadInfo): string {
+    return item.gid.toString() + ':' + item.state + ':' + item.finished.toString() + ':' +
+      item.total.toString() + ':' + item.downloaded.toString() + ':' + item.speed.toString();
   }
 
   private downloadProgressPercent(item: DownloadInfo): string {
@@ -1197,6 +1207,7 @@ export struct DownloadScene {
         onMenu: this.onMenu,
         onKeywordChange: (value: string) => {
           this.query = value;
+          this.refreshDownloadRows();
         },
         onSearch: () => {}
       }) {
@@ -1275,7 +1286,7 @@ export struct DownloadScene {
                       .width(this.downloadCardWidth())
                       .margin({ right: colIndex < row.length - 1 ? this.downloadCardGap() : 0 })
                       .animation({ duration: 220, curve: Curve.EaseOut })
-                    }, (item: DownloadInfo) => item.gid.toString())
+                    }, (item: DownloadInfo) => this.downloadItemRenderKey(item))
                   }
                   .width('100%')
                   .justifyContent(FlexAlign.Start)
@@ -1295,9 +1306,9 @@ export struct DownloadScene {
               right: this.downloadContentPadding()
             })
             .translate({ y: this.downloadContentStartOffset() })
-            .onAreaChange((_oldArea: Area, newArea: Area) => {
-              this.updateDownloadContentWidth(newArea.width as number);
-            })
+        .onAreaChange((_oldArea: Area, newArea: Area) => {
+          this.updateDownloadContentWidth(newArea.width as number);
+        })
             .onAppear(() => {
               this.syncDownloadContentWidthFromWindow();
               if (this.downloadScrollOffset > 0) {
@@ -1337,12 +1348,15 @@ export struct DownloadScene {
             },
             onStatus: () => {
               this.statusFilter = nextDownloadStatusFilter(this.statusFilter);
+              this.refreshDownloadRows();
             },
             onCategory: () => {
               this.categoryFilter = nextDownloadCategoryFilter(this.categoryFilter);
+              this.refreshDownloadRows();
             },
             onSort: () => {
               this.sortMode = nextDownloadSortMode(this.sortMode);
+              this.refreshDownloadRows();
             },
             onStart: () => {
               this.startSelectedOrAll();
