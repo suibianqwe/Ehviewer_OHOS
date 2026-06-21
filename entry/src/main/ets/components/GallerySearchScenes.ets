@@ -1,7 +1,7 @@
 import { ALL_CATEGORY, GalleryCategory } from '../model/GalleryModels';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
-import { getMainWindow } from '../services/EhWindowImmersive';
+import { mainContentWidthFallbackVp, rememberMainContentWidthVp } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, categoryColor, uiText } from '../shared/EhShared';
 import { themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSelectedBackgroundLight, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
 import {
@@ -258,16 +258,12 @@ export struct SearchSuggestionList {
   }
 
   private syncContentWidthFromWindow(): void {
-    if (this.contentWidth > 0) {
+    if (this.contentWidth >= 240) {
       return;
     }
-    const win = getMainWindow();
-    if (win === undefined) {
-      return;
-    }
-    try {
-      this.contentWidth = Math.floor(this.getUIContext().px2vp(win.getWindowProperties().windowRect.width));
-    } catch (_error) {
+    const width = mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value));
+    if (width >= 240) {
+      this.contentWidth = width;
     }
   }
 
@@ -301,6 +297,7 @@ export struct SearchSuggestionList {
       const width = Math.floor(newArea.width as number);
       if (width > 0 && !Number.isNaN(width) && Math.abs(width - this.contentWidth) >= 1) {
         this.contentWidth = width;
+        rememberMainContentWidthVp(width);
       }
     })
   }

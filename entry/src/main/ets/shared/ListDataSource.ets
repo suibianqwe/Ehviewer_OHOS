@@ -6,6 +6,11 @@ export class ArrayDataSource<T> implements IDataSource {
     this.items = items;
   }
 
+  setItems(items: T[]): void {
+    this.items = items;
+    this.notifyReloaded();
+  }
+
   totalCount(): number {
     return this.items.length;
   }
@@ -26,5 +31,11 @@ export class ArrayDataSource<T> implements IDataSource {
       }
     }
     this.listeners = next;
+  }
+
+  private notifyReloaded(): void {
+    for (let i = 0; i < this.listeners.length; i++) {
+      this.listeners[i].onDataReloaded();
+    }
   }
 }

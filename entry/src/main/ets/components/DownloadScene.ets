@@ -10,7 +10,12 @@ import { galleryPageCache } from '../services/GalleryPageCache';
 import { mergeGalleryPreviewSets } from '../services/GalleryPreviewLoader';
 import { readerImageCache } from '../services/ReaderImageCache';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
-import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen, getMainWindow } from '../services/EhWindowImmersive';
+import {
+  applyAppChromeImmersiveMode,
+  enterEmbeddedReaderFullscreen,
+  mainContentWidthFallbackVp,
+  rememberMainContentWidthVp
+} from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, nextFloatingToolbarOffset, setActiveBackHandler } from '../shared/EhShared';
 import {
   cloneGalleryPage,
@@ -104,6 +109,7 @@ export struct DownloadScene {
   private downloadScrollOffset: number = 0;
   private toolbarRestoring: boolean = false;
   private localReaderPreviewPageSize: number = 0;
+  private downloadRowsDataSource: ArrayDataSource<DownloadInfo[]> = new ArrayDataSource<DownloadInfo[]>([]);
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
@@ -343,20 +349,14 @@ export struct DownloadScene {
       return;
     }
     this.downloadContentWidth = normalizedWidth;
+    rememberMainContentWidthVp(normalizedWidth);
   }
 
   private syncDownloadContentWidthFromWindow(): void {
-    if (this.downloadContentWidth > 0) {
+    if (this.downloadContentWidth >= 240) {
       return;
     }
-    const win = getMainWindow();
-    if (win === undefined) {
-      return;
-    }
-    try {
-      this.updateDownloadContentWidth(this.getUIContext().px2vp(win.getWindowProperties().windowRect.width));
-    } catch (_error) {
-    }
+    this.updateDownloadContentWidth(mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value)));
   }
 
   private buildDownloadRows(): DownloadInfo[][] {
@@ -367,6 +367,11 @@ export struct DownloadScene {
       rows.push(visible.slice(i, i + columns));
     }
     return rows;
+  }
+
+  private downloadRowsSource(): ArrayDataSource<DownloadInfo[]> {
+    this.downloadRowsDataSource.setItems(this.buildDownloadRows());
+    return this.downloadRowsDataSource;
   }
 
   private downloadRowKey(row: DownloadInfo[]): string {
@@ -1184,7 +1189,7 @@ export struct DownloadScene {
           .padding({ top: this.downloadContentTopPadding() })
         } else {
           List({ space: 8, scroller: this.downloadScroller }) {
-            LazyForEach(new ArrayDataSource<DownloadInfo[]>(this.buildDownloadRows()), (row: DownloadInfo[]) => {
+            LazyForEach(this.downloadRowsSource(), (row: DownloadInfo[]) => {
               ListItem() {
                 Row() {
                   ForEach(row, (item: DownloadInfo, colIndex: number) => {

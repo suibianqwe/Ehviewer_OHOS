@@ -7,7 +7,12 @@ import { DEFAULT_ADVANCE_SEARCH, EhUrl, ListMode } from '../services/EhUrl';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
-import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen, getMainWindow } from '../services/EhWindowImmersive';
+import {
+  applyAppChromeImmersiveMode,
+  enterEmbeddedReaderFullscreen,
+  mainContentWidthFallbackVp,
+  rememberMainContentWidthVp
+} from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, nextFloatingToolbarOffset } from '../shared/EhShared';
 import { themeOnPrimaryText, themeOnPrimaryDangerBackground, themePageBackground, themeShadowColor } from '../shared/EhTheme';
 import { ArrayDataSource } from '../shared/ListDataSource';
@@ -66,6 +71,7 @@ export struct HistoryScene {
   private historyScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
   private toolbarRestoring: boolean = false;
+  private historyRowsDataSource: ArrayDataSource<GalleryInfo[]> = new ArrayDataSource<GalleryInfo[]>([]);
   private readerPreviewMap: Map<number, GalleryPreview> = new Map();
   private readerPreviewPageRequests: Map<number, Promise<GalleryPreview | null>> = new Map();
   private readerPreviewPageSize: number = 0;
@@ -460,20 +466,14 @@ export struct HistoryScene {
       return;
     }
     this.historyContentWidth = normalizedWidth;
+    rememberMainContentWidthVp(normalizedWidth);
   }
 
   private syncHistoryContentWidthFromWindow(): void {
-    if (this.historyContentWidth > 0) {
+    if (this.historyContentWidth >= 240) {
       return;
     }
-    const win = getMainWindow();
-    if (win === undefined) {
-      return;
-    }
-    try {
-      this.updateHistoryContentWidth(this.getUIContext().px2vp(win.getWindowProperties().windowRect.width));
-    } catch (_error) {
-    }
+    this.updateHistoryContentWidth(mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value)));
   }
 
   private buildHistoryRows(): GalleryInfo[][] {
@@ -483,6 +483,11 @@ export struct HistoryScene {
       rows.push(this.histories.slice(i, i + columns));
     }
     return rows;
+  }
+
+  private historyRowsSource(): ArrayDataSource<GalleryInfo[]> {
+    this.historyRowsDataSource.setItems(this.buildHistoryRows());
+    return this.historyRowsDataSource;
   }
 
   private historyRowKey(row: GalleryInfo[]): string {
@@ -974,7 +979,7 @@ export struct HistoryScene {
               }
               .reuseId('history-empty')
             } else {
-              LazyForEach(new ArrayDataSource<GalleryInfo[]>(this.buildHistoryRows()), (row: GalleryInfo[]) => {
+              LazyForEach(this.historyRowsSource(), (row: GalleryInfo[]) => {
                 ListItem() {
                   Row() {
                     ForEach(row, (gallery: GalleryInfo, colIndex: number) => {

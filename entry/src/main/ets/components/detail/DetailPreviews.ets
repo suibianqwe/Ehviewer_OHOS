@@ -1,5 +1,5 @@
 ﻿import { GalleryPreview } from '../../model/GalleryModels';
-import { getMainWindow } from '../../services/EhWindowImmersive';
+import { mainContentWidthFallbackVp, rememberMainContentWidthVp } from '../../services/EhWindowImmersive';
 import {
   cachePreviewThumbnail,
   createEmptyPreview,
@@ -14,7 +14,6 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../../shared/EhTheme';
-import { ArrayDataSource } from '../../shared/ListDataSource';
 import { GalleryThumb } from '../GalleryCards';
 @Component
 export struct DetailPreviews {
@@ -63,16 +62,12 @@ export struct DetailPreviews {
   }
 
   private syncContentWidthFromWindow(): void {
-    if (this.contentWidth > 0) {
+    if (this.contentWidth >= 240) {
       return;
     }
-    const win = getMainWindow();
-    if (win === undefined) {
-      return;
-    }
-    try {
-      this.contentWidth = Math.floor(this.getUIContext().px2vp(win.getWindowProperties().windowRect.width));
-    } catch (_error) {
+    const width = mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value));
+    if (width >= 240) {
+      this.contentWidth = width;
     }
   }
 
@@ -94,9 +89,22 @@ export struct DetailPreviews {
         Text(uiText('No previews'))
           .fontSize(12)
           .fontColor(themeSecondaryText())
+      } else if (!this.isDetailLoaded && this.previews.length === 0) {
+        Row({ space: 8 }) {
+          LoadingProgress()
+            .width(24)
+            .height(24)
+            .color(themePlaceholderColor())
+          Text(uiText('Loading previews...'))
+            .fontSize(12)
+            .fontColor(themeSecondaryText())
+        }
+        .width('100%')
+        .height(52)
+        .justifyContent(FlexAlign.Center)
       } else {
         Column() {
-          LazyForEach(new ArrayDataSource<GalleryPreview[]>(this.previewRows()), (row: GalleryPreview[], rowIndex: number) => {
+          ForEach(this.previewRows(), (row: GalleryPreview[], rowIndex: number) => {
             Row() {
               ForEach(row, (preview: GalleryPreview, colIndex: number) => {
                 PreviewTile({
@@ -114,7 +122,6 @@ export struct DetailPreviews {
             .justifyContent(FlexAlign.Start)
             .margin({ bottom: rowIndex < this.previewRows().length - 1 ? 12 : 0 })
             .animation({ duration: 220, curve: Curve.EaseOut })
-            .reuseId('preview-row')
           }, (_row: GalleryPreview[], rowIndex: number) => this.previewColumns().toString() + ':' + rowIndex.toString())
         }
         .width('100%')
@@ -132,6 +139,7 @@ export struct DetailPreviews {
       const width = Math.floor(newArea.width as number);
       if (width > 0 && !Number.isNaN(width) && Math.abs(this.contentWidth - width) >= 1) {
         this.contentWidth = width;
+        rememberMainContentWidthVp(width);
       }
     })
   }

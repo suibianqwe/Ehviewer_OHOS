@@ -23,7 +23,12 @@ import { ehFilterStore } from '../services/EhFilterStore';
 import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
-import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen, getMainWindow } from '../services/EhWindowImmersive';
+import {
+  applyAppChromeImmersiveMode,
+  enterEmbeddedReaderFullscreen,
+  mainContentWidthFallbackVp,
+  rememberMainContentWidthVp
+} from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY } from '../shared/EhShared';
 import {
   themeFieldBackground,
@@ -1513,6 +1518,7 @@ export struct GalleryListContent {
   private restoredScroll: boolean = false;
   @State toolbarOffsetY: number = 0;
   private toolbarRestoring: boolean = false;
+  private galleryRowsDataSource: ArrayDataSource<GalleryInfo[]> = new ArrayDataSource<GalleryInfo[]>([]);
   private barHeight: number = 56; // matches EhNavBar body height
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
 
@@ -1750,20 +1756,14 @@ export struct GalleryListContent {
       return;
     }
     this.contentWidth = normalizedWidth;
+    rememberMainContentWidthVp(normalizedWidth);
   }
 
   private syncContentWidthFromWindow(): void {
-    if (this.contentWidth > 0) {
+    if (this.contentWidth >= 240) {
       return;
     }
-    const win = getMainWindow();
-    if (win === undefined) {
-      return;
-    }
-    try {
-      this.updateContentWidth(this.getUIContext().px2vp(win.getWindowProperties().windowRect.width));
-    } catch (_error) {
-    }
+    this.updateContentWidth(mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value)));
   }
 
   @Builder
@@ -1939,7 +1939,7 @@ export struct GalleryListContent {
               }
             } else {
               // 画廊卡片按行分组，每行 galleryColumnCount() 张
-              LazyForEach(new ArrayDataSource<GalleryInfo[]>(this.buildRows()), (row: GalleryInfo[]) => {
+              LazyForEach(this.galleryRowsSource(), (row: GalleryInfo[]) => {
                 ListItem() {
                   Row() {
                     ForEach(row, (gallery: GalleryInfo, colIndex: number) => {
@@ -2223,6 +2223,11 @@ export struct GalleryListContent {
       rows.push(this.galleries.slice(i, i + cols));
     }
     return rows;
+  }
+
+  private galleryRowsSource(): ArrayDataSource<GalleryInfo[]> {
+    this.galleryRowsDataSource.setItems(this.buildRows());
+    return this.galleryRowsDataSource;
   }
 
   private galleryRowKey(row: GalleryInfo[]): string {

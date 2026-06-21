@@ -5,6 +5,7 @@ import { isDarkTheme, themeSystemBarContentColor, themeTransparentColor } from '
 export const MAIN_WINDOW_KEY: string = 'mainWindow';
 export const READER_WINDOW_KEY: string = 'readerWindow';
 export const EMBEDDED_READER_ACTIVE_KEY: string = 'embeddedReaderActive';
+export const MAIN_CONTENT_WIDTH_VP_KEY: string = 'mainContentWidthVp';
 type SystemBarName = 'status' | 'navigation';
 
 const VISIBLE_SYSTEM_BARS: SystemBarName[] = ['status', 'navigation'];
@@ -16,6 +17,48 @@ export function rememberMainWindow(win: window.Window): void {
 
 export function getMainWindow(): window.Window | undefined {
   return AppStorage.get<window.Window>(MAIN_WINDOW_KEY);
+}
+
+export function rememberMainContentWidthVp(width: number): void {
+  const normalized = Math.floor(width);
+  if (normalized < 240 || Number.isNaN(normalized)) {
+    return;
+  }
+  AppStorage.setOrCreate<number>(MAIN_CONTENT_WIDTH_VP_KEY, normalized);
+}
+
+export function mainContentWidthFallbackVp(pxToVp: (value: number) => number): number {
+  const remembered = AppStorage.get<number>(MAIN_CONTENT_WIDTH_VP_KEY);
+  if (remembered !== undefined && remembered >= 240) {
+    return remembered;
+  }
+  const win = getMainWindow();
+  if (win === undefined) {
+    return 0;
+  }
+  try {
+    return normalizeWindowWidthVp(win.getWindowProperties().windowRect.width, pxToVp);
+  } catch (_error) {
+    return 0;
+  }
+}
+
+function normalizeWindowWidthVp(rawWidth: number, pxToVp: (value: number) => number): number {
+  const raw = Math.floor(rawWidth);
+  if (raw <= 0 || Number.isNaN(raw)) {
+    return 0;
+  }
+  const converted = Math.floor(pxToVp(raw));
+  if (converted >= 320) {
+    return converted;
+  }
+  if (converted >= 240 && raw > 640) {
+    return converted;
+  }
+  if (raw >= 240 && raw <= 1200) {
+    return raw;
+  }
+  return Math.max(0, converted);
 }
 
 export function rememberReaderWindow(win: window.Window): void {
