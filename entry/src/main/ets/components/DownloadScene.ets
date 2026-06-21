@@ -114,7 +114,7 @@ export struct DownloadScene {
   private localReaderPreviewPageSize: number = 0;
   private downloadRowsDataSource: ArrayDataSource<DownloadInfo[]> = new ArrayDataSource<DownloadInfo[]>([]);
   private downloadRowStructureKeys: string[] = [];
-  private downloadRowProgressKeys: string[] = [];
+  private downloadCardStates: Map<number, DownloadCardState> = new Map<number, DownloadCardState>();
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
@@ -389,44 +389,50 @@ export struct DownloadScene {
   private refreshDownloadRows(): void {
     const rows = this.buildDownloadRows();
     const structureKeys: string[] = [];
-    const progressKeys: string[] = [];
     let structureChanged = rows.length !== this.downloadRowStructureKeys.length;
     for (let i = 0; i < rows.length; i++) {
       const structureKey = this.downloadRowKey(rows[i]);
-      const progressKey = this.downloadRowProgressKey(rows[i]);
       structureKeys.push(structureKey);
-      progressKeys.push(progressKey);
       if (!structureChanged && structureKey !== this.downloadRowStructureKeys[i]) {
         structureChanged = true;
       }
     }
+    this.syncDownloadCardStates();
     this.downloadRowsDataSource.replaceItems(rows);
     if (structureChanged) {
       this.downloadRowStructureKeys = structureKeys;
-      this.downloadRowProgressKeys = progressKeys;
       this.downloadRowsDataSource.notifyReload();
       return;
     }
-    for (let i = 0; i < progressKeys.length; i++) {
-      if (progressKeys[i] !== this.downloadRowProgressKeys[i]) {
-        this.downloadRowsDataSource.notifyChange(i);
-      }
-    }
     this.downloadRowStructureKeys = structureKeys;
-    this.downloadRowProgressKeys = progressKeys;
   }
 
   private downloadRowKey(row: DownloadInfo[]): string {
-    return row.map((item: DownloadInfo) => item.gid.toString()).join('-');
+    return row.map((item: DownloadInfo) => item.gid.toString() + '@' + item.state).join('-');
   }
 
-  private downloadItemProgressKey(item: DownloadInfo): string {
-    return item.gid.toString() + ':' + item.state + ':' + item.finished.toString() + ':' +
-      item.total.toString() + ':' + item.downloaded.toString() + ':' + item.speed.toString();
+  private syncDownloadCardStates(): void {
+    const live: Map<number, DownloadCardState> = new Map<number, DownloadCardState>();
+    for (let i = 0; i < this.items.length; i++) {
+      const item = this.items[i];
+      let cardState = this.downloadCardStates.get(item.gid);
+      if (cardState === undefined) {
+        cardState = new DownloadCardState();
+      }
+      cardState.update(item.state, downloadProgressText(item), this.downloadProgressValue(item),
+        this.downloadSpeedLabel(item));
+      live.set(item.gid, cardState);
+    }
+    this.downloadCardStates = live;
   }
 
-  private downloadRowProgressKey(row: DownloadInfo[]): string {
-    return row.map((item: DownloadInfo) => this.downloadItemProgressKey(item)).join('|');
+  private downloadCardStateFor(gid: number): DownloadCardState {
+    let cardState = this.downloadCardStates.get(gid);
+    if (cardState === undefined) {
+      cardState = new DownloadCardState();
+      this.downloadCardStates.set(gid, cardState);
+    }
+    return cardState;
   }
 
   private downloadProgressValue(item: DownloadInfo): number {
@@ -1334,10 +1340,7 @@ export struct DownloadScene {
                         if (item.state !== DownloadState.Finish) {
                         DownloadCardStatus({
                           item: item,
-                          state: item.state,
-                          progressText: downloadProgressText(item),
-                          progressValue: this.downloadProgressValue(item),
-                          speedTextValue: this.downloadSpeedLabel(item),
+                          cardState: this.downloadCardStateFor(item.gid),
                           onStatusTap: (downloadItem: DownloadInfo) => {
                             this.toggleItemFromProgress(downloadItem);
                             }
@@ -1360,7 +1363,6 @@ export struct DownloadScene {
                   .animation({ duration: 220, curve: Curve.EaseOut })
                 }
                 .margin({ bottom: this.downloadCardGap() })
-                .reuseId('download-row')
               }, (row: DownloadInfo[], rowIndex: number) => {
                 return this.downloadColumnCount().toString() + ':' + rowIndex.toString() + ':' + this.downloadRowKey(row);
               })
@@ -1556,39 +1558,59 @@ struct DownloadToolColumn {
   }
 }
 
-@Component
+@ObservedV2
+class DownloadCardState {
+  @Trace state: DownloadState = DownloadState.None;
+  @Trace progressText: string = '';
+  @Trace progressValue: number = 0;
+  @Trace speedText: string = '';
+
+  update(state: DownloadState, progressText: string, progressValue: number, speedText: string): void {
+    if (this.state !== state) {
+      this.state = state;
+    }
+    if (this.progressText !== progressText) {
+      this.progressText = progressText;
+    }
+    if (this.progressValue !== progressValue) {
+      this.progressValue = progressValue;
+    }
+    if (this.speedText !== speedText) {
+      this.speedText = speedText;
+    }
+  }
+}
+
+@ComponentV2
 struct DownloadCardStatus {
-  @Prop item: DownloadInfo = createEmptyDownloadInfo();
-  @Prop state: DownloadState = DownloadState.None;
-  @Prop progressText: string = '';
-  @Prop progressValue: number = 0;
-  @Prop speedTextValue: string = '';
-  onStatusTap: (item: DownloadInfo) => void = (_item: DownloadInfo) => {};
+  @Param item: DownloadInfo = createEmptyDownloadInfo();
+  @Require @Param cardState: DownloadCardState = new DownloadCardState();
+  @Event onStatusTap: (item: DownloadInfo) => void = (_item: DownloadInfo) => {};
 
   private isDownloading(): boolean {
-    return this.state === DownloadState.Downloading;
+    return this.cardState.state === DownloadState.Downloading;
   }
 
   build() {
     Column() {
       Row() {
-        Text(uiValue(downloadStateLabel(this.state)))
+        Text(uiValue(downloadStateLabel(this.cardState.state)))
           .fontSize(10)
           .fontColor(themeOnPrimaryText())
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-          .backgroundColor(downloadStateColor(this.state))
+          .backgroundColor(downloadStateColor(this.cardState.state))
           .borderRadius(3)
-        Text(this.progressText)
+        Text(this.cardState.progressText)
           .fontSize(11)
           .fontColor(themeSecondaryText())
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .margin({ left: 6 })
           .layoutWeight(1)
-        if (this.isDownloading() && this.speedTextValue.length > 0) {
-          Text(this.speedTextValue)
+        if (this.isDownloading() && this.cardState.speedText.length > 0) {
+          Text(this.cardState.speedText)
             .fontSize(11)
             .fontColor(themeTertiaryText())
             .maxLines(1)
@@ -1598,11 +1620,11 @@ struct DownloadCardStatus {
       .width('100%')
 
       Row() {
-        Progress({ value: this.progressValue, total: 100, type: ProgressType.Linear })
-          .value(this.progressValue)
+        Progress({ value: this.cardState.progressValue, total: 100, type: ProgressType.Linear })
+          .value(this.cardState.progressValue)
           .width('100%')
           .height(4)
-          .color(downloadStateColor(this.state))
+          .color(downloadStateColor(this.cardState.state))
           .backgroundColor(themeDividerColor())
       }
         .width('100%')
