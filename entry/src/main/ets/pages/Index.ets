@@ -30,6 +30,7 @@ struct Index {
   @State drawerOffsetX: number = -264;
   @State drawerOverlayOpacity: number = 0;
   @State settingsReady: boolean = false;
+  @State routeStack: GalleryRoute[] = [];
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeight: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
@@ -45,8 +46,12 @@ struct Index {
       this.closeDrawer();
       return true;
     }
+    if (this.routeStack.length > 0) {
+      this.popRoute();
+      return true;
+    }
     if (this.activeRoute === GalleryRoute.Settings || this.activeRoute === GalleryRoute.Downloads) {
-      this.selectRoute(this.routeAfterSignIn());
+      this.setRootRoute(this.routeAfterSignIn());
       return true;
     }
     return false;
@@ -56,7 +61,7 @@ struct Index {
     applyAppChromeImmersiveMode();
     const context = getAbilityContext();
     if (context === undefined) {
-      this.activeRoute = GalleryRoute.Home;
+      this.setRootRoute(GalleryRoute.Home);
       return;
     }
     ehSpiderInfoStore.load(context).catch(() => {});
@@ -72,9 +77,9 @@ struct Index {
 
   private loadSessionRoute(ctx: common.UIAbilityContext): void {
     ehCookieStore.load(ctx).then(() => {
-      this.activeRoute = this.routeAfterSignIn();
+      this.setRootRoute(this.routeAfterSignIn());
     }).catch(() => {
-      this.activeRoute = this.routeAfterSignIn();
+      this.setRootRoute(this.routeAfterSignIn());
     });
   }
 
@@ -85,9 +90,27 @@ struct Index {
   selectRoute(route: GalleryRoute): void {
     applyAppChromeImmersiveMode();
     if (this.activeRoute !== route) {
+      const nextStack = this.routeStack.slice();
+      nextStack.push(this.activeRoute);
+      this.routeStack = nextStack;
       this.activeRoute = route;
     }
     this.closeDrawer();
+  }
+
+  private setRootRoute(route: GalleryRoute): void {
+    this.routeStack = [];
+    this.activeRoute = route;
+  }
+
+  private popRoute(): void {
+    const nextStack = this.routeStack.slice();
+    const previousRoute = nextStack.pop();
+    this.routeStack = nextStack;
+    if (previousRoute !== undefined) {
+      applyAppChromeImmersiveMode();
+      this.activeRoute = previousRoute;
+    }
   }
 
   openDrawer(): void {
@@ -172,7 +195,7 @@ struct Index {
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.Session) {
       SessionScene({
-        onSignedIn: () => { this.activeRoute = this.routeAfterSignIn(); }
+        onSignedIn: () => { this.setRootRoute(this.routeAfterSignIn()); }
       })
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.Migration) {
@@ -181,7 +204,7 @@ struct Index {
     } else {
       SettingsScene({
         onMenu: () => { this.openDrawer(); },
-        onSignedIn: () => { this.activeRoute = this.routeAfterSignIn(); }
+        onSignedIn: () => { this.setRootRoute(this.routeAfterSignIn()); }
       })
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     }

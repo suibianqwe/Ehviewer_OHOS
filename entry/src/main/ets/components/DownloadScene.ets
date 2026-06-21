@@ -1203,7 +1203,13 @@ export struct DownloadScene {
             .justifyContent(FlexAlign.Center)
             .translate({ y: this.downloadContentStartOffset() })
           } else {
-            List({ space: 8, scroller: this.downloadScroller }) {
+            List({ space: 0, scroller: this.downloadScroller }) {
+              ListItem() {
+                Column()
+                  .height(this.downloadCardGap())
+                  .width('100%')
+                  .backgroundColor(Color.Transparent)
+              }
               LazyForEach(this.downloadRowsSource(), (row: DownloadInfo[]) => {
                 ListItem() {
                   Row() {

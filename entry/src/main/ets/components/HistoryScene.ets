@@ -978,7 +978,13 @@ export struct HistoryScene {
       }) {
         Stack({ alignContent: Alignment.BottomEnd }) {
         Column() {
-          List({ space: 8, scroller: this.historyScroller }) {
+          List({ space: 0, scroller: this.historyScroller }) {
+            ListItem() {
+              Column()
+                .height(this.historyCardGap())
+                .width('100%')
+                .backgroundColor(Color.Transparent)
+            }
             if (this.histories.length === 0) {
               ListItem() {
                 PlaceholderScene({
@@ -1030,14 +1036,13 @@ export struct HistoryScene {
             }
           }
             .scrollBar(BarState.Auto)
-            .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false, effectEdge: EffectEdge.START | EffectEdge.END })
+            .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
             .width('100%')
             .height(this.historyListViewportHeight())
             .cachedCount(4)
             .padding({
               left: this.historyContentHorizontalPadding(),
-              right: this.historyContentHorizontalPadding(),
-              bottom: this.historyCardGap()
+              right: this.historyContentHorizontalPadding()
             })
             .translate({ y: this.historyContentStartOffset() })
             .onAreaChange((_oldArea: Area, newArea: Area) => {

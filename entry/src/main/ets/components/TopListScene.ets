@@ -908,6 +908,7 @@ export struct TopListScene {
             .width('100%')
             .height('100%')
             .padding({ top: this.floatingToolbarHeight() + 12 })
+            .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
           } else {
             Column() {
               TopListBoard({
@@ -944,6 +945,7 @@ export struct TopListScene {
             }
             .width('100%')
             .height('100%')
+            .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
           }
         }
         .width('100%')
@@ -1054,7 +1056,7 @@ export struct TopListBoard {
       .backgroundColor(themePageBackground())
       .scrollBar(BarState.Auto)
       .cachedCount(3)
-      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false, effectEdge: EffectEdge.START | EffectEdge.END })
+      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
       .onAppear(() => {
         if (this.initialScrollOffset > 0) {
           this.boardScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });

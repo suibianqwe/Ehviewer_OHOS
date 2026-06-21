@@ -1940,6 +1940,7 @@ export struct GalleryListContent {
                   .width('100%')
                   .height('100%')
               }
+              .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
             } else {
               // 画廊卡片按行分组，每行 galleryColumnCount() 张
               LazyForEach(this.galleryRowsSource(), (row: GalleryInfo[]) => {
@@ -1976,6 +1977,7 @@ export struct GalleryListContent {
                 }
                 .margin({ bottom: this.galleryCardGap() })
                 .reuseId('gallery-row')
+                .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
               }, (_row: GalleryInfo[], rowIndex: number) => {
                 return this.galleryColumnCount().toString() + ':' + rowIndex.toString() + ':' +
                   this.galleryRowKey(_row);
@@ -1996,7 +1998,7 @@ export struct GalleryListContent {
             }
           }
           .scrollBar(BarState.Auto)
-          .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false, effectEdge: EffectEdge.START | EffectEdge.END })
+          .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
           .cachedCount(4)
           .width('100%')
           .height(this.listViewportHeight())
