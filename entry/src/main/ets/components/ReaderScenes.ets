@@ -2,6 +2,7 @@
 import { common } from '@kit.AbilityKit';
 import { batteryInfo, pasteboard } from '@kit.BasicServicesKit';
 import { fileIo as fs, picker } from '@kit.CoreFileKit';
+import { image } from '@kit.ImageKit';
 import inputConsumer from '@ohos.multimodalInput.inputConsumer';
 import { KeyCode } from '@ohos.multimodalInput.keyCode';
 import { KeyEvent } from '@ohos.multimodalInput.keyEvent';
@@ -57,6 +58,11 @@ interface ReaderImageCompleteEvent {
   componentWidth: number;
   componentHeight: number;
   loadingStatus: number;
+}
+
+interface ReaderSourceImageSize {
+  width: number;
+  height: number;
 }
 
 @Observed
@@ -1746,6 +1752,7 @@ struct ReaderImageViewport {
   @State displayImageWidth: number = 1;
   @State displayImageHeight: number = 1;
   private lastCommandVersion: number = -1;
+  private sourceSizeRequestId: number = 0;
 
   aboutToAppear(): void {
     this.onImageSourceChange();
@@ -1805,6 +1812,8 @@ struct ReaderImageViewport {
 
   private onImageSourceChange(): void {
     const url = this.imageUrl();
+    const requestId = this.sourceSizeRequestId + 1;
+    this.sourceSizeRequestId = requestId;
     if (this.completedImageUrl !== url) {
       this.completedImageUrl = '';
     }
@@ -1814,6 +1823,7 @@ struct ReaderImageViewport {
     this.sourceImageWidth = 0;
     this.sourceImageHeight = 0;
     this.updateDisplayImageSize();
+    this.loadCachedSourceImageSize(requestId, url).catch(() => {});
     this.syncFixedScale();
   }
 
@@ -1834,7 +1844,74 @@ struct ReaderImageViewport {
   }
 
   private imageFit(): ImageFit {
+    const normalized = normalizePageScalingOption(this.fitMode);
+    if (normalized === 'Actual size' || normalized === 'Fixed scale') {
+      return ImageFit.None;
+    }
     return ImageFit.Contain;
+  }
+
+  private async loadCachedSourceImageSize(requestId: number, imageUrl: string): Promise<void> {
+    const path = this.localSourceImagePath();
+    if (path.length === 0) {
+      return;
+    }
+    const size = await this.readSourceImageSize(path);
+    if (requestId !== this.sourceSizeRequestId || imageUrl !== this.imageUrl()) {
+      return;
+    }
+    if (size.width > 0 && size.height > 0) {
+      this.sourceImageWidth = size.width;
+      this.sourceImageHeight = size.height;
+      this.updateDisplayImageSize();
+    }
+  }
+
+  private localSourceImagePath(): string {
+    const page = this.page;
+    if (this.preferOriginal && page.cachedOriginImagePath !== undefined && page.cachedOriginImagePath.length > 0) {
+      return stripFileScheme(page.cachedOriginImagePath);
+    }
+    if (!this.preferOriginal && page.cachedImagePath !== undefined && page.cachedImagePath.length > 0) {
+      return stripFileScheme(page.cachedImagePath);
+    }
+    if (page.cachedImagePath !== undefined && page.cachedImagePath.length > 0) {
+      return stripFileScheme(page.cachedImagePath);
+    }
+    if (page.cachedOriginImagePath !== undefined && page.cachedOriginImagePath.length > 0) {
+      return stripFileScheme(page.cachedOriginImagePath);
+    }
+    const displayUrl = this.imageUrl();
+    if (displayUrl.indexOf('file://') === 0) {
+      return stripFileScheme(displayUrl);
+    }
+    const context = getAbilityContext();
+    if (context === undefined) {
+      return '';
+    }
+    const sourceUrl = this.preferOriginal && page.originImageUrl.length > 0 ? page.originImageUrl : page.imageUrl;
+    return readerImageCache.getCachedPath(context, sourceUrl);
+  }
+
+  private async readSourceImageSize(path: string): Promise<ReaderSourceImageSize> {
+    let imageSource: image.ImageSource | undefined = undefined;
+    try {
+      imageSource = image.createImageSource(path);
+      const imageInfo: image.ImageInfo = imageSource.getImageInfoSync();
+      return {
+        width: imageInfo.size.width,
+        height: imageInfo.size.height
+      };
+    } catch (error) {
+      return { width: 0, height: 0 };
+    } finally {
+      if (imageSource !== undefined) {
+        try {
+          await imageSource.release();
+        } catch (error) {
+        }
+      }
+    }
   }
 
   private imageDisplayWidth(): number | string {
@@ -1967,7 +2044,7 @@ struct ReaderImageViewport {
           .backgroundColor('#050608')
           .opacity(this.failedImageUrl === this.imageUrl() ? 0 : 1)
           .onComplete((event?: ReaderImageCompleteEvent) => {
-            if (event !== undefined && event.width > 0 && event.height > 0) {
+            if (event !== undefined && event.width > 0 && event.height > 0 && this.sourceImageWidth <= 0) {
               this.sourceImageWidth = event.width;
               this.sourceImageHeight = event.height;
               this.updateDisplayImageSize();
