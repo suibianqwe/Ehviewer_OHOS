@@ -686,7 +686,13 @@ export function zhText(text: string): string {
     case 'Dim reader with a black overlay and minimum system brightness': return '将系统亮度降到最低，并使用黑色遮罩压暗阅读器';
     case 'Black overlay opacity while ultra dark mode is enabled': return '超暗模式开启时黑色遮罩的透明度';
     case 'Download location': return '下载位置';
+    case 'Migrate downloaded files to the new location?': return '是否将已下载文件迁移到新的下载位置？';
+    case 'Current': return '当前';
+    case 'Target': return '目标';
+    case 'Switch only': return '仅切换';
+    case 'Migrate': return '迁移';
     case 'HarmonyOS file picker/storage mapping for downloaded galleries': return '下载画廊的 HarmonyOS 文件选择器/存储映射';
+    case 'App internal storage or public Downloads directory': return '应用内部存储或系统下载目录';
     case 'Media scan': return '媒体扫描';
     case 'Expose downloaded images to system media index': return '将下载图片暴露给系统媒体索引';
     case 'Multi-thread download': return '多线程下载';

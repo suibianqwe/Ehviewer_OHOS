@@ -77,6 +77,9 @@ export struct SettingsScene {
   @State optionSummary: string = '';
   @State optionValue: string = '';
   @State optionOptions: string[] = [];
+  @State downloadMigrationDialogOpen: boolean = false;
+  @State downloadMigrationCurrent: string = DOWNLOAD_LOCATION_APP_FILES;
+  @State downloadMigrationTarget: string = DOWNLOAD_LOCATION_APP_FILES;
   @State webViewUrl: string = '';
   @State webViewTitle: string = '';
   @State filterRules: FilterRule[] = [];
@@ -248,23 +251,28 @@ export struct SettingsScene {
       if (!ready) {
         return;
       }
-      this.showDownloadLocationMigrationDialog(context, current, target);
+      this.showDownloadLocationMigrationDialog(current, target);
     }).catch((error: Error) => {
       this.statusText = 'Download location change failed: ' + error.message;
     });
   }
 
   private async prepareDownloadLocationTarget(context: common.UIAbilityContext, target: string): Promise<boolean> {
-    if (target === DOWNLOAD_LOCATION_APP_FILES) {
+    return this.ensureDownloadLocationAccess(context, target);
+  }
+
+  private async ensureDownloadLocationAccess(context: common.UIAbilityContext, location: string): Promise<boolean> {
+    const normalized = normalizeSettingsDownloadLocation(location);
+    if (normalized === DOWNLOAD_LOCATION_APP_FILES) {
       return true;
     }
-    if (ehDownloadFileStore.canUseLocation(context, target)) {
+    if (ehDownloadFileStore.canUseLocation(context, normalized)) {
       return true;
     }
     const pickedRoot = await this.pickDownloadDirectoryRoot(context);
     if (pickedRoot.length > 0) {
       ehDownloadFileStore.rememberPublicDownloadRoot(pickedRoot + '/EhViewer');
-      if (ehDownloadFileStore.canUseLocation(context, target)) {
+      if (ehDownloadFileStore.canUseLocation(context, normalized)) {
         return true;
       }
     }
@@ -287,29 +295,43 @@ export struct SettingsScene {
     }
   }
 
-  private showDownloadLocationMigrationDialog(context: common.UIAbilityContext, current: string, target: string): void {
-    this.getUIContext().showAlertDialog({
-      title: uiText('Download location'),
-      message: uiText('Migrate downloaded files to the new location?'),
-      primaryButton: {
-        value: uiText('Switch only'),
-        action: () => {
-          this.applyDownloadLocationChange(context, current, target, false);
-        }
-      },
-      secondaryButton: {
-        value: uiText('Migrate'),
-        action: () => {
-          this.applyDownloadLocationChange(context, current, target, true);
-        }
-      }
-    });
+  private showDownloadLocationMigrationDialog(current: string, target: string): void {
+    this.downloadMigrationCurrent = current;
+    this.downloadMigrationTarget = target;
+    this.downloadMigrationDialogOpen = true;
+  }
+
+  private closeDownloadMigrationDialog(): void {
+    this.downloadMigrationDialogOpen = false;
   }
 
   private applyDownloadLocationChange(context: common.UIAbilityContext, current: string, target: string,
     migrate: boolean): void {
+    this.applyDownloadLocationChangeAsync(context, current, target, migrate).catch((error: Error) => {
+      this.statusText = 'Download migration failed: ' + error.message;
+    });
+  }
+
+  private chooseDownloadLocationMigration(migrate: boolean): void {
+    const context = getAbilityContext();
+    if (context === undefined) {
+      this.statusText = 'Download location needs app context';
+      return;
+    }
+    this.applyDownloadLocationChange(context, this.downloadMigrationCurrent, this.downloadMigrationTarget, migrate);
+  }
+
+  private async applyDownloadLocationChangeAsync(context: common.UIAbilityContext, current: string, target: string,
+    migrate: boolean): Promise<void> {
+    this.closeDownloadMigrationDialog();
     if (migrate) {
       try {
+        if (!await this.ensureDownloadLocationAccess(context, current)) {
+          return;
+        }
+        if (!await this.ensureDownloadLocationAccess(context, target)) {
+          return;
+        }
         const result = ehDownloadFileStore.migrateDownloadLocation(context, current, target);
         this.statusText = 'Migrated downloads: ' + result.files.toString() + ' files, ' +
           downloadSizeText(result.bytes) + '.';
@@ -1039,6 +1061,104 @@ export struct SettingsScene {
           .transition(TransitionEffect.move(TransitionEdge.END)
             .animation({ duration: 300, curve: Curve.EaseOut }))
       }
+
+      if (this.downloadMigrationDialogOpen) {
+        DownloadMigrationConfirmOverlay({
+          current: this.downloadMigrationCurrent,
+          target: this.downloadMigrationTarget,
+          onCancel: () => {
+            this.closeDownloadMigrationDialog();
+            this.statusText = 'Download location change cancelled';
+          },
+          onSwitchOnly: () => {
+            this.chooseDownloadLocationMigration(false);
+          },
+          onMigrate: () => {
+            this.chooseDownloadLocationMigration(true);
+          }
+        })
+          .zIndex(20)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
+      }
+    }
+    .width('100%')
+    .height('100%')
+  }
+}
+
+@Component
+struct DownloadMigrationConfirmOverlay {
+  current: string = DOWNLOAD_LOCATION_APP_FILES;
+  target: string = DOWNLOAD_LOCATION_APP_FILES;
+  onCancel: () => void = () => {};
+  onSwitchOnly: () => void = () => {};
+  onMigrate: () => void = () => {};
+
+  build() {
+    Stack({ alignContent: Alignment.Center }) {
+      Column()
+        .width('100%')
+        .height('100%')
+        .backgroundColor('#99000000')
+        .onClick(this.onCancel)
+
+      Column() {
+        Text(uiText('Download location'))
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(themePrimaryText())
+          .width('100%')
+        Text(uiText('Migrate downloaded files to the new location?'))
+          .fontSize(14)
+          .fontColor(themeSecondaryText())
+          .lineHeight(20)
+          .width('100%')
+          .margin({ top: 10 })
+        Text(uiText('Current') + ': ' + uiValue(this.current) + '  ->  ' + uiText('Target') + ': ' +
+          uiValue(this.target))
+          .fontSize(12)
+          .fontColor(themeTertiaryText())
+          .lineHeight(18)
+          .width('100%')
+          .margin({ top: 8 })
+
+        Row({ space: 8 }) {
+          Button(uiText('Cancel'), { type: ButtonType.Normal, stateEffect: true })
+            .fontSize(14)
+            .fontColor(themePrimaryText())
+            .backgroundColor(themeSurfaceVariant())
+            .borderRadius(6)
+            .layoutWeight(1)
+            .onClick(this.onCancel)
+          Button(uiText('Switch only'), { type: ButtonType.Normal, stateEffect: true })
+            .fontSize(14)
+            .fontColor(themePrimaryText())
+            .backgroundColor(themeSurfaceVariant())
+            .borderRadius(6)
+            .layoutWeight(1)
+            .onClick(this.onSwitchOnly)
+          Button(uiText('Migrate'), { type: ButtonType.Normal, stateEffect: true })
+            .fontSize(14)
+            .fontColor(themeOnPrimaryText())
+            .backgroundColor(themePrimaryColor())
+            .borderRadius(6)
+            .layoutWeight(1)
+            .onClick(this.onMigrate)
+        }
+        .width('100%')
+        .margin({ top: 18 })
+      }
+      .width('86%')
+      .constraintSize({ maxWidth: 420 })
+      .padding(18)
+      .backgroundColor(themeSurface())
+      .borderRadius(8)
+      .shadow({
+        radius: 18,
+        color: '#33000000',
+        offsetX: 0,
+        offsetY: 8
+      })
     }
     .width('100%')
     .height('100%')
