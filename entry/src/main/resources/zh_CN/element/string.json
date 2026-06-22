@@ -11,10 +11,6 @@
     {
       "name": "EntryAbility_label",
       "value": "EhViewer"
-    },
-    {
-      "name": "permission_write_imagevideo_reason",
-      "value": "用于将阅读器图片保存到系统相册"
     }
   ]
 }

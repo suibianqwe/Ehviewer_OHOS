@@ -11,10 +11,6 @@
     {
       "name": "EntryAbility_label",
       "value": "EhViewer"
-    },
-    {
-      "name": "permission_write_imagevideo_reason",
-      "value": "Save reader images to the system album"
     }
   ]
 }

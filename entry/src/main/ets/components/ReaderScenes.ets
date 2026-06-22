@@ -1648,11 +1648,19 @@ struct ReaderImageActionDialog {
         onTap: this.onShare
       })
       ReaderMenuDivider()
-      ReaderImageActionButton({
-        label: uiText('Save to album'),
-        symbolIcon: $r('sys.symbol.save'),
-        onTap: this.onSaveToAlbum
+      SaveButton({
+        icon: SaveIconStyle.FULL_FILLED,
+        text: SaveDescription.SAVE_TO_GALLERY,
+        buttonType: ButtonType.Normal
       })
+        .width('100%')
+        .height(48)
+        .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+        .onClick((_event: ClickEvent, result: SaveButtonOnClickResult) => {
+          if (result === SaveButtonOnClickResult.SUCCESS) {
+            this.onSaveToAlbum();
+          }
+        })
       ReaderMenuDivider()
       ReaderImageActionButton({
         label: uiText('Save to...'),
