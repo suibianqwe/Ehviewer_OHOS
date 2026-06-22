@@ -2,17 +2,19 @@ import { common } from '@kit.AbilityKit';
 import { preferences } from '@kit.ArkData';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { GalleryCategory, GalleryInfo } from '../model/GalleryModels';
+import { EhUrl } from './EhUrl';
 
 const PREFERENCES_NAME: string = 'ehviewer_history';
 const VALUES_KEY: string = 'items';
 const VALUES_BACKUP_KEY: string = 'items_backup';
 const READ_POSITIONS_KEY: string = 'read_positions';
 const READ_POSITIONS_BACKUP_KEY: string = 'read_positions_backup';
-const FILE_BACKUP_NAME: string = 'ehviewer_history.json';
-const FILE_BACKUP_FALLBACK_NAME: string = 'ehviewer_history.backup.json';
-const DEFAULT_MAX_SIZE: number = 100;
+const FILE_NAME: string = 'ehviewer_history.json';
+const FILE_BACKUP_NAME: string = 'ehviewer_history.backup.json';
+const HISTORY_MAX_SIZE: number = 1000;
 
 interface StoredGalleryInfo {
+  galleryUrl?: string;
   gid?: number;
   token?: string;
   title?: string;
@@ -57,6 +59,11 @@ interface HistoryFileState {
   readPositions: ReadPosition[];
 }
 
+interface StoredGalleryUrlParts {
+  gid: number;
+  token: string;
+}
+
 export class EhHistoryStore {
   private items: GalleryInfo[] = [];
   private readPositions: ReadPosition[] = [];
@@ -69,17 +76,18 @@ export class EhHistoryStore {
     return cloneGalleryInfos(this.items);
   }
 
-  addGallery(gallery: GalleryInfo, maxSize: number = DEFAULT_MAX_SIZE): void {
+  addGallery(gallery: GalleryInfo, maxSize: number = HISTORY_MAX_SIZE): void {
     if (gallery.gid <= 0 || gallery.token.length === 0) {
       return;
     }
 
     const next: GalleryInfo[] = [cloneGalleryInfo(gallery)];
+    const limit = Math.min(HISTORY_MAX_SIZE, Math.max(1, maxSize));
     for (let i = 0; i < this.items.length; i++) {
       if (this.items[i].gid !== gallery.gid) {
         next.push(cloneGalleryInfo(this.items[i]));
       }
-      if (next.length >= maxSize) {
+      if (next.length >= limit) {
         break;
       }
     }
@@ -159,15 +167,13 @@ export class EhHistoryStore {
 
   private async loadNow(context: common.UIAbilityContext): Promise<void> {
     try {
-      const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
-      const raw = await prefs.get(VALUES_KEY, '');
-      const rawBackup = await prefs.get(VALUES_BACKUP_KEY, '');
-      const rawPositions = await prefs.get(READ_POSITIONS_KEY, '');
-      const rawPositionsBackup = await prefs.get(READ_POSITIONS_BACKUP_KEY, '');
-      this.items = this.parseStoredItems(raw, rawBackup);
-      this.readPositions = this.parseReadPositions(rawPositions, rawPositionsBackup);
+      const main = this.readFile(context.filesDir + '/' + FILE_NAME);
+      const backup = this.readFile(context.filesDir + '/' + FILE_BACKUP_NAME);
+      const chosen = main.items.length > 0 || main.readPositions.length > 0 ? main : backup;
+      this.items = chosen.items;
+      this.readPositions = chosen.readPositions;
       if (this.items.length === 0 && this.readPositions.length === 0) {
-        this.restoreFromFileBackup(context);
+        await this.restoreFromLegacyPreferences(context);
       }
       this.loaded = true;
       if (this.items.length > 0 || this.readPositions.length > 0) {
@@ -193,29 +199,25 @@ export class EhHistoryStore {
 
   private async saveNow(context: common.UIAbilityContext): Promise<void> {
     try {
-      const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
-      const itemsJson = JSON.stringify(this.items);
+      const itemsJson = JSON.stringify(this.serializeStoredItems());
       const readPositionsJson = JSON.stringify(this.readPositions);
-      await prefs.put(VALUES_KEY, itemsJson);
-      await prefs.put(VALUES_BACKUP_KEY, itemsJson);
-      await prefs.put(READ_POSITIONS_KEY, readPositionsJson);
-      await prefs.put(READ_POSITIONS_BACKUP_KEY, readPositionsJson);
-      await prefs.flush();
-      this.saveFileBackup(context, itemsJson, readPositionsJson);
+      this.saveFile(context, itemsJson, readPositionsJson);
     } catch (error) {
       throw new Error(String(error));
     }
   }
 
-  private restoreFromFileBackup(context: common.UIAbilityContext): void {
-    const main = this.readFileBackup(context.filesDir + '/' + FILE_BACKUP_NAME);
-    const backup = this.readFileBackup(context.filesDir + '/' + FILE_BACKUP_FALLBACK_NAME);
-    const chosen = main.items.length > 0 || main.readPositions.length > 0 ? main : backup;
-    this.items = chosen.items;
-    this.readPositions = chosen.readPositions;
+  private async restoreFromLegacyPreferences(context: common.UIAbilityContext): Promise<void> {
+    const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
+    const raw = await prefs.get(VALUES_KEY, '');
+    const rawBackup = await prefs.get(VALUES_BACKUP_KEY, '');
+    const rawPositions = await prefs.get(READ_POSITIONS_KEY, '');
+    const rawPositionsBackup = await prefs.get(READ_POSITIONS_BACKUP_KEY, '');
+    this.items = this.parseStoredItems(raw, rawBackup);
+    this.readPositions = this.parseReadPositions(rawPositions, rawPositionsBackup);
   }
 
-  private readFileBackup(path: string): HistoryFileState {
+  private readFile(path: string): HistoryFileState {
     try {
       const parsed = JSON.parse(fs.readTextSync(path)) as HistoryBackupFile;
       return {
@@ -228,15 +230,24 @@ export class EhHistoryStore {
     }
   }
 
-  private saveFileBackup(context: common.UIAbilityContext, itemsJson: string, readPositionsJson: string): void {
+  private saveFile(context: common.UIAbilityContext, itemsJson: string, readPositionsJson: string): void {
     const payload = JSON.stringify({
       version: 1,
       items: JSON.parse(itemsJson) as StoredGalleryInfo[],
       readPositions: JSON.parse(readPositionsJson) as StoredReadPosition[],
       updatedAt: Date.now()
     });
+    writeTextFileQuietly(context.filesDir + '/' + FILE_NAME, payload);
     writeTextFileQuietly(context.filesDir + '/' + FILE_BACKUP_NAME, payload);
-    writeTextFileQuietly(context.filesDir + '/' + FILE_BACKUP_FALLBACK_NAME, payload);
+  }
+
+  private serializeStoredItems(): StoredGalleryInfo[] {
+    const stored: StoredGalleryInfo[] = [];
+    const count = Math.min(this.items.length, HISTORY_MAX_SIZE);
+    for (let i = 0; i < count; i++) {
+      stored.push(galleryInfoToStored(this.items[i]));
+    }
+    return stored;
   }
 
   private parseStoredItems(raw: preferences.ValueType, backup: preferences.ValueType): GalleryInfo[] {
@@ -309,9 +320,11 @@ export class EhHistoryStore {
 }
 
 function storedToGalleryInfo(item: StoredGalleryInfo): GalleryInfo {
+  const urlParts = parseStoredGalleryUrl(item.galleryUrl);
+  const token = typeof item.token === 'string' && item.token.length > 0 ? item.token : urlParts.token;
   return {
-    gid: typeof item.gid === 'number' ? item.gid : 0,
-    token: typeof item.token === 'string' ? item.token : '',
+    gid: typeof item.gid === 'number' && item.gid > 0 ? item.gid : urlParts.gid,
+    token: token,
     title: typeof item.title === 'string' ? item.title : '',
     titleJpn: item.titleJpn,
     thumb: item.thumb,
@@ -326,6 +339,51 @@ function storedToGalleryInfo(item: StoredGalleryInfo): GalleryInfo {
     thumbWidth: typeof item.thumbWidth === 'number' ? item.thumbWidth : 0,
     thumbHeight: typeof item.thumbHeight === 'number' ? item.thumbHeight : 0,
     favoriteSlot: typeof item.favoriteSlot === 'number' ? item.favoriteSlot : -2,
+    favoriteName: item.favoriteName,
+    tagList: item.tagList
+  };
+}
+
+function parseStoredGalleryUrl(url: string | undefined): StoredGalleryUrlParts {
+  if (url === undefined || url.length === 0) {
+    return { gid: 0, token: '' };
+  }
+  const marker = '/g/';
+  const markerIndex = url.indexOf(marker);
+  if (markerIndex < 0) {
+    return { gid: 0, token: '' };
+  }
+  const rest = url.substring(markerIndex + marker.length);
+  const parts = rest.split('/');
+  if (parts.length < 2) {
+    return { gid: 0, token: '' };
+  }
+  const gid = Number.parseInt(parts[0]);
+  if (Number.isNaN(gid) || gid <= 0) {
+    return { gid: 0, token: '' };
+  }
+  return { gid: gid, token: parts[1] };
+}
+
+function galleryInfoToStored(item: GalleryInfo): StoredGalleryInfo {
+  return {
+    galleryUrl: EhUrl.getGalleryDetailUrl(item.gid, item.token),
+    gid: item.gid,
+    token: item.token,
+    title: item.title,
+    titleJpn: item.titleJpn,
+    thumb: item.thumb,
+    category: item.category,
+    posted: item.posted,
+    uploader: item.uploader,
+    rating: item.rating,
+    rated: item.rated,
+    simpleLanguage: item.simpleLanguage,
+    simpleTags: item.simpleTags,
+    pages: item.pages,
+    thumbWidth: item.thumbWidth,
+    thumbHeight: item.thumbHeight,
+    favoriteSlot: item.favoriteSlot,
     favoriteName: item.favoriteName,
     tagList: item.tagList
   };

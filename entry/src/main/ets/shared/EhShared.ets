@@ -1168,13 +1168,11 @@ export function getAbilityContext(): common.UIAbilityContext | undefined {
 export function saveGalleryToHistory(gallery: GalleryInfo): void {
   const context = getAbilityContext();
   if (context === undefined) {
-    const maxSize = parseHistoryMaxSize(ehSettingsStore.getValue('history_info_size', '100'));
-    ehHistoryStore.addGallery(gallery, maxSize);
+    ehHistoryStore.addGallery(gallery);
     return;
   }
   ehHistoryStore.ensureLoaded(context).then(() => {
-    const maxSize = parseHistoryMaxSize(ehSettingsStore.getValue('history_info_size', '100'));
-    ehHistoryStore.addGallery(gallery, maxSize);
+    ehHistoryStore.addGallery(gallery);
     ehHistoryStore.save(context).catch(() => {});
   }).catch(() => {});
 }
@@ -1587,14 +1585,6 @@ export function downloadQueueSummary(items: DownloadInfo[]): string {
   return 'W ' + wait.toString() + ' / D ' + active.toString() + ' / OK ' + done.toString() + ' / F ' + failed.toString();
 }
 
-function parseHistoryMaxSize(value: string): number {
-  const parsed = Number.parseInt(value);
-  if (Number.isNaN(parsed) || parsed <= 0) {
-    return 100;
-  }
-  return parsed;
-}
-
 export function routeTitle(route: GalleryRoute): string {
   for (let i = 0; i < DRAWER_ITEMS.length; i++) {
     if (DRAWER_ITEMS[i].route === route) {
@@ -1652,7 +1642,6 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('list_mode', 'List mode', 'Gallery list style from original Android preferences', entries, ['Detail', 'Thumb', 'Extended']),
       optionSettingsRow('detail_size', 'Detail size', 'Gallery detail image and metadata density', entries, ['Default', 'Compact', 'Large']),
       optionSettingsRow('thumb_size', 'Thumb size', 'Thumbnail size used in gallery rows', entries, ['Small', 'Large', 'XLarge']),
-      optionSettingsRow('history_info_size', 'History size', 'Maximum stored gallery history records', entries, ['50', '100', '200', '500']),
       optionSettingsRow('show_jpn_title', 'Show Japanese title', 'Prefer original title when available', entries, ON_OFF_OPTIONS),
       optionSettingsRow('show_gallery_pages', 'Show gallery pages', 'Display page count in gallery list rows', entries, ON_OFF_OPTIONS),
       optionSettingsRow('show_tag_translations', 'Show tag translations', 'Use translated tag labels when data is available', entries, ON_OFF_OPTIONS),

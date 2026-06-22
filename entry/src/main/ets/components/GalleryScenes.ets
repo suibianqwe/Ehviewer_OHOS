@@ -222,6 +222,22 @@ export struct GalleryListScene {
   isSearchResultScene: boolean = false;
   useForcedMode: boolean = false;
   forcedMode: ListMode = ListMode.Normal;
+  useLocalProvider: boolean = false;
+  localPageSize: number = 25;
+  localProvider: (keyword: string, pageIndex: number, pageSize: number) => Promise<GalleryListLoadResult> =
+    (_keyword: string, _pageIndex: number, _pageSize: number): Promise<GalleryListLoadResult> => {
+      return Promise.resolve({
+        ok: true,
+        url: '',
+        statusCode: 200,
+        message: '',
+        pages: 0,
+        nextPage: -1,
+        nextUrl: '',
+        resultCount: '',
+        galleries: []
+      });
+    };
   onMenu: () => void = () => {
   };
   onBack: () => void = () => {
@@ -275,6 +291,10 @@ export struct GalleryListScene {
 
   private cacheKey(): string {
     const mode = this.useForcedMode ? this.forcedMode.toString() : listModeForRoute(this.sourceRoute).toString();
+    if (this.useLocalProvider) {
+      return this.sourceRoute.toString() + '|local|' + this.follow + '|' + this.initialKeyword + '|' +
+        this.localPageSize.toString();
+    }
     if (this.isSearchResultScene) {
       return this.sourceRoute.toString() + '|search-result|' + this.keyword + '|' + this.searchMode.toString() + '|' +
         this.searchCategory.toString() + '|' + (this.advancedSearchEnabled ? '1' : '0') + '|' +
@@ -406,11 +426,22 @@ export struct GalleryListScene {
   }
 
   private firstRefresh(): void {
-    if (this.hasFirstRefresh) {
+    if (this.useLocalProvider && (this.showDetail || this.showReader || this.showComments)) {
+      return;
+    }
+    if (this.hasFirstRefresh && !this.useLocalProvider) {
       return;
     }
     this.hasFirstRefresh = true;
-    this.loadRemote(0);
+    this.loadListPage(0, this.useLocalProvider && this.galleries.length > 0);
+  }
+
+  private loadListPage(pageIndex: number, preserveExisting: boolean = false, onDone?: () => void): void {
+    if (this.useLocalProvider) {
+      this.loadLocal(pageIndex, preserveExisting, onDone);
+      return;
+    }
+    this.loadRemote(pageIndex, preserveExisting, onDone);
   }
 
   private absoluteListUrl(url: string): string {
@@ -468,11 +499,56 @@ export struct GalleryListScene {
     });
   }
 
+  private loadLocal(pageIndex: number, preserveExisting: boolean = false, onDone?: () => void): void {
+    this.activeSite = effectiveListSite(this.sourceRoute);
+    this.pageIndex = pageIndex;
+    this.statusText = 'Loading...';
+    if (!preserveExisting) {
+      this.resultCount = '';
+      this.galleries = [];
+    }
+    this.nextUrl = '';
+    this.isLoadingMore = false;
+    if (pageIndex === 0) {
+      this.resetListScroll();
+      this.scrollResetVersion++;
+    }
+    this.renderVersion++;
+    this.closeDetail();
+    this.saveListCache();
+
+    this.localProvider(this.keyword.trim(), pageIndex, this.localPageSize).then((result: GalleryListLoadResult) => {
+      this.requestUrl = result.url;
+      this.galleries = applyGalleryFilters(cloneGalleryInfos(result.galleries));
+      this.statusText = result.ok ? result.message : result.message;
+      this.totalPages = result.pages;
+      this.nextUrl = result.nextUrl;
+      this.resultCount = result.resultCount;
+      this.renderVersion++;
+      this.saveListCache();
+      if (onDone !== undefined) {
+        onDone();
+      }
+    }).catch((error: Error) => {
+      this.statusText = 'Load failed: ' + error.message;
+      this.galleries = [];
+      this.renderVersion++;
+      this.saveListCache();
+      if (onDone !== undefined) {
+        onDone();
+      }
+    });
+  }
+
   private loadAppendPage(): void {
     if (this.isSearchResultScene && !this.searchSubmitted) {
       return;
     }
     if (this.isLoadingMore) {
+      return;
+    }
+    if (this.useLocalProvider) {
+      this.loadAppendLocalPage();
       return;
     }
     // Only stop if we have confirmed total page count AND already at the last page
@@ -507,6 +583,41 @@ export struct GalleryListScene {
       this.nextUrl = result.nextUrl;
       this.resultCount = result.resultCount;
       this.statusText = result.ok ? result.message : galleryListFailureMessage(result, this.activeSite);
+      this.isLoadingMore = false;
+      this.saveListCache();
+    }).catch((error: Error) => {
+      this.statusText = 'Load more failed: ' + error.message;
+      this.isLoadingMore = false;
+      this.saveListCache();
+    });
+  }
+
+  private loadAppendLocalPage(): void {
+    if (this.nextUrl.length === 0 && this.totalPages > 0 && this.pageIndex >= this.totalPages - 1) {
+      this.statusText = uiText('All pages loaded');
+      return;
+    }
+    const nextPage = this.pageIndex + 1;
+    this.isLoadingMore = true;
+    this.localProvider(this.keyword.trim(), nextPage, this.localPageSize).then((result: GalleryListLoadResult) => {
+      this.requestUrl = result.url;
+      const newGalleries = applyGalleryFilters(cloneGalleryInfos(result.galleries));
+      if (newGalleries.length === 0) {
+        this.statusText = uiText('All pages loaded');
+        this.isLoadingMore = false;
+        this.saveListCache();
+        return;
+      }
+      const existingGids: Set<number> = new Set(this.galleries.map((g: GalleryInfo) => g.gid));
+      const unique: GalleryInfo[] = newGalleries.filter((g: GalleryInfo) => !existingGids.has(g.gid));
+      this.galleries = this.galleries.concat(unique);
+      this.pageIndex = nextPage;
+      if (result.pages > 0) {
+        this.totalPages = result.pages;
+      }
+      this.nextUrl = result.nextUrl;
+      this.resultCount = result.resultCount;
+      this.statusText = result.ok ? result.message : result.message;
       this.isLoadingMore = false;
       this.saveListCache();
     }).catch((error: Error) => {
@@ -586,7 +697,7 @@ export struct GalleryListScene {
     this.searchSubmitted = true;
     this.hasFirstRefresh = true;
     this.resetListScroll();
-    this.loadRemote(0);
+    this.loadListPage(0);
   }
 
   private rememberSearchKeyword(keyword: string): void {
@@ -644,7 +755,7 @@ export struct GalleryListScene {
     this.filterActive = !this.filterActive;
     this.fabExpanded = false;
     if (this.keyword.trim().length > 0) {
-      this.loadRemote(0);
+      this.loadListPage(0);
       return;
     }
     this.statusText = this.filterActive ? 'Filter mode is on; enter a keyword to apply it' : 'Filter mode is off';
@@ -658,7 +769,7 @@ export struct GalleryListScene {
       return;
     }
     const nextPage = this.pageIndex + 1 < this.totalPages ? this.pageIndex + 1 : 0;
-    this.loadRemote(nextPage);
+    this.loadListPage(nextPage);
   }
 
   private openRandomGallery(): void {
@@ -1240,10 +1351,11 @@ export struct GalleryListScene {
             sceneTitle: this.sceneTitle,
             listMode: this.listMode,
             keyword: this.keyword,
-            searchTitle: gallerySearchTitle(this.sourceRoute, this.keyword, this.filterActive),
+            searchTitle: this.useLocalProvider && this.keyword.trim().length === 0 ? this.sceneTitle :
+              gallerySearchTitle(this.sourceRoute, this.keyword, this.filterActive),
             actionsExpanded: this.fabExpanded,
             filterActive: this.filterActive,
-            showSearchButton: routeUsesKeyword(this.sourceRoute) && !this.isSearchResultScene,
+            showSearchButton: (routeUsesKeyword(this.sourceRoute) || this.useLocalProvider) && !this.isSearchResultScene,
             showBackButton: this.isSearchResultScene,
             isSearchResultScene: this.isSearchResultScene,
             searchSubmitted: this.searchSubmitted,
@@ -1302,7 +1414,7 @@ export struct GalleryListScene {
               }
             },
             onPageJump: (page: number) => {
-              this.loadRemote(Math.max(0, page - 1));
+              this.loadListPage(Math.max(0, page - 1));
             },
             onMenu: () => {
               this.onMenu();
@@ -1311,7 +1423,7 @@ export struct GalleryListScene {
               this.onBack();
             },
             onSearch: () => {
-              if (this.isSearchResultScene) {
+              if (this.isSearchResultScene || this.useLocalProvider) {
                 this.applySearch();
               } else {
                 this.openSearchScene();
@@ -1322,7 +1434,7 @@ export struct GalleryListScene {
                 this.applySearch();
                 return;
               }
-              this.loadRemote(0, this.galleries.length > 0);
+              this.loadListPage(0, this.galleries.length > 0);
             },
             onRefreshPull: (done: () => void) => {
               if (this.isSearchResultScene && !this.searchSubmitted) {
@@ -1330,7 +1442,7 @@ export struct GalleryListScene {
                 done();
                 return;
               }
-              this.loadRemote(0, this.galleries.length > 0, done);
+              this.loadListPage(0, this.galleries.length > 0, done);
             },
             onLoadMore: () => {
               this.loadAppendPage();

@@ -22,7 +22,6 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'list_mode', value: 'Detail' },
     { key: 'detail_size', value: 'Default' },
     { key: 'thumb_size', value: 'Medium' },
-    { key: 'history_info_size', value: '100' },
     { key: 'show_jpn_title', value: 'Off' },
     { key: 'show_gallery_pages', value: 'Off' },
     { key: 'show_tag_translations', value: 'On' },
