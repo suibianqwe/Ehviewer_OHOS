@@ -35,13 +35,21 @@ import {
   normalizeAutoTransferTimeOption,
   normalizeBrightnessLevelOption,
   normalizeUltraDarkLightnessOption,
+  STATUS_BAR_HEIGHT_KEY,
   uiStatusText,
   uiText,
   uiValue
 } from '../shared/EhShared';
 import { ArrayDataSource } from '../shared/ListDataSource';
 import { readerSelectColors, selectArrowModifier } from '../shared/EhSelectStyle';
-import { themeOnPrimaryText, themeOnPrimarySecondaryText, themeScrimColor } from '../shared/EhTheme';
+import {
+  themeDividerColor,
+  themeOnPrimaryText,
+  themeOnPrimarySecondaryText,
+  themePrimaryText,
+  themeScrimColor,
+  themeSurface
+} from '../shared/EhTheme';
 import { EhSubNavBar } from './NavigationComponents';
 
 const READER_MIN_SCALE: number = 0.25;
@@ -396,7 +404,9 @@ export struct ReaderScene {
   onNext: () => void = () => {};
   onJump: (index: number) => void = () => {};
   onRetry: () => void = () => {};
+  onRefreshPage: (index: number) => void = () => {};
   restoreAppChromeOnExit: boolean = true;
+  @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
 
   @State fitMode: string = 'Fit screen';
   @State startPosition: string = 'Top right';
@@ -405,6 +415,9 @@ export struct ReaderScene {
   @State menuVisible: boolean = false;
   @State imageActionsVisible: boolean = false;
   @State sliderVisible: boolean = false;
+  @State sliderLiveIndex: number = 0;
+  @State sliderDragging: boolean = false;
+  @State sliderTrackWidth: number = 1;
   @State autoTransferPlaying: boolean = false;
   @State currentIndex: number = 0;
   @State isDisableSwipe: boolean = false;
@@ -557,6 +570,26 @@ export struct ReaderScene {
 
   onTotalPagesChange(): void {
     this.syncReaderPageIndexSource();
+    this.sliderLiveIndex = this.clampReaderPageIndex(this.currentIndex);
+  }
+
+  private statusBarHeightVp(): number {
+    if (this.statusBarHeightPx <= 0) {
+      return 0;
+    }
+    return this.getUIContext().px2vp(this.statusBarHeightPx);
+  }
+
+  private readingFullscreenEnabled(): boolean {
+    return ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On';
+  }
+
+  private readerStatusOverlayTop(): number {
+    return this.readingFullscreenEnabled() ? 12 : this.statusBarHeightVp() + 8;
+  }
+
+  private readerStatusShadeHeight(): number {
+    return Math.max(0, this.statusBarHeightVp()) + 34;
   }
 
   private scheduleReaderChromeMode(delay: number): void {
@@ -605,6 +638,8 @@ export struct ReaderScene {
 
   onPageIndexChange(): void {
     this.currentIndex = this.pageIndex;
+    this.sliderLiveIndex = this.clampReaderPageIndex(this.pageIndex);
+    this.sliderDragging = false;
     this.isDisableSwipe = false;
     this.zoomPercent = this.isFixedScaleMode() ? Math.round(this.fixedScale * 100) : 100;
     this.imageActionsVisible = false;
@@ -698,6 +733,8 @@ export struct ReaderScene {
 
   private showSlider(): void {
     this.imageActionsVisible = false;
+    this.sliderLiveIndex = this.clampReaderPageIndex(this.currentIndex);
+    this.sliderDragging = false;
     this.sliderVisible = true;
     this.scheduleSliderHide();
   }
@@ -705,6 +742,7 @@ export struct ReaderScene {
   private hideSlider(): void {
     this.clearSliderTimer();
     this.sliderVisible = false;
+    this.sliderDragging = false;
   }
 
   private hideSliderAndStopPlayback(): void {
@@ -949,9 +987,10 @@ export struct ReaderScene {
 
   private refreshCurrentImage(): void {
     const page = this.pageForIndex(this.currentIndex);
+    const index = this.currentIndex;
     this.hideImageActions();
     this.removeCurrentImageFiles(page);
-    this.onRetry();
+    this.onRefreshPage(index);
   }
 
   private shareCurrentImage(): void {
@@ -1165,11 +1204,31 @@ export struct ReaderScene {
     return this.totalPages <= 0 || this.currentIndex + 1 < this.totalPages;
   }
 
+  private clampReaderPageIndex(value: number): number {
+    const total = this.totalPages <= 0 ? 1 : this.totalPages;
+    return Math.max(0, Math.min(total - 1, Math.round(value)));
+  }
+
+  private sliderBubbleX(): number {
+    const total = this.totalPages <= 0 ? 1 : this.totalPages;
+    const usableWidth = Math.max(1, this.sliderTrackWidth - 44);
+    if (total <= 1) {
+      return 0;
+    }
+    return Math.max(0, Math.min(usableWidth, usableWidth * this.sliderLiveIndex / (total - 1)));
+  }
+
+  private sliderPageText(): string {
+    const total = this.totalPages <= 0 ? 1 : this.totalPages;
+    return (this.sliderLiveIndex + 1).toString() + '/' + total.toString();
+  }
+
   private jumpTo(value: number): void {
     if (this.totalPages <= 0) {
       return;
     }
     const target = Math.max(0, Math.min(this.totalPages - 1, Math.round(value)));
+    this.sliderLiveIndex = target;
     if (target === this.currentIndex) {
       return;
     }
@@ -1282,6 +1341,27 @@ export struct ReaderScene {
           .zIndex(2)
       }
 
+      if (!this.readingFullscreenEnabled()) {
+        Column() {
+          Column() {}
+            .width('100%')
+            .height(Math.max(0, this.statusBarHeightVp()) + 10)
+            .backgroundColor(themeScrimColor())
+            .backgroundBlurStyle(BlurStyle.Thin)
+          Column() {}
+            .width('100%')
+            .height(24)
+            .backgroundColor(themeScrimColor())
+            .opacity(0.34)
+            .backgroundBlurStyle(BlurStyle.Thin)
+        }
+        .width('100%')
+        .height(this.readerStatusShadeHeight())
+        .position({ x: 0, y: 0 })
+        .hitTestBehavior(HitTestMode.Transparent)
+        .zIndex(3)
+      }
+
       // Floating progress / clock / battery overlay (when no panel shown)
       if (!this.menuVisible && !this.sliderVisible) {
         Row() {
@@ -1313,8 +1393,8 @@ export struct ReaderScene {
         .width('100%')
         .justifyContent(FlexAlign.End)
         .padding({ left: 12, right: 12 })
-        .position({ x: 0, y: 12 })
-        .zIndex(3)
+        .position({ x: 0, y: this.readerStatusOverlayTop() })
+        .zIndex(4)
       }
 
       // ── Slider panel (lower 1/3 tap, auto-hides after 3s) ──
@@ -1327,25 +1407,48 @@ export struct ReaderScene {
 
         Column() {
           Row() {
-            Text((this.currentIndex + 1).toString())
+            Text(this.progressText())
               .fontSize(12)
               .fontColor('#E5E7EB')
-              .width(42)
+              .width(58)
               .textAlign(TextAlign.Center)
-            Slider({
-              value: this.currentIndex,
-              min: 0,
-              max: Math.max(0, this.totalPages - 1),
-              step: 1
-            })
+            Stack({ alignContent: Alignment.BottomStart }) {
+              if (this.sliderDragging) {
+                Text(this.sliderPageText())
+                  .fontSize(12)
+                  .fontColor(themeOnPrimaryText())
+                  .lineHeight(18)
+                  .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+                  .backgroundColor(themeScrimColor())
+                  .borderRadius(8)
+                  .position({ x: this.sliderBubbleX(), y: 0 })
+              }
+              Slider({
+                value: this.sliderLiveIndex,
+                min: 0,
+                max: Math.max(0, this.totalPages - 1),
+                step: 1
+              })
+                .width('100%')
+                .margin({ top: 26 })
+                .enabled(this.totalPages > 1)
+                .onChange((value: number, mode: SliderChangeMode) => {
+                  this.sliderLiveIndex = this.clampReaderPageIndex(value);
+                  this.sliderDragging = mode !== SliderChangeMode.End && mode !== SliderChangeMode.Click;
+                  if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
+                    this.stopAutoTransferPlayback();
+                    this.clearSliderTimer();
+                    this.jumpTo(value);
+                    this.scheduleSliderHide();
+                  }
+                })
+            }
               .layoutWeight(1)
-              .enabled(this.totalPages > 1)
-              .onChange((value: number, mode: SliderChangeMode) => {
-                if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
-                  this.stopAutoTransferPlayback();
-                  this.clearSliderTimer();
-                  this.jumpTo(value);
-                  this.scheduleSliderHide();
+              .height(54)
+              .onAreaChange((_oldArea: Area, newArea: Area) => {
+                const width = newArea.width as number;
+                if (width > 0 && !Number.isNaN(width)) {
+                  this.sliderTrackWidth = width;
                 }
               })
             Button({ type: ButtonType.Circle, stateEffect: true }) {
@@ -1620,7 +1723,7 @@ struct ReaderPopupBackdrop {
     Stack() {}
       .width('100%')
       .height('100%')
-      .backgroundColor('#99000000')
+      .backgroundColor(themeScrimColor())
       .onClick(() => {
         this.onDismiss();
       })
@@ -1649,19 +1752,11 @@ struct ReaderImageActionDialog {
         onTap: this.onShare
       })
       ReaderMenuDivider()
-      SaveButton({
-        icon: SaveIconStyle.FULL_FILLED,
-        text: SaveDescription.SAVE_TO_GALLERY,
-        buttonType: ButtonType.Normal
+      ReaderImageActionButton({
+        label: uiText('Save to album'),
+        symbolIcon: $r('sys.symbol.save'),
+        onTap: this.onSaveToAlbum
       })
-        .width('100%')
-        .height(48)
-        .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-        .onClick((_event: ClickEvent, result: SaveButtonOnClickResult) => {
-          if (result === SaveButtonOnClickResult.SUCCESS) {
-            this.onSaveToAlbum();
-          }
-        })
       ReaderMenuDivider()
       ReaderImageActionButton({
         label: uiText('Save to...'),
@@ -1672,7 +1767,7 @@ struct ReaderImageActionDialog {
     .width('78%')
     .constraintSize({ maxWidth: 360 })
     .padding({ top: 6, bottom: 6 })
-    .backgroundColor('#F0111827')
+    .backgroundColor(themeSurface())
     .borderRadius(12)
     .clip(true)
     .shadow({ radius: 18, color: '#66000000', offsetY: 8 })
@@ -1691,12 +1786,13 @@ struct ReaderImageActionButton {
       Row() {
         SymbolGlyph(this.symbolIcon)
           .fontSize(20)
-          .fontColor([Color.White])
+          .fontColor([themePrimaryText()])
         Text(this.label)
           .fontSize(15)
-          .fontColor(Color.White)
+          .fontColor(themePrimaryText())
           .margin({ left: 12 })
           .layoutWeight(1)
+          .textAlign(TextAlign.Start)
       }
       .width('100%')
       .padding({ left: 16, right: 16 })
@@ -1716,7 +1812,7 @@ struct ReaderMenuDivider {
   build() {
     Divider()
       .height(1)
-      .color('#1FFFFFFF')
+      .color(themeDividerColor())
       .margin({ left: 16, right: 16 })
   }
 }

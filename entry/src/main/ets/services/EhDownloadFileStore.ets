@@ -190,9 +190,22 @@ export class EhDownloadFileStore {
     ensureDirectory(root);
     const directory = this.galleryDirectory(context, detail);
     ensureDirectory(directory);
+    this.rewriteGalleryMetadataByDirectory(directory, detail);
+    return directory;
+  }
+
+  rewriteGalleryMetadata(context: common.UIAbilityContext, detail: GalleryDetail): string {
+    const root = this.downloadRoot(context);
+    ensureDirectory(root);
+    const directory = this.galleryDirectory(context, detail);
+    ensureDirectory(directory);
+    this.rewriteGalleryMetadataByDirectory(directory, detail);
+    return directory;
+  }
+
+  private rewriteGalleryMetadataByDirectory(directory: string, detail: GalleryDetail): void {
     writeTextFile(directory + '/' + ANDROID_SPIDER_INFO_FILENAME, createAndroidSpiderInfo(detail));
     writeTextFile(directory + '/' + OHOS_METADATA_FILENAME, JSON.stringify(createMetadata(detail)));
-    return directory;
   }
 
   savePageImage(context: common.UIAbilityContext, detail: GalleryDetail, page: GalleryPage, index: number,
@@ -217,6 +230,14 @@ export class EhDownloadFileStore {
       }
     }
     return '';
+  }
+
+  removePageImage(context: common.UIAbilityContext, gallery: GalleryInfo, index: number): DownloadDirectoryScanResult {
+    const path = this.findPageImage(context, gallery, index);
+    if (path.length === 0) {
+      return { directories: 0, files: 0, bytes: 0 };
+    }
+    return removeDirectoryTree(path);
   }
 
   listPageImages(context: common.UIAbilityContext, gallery: GalleryInfo): string[] {

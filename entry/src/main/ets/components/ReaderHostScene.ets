@@ -389,6 +389,9 @@ export struct ReaderHostScene {
       },
       onRetry: () => {
         this.loadReaderPageByIndex(this.pageIndex);
+      },
+      onRefreshPage: (index: number) => {
+        this.loadReaderPageByIndex(index);
       }
     })
   }

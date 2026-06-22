@@ -1440,6 +1440,9 @@ export struct GalleryListScene {
               },
               onRetry: () => {
                 this.loadReaderPageByIndex(this.readerPreviewIndex);
+              },
+              onRefreshPage: (index: number) => {
+                this.loadReaderPageByIndex(index);
               }
             })
               .width('100%')

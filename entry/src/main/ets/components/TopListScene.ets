@@ -790,6 +790,9 @@ export struct TopListScene {
         },
         onRetry: () => {
           this.loadReaderPageByIndex(this.readerPreviewIndex);
+        },
+        onRefreshPage: (index: number) => {
+          this.loadReaderPageByIndex(index);
         }
       })
         .transition(TransitionEffect.move(TransitionEdge.BOTTOM)
