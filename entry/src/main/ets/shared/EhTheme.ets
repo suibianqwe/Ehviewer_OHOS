@@ -216,7 +216,7 @@ export function currentThemeName(): string {
   return ehSettingsStore.getValue('theme', 'Light');
 }
 
-export function currentThemePalette(): EhColorPalette {
+function currentThemePalette(): EhColorPalette {
   const themeName = currentThemeName();
   if (themeName === 'Black') {
     return BLACK_PALETTE;

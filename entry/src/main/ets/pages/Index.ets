@@ -17,7 +17,7 @@ import {
   launchRouteFromSetting,
   runActiveBackHandler
 } from '../shared/EhShared';
-import { themePageBackground, themeScrimColor, themeShadowColor } from '../shared/EhTheme';
+import { themePageBackground, themeScrimColor, themeShadowColor, themePrimaryColor } from '../shared/EhTheme';
 
 // ----------------------------------------------------------------
 // Root page: full-screen immersive shell with slide-in side drawer
@@ -138,7 +138,18 @@ struct Index {
       // ---- Main content ----
       Column() {
         if (this.settingsReady) {
-          this.RouteContent()
+          Stack({ alignContent: Alignment.TopStart }) {
+            // Persistent nav bar background — behind the transitioning scenes so the
+            // primary-color strip stays solid while scene content fades in/out.
+            Column()
+              .width('100%')
+              .height(this.statusBarVp() + 56)
+              .backgroundColor(themePrimaryColor())
+
+            this.RouteContent()
+          }
+          .width('100%')
+          .height('100%')
         }
       }
       .width('100%')

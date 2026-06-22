@@ -17,7 +17,7 @@ import {
 import { LANGUAGE_REVISION_KEY, nextFloatingToolbarOffset } from '../shared/EhShared';
 import { themeOnPrimaryText, themeOnPrimaryDangerBackground, themePageBackground, themeShadowColor } from '../shared/EhTheme';
 import { ArrayDataSource } from '../shared/ListDataSource';
-import { STATUS_BAR_HEIGHT_KEY, uiText, setActiveBackHandler, createDetailFromGallery, createEmptyDetail, createEmptyPage, cloneGalleryInfos, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, currentGallerySite, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, galleryListMode, galleryThumbWidth } from '../shared/EhShared';
+import { STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, createDetailFromGallery, createEmptyDetail, createEmptyPage, cloneGalleryInfos, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, downloadButtonText, toggleGalleryDownload, currentGallerySite, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, galleryListMode, galleryThumbWidth } from '../shared/EhShared';
 import { GalleryDetailOverlayScene, GalleryListRow, GalleryListScene, GalleryThumbCard, PlaceholderScene, ReaderPageState, ReaderScene } from './GalleryScenes';
 import { FloatingToolbarHost } from './NavigationComponents';
 
@@ -90,7 +90,6 @@ export struct HistoryScene {
   }
 
   aboutToDisappear(): void {
-    setActiveBackHandler(null);
   }
 
   private handleSystemBack(): boolean {

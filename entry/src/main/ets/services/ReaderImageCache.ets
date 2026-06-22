@@ -12,7 +12,7 @@ interface PendingImageDownload {
 
 const PENDING_IMAGE_DOWNLOADS: PendingImageDownload[] = [];
 const WAITING_IMAGE_SLOTS: (() => void)[] = [];
-const MAX_ACTIVE_IMAGE_DOWNLOADS: number = 3;
+const MAX_ACTIVE_IMAGE_DOWNLOADS: number = 6;
 const MAX_IMAGE_CACHE_BYTES: number = 320 * 1024 * 1024;
 const IMAGE_RETRY_DELAYS_MS: number[] = [300, 900];
 let activeImageDownloads: number = 0;

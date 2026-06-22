@@ -11,6 +11,10 @@
     {
       "name": "EntryAbility_label",
       "value": "EhViewer"
+    },
+    {
+      "name": "permission_read_write_download_directory_reason",
+      "value": "用于将下载的漫画保存到系统下载目录"
     }
   ]
 }

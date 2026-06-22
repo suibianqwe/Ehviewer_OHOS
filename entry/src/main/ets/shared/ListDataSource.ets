@@ -1,6 +1,9 @@
-export class ArrayDataSource<T> implements IDataSource {
+import { IDataSourcePrefetching } from '@kit.ArkUI';
+
+export class ArrayDataSource<T> implements IDataSource, IDataSourcePrefetching {
   private items: T[] = [];
   private listeners: DataChangeListener[] = [];
+  private prefetchCb: ((item: T) => void) | undefined = undefined;
 
   constructor(items: T[]) {
     this.items = items;
@@ -13,6 +16,15 @@ export class ArrayDataSource<T> implements IDataSource {
 
   replaceItems(items: T[]): void {
     this.items = items;
+  }
+
+  // 末尾追加单条并精确通知，避免 notifyReload 触发全量重建
+  appendAndNotify(item: T): void {
+    this.items.push(item);
+    const index = this.items.length - 1;
+    for (let i = 0; i < this.listeners.length; i++) {
+      this.listeners[i].onDataAdd(index);
+    }
   }
 
   notifyChange(index: number): void {
@@ -48,6 +60,20 @@ export class ArrayDataSource<T> implements IDataSource {
       }
     }
     this.listeners = next;
+  }
+
+  setPrefetchCallback(cb: (item: T) => void): void {
+    this.prefetchCb = cb;
+  }
+
+  prefetch(index: number): void {
+    if (this.prefetchCb !== undefined && index >= 0 && index < this.items.length) {
+      this.prefetchCb(this.items[index]);
+    }
+  }
+
+  cancel(_index: number): void {
+    // Downloads are small and always useful to cache; cancellation is a no-op.
   }
 
   private notifyReloaded(): void {

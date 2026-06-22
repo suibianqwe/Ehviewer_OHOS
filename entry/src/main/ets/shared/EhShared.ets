@@ -795,7 +795,6 @@ export function runReaderActiveBackHandler(): boolean {
 export const STATUS_BAR_HEIGHT_KEY: string = 'statusBarHeight';
 export const TOP_AVOID_HEIGHT_KEY: string = 'topAvoidHeight';
 export const BOTTOM_AVOID_HEIGHT_KEY: string = 'bottomAvoidHeight';
-export const BOTTOM_NAV_HEIGHT_KEY: string = 'bottomNavHeight';
 
 export function createEmptyGallery(): GalleryInfo {
   return {
@@ -944,7 +943,7 @@ export function createEmptyTopListItem(): TopListItem {
   };
 }
 
-export function cloneStringArray(values: string[] | undefined): string[] | undefined {
+function cloneStringArray(values: string[] | undefined): string[] | undefined {
   if (values === undefined) {
     return undefined;
   }
@@ -955,7 +954,7 @@ export function cloneStringArray(values: string[] | undefined): string[] | undef
   return result;
 }
 
-export function cloneRequiredStringArray(values: string[]): string[] {
+function cloneRequiredStringArray(values: string[]): string[] {
   const result: string[] = [];
   for (let i = 0; i < values.length; i++) {
     result.push(values[i]);
@@ -1008,7 +1007,7 @@ export function applyGalleryFilters(galleries: GalleryInfo[]): GalleryInfo[] {
   return filtered;
 }
 
-export function cloneGalleryTagGroups(groups: GalleryTagGroup[]): GalleryTagGroup[] {
+function cloneGalleryTagGroups(groups: GalleryTagGroup[]): GalleryTagGroup[] {
   const result: GalleryTagGroup[] = [];
   for (let i = 0; i < groups.length; i++) {
     result.push({
@@ -1019,7 +1018,7 @@ export function cloneGalleryTagGroups(groups: GalleryTagGroup[]): GalleryTagGrou
   return result;
 }
 
-export function cloneGalleryComments(comments: GalleryComment[]): GalleryComment[] {
+function cloneGalleryComments(comments: GalleryComment[]): GalleryComment[] {
   const result: GalleryComment[] = [];
   for (let i = 0; i < comments.length; i++) {
     result.push({
@@ -1111,7 +1110,7 @@ export function createReaderLoadingPage(pageUrl: string): GalleryPage {
   };
 }
 
-export function cloneTopListItem(item: TopListItem): TopListItem {
+function cloneTopListItem(item: TopListItem): TopListItem {
   return {
     href: item.href,
     gid: item.gid,
@@ -1121,7 +1120,7 @@ export function cloneTopListItem(item: TopListItem): TopListItem {
   };
 }
 
-export function cloneTopListBucket(bucket: TopListBucket): TopListBucket {
+function cloneTopListBucket(bucket: TopListBucket): TopListBucket {
   const items: TopListItem[] = [];
   for (let i = 0; i < bucket.items.length; i++) {
     items.push(cloneTopListItem(bucket.items[i]));
@@ -1133,7 +1132,7 @@ export function cloneTopListBucket(bucket: TopListBucket): TopListBucket {
   };
 }
 
-export function cloneTopListInfo(info: TopListInfo): TopListInfo {
+function cloneTopListInfo(info: TopListInfo): TopListInfo {
   const buckets: TopListBucket[] = [];
   for (let i = 0; i < info.buckets.length; i++) {
     buckets.push(cloneTopListBucket(info.buckets[i]));
@@ -1245,7 +1244,7 @@ export function filterDownloadItems(items: DownloadInfo[], query: string, status
   return filtered;
 }
 
-export function downloadItemMatches(item: DownloadInfo, query: string): boolean {
+function downloadItemMatches(item: DownloadInfo, query: string): boolean {
   const title = item.title.toLowerCase();
   const uploader = item.uploader === undefined ? '' : item.uploader.toLowerCase();
   const label = item.label.toLowerCase();
@@ -1320,22 +1319,6 @@ export function nextStringOption(current: string, options: string[]): string {
   return options.length > 0 ? options[0] : current;
 }
 
-export function nextDownloadState(current: DownloadState): DownloadState {
-  if (current === DownloadState.None) {
-    return DownloadState.Wait;
-  }
-  if (current === DownloadState.Wait) {
-    return DownloadState.Downloading;
-  }
-  if (current === DownloadState.Downloading) {
-    return DownloadState.Finish;
-  }
-  if (current === DownloadState.Finish) {
-    return DownloadState.Failed;
-  }
-  return DownloadState.None;
-}
-
 export function nextDownloadLabel(current: string, labels: DownloadLabel[]): string {
   const options: string[] = [''];
   for (let i = 0; i < labels.length; i++) {
@@ -1349,7 +1332,7 @@ export function nextDownloadLabel(current: string, labels: DownloadLabel[]): str
   return options.length > 1 ? options[1] : '';
 }
 
-export function downloadLabelName(label: string): string {
+function downloadLabelName(label: string): string {
   return label.length === 0 ? 'Default' : label;
 }
 
@@ -1391,7 +1374,7 @@ export function downloadStateColor(state: DownloadState): string {
   return paletteDownloadStateIdleColor();
 }
 
-export const APP_THEME_COLOR: string = EH_THEME_PRIMARY_COLOR;
+const APP_THEME_COLOR: string = EH_THEME_PRIMARY_COLOR;
 
 export function currentThemeName(): string {
   return themeCurrentThemeName();
@@ -1471,7 +1454,7 @@ function parseHexChannel(color: string, start: number): number {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
-export function mixHexColor(from: string, to: string, amount: number): string {
+function mixHexColor(from: string, to: string, amount: number): string {
   const source = from.length >= 7 && from.charAt(0) === '#' ? from : APP_THEME_COLOR;
   const target = to.length >= 7 && to.charAt(0) === '#' ? to : '#FFFFFF';
   const ratio = Math.max(0, Math.min(1, amount));
@@ -1489,22 +1472,22 @@ export function immersiveChromeHeightFromOffset(offsetY: number, expandedHeight:
   return Math.max(0, Math.min(expandedHeight, expandedHeight + offsetY));
 }
 
-export function immersiveChromeOffsetFromHeight(height: number, expandedHeight: number): number {
+function immersiveChromeOffsetFromHeight(height: number, expandedHeight: number): number {
   return Math.max(-expandedHeight, Math.min(0, height - expandedHeight));
 }
 
-export function immersiveChromeOpacityFromHeight(height: number, expandedHeight: number): number {
+function immersiveChromeOpacityFromHeight(height: number, expandedHeight: number): number {
   if (expandedHeight <= 0) {
     return 1;
   }
   return Math.max(0, Math.min(1, height / expandedHeight));
 }
 
-export function immersiveChromeOpacityFromOffset(offsetY: number, expandedHeight: number): number {
+function immersiveChromeOpacityFromOffset(offsetY: number, expandedHeight: number): number {
   return immersiveChromeOpacityFromHeight(immersiveChromeHeightFromOffset(offsetY, expandedHeight), expandedHeight);
 }
 
-export function nextImmersiveChromeHeight(currentHeight: number, scrollOffset: number, contentOffset: number,
+function nextImmersiveChromeHeight(currentHeight: number, scrollOffset: number, contentOffset: number,
   expandedHeight: number): number {
   if (contentOffset <= 4) {
     return expandedHeight;
@@ -1591,7 +1574,7 @@ export function downloadQueueSummary(items: DownloadInfo[]): string {
   return 'W ' + wait.toString() + ' / D ' + active.toString() + ' / OK ' + done.toString() + ' / F ' + failed.toString();
 }
 
-export function parseHistoryMaxSize(value: string): number {
+function parseHistoryMaxSize(value: string): number {
   const parsed = Number.parseInt(value);
   if (Number.isNaN(parsed) || parsed <= 0) {
     return 100;
@@ -1691,7 +1674,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
 
   if (panel === SettingsPanel.Download) {
     return [
-      optionSettingsRow('download_location', 'Download location', 'HarmonyOS file picker/storage mapping for downloaded galleries', entries, ['Not set', 'App files', 'Downloads']),
+      optionSettingsRow('download_location', 'Download location', 'App internal storage or public Downloads directory', entries, ['App files', 'Downloads']),
       optionSettingsRow('media_scan', 'Media scan', 'Expose downloaded images to system media index', entries, ON_OFF_OPTIONS),
       optionSettingsRow('download_thread', 'Multi-thread download', 'Worker count used by the original SpiderQueen pipeline', entries, ['1', '2', '3', '4', '5', '8', '10']),
       optionSettingsRow('preload_image', 'Preload image', 'Reader/download prefetch count', entries, ['0', '3', '5', '10', '20']),
@@ -1760,9 +1743,9 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
   return [staticSettingsRow('theme', 'Theme', 'Current staged theme', themeName, 'list')];
 }
 
-export const ON_OFF_OPTIONS: string[] = ['On', 'Off'];
+const ON_OFF_OPTIONS: string[] = ['On', 'Off'];
 
-export function readerAutoTransferTimeOptions(): string[] {
+function readerAutoTransferTimeOptions(): string[] {
   const options: string[] = [];
   for (let i = 1; i <= 20; i++) {
     options.push(i.toString() + 's');
@@ -1770,7 +1753,7 @@ export function readerAutoTransferTimeOptions(): string[] {
   return options;
 }
 
-export function readerBrightnessLevelOptions(): string[] {
+function readerBrightnessLevelOptions(): string[] {
   const options: string[] = [];
   for (let i = 0; i <= 100; i++) {
     options.push(i.toString() + '%');
@@ -1786,7 +1769,7 @@ export function readerUltraDarkLightnessOptions(): string[] {
   return options;
 }
 
-export function optionSettingsRow(key: string, title: string, summary: string, entries: SettingEntry[], options: string[]): SettingsRowItem {
+function optionSettingsRow(key: string, title: string, summary: string, entries: SettingEntry[], options: string[]): SettingsRowItem {
   const rawValue = settingEntryValue(entries, key, options.length > 0 ? options[0] : '');
   const sliderRow = key === 'start_transfer_time' || key === 'screen_lightness' || key === 'ultra_dark_lightness';
   return {
@@ -1968,18 +1951,6 @@ export function settingMigrationMessage(key: string): string {
   return 'This original app entry has not been migrated yet.';
 }
 
-export function nextOption(current: string, options: string[]): string {
-  if (options.length === 0) {
-    return current;
-  }
-  for (let i = 0; i < options.length; i++) {
-    if (options[i] === current) {
-      return options[(i + 1) % options.length];
-    }
-  }
-  return options[0];
-}
-
 export function isValidProxyPortText(value: string): boolean {
   const port = Number.parseInt(value);
   return !Number.isNaN(port) && port > 0 && port <= 65535 && port.toString() === value.trim();
@@ -2052,7 +2023,7 @@ export function effectiveListSite(_route: GalleryRoute): GallerySite {
   return currentGallerySite();
 }
 
-export function gallerySiteName(site: GallerySite): string {
+function gallerySiteName(site: GallerySite): string {
   return site === GallerySite.Ex ? 'ExHentai' : 'E-Hentai';
 }
 
@@ -2188,7 +2159,7 @@ export function cachePreviewThumbnail(preview: GalleryPreview, onReady: (path: s
   });
 }
 
-export function cloneGalleryPageWithCache(page: GalleryPage, cachedPath: string): GalleryPage {
+function cloneGalleryPageWithCache(page: GalleryPage, cachedPath: string): GalleryPage {
   return {
     pageUrl: page.pageUrl,
     imageUrl: page.imageUrl,
@@ -2208,39 +2179,12 @@ export function readerZoomSize(zoomPercent: number): string {
   return zoomPercent.toString() + '%';
 }
 
-export function readerFullImageWidth(zoomPercent: number): string {
-  return zoomPercent.toString() + '%';
-}
-
-export function readerFullImageHeight(zoomPercent: number): string {
-  return zoomPercent.toString() + '%';
-}
-
-export function readerImageFit(fitMode: string): ImageFit {
-  const normalized = normalizePageScalingOption(fitMode);
-  if (normalized === 'Actual size' || normalized === 'Fixed scale') {
-    return ImageFit.None;
-  }
-  return ImageFit.Contain;
-}
-
-export function readerShortUrl(url: string): string {
-  if (url.length <= 96) {
-    return url;
-  }
-  return url.substring(0, 72) + '...' + url.substring(url.length - 18);
-}
-
 export function readerPreloadCount(): number {
   const value = Number.parseInt(ehSettingsStore.getValue('preload_image', '5'));
   if (Number.isNaN(value) || value <= 0) {
     return 0;
   }
   return Math.min(value, 3);
-}
-
-export function readerIsRightToLeft(): boolean {
-  return normalizeReadingDirectionOption(ehSettingsStore.getValue('reading_direction', 'Right to left')) === 'Right to left';
 }
 
 export function categoryName(category: number): string {
@@ -2339,29 +2283,6 @@ export function galleryThumbHeight(): number {
   return 118;
 }
 
-export function galleryRowHeight(): number {
-  const height = galleryThumbHeight();
-  if (galleryListMode() === 'Thumb') {
-    return height;
-  }
-  if (galleryListMode() === 'Extended') {
-    return Math.max(height, 134);
-  }
-  return height;
-}
-
-export function galleryTagPreview(gallery: GalleryInfo): string {
-  if (gallery.simpleTags === undefined || gallery.simpleTags.length === 0) {
-    return '';
-  }
-  const parts: string[] = [];
-  const count = Math.min(gallery.simpleTags.length, 6);
-  for (let i = 0; i < count; i++) {
-    parts.push(gallery.simpleTags[i]);
-  }
-  return parts.join('  ');
-}
-
 export function detailTitleFontSize(): number {
   const value = ehSettingsStore.getValue('detail_size', 'Default');
   if (value === 'Compact') {
@@ -2384,16 +2305,8 @@ export function detailTitleMaxLines(): number {
   return 5;
 }
 
-export function detailHeadingFontSize(): number {
-  return ehSettingsStore.getValue('detail_size', 'Default') === 'Large' ? 16 : 15;
-}
-
 export function readerShowProgress(): boolean {
   return ehSettingsStore.getValue('gallery_show_progress', 'On') === 'On';
-}
-
-export function readerShowClock(): boolean {
-  return ehSettingsStore.getValue('gallery_show_clock', 'On') === 'On';
 }
 
 export function readerClockText(): string {
@@ -2401,7 +2314,7 @@ export function readerClockText(): string {
   return padTimeNumber(now.getHours()) + ':' + padTimeNumber(now.getMinutes());
 }
 
-export function padTimeNumber(value: number): string {
+function padTimeNumber(value: number): string {
   return value < 10 ? '0' + value.toString() : value.toString();
 }
 

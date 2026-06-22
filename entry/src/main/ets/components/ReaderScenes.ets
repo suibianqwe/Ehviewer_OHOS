@@ -1742,7 +1742,7 @@ struct ReaderMenuSelect {
         .fontColor(readerSelectColors().buttonText)
         .backgroundColor(readerSelectColors().buttonBackground)
         .menuBackgroundColor(readerSelectColors().menuBackground)
-        .menuBackgroundBlurStyle(undefined)
+        .menuBackgroundBlurStyle(BlurStyle.NONE)
         .optionBgColor(readerSelectColors().optionBackground)
         .optionFontColor(readerSelectColors().optionText)
         .optionFont({ size: 13 })

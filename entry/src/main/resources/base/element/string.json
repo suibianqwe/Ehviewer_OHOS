@@ -11,6 +11,10 @@
     {
       "name": "EntryAbility_label",
       "value": "EhViewer"
+    },
+    {
+      "name": "permission_read_write_download_directory_reason",
+      "value": "Save downloaded galleries to the public Downloads directory"
     }
   ]
 }

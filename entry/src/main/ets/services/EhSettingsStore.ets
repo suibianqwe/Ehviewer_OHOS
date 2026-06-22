@@ -44,7 +44,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'custom_screen_lightness', value: 'Off' },
     { key: 'ultra_dark_mode', value: 'Off' },
     { key: 'ultra_dark_lightness', value: '50%' },
-    { key: 'download_location', value: 'Not set' },
+    { key: 'download_location', value: 'App files' },
     { key: 'media_scan', value: 'Off' },
     { key: 'download_thread', value: '3' },
     { key: 'preload_image', value: '5' },
@@ -145,6 +145,9 @@ export class EhSettingsStore {
           this.setValue('proxy', 'System');
         }
         this.setValue('network_proxy_20260613', 'Applied');
+      }
+      if (this.getValue('download_location', 'App files') !== 'Downloads') {
+        this.setValue('download_location', 'App files');
       }
     } catch (error) {
       throw new Error(String(error));

@@ -349,6 +349,7 @@ export struct GalleryThumb {
           .onError(() => {
             this.loadFailed = true;
           })
+          .transition(TransitionEffect.OPACITY.animation({ duration: 200, curve: Curve.EaseOut }))
       } else {
         LoadingProgress()
           .width(32)

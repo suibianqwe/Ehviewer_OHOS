@@ -71,6 +71,15 @@ function normalizeSceneScrollOffset(offset: number): number {
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
 const DOWNLOAD_PROGRESS_UPDATE_INTERVAL_MS: number = 250;
 
+interface DownloadWorkerState {
+  cursor: number;
+  finished: number;
+  fileSize: number;
+  lastBytes: number;
+  lastTime: number;
+  failedMessage: string;
+}
+
 @Component
 export struct DownloadScene {
   private client: EhHttpClient = new EhHttpClient();
@@ -132,7 +141,6 @@ export struct DownloadScene {
   }
 
   aboutToDisappear(): void {
-    setActiveBackHandler(null);
     this.unsubscribeStore();
   }
 
@@ -389,23 +397,51 @@ export struct DownloadScene {
 
   private refreshDownloadRows(): void {
     const rows = this.buildDownloadRows();
-    const structureKeys: string[] = [];
-    let structureChanged = rows.length !== this.downloadRowStructureKeys.length;
+    const newKeys: string[] = [];
     for (let i = 0; i < rows.length; i++) {
-      const structureKey = this.downloadRowKey(rows[i]);
-      structureKeys.push(structureKey);
-      if (!structureChanged && structureKey !== this.downloadRowStructureKeys[i]) {
+      newKeys.push(this.downloadRowKey(rows[i]));
+    }
+
+    const prevCount = this.downloadRowStructureKeys.length;
+    const newCount = rows.length;
+
+    // 纯追加：已有行结构不变，只在末尾新增 → 精确通知，避免全量 reload 闪烁
+    if (newCount > prevCount && prevCount > 0) {
+      let isAppend = true;
+      for (let i = 0; i < prevCount; i++) {
+        if (newKeys[i] !== this.downloadRowStructureKeys[i]) {
+          isAppend = false;
+          break;
+        }
+      }
+      if (isAppend) {
+        this.syncDownloadCardStates();
+        this.downloadRowStructureKeys = newKeys;
+        for (let i = prevCount; i < newCount; i++) {
+          this.downloadRowsDataSource.appendAndNotify(rows[i]);
+        }
+        return;
+      }
+    }
+
+    // 全量刷新
+    let structureChanged = newCount !== prevCount;
+    for (let i = 0; i < newCount && !structureChanged; i++) {
+      if (newKeys[i] !== this.downloadRowStructureKeys[i]) {
         structureChanged = true;
       }
     }
     this.syncDownloadCardStates();
     this.downloadRowsDataSource.replaceItems(rows);
     if (structureChanged) {
-      this.downloadRowStructureKeys = structureKeys;
+      this.downloadRowStructureKeys = newKeys;
       this.downloadRowsDataSource.notifyReload();
       return;
     }
-    this.downloadRowStructureKeys = structureKeys;
+    this.downloadRowStructureKeys = newKeys;
+    for (let i = 0; i < newCount; i++) {
+      this.downloadRowsDataSource.notifyChange(i);
+    }
   }
 
   private downloadRowKey(row: DownloadInfo[]): string {
@@ -529,7 +565,8 @@ export struct DownloadScene {
         if (item !== null) {
           ehDownloadStore.setState(item.gid, restored[i].finished >= restored[i].total && restored[i].total > 0 ?
             DownloadState.Finish : DownloadState.None);
-          ehDownloadStore.setProgress(item.gid, restored[i].finished, restored[i].total, restored[i].finished);
+          ehDownloadStore.setProgress(item.gid, restored[i].finished, restored[i].total,
+            restored[i].finished * DOWNLOAD_PAGE_PROGRESS_SCALE);
           ehDownloadStore.setStorage(item.gid, restored[i].directory, restored[i].fileSize);
           added++;
         }
@@ -676,21 +713,18 @@ export struct DownloadScene {
       this.statusText = 'Download workers: ' + workerCount.toString();
       while (!this.shouldStop) {
         const queue = ehDownloadStore.getItems();
-        const batch: DownloadInfo[] = [];
-        for (let i = 0; i < queue.length && batch.length < workerCount; i++) {
+        let nextItem: DownloadInfo | null = null;
+        for (let i = 0; i < queue.length; i++) {
           if (queue[i].state === DownloadState.Wait) {
-            batch.push(queue[i]);
+            nextItem = queue[i];
+            break;
           }
         }
-        if (batch.length === 0) {
+        if (nextItem === null) {
           break;
         }
 
-        const tasks: Promise<void>[] = [];
-        for (let i = 0; i < batch.length; i++) {
-          tasks.push(this.downloadOne(context, batch[i]));
-        }
-        await Promise.all(tasks);
+        await this.downloadOne(context, nextItem);
       }
     } finally {
       this.isProcessing = false;
@@ -732,25 +766,67 @@ export struct DownloadScene {
         this.persistDownloads();
       }
 
-      let lastBytes = fileSize;
-      let lastTime = Date.now();
       const pageIndexes = downloadPageIndexes(detail.previewSet.length);
-      for (let orderIndex = 0; orderIndex < pageIndexes.length; orderIndex++) {
-        const i = pageIndexes[orderIndex];
-        if (this.shouldStop || this.isStopped(item.gid)) {
-          ehDownloadStore.setState(item.gid, DownloadState.None);
-          ehDownloadStore.setTransfer(item.gid, 0, 0);
-          this.statusText = 'Stopped: ' + item.title;
-          return;
-        }
+      const workerState: DownloadWorkerState = {
+        cursor: 0,
+        finished: finished,
+        fileSize: fileSize,
+        lastBytes: fileSize,
+        lastTime: Date.now(),
+        failedMessage: ''
+      };
+      const workerCount = Math.max(1, Math.min(downloadThreadLimit(), Math.max(1, pageIndexes.length)));
+      const tasks: Promise<void>[] = [];
+      for (let i = 0; i < workerCount; i++) {
+        tasks.push(this.downloadPageWorker(context, item, detail, detailResult.url, pageIndexes, total,
+          downloadDirectory, workerState));
+      }
+      await Promise.all(tasks);
 
-        const preview = detail.previewSet[i];
-        if (preview.pageUrl.length === 0 || ehDownloadFileStore.findPageImage(context, detail, i).length > 0) {
-          continue;
-        }
+      if (this.shouldStop || this.isStopped(item.gid)) {
+        ehDownloadStore.setState(item.gid, DownloadState.None);
+        ehDownloadStore.setTransfer(item.gid, 0, 0);
+        this.statusText = 'Stopped: ' + item.title;
+        return;
+      }
 
+      if (workerState.failedMessage.length > 0) {
+        throw new Error(workerState.failedMessage);
+      }
+
+      ehDownloadStore.setState(item.gid, DownloadState.Finish);
+      ehDownloadStore.setProgress(item.gid, total, total, total * DOWNLOAD_PAGE_PROGRESS_SCALE);
+      ehDownloadStore.setStorage(item.gid, downloadDirectory, workerState.fileSize);
+      ehDownloadStore.setTransfer(item.gid, 0, 0);
+      this.statusText = 'Download finished: ' + item.title;
+      this.persistDownloads();
+    } catch (error) {
+      ehDownloadStore.setState(item.gid, DownloadState.Failed);
+      ehDownloadStore.setTransfer(item.gid, 0, 0);
+      this.statusText = 'Download failed: ' + String(error);
+      this.persistDownloads();
+    }
+  }
+
+  private async downloadPageWorker(context: common.UIAbilityContext, item: DownloadInfo, detail: GalleryDetail,
+    detailUrl: string, pageIndexes: number[], total: number, downloadDirectory: string,
+    state: DownloadWorkerState): Promise<void> {
+    while (!this.shouldStop && !this.isStopped(item.gid) && state.failedMessage.length === 0) {
+      const orderIndex = state.cursor;
+      state.cursor++;
+      if (orderIndex >= pageIndexes.length) {
+        return;
+      }
+
+      const pageIndex = pageIndexes[orderIndex];
+      const preview = detail.previewSet[pageIndex];
+      if (preview.pageUrl.length === 0 || ehDownloadFileStore.findPageImage(context, detail, pageIndex).length > 0) {
+        continue;
+      }
+
+      try {
         const pageResult = await this.client.loadGalleryPage(preview.pageUrl, currentGallerySite(),
-          readerPageReferer(detailResult.url, detail.previewSet, i, currentGallerySite()));
+          readerPageReferer(detailUrl, detail.previewSet, pageIndex, currentGallerySite()));
         if (!pageResult.ok || pageResult.page === null) {
           throw new Error(pageResult.message);
         }
@@ -782,43 +858,37 @@ export struct DownloadScene {
               progressUiTime = now;
 
               const pageUnits = totalBytes > 0 ?
-                Math.min(DOWNLOAD_PAGE_PROGRESS_SCALE - 1, Math.floor(receivedBytes * DOWNLOAD_PAGE_PROGRESS_SCALE / totalBytes)) : 0;
-              const currentProgress = finished * DOWNLOAD_PAGE_PROGRESS_SCALE + pageUnits;
-              const averageBytes = finished > 0 ? Math.max(1, Math.round(fileSize / finished)) : Math.max(1, totalBytes);
+                Math.min(DOWNLOAD_PAGE_PROGRESS_SCALE - 1,
+                  Math.floor(receivedBytes * DOWNLOAD_PAGE_PROGRESS_SCALE / totalBytes)) : 0;
+              const currentProgress = state.finished * DOWNLOAD_PAGE_PROGRESS_SCALE + pageUnits;
+              const averageBytes = state.finished > 0 ? Math.max(1, Math.round(state.fileSize / state.finished)) :
+                Math.max(1, totalBytes);
               const currentRemainingBytes = totalBytes > receivedBytes ? totalBytes - receivedBytes : 0;
-              const remainingBytes = currentRemainingBytes + Math.max(0, total - finished - 1) * averageBytes;
-              ehDownloadStore.setProgress(item.gid, finished, total, currentProgress);
+              const remainingBytes = currentRemainingBytes + Math.max(0, total - state.finished - 1) * averageBytes;
+              ehDownloadStore.setProgress(item.gid, state.finished, total, currentProgress);
               ehDownloadStore.setTransfer(item.gid, speed, speed > 0 ? Math.round(remainingBytes / speed) : 0);
             });
-        const savedPath = ehDownloadFileStore.savePageImage(context, detail, pageResult.page, i, cachedPath);
-        fileSize += ehDownloadFileStore.statFileSize(savedPath);
-        finished++;
+
+        const savedPath = ehDownloadFileStore.savePageImage(context, detail, pageResult.page, pageIndex, cachedPath);
+        state.fileSize += ehDownloadFileStore.statFileSize(savedPath);
+        state.finished++;
 
         const now = Date.now();
-        const speed = Math.round(Math.max(0, fileSize - lastBytes) * 1000 / Math.max(1, now - lastTime));
-        lastBytes = fileSize;
-        lastTime = now;
-        const averageBytes = finished > 0 ? Math.round(fileSize / finished) : 0;
-        const remaining = speed > 0 ? Math.round(Math.max(0, total - finished) * averageBytes / speed) : 0;
+        const speed = Math.round(Math.max(0, state.fileSize - state.lastBytes) * 1000 /
+          Math.max(1, now - state.lastTime));
+        state.lastBytes = state.fileSize;
+        state.lastTime = now;
+        const averageBytes = state.finished > 0 ? Math.round(state.fileSize / state.finished) : 0;
+        const remaining = speed > 0 ? Math.round(Math.max(0, total - state.finished) * averageBytes / speed) : 0;
 
-        ehDownloadStore.setProgress(item.gid, finished, total, finished * DOWNLOAD_PAGE_PROGRESS_SCALE);
-        ehDownloadStore.setStorage(item.gid, downloadDirectory, fileSize);
+        ehDownloadStore.setProgress(item.gid, state.finished, total, state.finished * DOWNLOAD_PAGE_PROGRESS_SCALE);
+        ehDownloadStore.setStorage(item.gid, downloadDirectory, state.fileSize);
         ehDownloadStore.setTransfer(item.gid, speed, remaining);
-        this.statusText = 'Downloaded ' + finished.toString() + '/' + total.toString() + ': ' + item.title;
+        this.statusText = 'Downloaded ' + state.finished.toString() + '/' + total.toString() + ': ' + item.title;
         this.persistDownloads();
+      } catch (error) {
+        state.failedMessage = String(error);
       }
-
-      ehDownloadStore.setState(item.gid, DownloadState.Finish);
-      ehDownloadStore.setProgress(item.gid, total, total, total);
-      ehDownloadStore.setStorage(item.gid, downloadDirectory, fileSize);
-      ehDownloadStore.setTransfer(item.gid, 0, 0);
-      this.statusText = 'Download finished: ' + item.title;
-      this.persistDownloads();
-    } catch (error) {
-      ehDownloadStore.setState(item.gid, DownloadState.Failed);
-      ehDownloadStore.setTransfer(item.gid, 0, 0);
-      this.statusText = 'Download failed: ' + String(error);
-      this.persistDownloads();
     }
   }
 
@@ -1103,7 +1173,7 @@ export struct DownloadScene {
         finished++;
       }
     }
-    ehDownloadStore.setProgress(detail.gid, finished, total, finished);
+    ehDownloadStore.setProgress(detail.gid, finished, total, finished * DOWNLOAD_PAGE_PROGRESS_SCALE);
     ehDownloadStore.setStorage(detail.gid, ehDownloadFileStore.galleryDirectory(context, detail),
       ehDownloadFileStore.directorySize(context, detail));
     this.persistDownloads();

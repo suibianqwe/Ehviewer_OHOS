@@ -95,7 +95,8 @@ import {
   readerPreloadCount,
   galleryListMode,
   galleryThumbWidth,
-  galleryThumbHeight
+  galleryThumbHeight,
+  cacheThumbnailImage
 } from '../shared/EhShared';
 
 export { CategoryBadge, GalleryListRow, GalleryTagChip, GalleryThumb, GalleryThumbCard } from './GalleryCards';
@@ -378,7 +379,6 @@ export struct GalleryListScene {
 
   aboutToDisappear(): void {
     this.saveListCache();
-    setActiveBackHandler(null);
   }
 
   private handleSystemBack(): boolean {
@@ -1234,213 +1234,222 @@ export struct GalleryListScene {
           .transition(TransitionEffect.asymmetric(
             TransitionEffect.move(TransitionEdge.END).animation({ duration: 260, curve: Curve.EaseOut }),
             TransitionEffect.move(TransitionEdge.END).animation({ duration: 220, curve: Curve.EaseIn })))
-      } else if (this.showReader) {
-        ReaderScene({
-          renderVersion: this.renderVersion,
-          page: this.readerPage,
-          readerPages: this.readerPages,
-          statusText: this.readerStatus,
-          pageIndex: this.readerPreviewIndex,
-          totalPages: this.readerTotalPages(),
-          onBack: () => {
-            this.closeReader();
-          },
-          onPrev: () => {
-            this.loadReaderPageByIndex(this.readerPreviewIndex - 1);
-          },
-          onNext: () => {
-            this.loadReaderPageByIndex(this.readerPreviewIndex + 1);
-          },
-          onJump: (index: number) => {
-            this.loadReaderPageByIndex(index);
-          },
-          onRetry: () => {
-            this.loadReaderPageByIndex(this.readerPreviewIndex);
-          }
-        })
-          .transition(TransitionEffect.move(TransitionEdge.BOTTOM)
-            .animation({ duration: 300, curve: Curve.EaseOut }))
-      } else if (this.showDetail) {
-        GalleryDetailOverlayScene({
-          renderVersion: this.renderVersion,
-          showComments: this.showComments,
-          detail: this.detail,
-          isDetailLoaded: this.detailLoaded,
-          isFavorited: this.optimisticFavorite,
-          statusText: this.detailStatus,
-          requestUrl: this.detailRequestUrl,
-          downloadText: this.detailDownloadText,
-          onBack: () => {
-            this.closeDetail();
-          },
-          onCloseComments: () => {
-            this.closeComments();
-          },
-          onDownload: () => {
-            this.toggleDownloadDetail();
-          },
-          onRead: () => {
-            this.readDetail();
-          },
-          onSelectPreview: (preview: GalleryPreview) => {
-            this.loadReaderPage(preview);
-          },
-          onComments: () => {
-            this.openComments();
-          },
-          onFavorite: () => {
-            this.toggleFavoriteDetail();
-          },
-          onShare: () => {
-            this.shareDetail();
-          },
-          onRate: (rating: number) => {
-            this.rateDetail(rating);
-          },
-          onTorrent: () => {
-            this.copyDetailLink(this.detail.torrentUrl, 'Torrent');
-          },
-          onArchive: () => {
-            this.copyDetailLink(this.detail.archiveUrl, 'Archive');
-          },
-          onLoadMorePreviews: () => {
-            this.loadNextDetailPreviewPage();
-          },
-          initialDetailScrollOffset: this.detailScrollOffset,
-          onDetailScrollUpdate: (offset: number) => {
-            this.detailScrollOffset = offset;
-          },
-          onTagSearch: (namespace: string, tag: string) => {
-            this.openTagSearch(namespace, tag);
-          }
-        })
-          .transition(TransitionEffect.move(TransitionEdge.END)
-            .animation({ duration: 300, curve: Curve.EaseOut }))
       } else {
-        GalleryListContent({
-          sceneTitle: this.sceneTitle,
-          listMode: this.listMode,
-          keyword: this.keyword,
-          searchTitle: gallerySearchTitle(this.sourceRoute, this.keyword, this.filterActive),
-          actionsExpanded: this.fabExpanded,
-          filterActive: this.filterActive,
-          showSearchButton: routeUsesKeyword(this.sourceRoute) && !this.isSearchResultScene,
-          showBackButton: this.isSearchResultScene,
-          isSearchResultScene: this.isSearchResultScene,
-          searchSubmitted: this.searchSubmitted,
-          searchModeValue: this.searchMode,
-          searchCategory: this.searchCategory,
-          advancedSearchEnabled: this.advancedSearchEnabled,
-          advanceSearch: this.advanceSearch,
-          minRating: this.minRating,
-          pageIndex: this.pageIndex,
-          totalPages: this.totalPages,
-          canJump: this.totalPages > 1,
-          canRandom: this.galleries.length > 0,
-          statusText: this.statusText,
-          requestUrl: this.requestUrl,
-          isLoadingMore: this.isLoadingMore,
-          galleries: this.galleries,
-          onKeywordChange: (value: string) => {
-            this.keyword = value;
-            if (this.isSearchResultScene) {
-              this.searchSubmitted = false;
-              this.galleries = [];
-              this.resultCount = '';
-              this.nextUrl = '';
-              this.statusText = '';
-              this.saveListCache();
+        Stack({ alignContent: Alignment.TopStart }) {
+          GalleryListContent({
+            sceneTitle: this.sceneTitle,
+            listMode: this.listMode,
+            keyword: this.keyword,
+            searchTitle: gallerySearchTitle(this.sourceRoute, this.keyword, this.filterActive),
+            actionsExpanded: this.fabExpanded,
+            filterActive: this.filterActive,
+            showSearchButton: routeUsesKeyword(this.sourceRoute) && !this.isSearchResultScene,
+            showBackButton: this.isSearchResultScene,
+            isSearchResultScene: this.isSearchResultScene,
+            searchSubmitted: this.searchSubmitted,
+            searchModeValue: this.searchMode,
+            searchCategory: this.searchCategory,
+            advancedSearchEnabled: this.advancedSearchEnabled,
+            advanceSearch: this.advanceSearch,
+            minRating: this.minRating,
+            pageIndex: this.pageIndex,
+            totalPages: this.totalPages,
+            canJump: this.totalPages > 1,
+            canRandom: this.galleries.length > 0,
+            statusText: this.statusText,
+            requestUrl: this.requestUrl,
+            isLoadingMore: this.isLoadingMore,
+            galleries: this.galleries,
+            onKeywordChange: (value: string) => {
+              this.keyword = value;
+              if (this.isSearchResultScene) {
+                this.searchSubmitted = false;
+                this.galleries = [];
+                this.resultCount = '';
+                this.nextUrl = '';
+                this.statusText = '';
+                this.saveListCache();
+              }
+            },
+            onSearchModeChange: (mode: ListMode) => {
+              this.searchMode = mode;
+              if (this.isSearchResultScene) {
+                this.searchSubmitted = false;
+              }
+            },
+            onSearchCategoryChange: (category: number) => {
+              this.searchCategory = category;
+              if (this.isSearchResultScene) {
+                this.searchSubmitted = false;
+              }
+            },
+            onAdvancedEnabledChange: (enabled: boolean) => {
+              this.advancedSearchEnabled = enabled;
+              if (this.isSearchResultScene) {
+                this.searchSubmitted = false;
+              }
+            },
+            onAdvanceSearchChange: (flags: number) => {
+              this.advanceSearch = flags;
+              if (this.isSearchResultScene) {
+                this.searchSubmitted = false;
+              }
+            },
+            onMinRatingChange: (rating: number) => {
+              this.minRating = rating;
+              if (this.isSearchResultScene) {
+                this.searchSubmitted = false;
+              }
+            },
+            onPageJump: (page: number) => {
+              this.loadRemote(Math.max(0, page - 1));
+            },
+            onMenu: () => {
+              this.onMenu();
+            },
+            onBack: () => {
+              this.onBack();
+            },
+            onSearch: () => {
+              if (this.isSearchResultScene) {
+                this.applySearch();
+              } else {
+                this.openSearchScene();
+              }
+            },
+            onRefresh: () => {
+              if (this.isSearchResultScene && !this.searchSubmitted) {
+                this.applySearch();
+                return;
+              }
+              this.loadRemote(0, this.galleries.length > 0);
+            },
+            onRefreshPull: (done: () => void) => {
+              if (this.isSearchResultScene && !this.searchSubmitted) {
+                this.applySearch();
+                done();
+                return;
+              }
+              this.loadRemote(0, this.galleries.length > 0, done);
+            },
+            onLoadMore: () => {
+              this.loadAppendPage();
+            },
+            onToggleActions: () => {
+              this.fabExpanded = !this.fabExpanded;
+            },
+            onFilter: () => {
+              this.toggleFilter();
+            },
+            onJump: () => {
+              this.jumpGalleryPage();
+            },
+            onRandom: () => {
+              this.openRandomGallery();
+            },
+            onSelectGallery: (gallery: GalleryInfo) => {
+              this.loadDetail(gallery);
+            },
+            scrollResetVersion: this.scrollResetVersion,
+            initialScrollOffset: this.listScrollOffset,
+            onScrollUpdate: (offset: number) => {
+              this.listScrollOffset = offset;
+              updateGalleryListScrollCache(this.cacheKey(), this.listScrollOffset);
             }
-          },
-          onSearchModeChange: (mode: ListMode) => {
-            this.searchMode = mode;
-            if (this.isSearchResultScene) {
-              this.searchSubmitted = false;
-            }
-          },
-          onSearchCategoryChange: (category: number) => {
-            this.searchCategory = category;
-            if (this.isSearchResultScene) {
-              this.searchSubmitted = false;
-            }
-          },
-          onAdvancedEnabledChange: (enabled: boolean) => {
-            this.advancedSearchEnabled = enabled;
-            if (this.isSearchResultScene) {
-              this.searchSubmitted = false;
-            }
-          },
-          onAdvanceSearchChange: (flags: number) => {
-            this.advanceSearch = flags;
-            if (this.isSearchResultScene) {
-              this.searchSubmitted = false;
-            }
-          },
-          onMinRatingChange: (rating: number) => {
-            this.minRating = rating;
-            if (this.isSearchResultScene) {
-              this.searchSubmitted = false;
-            }
-          },
-          onPageJump: (page: number) => {
-            this.loadRemote(Math.max(0, page - 1));
-          },
-          onMenu: () => {
-            this.onMenu();
-          },
-          onBack: () => {
-            this.onBack();
-          },
-          onSearch: () => {
-            if (this.isSearchResultScene) {
-              this.applySearch();
-            } else {
-              this.openSearchScene();
-            }
-          },
-          onRefresh: () => {
-            if (this.isSearchResultScene && !this.searchSubmitted) {
-              this.applySearch();
-              return;
-            }
-            this.loadRemote(0, this.galleries.length > 0);
-          },
-          onRefreshPull: (done: () => void) => {
-            if (this.isSearchResultScene && !this.searchSubmitted) {
-              this.applySearch();
-              done();
-              return;
-            }
-            this.loadRemote(0, this.galleries.length > 0, done);
-          },
-          onLoadMore: () => {
-            this.loadAppendPage();
-          },
-          onToggleActions: () => {
-            this.fabExpanded = !this.fabExpanded;
-          },
-          onFilter: () => {
-            this.toggleFilter();
-          },
-          onJump: () => {
-            this.jumpGalleryPage();
-          },
-          onRandom: () => {
-            this.openRandomGallery();
-          },
-          onSelectGallery: (gallery: GalleryInfo) => {
-            this.loadDetail(gallery);
-          },
-          scrollResetVersion: this.scrollResetVersion,
-          initialScrollOffset: this.listScrollOffset,
-          onScrollUpdate: (offset: number) => {
-            this.listScrollOffset = offset;
-            updateGalleryListScrollCache(this.cacheKey(), this.listScrollOffset);
+          })
+
+          if (this.showDetail) {
+            GalleryDetailOverlayScene({
+              renderVersion: this.renderVersion,
+              showComments: this.showComments,
+              detail: this.detail,
+              isDetailLoaded: this.detailLoaded,
+              isFavorited: this.optimisticFavorite,
+              statusText: this.detailStatus,
+              requestUrl: this.detailRequestUrl,
+              downloadText: this.detailDownloadText,
+              onBack: () => {
+                this.closeDetail();
+              },
+              onCloseComments: () => {
+                this.closeComments();
+              },
+              onDownload: () => {
+                this.toggleDownloadDetail();
+              },
+              onRead: () => {
+                this.readDetail();
+              },
+              onSelectPreview: (preview: GalleryPreview) => {
+                this.loadReaderPage(preview);
+              },
+              onComments: () => {
+                this.openComments();
+              },
+              onFavorite: () => {
+                this.toggleFavoriteDetail();
+              },
+              onShare: () => {
+                this.shareDetail();
+              },
+              onRate: (rating: number) => {
+                this.rateDetail(rating);
+              },
+              onTorrent: () => {
+                this.copyDetailLink(this.detail.torrentUrl, 'Torrent');
+              },
+              onArchive: () => {
+                this.copyDetailLink(this.detail.archiveUrl, 'Archive');
+              },
+              onLoadMorePreviews: () => {
+                this.loadNextDetailPreviewPage();
+              },
+              initialDetailScrollOffset: this.detailScrollOffset,
+              onDetailScrollUpdate: (offset: number) => {
+                this.detailScrollOffset = offset;
+              },
+              onTagSearch: (namespace: string, tag: string) => {
+                this.openTagSearch(namespace, tag);
+              }
+            })
+              .width('100%')
+              .height('100%')
+              .transition(TransitionEffect.move(TransitionEdge.END)
+                .animation({ duration: 300, curve: Curve.EaseOut }))
           }
-        })
-          .transition(TransitionEffect.asymmetric(
-            TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }),
-            TransitionEffect.OPACITY.animation({ duration: 1, delay: 300, curve: Curve.Linear })))
+
+          if (this.showReader) {
+            ReaderScene({
+              renderVersion: this.renderVersion,
+              page: this.readerPage,
+              readerPages: this.readerPages,
+              statusText: this.readerStatus,
+              pageIndex: this.readerPreviewIndex,
+              totalPages: this.readerTotalPages(),
+              onBack: () => {
+                this.closeReader();
+              },
+              onPrev: () => {
+                this.loadReaderPageByIndex(this.readerPreviewIndex - 1);
+              },
+              onNext: () => {
+                this.loadReaderPageByIndex(this.readerPreviewIndex + 1);
+              },
+              onJump: (index: number) => {
+                this.loadReaderPageByIndex(index);
+              },
+              onRetry: () => {
+                this.loadReaderPageByIndex(this.readerPreviewIndex);
+              }
+            })
+              .width('100%')
+              .height('100%')
+              .transition(TransitionEffect.move(TransitionEdge.BOTTOM)
+                .animation({ duration: 300, curve: Curve.EaseOut }))
+          }
+        }
+        .width('100%')
+        .height('100%')
       }
     }
     .width('100%')
@@ -1527,6 +1536,7 @@ export struct GalleryListContent {
   private listScroller: Scroller = new Scroller();
   private loadMorePending: boolean = false;
   private restoredScroll: boolean = false;
+  @State private contentOpacity: number = 1;
   @State toolbarOffsetY: number = 0;
   private toolbarRestoring: boolean = false;
   private galleryRowsDataSource: ArrayDataSource<GalleryInfo[]> = new ArrayDataSource<GalleryInfo[]>([]);
@@ -1556,10 +1566,21 @@ export struct GalleryListContent {
   }
 
   aboutToAppear(): void {
+    this.galleryRowsDataSource.setPrefetchCallback((row: GalleryInfo[]) => {
+      for (let i = 0; i < row.length; i++) {
+        const thumb = row[i].thumb;
+        if (thumb !== undefined && thumb.length > 0) {
+          cacheThumbnailImage(thumb, () => {}, () => {});
+        }
+      }
+    });
     this.syncContentWidthFromWindow();
     this.refreshGalleryRows();
     this.syncPageJumpDraft();
     this.refreshSearchSuggestions();
+    if (this.initialScrollOffset > 0) {
+      this.contentOpacity = 0;
+    }
     setTimeout(() => {
       this.syncContentWidthFromWindow();
       this.refreshGalleryRows();
@@ -1649,7 +1670,7 @@ export struct GalleryListContent {
     if (this.isLoadingMore || this.loadMorePending) {
       return;
     }
-    if (this.galleries.length > 0 && last >= this.galleries.length - 12) {
+    if (this.galleries.length > 0 && last >= this.galleries.length - 24) {
       this.loadMorePending = true;
       this.onLoadMore();
       // Reset local guard after one frame so rapid scroll events don't queue duplicates
@@ -1675,7 +1696,7 @@ export struct GalleryListContent {
       return;
     }
     const remaining = this.estimateContentHeight() - offset - viewportHeight;
-    if (remaining <= Math.max(720, viewportHeight * 1.3)) {
+    if (remaining <= Math.max(viewportHeight * 2.5, 1500)) {
       this.triggerLoadMoreIfNear(this.galleries.length);
     }
   }
@@ -1992,7 +2013,7 @@ export struct GalleryListContent {
                   .animation({ duration: 220, curve: Curve.EaseOut })
                 }
                 .margin({ bottom: this.galleryCardGap() })
-                .reuseId('gallery-row')
+                .reuseId('gallery-row-' + this.galleryColumnCount().toString())
                 .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
               }, (_row: GalleryInfo[], rowIndex: number) => {
                 return this.galleryColumnCount().toString() + ':' + rowIndex.toString() + ':' +
@@ -2015,7 +2036,7 @@ export struct GalleryListContent {
           }
           .scrollBar(BarState.Auto)
           .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
-          .cachedCount(4)
+          .cachedCount(10)
           .width('100%')
           .height(this.listViewportHeight())
           .onAppear(() => {
@@ -2024,6 +2045,7 @@ export struct GalleryListContent {
               this.restoredScroll = true;
               setTimeout(() => {
                 this.listScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
+                this.contentOpacity = 1;
               }, 80);
             }
           })
@@ -2062,6 +2084,8 @@ export struct GalleryListContent {
       }
       .width('100%')
       .height('100%')
+      .opacity(this.contentOpacity)
+      .animation({ duration: 100, curve: Curve.EaseOut })
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.updateContentWidth(newArea.width as number);
         const h = newArea.height as number;
@@ -2069,7 +2093,6 @@ export struct GalleryListContent {
           this.viewportHeight = h;
         }
       })
-      .backgroundColor(themePageBackground())
 
       // FAB 悬浮按钮
       Column() {
@@ -2252,18 +2275,43 @@ export struct GalleryListContent {
 
   private refreshGalleryRows(): void {
     const rows = this.buildRows();
-    const structureKeys: string[] = [];
-    let structureChanged = rows.length !== this.galleryRowStructureKeys.length;
+    const cols = this.galleryColumnCount();
+    const newKeys: string[] = [];
     for (let i = 0; i < rows.length; i++) {
-      const structureKey = this.galleryColumnCount().toString() + ':' + this.galleryRowKey(rows[i]);
-      structureKeys.push(structureKey);
-      if (!structureChanged && structureKey !== this.galleryRowStructureKeys[i]) {
+      newKeys.push(cols.toString() + ':' + this.galleryRowKey(rows[i]));
+    }
+
+    const prevCount = this.galleryRowStructureKeys.length;
+    const newCount = rows.length;
+
+    // 纯追加场景（load-more）：已有行没变化，仅末尾新增 → 逐行 appendAndNotify，不触发全量 reload
+    if (newCount > prevCount && prevCount > 0) {
+      let isAppend = true;
+      for (let i = 0; i < prevCount; i++) {
+        if (newKeys[i] !== this.galleryRowStructureKeys[i]) {
+          isAppend = false;
+          break;
+        }
+      }
+      if (isAppend) {
+        this.galleryRowStructureKeys = newKeys;
+        for (let i = prevCount; i < newCount; i++) {
+          this.galleryRowsDataSource.appendAndNotify(rows[i]);
+        }
+        return;
+      }
+    }
+
+    // 其他情况（首次加载、刷新、列数变化等）：全量替换
+    let structureChanged = newCount !== prevCount;
+    for (let i = 0; i < newCount && !structureChanged; i++) {
+      if (newKeys[i] !== this.galleryRowStructureKeys[i]) {
         structureChanged = true;
       }
     }
+    this.galleryRowStructureKeys = newKeys;
     this.galleryRowsDataSource.replaceItems(rows);
     if (structureChanged) {
-      this.galleryRowStructureKeys = structureKeys;
       this.galleryRowsDataSource.notifyReload();
     }
   }

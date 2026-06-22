@@ -569,7 +569,7 @@ export struct SearchAdvancedPanel {
               .fontColor(themedSelectButtonText())
               .backgroundColor(themedSelectButtonBackground())
               .menuBackgroundColor(themedSelectMenuBackground())
-              .menuBackgroundBlurStyle(undefined)
+              .menuBackgroundBlurStyle(BlurStyle.NONE)
               .optionBgColor(themedSelectOptionBackground())
               .optionFontColor(themedSelectOptionText())
               .optionFont({ size: 13 })

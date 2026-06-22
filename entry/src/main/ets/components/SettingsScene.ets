@@ -1,10 +1,17 @@
-import { picker } from '@kit.CoreFileKit';
+import { abilityAccessCtrl, common, Permissions } from '@kit.AbilityKit';
+import { fileUri, picker } from '@kit.CoreFileKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
 import { webview } from '@kit.ArkWeb';
 import { GalleryInfo } from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
-import { DownloadDirectoryScanResult, RestoredDownloadGallery, ehDownloadFileStore } from '../services/EhDownloadFileStore';
+import {
+  DOWNLOAD_LOCATION_APP_FILES,
+  DOWNLOAD_LOCATION_DOWNLOADS,
+  DownloadDirectoryScanResult,
+  RestoredDownloadGallery,
+  ehDownloadFileStore
+} from '../services/EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSettingsStore, SettingEntry, defaultSettingEntries } from '../services/EhSettingsStore';
@@ -53,6 +60,8 @@ import { EhBackupBundle, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SET
 import { FilterPanel, MigrationScene } from './DownloadMigrationScenes';
 import { AppSubToolbar, AppToolbar } from './NavigationComponents';
 import { collectWebCookies, hasLoginCookie, SessionScene, syncCookieHeaderToWebView } from './SessionScene';
+
+const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
 
 @Component
 export struct SettingsScene {
@@ -106,7 +115,6 @@ export struct SettingsScene {
   }
 
   aboutToDisappear(): void {
-    setActiveBackHandler(null);
   }
 
   private handleSystemBack(): boolean {
@@ -177,6 +185,14 @@ export struct SettingsScene {
   }
 
   private saveSettingValue(key: string, value: string): void {
+    if (key === 'download_location') {
+      this.requestDownloadLocationChange(value);
+      return;
+    }
+    this.commitSettingValue(key, value);
+  }
+
+  private commitSettingValue(key: string, value: string): void {
     if (key === 'proxy_port' && value.length > 0 && !isValidProxyPortText(value)) {
       this.statusText = 'Invalid proxy port: ' + value;
       return;
@@ -212,6 +228,115 @@ export struct SettingsScene {
     }).catch((error: Error) => {
       this.statusText = 'Save failed: ' + error.message;
     });
+  }
+
+  private requestDownloadLocationChange(value: string): void {
+    const target = normalizeSettingsDownloadLocation(value);
+    const current = normalizeSettingsDownloadLocation(ehSettingsStore.getValue('download_location', DOWNLOAD_LOCATION_APP_FILES));
+    if (target === current) {
+      this.commitSettingValue('download_location', target);
+      return;
+    }
+    const context = getAbilityContext();
+    if (context === undefined) {
+      this.statusText = 'Download location needs app context';
+      return;
+    }
+    this.statusText = target === DOWNLOAD_LOCATION_DOWNLOADS ? 'Preparing public Downloads access...' :
+      'Preparing app internal storage...';
+    this.prepareDownloadLocationTarget(context, target).then((ready: boolean) => {
+      if (!ready) {
+        return;
+      }
+      this.showDownloadLocationMigrationDialog(context, current, target);
+    }).catch((error: Error) => {
+      this.statusText = 'Download location change failed: ' + error.message;
+    });
+  }
+
+  private async prepareDownloadLocationTarget(context: common.UIAbilityContext, target: string): Promise<boolean> {
+    if (target === DOWNLOAD_LOCATION_APP_FILES) {
+      return true;
+    }
+    if (ehDownloadFileStore.canUseLocation(context, target)) {
+      return true;
+    }
+    const granted = await this.requestDownloadDirectoryPermission(context);
+    if (granted && ehDownloadFileStore.canUseLocation(context, target)) {
+      return true;
+    }
+    const pickedRoot = await this.pickDownloadDirectoryRoot(context);
+    if (pickedRoot.length > 0) {
+      ehDownloadFileStore.rememberPublicDownloadRoot(pickedRoot + '/EhViewer');
+      if (ehDownloadFileStore.canUseLocation(context, target)) {
+        return true;
+      }
+    }
+    this.statusText = 'Downloads access was not granted';
+    return false;
+  }
+
+  private async requestDownloadDirectoryPermission(context: common.UIAbilityContext): Promise<boolean> {
+    try {
+      const atManager = abilityAccessCtrl.createAtManager();
+      const result = await atManager.requestPermissionsFromUser(context, [
+        'ohos.permission.READ_WRITE_DOWNLOAD_DIRECTORY' as Permissions
+      ]);
+      return result.authResults.length > 0 && result.authResults[0] === 0;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  private async pickDownloadDirectoryRoot(context: common.UIAbilityContext): Promise<string> {
+    try {
+      const saveOptions = new picker.DocumentSaveOptions();
+      saveOptions.pickerMode = picker.DocumentPickerMode.DOWNLOAD;
+      const documentPicker = new picker.DocumentViewPicker(context);
+      const result = await documentPicker.save(saveOptions);
+      if (result.length === 0 || result[0].length === 0) {
+        return '';
+      }
+      return new fileUri.FileUri(result[0]).path;
+    } catch (error) {
+      return '';
+    }
+  }
+
+  private showDownloadLocationMigrationDialog(context: common.UIAbilityContext, current: string, target: string): void {
+    this.getUIContext().showAlertDialog({
+      title: uiText('Download location'),
+      message: uiText('Migrate downloaded files to the new location?'),
+      primaryButton: {
+        value: uiText('Switch only'),
+        action: () => {
+          this.applyDownloadLocationChange(context, current, target, false);
+        }
+      },
+      secondaryButton: {
+        value: uiText('Migrate'),
+        action: () => {
+          this.applyDownloadLocationChange(context, current, target, true);
+        }
+      }
+    });
+  }
+
+  private applyDownloadLocationChange(context: common.UIAbilityContext, current: string, target: string,
+    migrate: boolean): void {
+    if (migrate) {
+      try {
+        const result = ehDownloadFileStore.migrateDownloadLocation(context, current, target);
+        this.statusText = 'Migrated downloads: ' + result.files.toString() + ' files, ' +
+          downloadSizeText(result.bytes) + '.';
+      } catch (error) {
+        this.statusText = 'Download migration failed: ' + String(error);
+        return;
+      }
+    } else {
+      this.statusText = 'Download location switched without migration';
+    }
+    this.commitSettingValue('download_location', target);
   }
 
   private cycleSetting(row: SettingsRowItem): void {
@@ -651,7 +776,8 @@ export struct SettingsScene {
         const existed = ehDownloadStore.contains(item.gallery.gid);
         if (ehDownloadStore.addGallery(item.gallery, '') !== null) {
           const total = Math.max(item.total, item.finished);
-          ehDownloadStore.setProgress(item.gallery.gid, item.finished, total, item.finished);
+          ehDownloadStore.setProgress(item.gallery.gid, item.finished, total,
+            item.finished * DOWNLOAD_PAGE_PROGRESS_SCALE);
           ehDownloadStore.setStorage(item.gallery.gid, item.directory, item.fileSize);
           ehDownloadStore.setState(item.gallery.gid,
             total > 0 && item.finished >= total ? DownloadState.Finish : DownloadState.None);
@@ -781,107 +907,9 @@ export struct SettingsScene {
 
 
   build() {
-    if (this.optionPickerOpen) {
-      SettingsOptionPanel({
-        title: this.optionTitle,
-        summary: this.optionSummary,
-        value: this.optionValue,
-        options: this.optionOptions,
-        onBack: () => {
-          this.closeOptionPicker();
-        },
-        onSelect: (value: string) => {
-          this.selectOptionValue(value);
-        }
-      })
-        .transition(TransitionEffect.move(TransitionEdge.END)
-          .animation({ duration: 300, curve: Curve.EaseOut }))
-    } else if (this.panel === SettingsPanel.Filter) {
-      FilterPanel({
-        rules: this.filterRules,
-        newText: this.filterNewText,
-        newMode: this.filterNewMode,
-        statusText: this.statusText,
-        onBack: () => {
-          this.closePanel();
-        },
-        onNewTextChange: (text: string) => {
-          this.filterNewText = text;
-        },
-        onNewModeChange: (mode: number) => {
-          this.filterNewMode = mode;
-        },
-        onAdd: () => {
-          this.addFilterRule();
-        },
-        onRemove: (id: number) => {
-          this.removeFilterRule(id);
-        },
-        onToggle: (id: number) => {
-          this.toggleFilterRule(id);
-        }
-      })
-        .transition(TransitionEffect.move(TransitionEdge.END)
-          .animation({ duration: 300, curve: Curve.EaseOut }))
-    } else if (this.panel === SettingsPanel.WebView) {
-      Column() {
-        SettingsSubToolbar({
-          title: uiText(this.webViewTitle),
-          onBack: () => {
-            this.closePanel();
-          }
-        })
-        Web({ src: this.webViewUrl, controller: this.webViewController })
-          .javaScriptAccess(true)
-          .domStorageAccess(true)
-          .onPageEnd((event: OnPageEndEvent) => {
-            this.captureAccountWebCookies(event.url);
-          })
-          .width('100%')
-          .layoutWeight(1)
-      }
-      .width('100%')
-      .height('100%')
-      .transition(TransitionEffect.move(TransitionEdge.END)
-        .animation({ duration: 300, curve: Curve.EaseOut }))
-    } else if (this.panel === SettingsPanel.Session) {
-      Column() {
-        SettingsSubToolbar({
-          title: uiText('Sign in'),
-          onBack: () => {
-            this.closePanel();
-          }
-        })
-        SessionScene({
-          onSignedIn: () => {
-            this.signedIn = ehCookieStore.hasCookies();
-            this.statusText = this.signedIn ? 'Signed in' : 'Guest mode';
-            this.closePanel();
-            this.onSignedIn();
-          }
-        })
-          .layoutWeight(1)
-      }
-      .width('100%')
-      .height('100%')
-      .transition(TransitionEffect.move(TransitionEdge.END)
-        .animation({ duration: 300, curve: Curve.EaseOut }))
-    } else if (this.panel === SettingsPanel.Migration) {
-      Column() {
-        SettingsSubToolbar({
-          title: uiText('Migration'),
-          onBack: () => {
-            this.closePanel();
-          }
-        })
-        MigrationScene()
-          .layoutWeight(1)
-      }
-      .width('100%')
-      .height('100%')
-      .transition(TransitionEffect.move(TransitionEdge.END)
-        .animation({ duration: 300, curve: Curve.EaseOut }))
-    } else if (this.panel === SettingsPanel.Main) {
+    Stack({ alignContent: Alignment.TopStart }) {
+      // Main panel always rendered at the bottom so sub-panels can slide over it
+      // and returning to Main requires no enter animation — it's already there.
       SettingsHomePanel({
         signedIn: this.signedIn,
         statusText: this.statusText,
@@ -890,40 +918,146 @@ export struct SettingsScene {
           this.openPanel(panel);
         }
       })
-        .transition(TransitionEffect.asymmetric(
-          TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }),
-          TransitionEffect.OPACITY.animation({ duration: 1, delay: 300, curve: Curve.Linear })))
-    } else {
-      SettingsDetailPanel({
-        panel: this.panel,
-        signedIn: this.signedIn,
-        statusText: this.statusText,
-        themeName: this.themeName,
-        renderRevision: this.settingsRenderRevision,
-        settingEntries: this.settingEntries,
-        onBack: () => {
-          this.closePanel();
-        },
-        onOpenSession: () => {
-          this.openPanel(SettingsPanel.Session);
-        },
-        onOpenMigration: () => {
-          this.openPanel(SettingsPanel.Migration);
-        },
-        onSignOut: () => {
-          this.signOut();
-        },
-        onCycleSetting: (row: SettingsRowItem) => {
-          this.cycleSetting(row);
-        },
-        onSetSetting: (key: string, value: string) => {
-          this.saveSettingValue(key, value);
+
+      // Sub-panels slide in on top of Main; when returning to Main they slide away
+      // revealing Main underneath — no fade-in on Main needed.
+      if (this.panel === SettingsPanel.Filter) {
+        FilterPanel({
+          rules: this.filterRules,
+          newText: this.filterNewText,
+          newMode: this.filterNewMode,
+          statusText: this.statusText,
+          onBack: () => {
+            this.closePanel();
+          },
+          onNewTextChange: (text: string) => {
+            this.filterNewText = text;
+          },
+          onNewModeChange: (mode: number) => {
+            this.filterNewMode = mode;
+          },
+          onAdd: () => {
+            this.addFilterRule();
+          },
+          onRemove: (id: number) => {
+            this.removeFilterRule(id);
+          },
+          onToggle: (id: number) => {
+            this.toggleFilterRule(id);
+          }
+        })
+          .transition(TransitionEffect.move(TransitionEdge.END)
+            .animation({ duration: 300, curve: Curve.EaseOut }))
+      } else if (this.panel === SettingsPanel.WebView) {
+        Column() {
+          SettingsSubToolbar({
+            title: uiText(this.webViewTitle),
+            onBack: () => {
+              this.closePanel();
+            }
+          })
+          Web({ src: this.webViewUrl, controller: this.webViewController })
+            .javaScriptAccess(true)
+            .domStorageAccess(true)
+            .onPageEnd((event: OnPageEndEvent) => {
+              this.captureAccountWebCookies(event.url);
+            })
+            .width('100%')
+            .layoutWeight(1)
         }
-      })
-        .transition(TransitionEffect.asymmetric(
-          TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }),
-          TransitionEffect.move(TransitionEdge.END).animation({ duration: 240, curve: Curve.EaseIn })))
+        .width('100%')
+        .height('100%')
+        .transition(TransitionEffect.move(TransitionEdge.END)
+          .animation({ duration: 300, curve: Curve.EaseOut }))
+      } else if (this.panel === SettingsPanel.Session) {
+        Column() {
+          SettingsSubToolbar({
+            title: uiText('Sign in'),
+            onBack: () => {
+              this.closePanel();
+            }
+          })
+          SessionScene({
+            onSignedIn: () => {
+              this.signedIn = ehCookieStore.hasCookies();
+              this.statusText = this.signedIn ? 'Signed in' : 'Guest mode';
+              this.closePanel();
+              this.onSignedIn();
+            }
+          })
+            .layoutWeight(1)
+        }
+        .width('100%')
+        .height('100%')
+        .transition(TransitionEffect.move(TransitionEdge.END)
+          .animation({ duration: 300, curve: Curve.EaseOut }))
+      } else if (this.panel === SettingsPanel.Migration) {
+        Column() {
+          SettingsSubToolbar({
+            title: uiText('Migration'),
+            onBack: () => {
+              this.closePanel();
+            }
+          })
+          MigrationScene()
+            .layoutWeight(1)
+        }
+        .width('100%')
+        .height('100%')
+        .transition(TransitionEffect.move(TransitionEdge.END)
+          .animation({ duration: 300, curve: Curve.EaseOut }))
+      } else if (this.panel !== SettingsPanel.Main) {
+        SettingsDetailPanel({
+          panel: this.panel,
+          signedIn: this.signedIn,
+          statusText: this.statusText,
+          themeName: this.themeName,
+          renderRevision: this.settingsRenderRevision,
+          settingEntries: this.settingEntries,
+          onBack: () => {
+            this.closePanel();
+          },
+          onOpenSession: () => {
+            this.openPanel(SettingsPanel.Session);
+          },
+          onOpenMigration: () => {
+            this.openPanel(SettingsPanel.Migration);
+          },
+          onSignOut: () => {
+            this.signOut();
+          },
+          onCycleSetting: (row: SettingsRowItem) => {
+            this.cycleSetting(row);
+          },
+          onSetSetting: (key: string, value: string) => {
+            this.saveSettingValue(key, value);
+          }
+        })
+          .transition(TransitionEffect.asymmetric(
+            TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }),
+            TransitionEffect.move(TransitionEdge.END).animation({ duration: 240, curve: Curve.EaseIn })))
+      }
+
+      // Option picker slides in on top of everything
+      if (this.optionPickerOpen) {
+        SettingsOptionPanel({
+          title: this.optionTitle,
+          summary: this.optionSummary,
+          value: this.optionValue,
+          options: this.optionOptions,
+          onBack: () => {
+            this.closeOptionPicker();
+          },
+          onSelect: (value: string) => {
+            this.selectOptionValue(value);
+          }
+        })
+          .transition(TransitionEffect.move(TransitionEdge.END)
+            .animation({ duration: 300, curve: Curve.EaseOut }))
+      }
     }
+    .width('100%')
+    .height('100%')
   }
 }
 
@@ -1371,7 +1505,7 @@ export struct SettingsStaticRow {
             .fontColor(themedSelectButtonText())
             .backgroundColor(themedSelectButtonBackground())
             .menuBackgroundColor(themedSelectMenuBackground())
-            .menuBackgroundBlurStyle(undefined)
+            .menuBackgroundBlurStyle(BlurStyle.NONE)
             .optionBgColor(themedSelectOptionBackground())
             .optionFontColor(themedSelectOptionText())
             .optionFont({ size: 13 })
@@ -1490,6 +1624,10 @@ function buildSelectOptions(options: string[]): SelectOption[] {
     result.push({ value: uiValue(options[i]) });
   }
   return result;
+}
+
+function normalizeSettingsDownloadLocation(value: string): string {
+  return value === DOWNLOAD_LOCATION_DOWNLOADS ? DOWNLOAD_LOCATION_DOWNLOADS : DOWNLOAD_LOCATION_APP_FILES;
 }
 
 function optionIndex(options: string[], value: string): number {

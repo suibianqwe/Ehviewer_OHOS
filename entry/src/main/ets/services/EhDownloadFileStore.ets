@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
-import { fileIo as fs } from '@kit.CoreFileKit';
+import { Environment, fileIo as fs } from '@kit.CoreFileKit';
 import { GalleryDetail, GalleryInfo, GalleryPage } from '../model/GalleryModels';
+import { parseGalleryPageUrl } from './GalleryPageUrlParser';
 import { ehSettingsStore } from './EhSettingsStore';
 
 interface GalleryMetadata {
@@ -19,6 +20,19 @@ interface GalleryMetadata {
   savedAt: number;
 }
 
+interface AndroidSpiderInfo {
+  gid: number;
+  token: string;
+  pages: number;
+  previewPages: number;
+  previewPerPage: number;
+}
+
+interface RestoredGalleryData {
+  gallery: GalleryInfo;
+  total: number;
+}
+
 export interface RestoredDownloadGallery {
   gallery: GalleryInfo;
   directory: string;
@@ -33,9 +47,70 @@ export interface DownloadDirectoryScanResult {
   bytes: number;
 }
 
+export const DOWNLOAD_LOCATION_APP_FILES: string = 'App files';
+export const DOWNLOAD_LOCATION_DOWNLOADS: string = 'Downloads';
+
 const SUPPORTED_IMAGE_EXTENSIONS: string[] = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+const ANDROID_SPIDER_INFO_FILENAME: string = '.ehviewer';
+const OHOS_METADATA_FILENAME: string = '.ehviewer.json';
 
 export class EhDownloadFileStore {
+  appDownloadRoot(context: common.UIAbilityContext): string {
+    return context.filesDir + '/downloads';
+  }
+
+  rootForLocation(context: common.UIAbilityContext, location: string): string {
+    if (normalizeDownloadLocation(location) === DOWNLOAD_LOCATION_DOWNLOADS) {
+      return this.publicDownloadRoot(context);
+    }
+    return this.appDownloadRoot(context);
+  }
+
+  publicDownloadRoot(_context: common.UIAbilityContext): string {
+    const pickedRoot = ehSettingsStore.getValue('download_public_root_path', '');
+    if (pickedRoot.length > 0) {
+      return pickedRoot;
+    }
+    try {
+      const root = Environment.getUserDownloadDir();
+      if (root.length > 0) {
+        return root + '/EhViewer';
+      }
+    } catch (error) {
+    }
+    throw new Error('Download directory access is not available');
+  }
+
+  rememberPublicDownloadRoot(root: string): void {
+    const normalized = normalizePath(root);
+    if (normalized.length > 0) {
+      ehSettingsStore.setValue('download_public_root_path', normalized);
+    }
+  }
+
+  canUseLocation(context: common.UIAbilityContext, location: string): boolean {
+    try {
+      ensureDirectory(this.rootForLocation(context, location));
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  migrateDownloadLocation(context: common.UIAbilityContext, fromLocation: string,
+    toLocation: string): DownloadDirectoryScanResult {
+    const source = this.rootForLocation(context, fromLocation);
+    const target = this.rootForLocation(context, toLocation);
+    if (source === target || !exists(source)) {
+      ensureDirectory(target);
+      return { directories: 0, files: 0, bytes: 0 };
+    }
+    ensureDirectory(target);
+    const copied = copyDirectoryTree(source, target);
+    removeDirectoryTree(source);
+    return copied;
+  }
+
   galleryDirectory(context: common.UIAbilityContext, gallery: GalleryInfo): string {
     const root = this.downloadRoot(context);
     return root + '/' + sanitizePathSegment(gallery.gid.toString() + '-' + gallery.title);
@@ -46,7 +121,8 @@ export class EhDownloadFileStore {
     ensureDirectory(root);
     const directory = this.galleryDirectory(context, detail);
     ensureDirectory(directory);
-    writeTextFile(directory + '/.ehviewer', JSON.stringify(createMetadata(detail)));
+    writeTextFile(directory + '/' + ANDROID_SPIDER_INFO_FILENAME, createAndroidSpiderInfo(detail));
+    writeTextFile(directory + '/' + OHOS_METADATA_FILENAME, JSON.stringify(createMetadata(detail)));
     return directory;
   }
 
@@ -111,16 +187,16 @@ export class EhDownloadFileStore {
       const names = fs.listFileSync(root);
       for (let i = 0; i < names.length; i++) {
         const directory = root + '/' + names[i];
-        const metadata = readMetadata(directory + '/.ehviewer');
-        if (metadata === null) {
+        const restoredGallery = readRestoredGallery(directory, names[i]);
+        if (restoredGallery === null) {
           continue;
         }
         restored.push({
-          gallery: metadataToGallery(metadata),
+          gallery: restoredGallery.gallery,
           directory: directory,
           fileSize: this.directorySizeByPath(directory),
           finished: countImageFiles(directory),
-          total: Math.max(0, metadata.pages)
+          total: Math.max(0, restoredGallery.total)
         });
       }
     } catch (error) {
@@ -141,8 +217,8 @@ export class EhDownloadFileStore {
       const names = fs.listFileSync(root);
       for (let i = 0; i < names.length; i++) {
         const directory = root + '/' + names[i];
-        const metadata = readMetadata(directory + '/.ehviewer');
-        if (metadata === null || containsNumber(keepGids, metadata.gid)) {
+        const restoredGallery = readRestoredGallery(directory, names[i]);
+        if (restoredGallery === null || containsNumber(keepGids, restoredGallery.gallery.gid)) {
           continue;
         }
         const removed = removeDirectoryTree(directory);
@@ -177,12 +253,12 @@ export class EhDownloadFileStore {
   }
 
   private downloadRoot(context: common.UIAbilityContext): string {
-    const location = ehSettingsStore.getValue('download_location', 'App files');
-    if (location === 'Downloads') {
-      return context.filesDir + '/Downloads';
-    }
-    return context.filesDir + '/downloads';
+    return this.rootForLocation(context, ehSettingsStore.getValue('download_location', DOWNLOAD_LOCATION_APP_FILES));
   }
+}
+
+function normalizeDownloadLocation(location: string): string {
+  return location === DOWNLOAD_LOCATION_DOWNLOADS ? DOWNLOAD_LOCATION_DOWNLOADS : DOWNLOAD_LOCATION_APP_FILES;
 }
 
 function createMetadata(detail: GalleryDetail): GalleryMetadata {
@@ -203,6 +279,78 @@ function createMetadata(detail: GalleryDetail): GalleryMetadata {
   };
 }
 
+function createAndroidSpiderInfo(detail: GalleryDetail): string {
+  const lines: string[] = [];
+  lines.push('VERSION2');
+  lines.push('00000000');
+  lines.push(detail.gid.toString());
+  lines.push(detail.token);
+  lines.push('1');
+  lines.push(Math.max(0, detail.previewPages).toString());
+  lines.push(previewPerPage(detail).toString());
+  lines.push(Math.max(0, detail.pages).toString());
+  for (let i = 0; i < detail.previewSet.length; i++) {
+    const parsed = parseGalleryPageUrl(detail.previewSet[i].pageUrl);
+    if (parsed !== null && parsed.pageToken.length > 0) {
+      lines.push(parsed.pageIndex.toString() + ' ' + parsed.pageToken);
+    }
+  }
+  return lines.join('\n') + '\n';
+}
+
+function previewPerPage(detail: GalleryDetail): number {
+  if (detail.previewSet.length <= 0) {
+    return 0;
+  }
+  if (detail.previewPages <= 1) {
+    return detail.previewSet.length;
+  }
+  return Math.max(1, Math.ceil(detail.previewSet.length / detail.previewPages));
+}
+
+function readRestoredGallery(directory: string, directoryName: string): RestoredGalleryData | null {
+  const metadata = readMetadata(directory + '/' + OHOS_METADATA_FILENAME);
+  if (metadata !== null) {
+    writeTextFileQuietly(directory + '/' + ANDROID_SPIDER_INFO_FILENAME, createAndroidSpiderInfoFromMetadata(metadata));
+    return {
+      gallery: metadataToGallery(metadata),
+      total: metadata.pages
+    };
+  }
+
+  const oldJsonMetadata = readMetadata(directory + '/' + ANDROID_SPIDER_INFO_FILENAME);
+  if (oldJsonMetadata !== null) {
+    writeTextFileQuietly(directory + '/' + ANDROID_SPIDER_INFO_FILENAME, createAndroidSpiderInfoFromMetadata(oldJsonMetadata));
+    writeTextFileQuietly(directory + '/' + OHOS_METADATA_FILENAME, JSON.stringify(oldJsonMetadata));
+    return {
+      gallery: metadataToGallery(oldJsonMetadata),
+      total: oldJsonMetadata.pages
+    };
+  }
+
+  const spiderInfo = readAndroidSpiderInfo(directory + '/' + ANDROID_SPIDER_INFO_FILENAME);
+  if (spiderInfo === null) {
+    return null;
+  }
+  return {
+    gallery: spiderInfoToGallery(spiderInfo, directoryName),
+    total: spiderInfo.pages
+  };
+}
+
+function createAndroidSpiderInfoFromMetadata(metadata: GalleryMetadata): string {
+  const lines: string[] = [];
+  lines.push('VERSION2');
+  lines.push('00000000');
+  lines.push(metadata.gid.toString());
+  lines.push(metadata.token);
+  lines.push('1');
+  lines.push(Math.max(0, metadata.previewPages).toString());
+  lines.push('0');
+  lines.push(Math.max(0, metadata.pages).toString());
+  return lines.join('\n') + '\n';
+}
+
 function readMetadata(path: string): GalleryMetadata | null {
   try {
     const parsed = JSON.parse(fs.readTextSync(path)) as GalleryMetadata;
@@ -211,6 +359,45 @@ function readMetadata(path: string): GalleryMetadata | null {
       return null;
     }
     return parsed;
+  } catch (error) {
+    return null;
+  }
+}
+
+function readAndroidSpiderInfo(path: string): AndroidSpiderInfo | null {
+  try {
+    const lines = fs.readTextSync(path).split(/\r?\n/);
+    if (lines.length < 7) {
+      return null;
+    }
+    let offset = 0;
+    let version = 1;
+    if (lines[0].startsWith('VERSION')) {
+      version = parseInteger(lines[0].substring('VERSION'.length), -1);
+      offset = 1;
+    }
+    if (version !== 1 && version !== 2) {
+      return null;
+    }
+    if (lines.length <= offset + 6) {
+      return null;
+    }
+
+    const gid = parseInteger(lines[offset + 1], -1);
+    const token = lines[offset + 2];
+    const previewPages = parseInteger(lines[offset + 4], 0);
+    const previewPerPage = version === 2 ? parseInteger(lines[offset + 5], 0) : 0;
+    const pages = parseInteger(lines[offset + 6], -1);
+    if (gid <= 0 || token.length === 0 || pages <= 0) {
+      return null;
+    }
+    return {
+      gid: gid,
+      token: token,
+      pages: pages,
+      previewPages: previewPages,
+      previewPerPage: previewPerPage
+    };
   } catch (error) {
     return null;
   }
@@ -234,6 +421,39 @@ function metadataToGallery(metadata: GalleryMetadata): GalleryInfo {
     favoriteSlot: -1,
     favoriteName: ''
   };
+}
+
+function spiderInfoToGallery(info: AndroidSpiderInfo, directoryName: string): GalleryInfo {
+  return {
+    gid: info.gid,
+    token: info.token,
+    title: titleFromDirectoryName(directoryName, info.gid),
+    titleJpn: '',
+    thumb: '',
+    category: 0,
+    posted: '',
+    uploader: '',
+    rating: 0,
+    rated: false,
+    pages: info.pages,
+    thumbWidth: 0,
+    thumbHeight: 0,
+    favoriteSlot: -1,
+    favoriteName: ''
+  };
+}
+
+function titleFromDirectoryName(name: string, gid: number): string {
+  const prefix = gid.toString() + '-';
+  if (name.startsWith(prefix) && name.length > prefix.length) {
+    return name.substring(prefix.length);
+  }
+  return name.length > 0 ? name : gid.toString();
+}
+
+function parseInteger(value: string, fallback: number): number {
+  const parsed = Number.parseInt(value);
+  return Number.isNaN(parsed) ? fallback : parsed;
 }
 
 function countImageFiles(directory: string): number {
@@ -334,6 +554,13 @@ function writeTextFile(path: string, value: string): void {
   }
 }
 
+function writeTextFileQuietly(path: string, value: string): void {
+  try {
+    writeTextFile(path, value);
+  } catch (error) {
+  }
+}
+
 function exists(path: string): boolean {
   try {
     return fs.accessSync(path);
@@ -365,6 +592,41 @@ function removeDirectoryTree(path: string): DownloadDirectoryScanResult {
   } catch (error) {
   }
   return { directories: directories, files: files, bytes: bytes };
+}
+
+function copyDirectoryTree(source: string, target: string): DownloadDirectoryScanResult {
+  let directories = 0;
+  let files = 0;
+  let bytes = 0;
+  try {
+    const stat = fs.statSync(source);
+    if (!stat.isDirectory()) {
+      if (exists(target)) {
+        removeDirectoryTree(target);
+      }
+      fs.copyFileSync(source, target);
+      return { directories: 0, files: 1, bytes: stat.size };
+    }
+    ensureDirectory(target);
+    directories++;
+    const names = fs.listFileSync(source);
+    for (let i = 0; i < names.length; i++) {
+      const copied = copyDirectoryTree(source + '/' + names[i], target + '/' + names[i]);
+      directories += copied.directories;
+      files += copied.files;
+      bytes += copied.bytes;
+    }
+  } catch (error) {
+  }
+  return { directories: directories, files: files, bytes: bytes };
+}
+
+function normalizePath(path: string): string {
+  let result = path.trim();
+  while (result.endsWith('/') && result.length > 1) {
+    result = result.substring(0, result.length - 1);
+  }
+  return result;
 }
 
 export const ehDownloadFileStore: EhDownloadFileStore = new EhDownloadFileStore();

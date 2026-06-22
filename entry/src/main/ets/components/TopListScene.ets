@@ -92,7 +92,6 @@ export struct TopListScene {
   }
 
   aboutToDisappear(): void {
-    setActiveBackHandler(null);
   }
 
   private handleSystemBack(): boolean {
@@ -183,6 +182,9 @@ export struct TopListScene {
     this.galleryFollow = '';
     this.galleryKeyword = '';
     this.galleryUseForcedMode = false;
+    setTimeout(() => {
+      setActiveBackHandler(() => this.handleSystemBack());
+    }, 0);
   }
 
   private loadDetailFromItem(item: TopListItem): void {
@@ -849,45 +851,21 @@ export struct TopListScene {
         .transition(TransitionEffect.move(TransitionEdge.END)
           .animation({ duration: 300, curve: Curve.EaseOut }))
     } else if (this.showGalleryList) {
-      Column() {
-        Row() {
-          Button({ type: ButtonType.Circle, stateEffect: true }) {
-            SymbolGlyph($r('sys.symbol.chevron_left'))
-              .fontSize(20)
-              .fontColor([themeOnPrimaryText()])
-          }
-          .width(36)
-          .height(36)
-          .backgroundColor(themePrimaryColor())
-          .onClick(() => {
-            this.closeGalleryList();
-          })
-          Text(uiText(this.galleryListTitle) + ' / ' + uiText(this.galleryListModeLabel))
-            .fontSize(15)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(themePrimaryText())
-            .margin({ left: 12 })
-            .layoutWeight(1)
+      GalleryListScene({
+        sceneTitle: this.galleryListTitle,
+        listMode: this.galleryListModeLabel,
+        sourceRoute: this.galleryRoute,
+        follow: this.galleryFollow,
+        initialKeyword: this.galleryKeyword,
+        useForcedMode: this.galleryUseForcedMode,
+        forcedMode: this.galleryForcedMode,
+        isSearchResultScene: true,
+        onBack: () => {
+          this.closeGalleryList();
         }
-        .width('100%')
-        .padding({ left: 12, right: 12, top: this.statusBarVp() + 10, bottom: 8 })
-        .backgroundColor(themeSurface())
-
-        GalleryListScene({
-          sceneTitle: this.galleryListTitle,
-          listMode: this.galleryListModeLabel,
-          sourceRoute: this.galleryRoute,
-          follow: this.galleryFollow,
-          initialKeyword: this.galleryKeyword,
-          useForcedMode: this.galleryUseForcedMode,
-          forcedMode: this.galleryForcedMode
-        })
-          .layoutWeight(1)
-      }
-      .width('100%')
-      .height('100%')
-      .transition(TransitionEffect.move(TransitionEdge.END)
-        .animation({ duration: 300, curve: Curve.EaseOut }))
+      })
+        .transition(TransitionEffect.move(TransitionEdge.END)
+          .animation({ duration: 300, curve: Curve.EaseOut }))
     } else {
       FloatingToolbarHost({
         kind: 'title',
