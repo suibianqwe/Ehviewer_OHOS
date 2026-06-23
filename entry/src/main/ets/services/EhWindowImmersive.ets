@@ -159,10 +159,12 @@ async function applyAppChromeImmersiveModeAsync(target: window.Window): Promise<
 }
 
 export async function applyReaderWindowState(target: window.Window, keepScreenOn: boolean,
-  orientation: window.Orientation, fullscreen: boolean = true): Promise<void> {
+  orientation: window.Orientation | undefined, fullscreen: boolean = true): Promise<void> {
   rememberWindowPreferredOrientation(target);
   await setWindowKeepScreenOnQuietly(target, keepScreenOn, 'set reader keep screen on');
-  await setPreferredOrientationQuietly(target, orientation, 'set reader orientation');
+  if (orientation !== undefined) {
+    await setPreferredOrientationQuietly(target, orientation, 'set reader orientation');
+  }
   await setWindowLayoutFullScreenQuietly(target, true, 'set reader full-screen layout');
   await setWindowSystemBarEnableQuietly(target, fullscreen ? HIDDEN_SYSTEM_BARS : READER_STATUS_BAR_VISIBLE_SYSTEM_BARS,
     fullscreen ? 'hide reader system bar set' : 'show reader status bar');
@@ -178,7 +180,9 @@ export async function applyReaderWindowState(target: window.Window, keepScreenOn
 export async function applyReaderWindowStateFromSettings(target: window.Window): Promise<void> {
   const keepScreenOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
   const fullscreen = ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On';
-  await applyReaderWindowState(target, keepScreenOn, readerOrientationFromSetting(readerScreenRotationSetting()), fullscreen);
+  const orientationSetting = readerScreenRotationSetting();
+  const orientation = orientationSetting === 'Match image' ? undefined : readerOrientationFromSetting(orientationSetting);
+  await applyReaderWindowState(target, keepScreenOn, orientation, fullscreen);
 }
 
 export function rememberWindowPreferredOrientation(target: window.Window): void {
@@ -211,6 +215,27 @@ export function readerOrientationFromSetting(orientation: string): window.Orient
   return window.Orientation.AUTO_ROTATION_UNSPECIFIED;
 }
 
+export function readerOrientationFromImageMatch(target: window.Window, imageWidth: number,
+  imageHeight: number): window.Orientation | undefined {
+  if (imageWidth <= 0 || imageHeight <= 0 || imageWidth === imageHeight) {
+    return undefined;
+  }
+  let screenWidth = 0;
+  let screenHeight = 0;
+  try {
+    const rect = target.getWindowProperties().windowRect;
+    screenWidth = rect.width;
+    screenHeight = rect.height;
+  } catch (error) {
+    return undefined;
+  }
+  if (screenWidth <= 0 || screenHeight <= 0 || screenWidth === screenHeight) {
+    return undefined;
+  }
+  return imageWidth > imageHeight ? window.Orientation.AUTO_ROTATION_LANDSCAPE :
+  window.Orientation.AUTO_ROTATION_PORTRAIT;
+}
+
 export function normalizeReaderScreenRotationSetting(value: string): string {
   if (value === '1' || value === 'Portrait') {
     return 'Portrait';
@@ -220,6 +245,9 @@ export function normalizeReaderScreenRotationSetting(value: string): string {
   }
   if (value === '3' || value === 'Sensor' || value === 'Auto rotate') {
     return 'Auto rotate';
+  }
+  if (value === '4' || value === 'Match image') {
+    return 'Match image';
   }
   return 'Default';
 }

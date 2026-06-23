@@ -15,6 +15,7 @@ import {
   getMainWindow,
   getReaderWindow,
   rememberMainWindow,
+  readerOrientationFromImageMatch,
   readerOrientationFromSetting,
   readerScreenRotationSetting,
   restoreAppWindowState,
@@ -438,6 +439,8 @@ export struct ReaderScene {
   private readerPageIndexesSource: ArrayDataSource<number> = new ArrayDataSource<number>([]);
   private readerPageIndexesCount: number = -1;
   private readerPageIndexesReversed: boolean = false;
+  private activeImageWidth: number = 0;
+  private activeImageHeight: number = 0;
 
   // Menu settings state (reflects ehSettingsStore, applied on menu close)
   @State menuScreenRotation: string = 'Default';
@@ -552,7 +555,14 @@ export struct ReaderScene {
     if (this.restoreAppChromeOnExit) {
       setEmbeddedReaderActive(true);
     }
-    await applyReaderWindowState(win, keepOn, readerOrientationFromSetting(orientation), fullscreen);
+    await applyReaderWindowState(win, keepOn, this.readerOrientationForSetting(win, orientation), fullscreen);
+  }
+
+  private readerOrientationForSetting(win: window.Window, orientation: string): window.Orientation | undefined {
+    if (orientation === 'Match image') {
+      return readerOrientationFromImageMatch(win, this.activeImageWidth, this.activeImageHeight);
+    }
+    return readerOrientationFromSetting(orientation);
   }
 
   private async restoreWindowSettingsAsync(): Promise<void> {
@@ -1228,6 +1238,7 @@ export struct ReaderScene {
     if (target === this.currentIndex) {
       return;
     }
+    this.resetActiveImageSize();
     this.currentIndex = target;
     this.isDisableSwipe = false;
     this.zoomPercent = this.isFixedScaleMode() ? Math.round(this.fixedScale * 100) : 100;
@@ -1246,6 +1257,7 @@ export struct ReaderScene {
     if (index === this.currentIndex) {
       return;
     }
+    this.resetActiveImageSize();
     this.currentIndex = index;
     this.isDisableSwipe = false;
     this.zoomPercent = this.isFixedScaleMode() ? Math.round(this.fixedScale * 100) : 100;
@@ -1254,6 +1266,19 @@ export struct ReaderScene {
       this.scheduleAutoTransfer();
     }
     this.onJump(index);
+  }
+
+  private resetActiveImageSize(): void {
+    this.activeImageWidth = 0;
+    this.activeImageHeight = 0;
+  }
+
+  private onActiveImageSizeChange(width: number, height: number): void {
+    this.activeImageWidth = width > 0 ? width : 0;
+    this.activeImageHeight = height > 0 ? height : 0;
+    if (readerScreenRotationSetting() === 'Match image') {
+      this.applyReaderWindowSettings();
+    }
   }
 
   private progressText(): string {
@@ -1301,6 +1326,11 @@ export struct ReaderScene {
                 if (this.isFixedScaleMode()) {
                   this.fixedScale = Math.max(READER_MIN_SCALE, Math.min(READER_MAX_SCALE, percent / 100));
                 }
+              }
+            },
+            onImageSizeChange: (width: number, height: number) => {
+              if (index === this.currentIndex) {
+                this.onActiveImageSizeChange(width, height);
               }
             }
           })
@@ -1529,7 +1559,7 @@ export struct ReaderScene {
 
               ReaderMenuSelect({
                 label: uiText('Screen rotation'),
-                options: ['Default', 'Portrait', 'Landscape', 'Auto rotate'],
+                options: ['Default', 'Portrait', 'Landscape', 'Auto rotate', 'Match image'],
                 value: this.menuScreenRotation,
                 onChange: (v: string) => { this.menuScreenRotation = v; }
               })
@@ -1692,7 +1722,7 @@ export struct ReaderScene {
 }
 
 @Component
-struct ReaderPopupBackdrop {
+export struct ReaderPopupBackdrop {
   onDismiss: () => void = () => {};
 
   build() {
@@ -1708,7 +1738,7 @@ struct ReaderPopupBackdrop {
 }
 
 @Component
-struct ReaderImageActionDialog {
+export struct ReaderImageActionDialog {
   onRefresh: () => void = () => {};
   onShare: () => void = () => {};
   onSaveToAlbum: () => void = () => {};
@@ -2060,7 +2090,7 @@ struct ReaderMenuToggle {
 }
 
 @Component
-struct ReaderImageViewport {
+export struct ReaderImageViewport {
   @Prop @Watch('onImageSourceChange') page: GalleryPage = createEmptyPage();
   @Prop statusText: string = '';
   @Prop @Watch('onImageSourceChange') preferOriginal: boolean = false;
@@ -2075,6 +2105,7 @@ struct ReaderImageViewport {
   onImageLongPress: () => void = () => {};
   onSwipeLockChange: (locked: boolean) => void = (_locked: boolean) => {};
   onZoomChange: (percent: number) => void = (_percent: number) => {};
+  onImageSizeChange: (width: number, height: number) => void = (_width: number, _height: number) => {};
 
   @State imageModel: ReaderPreviewModel = new ReaderPreviewModel();
   @State completedImageUrl: string = '';
@@ -2088,6 +2119,7 @@ struct ReaderImageViewport {
 
   aboutToAppear(): void {
     this.onImageSourceChange();
+    this.onFitModeChange();
     this.reportState();
   }
 
@@ -2119,6 +2151,7 @@ struct ReaderImageViewport {
   onActiveChange(): void {
     if (this.isActive) {
       this.syncFixedScale();
+      this.reportImageSize();
     }
   }
 
@@ -2154,6 +2187,9 @@ struct ReaderImageViewport {
     }
     this.sourceImageWidth = 0;
     this.sourceImageHeight = 0;
+    if (this.isActive) {
+      this.onImageSizeChange(0, 0);
+    }
     this.updateDisplayImageSize();
     this.loadCachedSourceImageSize(requestId, url).catch(() => {});
     this.syncFixedScale();
@@ -2196,6 +2232,7 @@ struct ReaderImageViewport {
       this.sourceImageWidth = size.width;
       this.sourceImageHeight = size.height;
       this.updateDisplayImageSize();
+      this.reportImageSize();
     }
   }
 
@@ -2360,6 +2397,13 @@ struct ReaderImageViewport {
     this.onZoomChange(this.imageModel.zoomPercent());
   }
 
+  private reportImageSize(): void {
+    if (!this.isActive || this.sourceImageWidth <= 0 || this.sourceImageHeight <= 0) {
+      return;
+    }
+    this.onImageSizeChange(this.sourceImageWidth, this.sourceImageHeight);
+  }
+
   private shouldLetSwiperHandlePan(event: BaseGestureEvent): boolean {
     const panEvent = event as PanGestureEvent;
     return this.imageModel.shouldLetSwiperHandlePan(panEvent.offsetX, panEvent.velocityX);
@@ -2380,6 +2424,7 @@ struct ReaderImageViewport {
               this.sourceImageWidth = event.width;
               this.sourceImageHeight = event.height;
               this.updateDisplayImageSize();
+              this.reportImageSize();
             }
             this.completedImageUrl = this.imageUrl();
             this.failedImageUrl = '';

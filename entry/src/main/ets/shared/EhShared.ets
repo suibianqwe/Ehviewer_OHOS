@@ -579,6 +579,7 @@ export function zhText(text: string): string {
     case 'Portrait': return '竖屏';
     case 'Landscape': return '横屏';
     case 'Auto rotate': return '自动旋转';
+    case 'Match image': return '匹配图片';
     case 'Left to right': return '从左至右';
     case 'Right to left': return '从右至左';
     case 'Top to bottom': return '从上至下';
@@ -1644,7 +1645,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
 
   if (panel === SettingsPanel.Read) {
     return [
-      optionSettingsRow('screen_rotation', 'Screen rotation', 'Reader orientation policy', entries, ['Default', 'Portrait', 'Landscape', 'Auto rotate']),
+      optionSettingsRow('screen_rotation', 'Screen rotation', 'Reader orientation policy', entries, ['Default', 'Portrait', 'Landscape', 'Auto rotate', 'Match image']),
       optionSettingsRow('reading_direction', 'Reading direction', 'Left-to-right, right-to-left or vertical reader movement', entries, ['Left to right', 'Right to left', 'Top to bottom']),
       optionSettingsRow('page_scaling', 'Page scaling', 'Fit width, fit height or original page scaling', entries, ['Actual size', 'Fit width', 'Fit height', 'Fit screen', 'Fixed scale']),
       optionSettingsRow('start_position', 'Start position', 'Where a gallery starts when opened', entries, ['Top left', 'Top right', 'Bottom left', 'Bottom right', 'Center']),
@@ -1782,6 +1783,9 @@ function normalizeScreenRotationOption(value: string): string {
   }
   if (value === '3' || value === 'Sensor' || value === 'Auto rotate') {
     return 'Auto rotate';
+  }
+  if (value === '4' || value === 'Match image') {
+    return 'Match image';
   }
   return 'Default';
 }
