@@ -184,9 +184,9 @@ class ReaderPreviewModel {
     this.commit();
   }
 
-  edgeSwipeDirection(offsetX: number, velocityX: number = 0): number {
+  edgeSwipeDirection(offsetX: number, velocityX: number = 0, offsetY: number = 0, velocityY: number = 0): number {
     const maxX = this.maxOffsetX();
-    if (maxX <= 0) {
+    if (maxX <= 0 || !this.isHorizontalGestureIntent(offsetX, velocityX, offsetY, velocityY)) {
       return 0;
     }
     const direction = Math.abs(offsetX) >= 8 ? offsetX : velocityX;
@@ -301,11 +301,20 @@ class ReaderPreviewModel {
     return this.maxOffsetX() > 0;
   }
 
-  shouldLetSwiperHandlePan(offsetX: number, velocityX: number): boolean {
+  private isHorizontalGestureIntent(offsetX: number, velocityX: number = 0, offsetY: number = 0, velocityY: number = 0): boolean {
+    const x = Math.abs(offsetX) >= 1 ? Math.abs(offsetX) : Math.abs(velocityX);
+    const y = Math.abs(offsetY) >= 1 ? Math.abs(offsetY) : Math.abs(velocityY);
+    return x > 0.5 && x >= y * 1.15;
+  }
+
+  shouldLetSwiperHandlePan(offsetX: number, velocityX: number, offsetY: number = 0, velocityY: number = 0): boolean {
+    if (!this.isHorizontalGestureIntent(offsetX, velocityX, offsetY, velocityY)) {
+      return false;
+    }
     const maxX = this.maxOffsetX();
     const direction = Math.abs(offsetX) >= 1 ? offsetX : velocityX;
     if (maxX <= 0) {
-      return Math.abs(direction) > 0.5;
+      return true;
     }
     if (direction < -0.5 && this.currentOffsetX <= -maxX + 0.5) {
       return true;
@@ -1382,10 +1391,8 @@ export struct ReaderScene {
                   }
                 },
                 onZoomChange: (percent: number) => {
-                  if (index === this.currentIndex) {
-                    this.zoomPercent = percent;
-                    this.fixedScale = Math.max(READER_MIN_SCALE, Math.min(READER_MAX_SCALE, percent / 100));
-                  }
+                  this.zoomPercent = percent;
+                  this.fixedScale = Math.max(READER_MIN_SCALE, Math.min(READER_MAX_SCALE, percent / 100));
                 }
               })
                 .width('100%')
@@ -2537,7 +2544,12 @@ export struct ReaderImageViewport {
 
   private shouldLetSwiperHandlePan(event: BaseGestureEvent): boolean {
     const panEvent = event as PanGestureEvent;
-    return this.imageModel.shouldLetSwiperHandlePan(panEvent.offsetX, panEvent.velocityX);
+    return this.imageModel.shouldLetSwiperHandlePan(
+      panEvent.offsetX,
+      panEvent.velocityX,
+      panEvent.offsetY,
+      panEvent.velocityY
+    );
   }
 
   build() {
@@ -2656,7 +2668,12 @@ export struct ReaderImageViewport {
               this.reportState();
             })
             .onActionEnd((event: GestureEvent) => {
-              const edgeDirection = this.imageModel.edgeSwipeDirection(event.offsetX, event.velocityX);
+              const edgeDirection = this.imageModel.edgeSwipeDirection(
+                event.offsetX,
+                event.velocityX,
+                event.offsetY,
+                event.velocityY
+              );
               this.imageModel.panEnd(event.velocityX, event.velocityY);
               this.reportState();
               if (edgeDirection !== 0) {
@@ -2706,7 +2723,7 @@ export struct ReaderContinuousImageItem {
   @Prop statusText: string = '';
   @Prop @Watch('onImageSourceChange') preferOriginal: boolean = false;
   @Prop @Watch('onFitModeChange') fitMode: string = 'Fixed scale';
-  @Prop zoomScale: number = READER_BASE_SCALE;
+  @Prop @Watch('onZoomScaleChange') zoomScale: number = READER_BASE_SCALE;
   @Prop isActive: boolean = false;
   onTap: () => void = () => {};
   onRetry: () => void = () => {};
@@ -2722,6 +2739,7 @@ export struct ReaderContinuousImageItem {
   @State componentWidth: number = 1;
   @State displayImageWidth: number = 1;
   @State displayImageHeight: number = 120;
+  private isPinching: boolean = false;
   private sourceSizeRequestId: number = 0;
 
   aboutToAppear(): void {
@@ -2826,6 +2844,12 @@ export struct ReaderContinuousImageItem {
     }
   }
 
+  private onZoomScaleChange(): void {
+    if (!this.isPinching && normalizePageScalingOption(this.fitMode) === 'Fixed scale') {
+      this.imageModel.setScale(this.zoomScale);
+    }
+  }
+
   private displayWidth(): number {
     return this.displayImageWidth;
   }
@@ -2876,9 +2900,6 @@ export struct ReaderContinuousImageItem {
   }
 
   private reportState(): void {
-    if (!this.isActive) {
-      return;
-    }
     this.onZoomChange(this.imageModel.zoomPercent());
   }
 
@@ -2920,7 +2941,6 @@ export struct ReaderContinuousImageItem {
           })
           .scale({ x: this.imageModel.currentScale, y: this.imageModel.currentScale, centerX: '50%', centerY: '50%' })
           .translate({ x: this.imageModel.currentOffsetX, y: this.imageModel.currentOffsetY })
-          .animation({ duration: READER_INERTIA_DURATION, curve: Curve.EaseOut })
       }
       if (this.imageUrl().length === 0 || this.isImageLoading()) {
         LoadingProgress()
@@ -2968,6 +2988,7 @@ export struct ReaderContinuousImageItem {
             }),
           PinchGesture({ fingers: 2, distance: 1 })
             .onActionStart((event: GestureEvent) => {
+              this.isPinching = true;
               this.imageModel.pinchStart(event.pinchCenterX, event.pinchCenterY);
               this.reportState();
             })
@@ -2977,10 +2998,12 @@ export struct ReaderContinuousImageItem {
             })
             .onActionEnd(() => {
               this.imageModel.pinchEnd();
+              this.isPinching = false;
               this.reportState();
             })
             .onActionCancel(() => {
               this.imageModel.pinchEnd();
+              this.isPinching = false;
               this.reportState();
             }),
           PanGesture({ fingers: 1, distance: 3 })
