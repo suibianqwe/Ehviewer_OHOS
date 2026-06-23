@@ -28,39 +28,36 @@ export struct ReaderInfoOverlay {
   progressText: string = '';
   batteryText: string = '';
   top: number = 0;
+  left: number = 0;
   right: number = 12;
 
   build() {
-    Stack({ alignContent: Alignment.TopEnd }) {
-      Row({ space: 8 }) {
-        if (this.showProgress) {
-          Text(this.progressText)
-            .fontSize(12)
-            .fontColor(themeOnPrimaryText())
-            .lineHeight(16)
-        }
-        if (this.showClock) {
-          Text(readerClockText())
-            .fontSize(12)
-            .fontColor(themeOnPrimaryText())
-            .lineHeight(16)
-        }
-        if (this.showBattery) {
-          Text(this.batteryText)
-            .fontSize(12)
-            .fontColor(themeOnPrimaryText())
-            .lineHeight(16)
-        }
+    Row({ space: 8 }) {
+      if (this.showProgress) {
+        Text(this.progressText)
+          .fontSize(12)
+          .fontColor(themeOnPrimaryText())
+          .lineHeight(16)
       }
-      .alignItems(VerticalAlign.Center)
-      .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-      .backgroundColor(themeScrimColor())
-      .borderRadius(10)
-      .margin({ top: this.top, right: this.right })
+      if (this.showClock) {
+        Text(readerClockText())
+          .fontSize(12)
+          .fontColor(themeOnPrimaryText())
+          .lineHeight(16)
+      }
+      if (this.showBattery) {
+        Text(this.batteryText)
+          .fontSize(12)
+          .fontColor(themeOnPrimaryText())
+          .lineHeight(16)
+      }
     }
-    .width('100%')
-    .height('100%')
-    .hitTestBehavior(HitTestMode.Transparent)
+    .alignItems(VerticalAlign.Center)
+    .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+    .backgroundColor(themeScrimColor())
+    .borderRadius(10)
+    .position({ x: this.left, y: this.top })
+    .hitTestBehavior(HitTestMode.None)
   }
 }
 

@@ -102,6 +102,7 @@ export struct ReaderScene {
   @State sliderLiveIndex: number = 0;
   @State sliderDragging: boolean = false;
   @State sliderTrackWidth: number = 1;
+  @State readerLayoutWidth: number = 0;
   @State autoTransferPlaying: boolean = false;
   @State currentIndex: number = 0;
   @State isDisableSwipe: boolean = false;
@@ -280,6 +281,11 @@ export struct ReaderScene {
 
   private readerStatusOverlayTop(): number {
     return Math.max(12, this.statusBarHeightVp() + 8);
+  }
+
+  private readerStatusOverlayLeft(): number {
+    const estimatedWidth = 138;
+    return Math.max(12, this.readerLayoutWidth - estimatedWidth - 12);
   }
 
   private readerBottomInset(): number {
@@ -1196,7 +1202,8 @@ export struct ReaderScene {
           showBattery: this.overlayShowBattery,
           progressText: this.progressText(),
           batteryText: this.batteryText(),
-          top: this.readerStatusOverlayTop()
+          top: this.readerStatusOverlayTop(),
+          left: this.readerStatusOverlayLeft()
         })
           .zIndex(4)
       }
@@ -1338,6 +1345,12 @@ export struct ReaderScene {
     }
     .width('100%')
     .height('100%')
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      const width = newArea.width as number;
+      if (width > 0 && !Number.isNaN(width)) {
+        this.readerLayoutWidth = width;
+      }
+    })
     .backgroundColor(readerBackgroundColor())
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
