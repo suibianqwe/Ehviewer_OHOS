@@ -10,6 +10,8 @@ import {
   READER_DOUBLE_TAP_SCALE,
   ReaderImageCompleteEvent,
   ReaderPreviewModel,
+  cachedReaderSourceImageSize,
+  cacheReaderSourceImageSize,
   readReaderSourceImageSize,
   readerBackgroundColor,
   readerLocalSourceImagePath
@@ -113,12 +115,14 @@ export struct ReaderImageViewport {
     if (this.failedImageUrl !== url) {
       this.failedImageUrl = '';
     }
-    this.sourceImageWidth = 0;
-    this.sourceImageHeight = 0;
-    if (this.isActive) {
+    const cachedSize = cachedReaderSourceImageSize(url);
+    this.sourceImageWidth = cachedSize.width;
+    this.sourceImageHeight = cachedSize.height;
+    if (this.isActive && !this.hasSourceImageSize()) {
       this.onImageSizeChange(0, 0);
     }
     this.updateDisplayImageSize();
+    this.reportImageSize();
     this.loadCachedSourceImageSize(requestId, url).catch(() => {});
     this.syncFixedScale();
   }
@@ -180,6 +184,7 @@ export struct ReaderImageViewport {
     if (size.width > 0 && size.height > 0) {
       this.sourceImageWidth = size.width;
       this.sourceImageHeight = size.height;
+      cacheReaderSourceImageSize(imageUrl, size.width, size.height);
       this.updateDisplayImageSize();
       this.reportImageSize();
     }
@@ -344,6 +349,7 @@ export struct ReaderImageViewport {
             if (event !== undefined && event.width > 0 && event.height > 0 && this.sourceImageWidth <= 0) {
               this.sourceImageWidth = event.width;
               this.sourceImageHeight = event.height;
+              cacheReaderSourceImageSize(this.imageUrl(), event.width, event.height);
               this.updateDisplayImageSize();
               this.reportImageSize();
             }

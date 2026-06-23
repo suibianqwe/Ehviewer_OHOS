@@ -4,6 +4,8 @@ import {
   READER_BASE_SCALE,
   ReaderImageCompleteEvent,
   ReaderPreviewModel,
+  cachedReaderSourceImageSize,
+  cacheReaderSourceImageSize,
   readReaderSourceImageSize,
   readerBackgroundColor,
   readerLocalSourceImagePath
@@ -55,8 +57,10 @@ export struct ReaderContinuousImageItem {
     if (this.failedImageUrl !== url) {
       this.failedImageUrl = '';
     }
-    this.sourceImageWidth = 0;
-    this.sourceImageHeight = 0;
+    const cachedSize = cachedReaderSourceImageSize(url);
+    this.sourceImageWidth = cachedSize.width;
+    this.sourceImageHeight = cachedSize.height;
+    this.updateDisplayImageSize();
     this.loadCachedSourceImageSize(requestId, url).catch(() => {});
   }
 
@@ -72,6 +76,7 @@ export struct ReaderContinuousImageItem {
     if (size.width > 0 && size.height > 0) {
       this.sourceImageWidth = size.width;
       this.sourceImageHeight = size.height;
+      cacheReaderSourceImageSize(imageUrl, size.width, size.height);
       this.updateDisplayImageSize();
       this.reportImageSize();
     }
@@ -189,6 +194,7 @@ export struct ReaderContinuousImageItem {
             if (event !== undefined && event.width > 0 && event.height > 0 && this.sourceImageWidth <= 0) {
               this.sourceImageWidth = event.width;
               this.sourceImageHeight = event.height;
+              cacheReaderSourceImageSize(this.imageUrl(), event.width, event.height);
               this.updateDisplayImageSize();
               this.reportImageSize();
             }

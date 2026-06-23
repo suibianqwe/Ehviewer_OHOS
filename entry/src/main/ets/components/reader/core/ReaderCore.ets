@@ -24,6 +24,8 @@ export interface ReaderSourceImageSize {
   height: number;
 }
 
+const readerSourceImageSizeCache: Map<string, ReaderSourceImageSize> = new Map<string, ReaderSourceImageSize>();
+
 export function readerBackgroundColor(): string {
   const value = ehSettingsStore.getValue('reader_background', 'Deep gray');
   if (value === 'Black') {
@@ -33,6 +35,24 @@ export function readerBackgroundColor(): string {
     return '#FFFFFF';
   }
   return '#050608';
+}
+
+export function cachedReaderSourceImageSize(imageUrl: string): ReaderSourceImageSize {
+  const cached = readerSourceImageSizeCache.get(imageUrl);
+  if (cached !== undefined) {
+    return cached;
+  }
+  return { width: 0, height: 0 };
+}
+
+export function cacheReaderSourceImageSize(imageUrl: string, width: number, height: number): void {
+  if (imageUrl.length === 0 || width <= 0 || height <= 0) {
+    return;
+  }
+  readerSourceImageSizeCache.set(imageUrl, {
+    width: width,
+    height: height
+  });
 }
 
 export function stripFileScheme(path: string): string {
