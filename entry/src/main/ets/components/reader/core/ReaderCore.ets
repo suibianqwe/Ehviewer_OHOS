@@ -1,8 +1,8 @@
 import { image } from '@kit.ImageKit';
-import { GalleryPage } from '../../model/GalleryModels';
-import { ehSettingsStore } from '../../services/EhSettingsStore';
-import { readerImageCache } from '../../services/ReaderImageCache';
-import { getAbilityContext, readerDisplayImageUrl } from '../../shared/EhShared';
+import { GalleryPage } from '../../../model/GalleryModels';
+import { ehSettingsStore } from '../../../services/EhSettingsStore';
+import { readerImageCache } from '../../../services/ReaderImageCache';
+import { getAbilityContext, readerDisplayImageUrl } from '../../../shared/EhShared';
 
 export const READER_MIN_SCALE: number = 0.25;
 export const READER_BASE_SCALE: number = 1;

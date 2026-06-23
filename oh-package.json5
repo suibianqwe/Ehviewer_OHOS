@@ -1,7 +1,7 @@
 {
   "modelVersion": "6.1.1",
   "name": "ehviewer-harmonyos",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "description": "HarmonyOS native port workspace for EhViewer.",
   "main": "",
   "author": "suibianqwe/Ehviewer_OHOS contributors",

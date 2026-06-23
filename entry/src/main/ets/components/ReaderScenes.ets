@@ -1,14 +1,14 @@
-﻿import { window } from '@kit.ArkUI';
+import { window } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { batteryInfo } from '@kit.BasicServicesKit';
-import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
+import { fileUri, picker } from '@kit.CoreFileKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { systemShare } from '@kit.ShareKit';
 import inputConsumer from '@ohos.multimodalInput.inputConsumer';
 import { KeyCode } from '@ohos.multimodalInput.keyCode';
 import { KeyEvent } from '@ohos.multimodalInput.keyEvent';
-import { GalleryComment, GalleryPage } from '../model/GalleryModels';
+import { GalleryPage } from '../model/GalleryModels';
 import {
   applyReaderWindowState,
   getMainWindow,
@@ -26,8 +26,6 @@ import { readerImageCache } from '../services/ReaderImageCache';
 import {
   createEmptyPage,
   getAbilityContext,
-  plainTextFromHtml,
-  readerClockText,
   readerDisplayImageUrl,
   normalizePageScalingOption,
   normalizeReadingDirectionOption,
@@ -36,137 +34,43 @@ import {
   normalizeBrightnessLevelOption,
   normalizeUltraDarkLightnessOption,
   STATUS_BAR_HEIGHT_KEY,
-  uiStatusText,
-  uiText,
-  uiValue
+  uiText
 } from '../shared/EhShared';
 import { ArrayDataSource } from '../shared/ListDataSource';
-import { readerSelectColors, selectArrowModifier } from '../shared/EhSelectStyle';
-import {
-  themeDividerColor,
-  themeOnPrimaryText,
-  themePrimaryText,
-  themeScrimColor,
-  themeSurface
-} from '../shared/EhTheme';
-import { EhSubNavBar } from './NavigationComponents';
 import {
   READER_BASE_SCALE,
-  READER_DOUBLE_TAP_SCALE,
   READER_MAX_SCALE,
   READER_MIN_SCALE,
   READER_OFFSCREEN_RENDER_COUNT,
-  ReaderImageCompleteEvent,
-  ReaderPreviewModel,
-  readReaderSourceImageSize,
-  readerBackgroundColor,
-  readerLocalSourceImagePath
-} from './reader/ReaderCore';
-import { ReaderStatusView } from './reader/ReaderStatusView';
+  readerBackgroundColor
+} from './reader/core/ReaderCore';
+import {
+  addUniquePath,
+  albumImageFileType,
+  copyFileContent,
+  readerImageExtension,
+  readerImageFileName,
+  removeFileIfExists,
+  stripFileScheme
+} from './reader/io/ReaderImageFileOps';
+import { readerUltraDarkSliderValue } from './reader/menu/ReaderMenuControls';
+import {
+  ReaderImageActionsOverlay,
+  ReaderInfoOverlay,
+  ReaderSettingsMenuOverlay,
+  ReaderSliderPanel
+} from './reader/overlays/ReaderOverlays';
+import { ReaderContinuousImageItem } from './reader/viewports/ReaderContinuousImageItem';
+import { ReaderImageViewport } from './reader/viewports/ReaderImageViewport';
+
+export { ReaderNavButton, ReaderToolButton } from './reader/controls/ReaderButtons';
+export { CommentsScene, PlaceholderScene } from './reader/scenes/ReaderAuxScenes';
 
 const SLIDER_AUTO_HIDE_DELAY: number = 3000;
 
 export interface ReaderPageState {
   index: number;
   page: GalleryPage;
-}
-
-@Component
-export struct CommentsScene {
-  @Prop renderVersion: number = 0;
-  @Prop comments: GalleryComment[] = [];
-  @Prop galleryTitle: string = '';
-  onBack: () => void = () => {};
-  @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
-
-  private statusBarVp(): number {
-    return this.getUIContext().px2vp(this.statusBarHeightPx);
-  }
-
-  build() {
-    Column() {
-      EhSubNavBar({
-        statusBarHeight: this.statusBarVp(),
-        title: uiText('Comments'),
-        onBack: this.onBack
-      })
-      Row() {
-        Text(this.galleryTitle)
-          .fontSize(12)
-          .fontColor('#667085')
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .layoutWeight(1)
-        Text(this.comments.length.toString() + ' ' + uiText('total'))
-          .fontSize(12)
-          .fontColor('#667085')
-          .margin({ left: 12 })
-      }
-      .width('100%')
-      .padding({ left: 16, right: 16, top: 8, bottom: 8 })
-      .backgroundColor(Color.White)
-
-      if (this.comments.length === 0) {
-        PlaceholderScene({
-          title: 'Comments',
-          detail: 'No comments for this gallery.'
-        })
-      } else {
-        List({ space: 0 }) {
-          ForEach(this.comments, (comment: GalleryComment) => {
-            ListItem() {
-              Column() {
-                Row() {
-                  Text(comment.user.length > 0 ? comment.user : uiText('Anonymous'))
-                    .fontSize(14)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor('#17202A')
-                    .layoutWeight(1)
-                  if (comment.score !== 0) {
-                    Text((comment.score > 0 ? '+' : '') + comment.score.toString())
-                      .fontSize(12)
-                      .fontColor(comment.score > 0 ? '#0A6B45' : '#B03060')
-                      .margin({ left: 8 })
-                  }
-                }
-                .width('100%')
-                .margin({ bottom: 4 })
-
-                Text(comment.posted)
-                  .fontSize(11)
-                  .fontColor('#667085')
-                  .margin({ bottom: 8 })
-
-                Text(plainTextFromHtml(comment.content))
-                  .fontSize(14)
-                  .fontColor('#17202A')
-                  .width('100%')
-              }
-              .alignItems(HorizontalAlign.Start)
-              .width('100%')
-              .padding({ left: 16, right: 16, top: 14, bottom: 14 })
-              .backgroundColor(Color.White)
-            }
-            .reuseId('comment-row')
-          }, (comment: GalleryComment) => comment.id)
-          ListItem() {
-            Divider()
-              .height(1)
-              .color('#F0F0F0')
-          }
-          .reuseId('comment-divider')
-        }
-        .divider({ strokeWidth: 1, color: '#F0F0F0' })
-        .width('100%')
-        .height('100%')
-        .layoutWeight(1)
-        .cachedCount(4)
-      }
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor('#F5F7FA')
-  }
 }
 
 @Component
@@ -1269,128 +1173,54 @@ export struct ReaderScene {
           .zIndex(2)
       }
 
-      // Floating progress / clock / battery overlay (when no panel shown)
       if (!this.menuVisible && !this.sliderVisible) {
-        Row() {
-          Row({ space: 8 }) {
-            if (this.overlayShowProgress) {
-              Text(this.progressText())
-                .fontSize(12)
-                .fontColor(themeOnPrimaryText())
-                .lineHeight(16)
-            }
-            if (this.overlayShowClock) {
-              Text(readerClockText())
-                .fontSize(12)
-                .fontColor(themeOnPrimaryText())
-                .lineHeight(16)
-            }
-            if (this.overlayShowBattery) {
-              Text(this.batteryText())
-                .fontSize(12)
-                .fontColor(themeOnPrimaryText())
-                .lineHeight(16)
-            }
-          }
-          .alignItems(VerticalAlign.Center)
-          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-          .backgroundColor(themeScrimColor())
-          .borderRadius(10)
-        }
-        .width('100%')
-        .justifyContent(FlexAlign.End)
-        .padding({ left: 12, right: 12 })
-        .position({ x: 0, y: this.readerStatusOverlayTop() })
-        .zIndex(4)
-      }
-
-      // ── Slider panel (lower 1/3 tap, auto-hides after 3s) ──
-      if (this.sliderVisible) {
-        Stack() {}
-          .width('100%')
-          .height('100%')
-          .onClick(() => { this.hideSliderAndStopPlayback(); })
+        ReaderInfoOverlay({
+          showProgress: this.overlayShowProgress,
+          showClock: this.overlayShowClock,
+          showBattery: this.overlayShowBattery,
+          progressText: this.progressText(),
+          batteryText: this.batteryText(),
+          top: this.readerStatusOverlayTop()
+        })
           .zIndex(4)
-
-        Column() {
-          Row() {
-            Text(this.progressText())
-              .fontSize(12)
-              .fontColor('#E5E7EB')
-              .width(58)
-              .textAlign(TextAlign.Center)
-            Stack({ alignContent: Alignment.BottomStart }) {
-              if (this.sliderDragging) {
-                Text(this.sliderPageText())
-                  .fontSize(12)
-                  .fontColor(themeOnPrimaryText())
-                  .lineHeight(18)
-                  .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-                  .backgroundColor(themeScrimColor())
-                  .borderRadius(8)
-                  .position({ x: this.sliderBubbleX(), y: -24 })
-                  .zIndex(2)
-              }
-              Slider({
-                value: this.sliderLiveIndex,
-                min: 0,
-                max: Math.max(0, this.totalPages - 1),
-                step: 1
-              })
-                .width('100%')
-                .enabled(this.totalPages > 1)
-                .onChange((value: number, mode: SliderChangeMode) => {
-                  this.clearSliderTimer();
-                  this.sliderLiveIndex = this.clampReaderPageIndex(value);
-                  this.sliderDragging = mode !== SliderChangeMode.End && mode !== SliderChangeMode.Click;
-                  if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
-                    this.stopAutoTransferPlayback();
-                    this.jumpTo(value);
-                    this.scheduleSliderHide();
-                  }
-                })
-            }
-              .layoutWeight(1)
-              .height(64)
-              .onAreaChange((_oldArea: Area, newArea: Area) => {
-                const width = newArea.width as number;
-                if (width > 0 && !Number.isNaN(width)) {
-                  this.sliderTrackWidth = width;
-                }
-              })
-            Button({ type: ButtonType.Circle, stateEffect: true }) {
-              SymbolGlyph(this.autoTransferPlaying ? $r('sys.symbol.pause_fill') : $r('sys.symbol.play_fill'))
-                .fontSize(18)
-                .fontColor([Color.White])
-            }
-              .width(42)
-              .height(36)
-              .enabled(this.autoTransferDelayMs() > 0 && this.canGoNext())
-              .backgroundColor(this.autoTransferDelayMs() > 0 && this.canGoNext() ? '#334155' : '#1F2937')
-              .onClick(() => {
-                this.toggleAutoTransferPlayback();
-              })
-          }
-          .width('100%')
-          .alignItems(VerticalAlign.Center)
-        }
-        .width('100%')
-        .padding({ left: 12, right: 12, top: 14, bottom: 18 })
-        .backgroundColor('#CC111827')
-        .position({ x: 0, y: '100%' })
-        .translate({ y: '-100%' })
-        .zIndex(5)
       }
-
-      if (this.imageActionsVisible) {
-        ReaderPopupBackdrop({
+      if (this.sliderVisible) {
+        ReaderSliderPanel({
+          progressText: this.progressText(),
+          sliderDragging: this.sliderDragging,
+          sliderPageText: this.sliderPageText(),
+          sliderBubbleX: this.sliderBubbleX(),
+          sliderLiveIndex: this.sliderLiveIndex,
+          totalPages: this.totalPages,
+          autoTransferPlaying: this.autoTransferPlaying,
+          autoTransferEnabled: this.autoTransferDelayMs() > 0 && this.canGoNext(),
           onDismiss: () => {
-            this.hideImageActions();
+            this.hideSliderAndStopPlayback();
+          },
+          onSliderChange: (value: number, mode: SliderChangeMode) => {
+            this.clearSliderTimer();
+            this.sliderLiveIndex = this.clampReaderPageIndex(value);
+            this.sliderDragging = mode !== SliderChangeMode.End && mode !== SliderChangeMode.Click;
+            if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
+              this.stopAutoTransferPlayback();
+              this.jumpTo(value);
+              this.scheduleSliderHide();
+            }
+          },
+          onTrackWidthChange: (width: number) => {
+            this.sliderTrackWidth = width;
+          },
+          onToggleAutoTransfer: () => {
+            this.toggleAutoTransferPlayback();
           }
         })
-          .zIndex(6)
-
-        ReaderImageActionDialog({
+          .zIndex(5)
+      }
+      if (this.imageActionsVisible) {
+        ReaderImageActionsOverlay({
+          onDismiss: () => {
+            this.hideImageActions();
+          },
           onRefresh: () => {
             this.refreshCurrentImage();
           },
@@ -1404,214 +1234,84 @@ export struct ReaderScene {
             this.saveCurrentImageToPicker();
           }
         })
-          .zIndex(7)
+          .zIndex(6)
       }
-
-      // ── Settings menu (upper 2/3 tap) ──
       if (this.menuVisible) {
-        ReaderPopupBackdrop({
+        ReaderSettingsMenuOverlay({
+          statusText: this.statusText,
+          menuShowClock: this.menuShowClock,
+          menuShowProgress: this.menuShowProgress,
+          progressText: this.progressText(),
+          menuScreenRotation: this.menuScreenRotation,
+          menuReadingDirection: this.menuReadingDirection,
+          menuPageScaling: this.menuPageScaling,
+          menuStartPosition: this.menuStartPosition,
+          menuAutoTransferTime: this.menuAutoTransferTime,
+          menuKeepScreenOn: this.menuKeepScreenOn,
+          menuShowBattery: this.menuShowBattery,
+          menuReadingFullscreen: this.menuReadingFullscreen,
+          menuVolumePage: this.menuVolumePage,
+          menuCustomBrightness: this.menuCustomBrightness,
+          menuBrightnessLevel: this.menuBrightnessLevel,
+          menuUltraDarkMode: this.menuUltraDarkMode,
+          menuUltraDarkBrightness: this.menuUltraDarkBrightness,
+          screenRotationOptions: this.readerMenuScreenRotationOptions(),
+          pageScalingOptions: this.readerMenuPageScalingOptions(),
           onDismiss: () => {
             this.hideMenu();
+          },
+          onBack: () => {
+            this.onBack();
+          },
+          onScreenRotationChange: (value: string) => {
+            this.menuScreenRotation = value;
+          },
+          onReadingDirectionChange: (value: string) => {
+            this.onMenuReadingDirectionChange(value);
+          },
+          onPageScalingChange: (value: string) => {
+            this.menuPageScaling = value;
+          },
+          onStartPositionChange: (value: string) => {
+            this.menuStartPosition = value;
+          },
+          onAutoTransferTimeChange: (value: string) => {
+            this.menuAutoTransferTime = value;
+          },
+          onKeepScreenOnChange: (value: boolean) => {
+            this.menuKeepScreenOn = value;
+          },
+          onShowClockChange: (value: boolean) => {
+            this.menuShowClock = value;
+          },
+          onShowProgressChange: (value: boolean) => {
+            this.menuShowProgress = value;
+          },
+          onShowBatteryChange: (value: boolean) => {
+            this.menuShowBattery = value;
+          },
+          onReadingFullscreenChange: (value: boolean) => {
+            this.menuReadingFullscreen = value;
+          },
+          onVolumePageChange: (value: boolean) => {
+            this.menuVolumePage = value;
+          },
+          onCustomBrightnessChange: (value: boolean) => {
+            this.menuCustomBrightness = value;
+          },
+          onBrightnessLevelChange: (value: string) => {
+            this.menuBrightnessLevel = value;
+            this.applyBrightness().catch(() => {});
+          },
+          onUltraDarkModeChange: (value: boolean) => {
+            this.menuUltraDarkMode = value;
+            this.applyBrightness().catch(() => {});
+          },
+          onUltraDarkBrightnessChange: (value: string) => {
+            this.menuUltraDarkBrightness = value;
           }
         })
           .zIndex(6)
-
-        Column() {
-          // Top bar: back + title + clock/progress
-          Row() {
-            Button({ type: ButtonType.Circle, stateEffect: true }) {
-              SymbolGlyph($r('sys.symbol.chevron_left'))
-                .fontSize(20)
-                .fontColor([Color.White])
-            }
-            .width(36)
-            .height(36)
-            .backgroundColor('#334155')
-            .onClick(() => { this.onBack(); })
-
-            Text(uiStatusText(this.statusText))
-              .fontSize(12)
-              .fontColor('#E5E7EB')
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-              .margin({ left: 10 })
-              .layoutWeight(1)
-            if (this.menuShowClock) {
-              Text(readerClockText())
-                .fontSize(12)
-                .fontColor('#E5E7EB')
-                .margin({ left: 8 })
-            }
-            if (this.menuShowProgress) {
-              Text(this.progressText())
-                .fontSize(12)
-                .fontColor('#E5E7EB')
-                .margin({ left: 8 })
-            }
-          }
-          .width('100%')
-          .height(48)
-          .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-          .backgroundColor(themeScrimColor())
-
-          // Scrollable settings body
-          Scroll() {
-            Column({ space: 0 }) {
-
-              ReaderMenuSelect({
-                label: uiText('Screen rotation'),
-                options: this.readerMenuScreenRotationOptions(),
-                value: this.menuScreenRotation,
-                onChange: (v: string) => { this.menuScreenRotation = v; }
-              })
-              ReaderMenuDivider()
-
-              ReaderMenuSelect({
-                label: uiText('Reading direction'),
-                options: ['Left to right', 'Right to left', 'Top to bottom'],
-                value: this.menuReadingDirection,
-                onChange: (v: string) => { this.onMenuReadingDirectionChange(v); }
-              })
-              ReaderMenuDivider()
-
-              ReaderMenuSelect({
-                label: uiText('Page scaling'),
-                options: this.readerMenuPageScalingOptions(),
-                value: this.menuPageScaling,
-                onChange: (v: string) => { this.menuPageScaling = v; }
-              })
-              ReaderMenuDivider()
-
-              ReaderMenuSelect({
-                label: uiText('Start position'),
-                options: ['Top left', 'Top right', 'Bottom left', 'Bottom right', 'Center'],
-                value: this.menuStartPosition,
-                onChange: (v: string) => { this.menuStartPosition = v; }
-              })
-              ReaderMenuDivider()
-
-              ReaderMenuSlider({
-                label: uiText('Auto transfer time'),
-                value: readerAutoTransferSliderValue(this.menuAutoTransferTime),
-                min: 1,
-                max: 20,
-                step: 1,
-                valueText: (value: number) => {
-                  return uiValue(readerAutoTransferValue(value));
-                },
-                onChange: (value: number) => {
-                  this.menuAutoTransferTime = readerAutoTransferValue(value);
-                }
-              })
-              ReaderMenuDivider()
-
-              ReaderMenuToggle({
-                label: uiText('Keep screen on'),
-                value: this.menuKeepScreenOn,
-                onChange: (v: boolean) => { this.menuKeepScreenOn = v; }
-              })
-              ReaderMenuDivider()
-
-              ReaderMenuToggle({
-                label: uiText('Show clock'),
-                value: this.menuShowClock,
-                onChange: (v: boolean) => { this.menuShowClock = v; }
-              })
-              ReaderMenuDivider()
-
-              ReaderMenuToggle({
-                label: uiText('Show progress'),
-                value: this.menuShowProgress,
-                onChange: (v: boolean) => { this.menuShowProgress = v; }
-              })
-              ReaderMenuDivider()
-
-              ReaderMenuToggle({
-                label: uiText('Show battery'),
-                value: this.menuShowBattery,
-                onChange: (v: boolean) => { this.menuShowBattery = v; }
-              })
-              ReaderMenuDivider()
-
-              ReaderMenuToggle({
-                label: uiText('Reading fullscreen'),
-                value: this.menuReadingFullscreen,
-                onChange: (v: boolean) => { this.menuReadingFullscreen = v; }
-              })
-              ReaderMenuDivider()
-
-              ReaderMenuToggle({
-                label: uiText('Volume page'),
-                value: this.menuVolumePage,
-                onChange: (v: boolean) => { this.menuVolumePage = v; }
-              })
-              ReaderMenuDivider()
-
-              ReaderMenuToggle({
-                label: uiText('Custom brightness'),
-                value: this.menuCustomBrightness,
-                onChange: (v: boolean) => { this.menuCustomBrightness = v; }
-              })
-
-              if (this.menuCustomBrightness) {
-                ReaderMenuDivider()
-                ReaderMenuSlider({
-                  label: uiText('Screen lightness'),
-                  value: readerBrightnessSliderValue(this.menuBrightnessLevel),
-                  min: 0,
-                  max: 100,
-                  step: 1,
-                  valueText: (value: number) => {
-                    return readerBrightnessValue(value);
-                  },
-                  onChange: (value: number) => {
-                    this.menuBrightnessLevel = readerBrightnessValue(value);
-                    this.applyBrightness().catch(() => {});
-                  }
-                })
-              }
-              ReaderMenuDivider()
-
-              ReaderMenuToggle({
-                label: uiText('Ultra dark mode'),
-                value: this.menuUltraDarkMode,
-                onChange: (v: boolean) => {
-                  this.menuUltraDarkMode = v;
-                  this.applyBrightness().catch(() => {});
-                }
-              })
-
-              if (this.menuUltraDarkMode) {
-                ReaderMenuDivider()
-                ReaderMenuSlider({
-                  label: uiText('Ultra dark brightness'),
-                  value: readerUltraDarkSliderValue(this.menuUltraDarkBrightness),
-                  min: 1,
-                  max: 100,
-                  step: 1,
-                  valueText: (value: number) => {
-                    return readerUltraDarkValue(value);
-                  },
-                  onChange: (value: number) => {
-                    this.menuUltraDarkBrightness = readerUltraDarkValue(value);
-                  }
-                })
-              }
-            }
-            .width('100%')
-          }
-          .scrollable(ScrollDirection.Vertical)
-          .scrollBar(BarState.Off)
-          .width('100%')
-          .layoutWeight(1)
-        }
-        .width('92%')
-        .constraintSize({ maxWidth: 520, maxHeight: '76%' })
-        .backgroundColor('#EE111827')
-        .borderRadius(12)
-        .clip(true)
-        .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
-        .zIndex(7)
       }
     }
     .width('100%')
@@ -1678,1162 +1378,5 @@ export struct ReaderScene {
           .hitTestBehavior(HitTestMode.Transparent)
       }
     }, (index: number) => 'reader-prerender-' + index.toString())
-  }
-}
-
-@Component
-export struct ReaderPopupBackdrop {
-  onDismiss: () => void = () => {};
-
-  build() {
-    Stack() {}
-      .width('100%')
-      .height('100%')
-      .backgroundColor(themeScrimColor())
-      .onClick(() => {
-        this.onDismiss();
-      })
-      .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
-  }
-}
-
-@Component
-export struct ReaderImageActionDialog {
-  onRefresh: () => void = () => {};
-  onShare: () => void = () => {};
-  onSaveToAlbum: () => void = () => {};
-  onSave: () => void = () => {};
-
-  build() {
-    Column({ space: 0 }) {
-      ReaderImageActionButton({
-        label: uiText('Refresh'),
-        symbolIcon: $r('sys.symbol.arrow_clockwise'),
-        onTap: this.onRefresh
-      })
-      ReaderMenuDivider()
-      ReaderImageActionButton({
-        label: uiText('Share'),
-        symbolIcon: $r('sys.symbol.share'),
-        onTap: this.onShare
-      })
-      ReaderMenuDivider()
-      ReaderImageActionButton({
-        label: uiText('Save to album'),
-        symbolIcon: $r('sys.symbol.save'),
-        onTap: this.onSaveToAlbum
-      })
-      ReaderMenuDivider()
-      ReaderImageActionButton({
-        label: uiText('Save to...'),
-        symbolIcon: $r('sys.symbol.save'),
-        onTap: this.onSave
-      })
-    }
-    .width('78%')
-    .constraintSize({ maxWidth: 360 })
-    .padding({ top: 6, bottom: 6 })
-    .backgroundColor(themeSurface())
-    .borderRadius(12)
-    .clip(true)
-    .shadow({ radius: 18, color: '#66000000', offsetY: 8 })
-    .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
-  }
-}
-
-@Component
-struct ReaderImageActionButton {
-  label: string = '';
-  symbolIcon: Resource = $r('sys.symbol.circle');
-  onTap: () => void = () => {};
-
-  build() {
-    Button({ type: ButtonType.Normal, stateEffect: true }) {
-      Row() {
-        SymbolGlyph(this.symbolIcon)
-          .fontSize(20)
-          .fontColor([themePrimaryText()])
-        Text(this.label)
-          .fontSize(15)
-          .fontColor(themePrimaryText())
-          .margin({ left: 12 })
-          .layoutWeight(1)
-          .textAlign(TextAlign.Start)
-      }
-      .width('100%')
-      .padding({ left: 16, right: 16 })
-    }
-    .width('100%')
-    .height(48)
-    .backgroundColor(Color.Transparent)
-    .borderRadius(0)
-    .onClick(() => {
-      this.onTap();
-    })
-  }
-}
-
-@Component
-struct ReaderMenuDivider {
-  build() {
-    Divider()
-      .height(1)
-      .color(themeDividerColor())
-      .margin({ left: 16, right: 16 })
-  }
-}
-
-@Component
-struct ReaderMenuSelect {
-  label: string = '';
-  options: string[] = [];
-  value: string = '';
-  onChange: (v: string) => void = () => {};
-
-  build() {
-    Row() {
-      Text(this.label)
-        .fontSize(14)
-        .fontColor('#E5E7EB')
-        .layoutWeight(1)
-      Select(this.options.map((o: string) => ({ value: uiValue(o) } as SelectOption)))
-        .id('reader-menu-select-' + this.label + '-' + this.value)
-        .selected(readerMenuOptionIndex(this.options, this.value))
-        .value(uiValue(this.value))
-        .font({ size: 13 })
-        .fontColor(readerSelectColors().buttonText)
-        .backgroundColor(readerSelectColors().buttonBackground)
-        .menuBackgroundColor(readerSelectColors().menuBackground)
-        .menuBackgroundBlurStyle(BlurStyle.NONE)
-        .optionBgColor(readerSelectColors().optionBackground)
-        .optionFontColor(readerSelectColors().optionText)
-        .optionFont({ size: 13 })
-        .selectedOptionBgColor(readerSelectColors().selectedOptionBackground)
-        .selectedOptionFontColor(readerSelectColors().selectedOptionText)
-        .menuOutline({ width: 1, color: readerSelectColors().outline })
-        .arrowModifier(selectArrowModifier(readerSelectColors().arrow))
-        .onSelect((idx: number) => {
-          if (idx >= 0 && idx < this.options.length) {
-            this.onChange(this.options[idx]);
-          }
-        })
-        .height(32)
-        .constraintSize({ minWidth: 136, maxWidth: 188 })
-    }
-    .width('100%')
-    .height(44)
-    .padding({ left: 16, right: 16, top: 6, bottom: 6 })
-    .alignItems(VerticalAlign.Center)
-  }
-}
-
-@Component
-struct ReaderMenuSlider {
-  label: string = '';
-  @Prop @Watch('onValueChange') value: number = 0;
-  min: number = 0;
-  max: number = 100;
-  step: number = 1;
-  valueText: (v: number) => string = (v: number): string => v.toString();
-  onChange: (v: number) => void = () => {};
-  @State liveValue: number = 0;
-
-  aboutToAppear(): void {
-    this.liveValue = this.value;
-  }
-
-  onValueChange(): void {
-    this.liveValue = this.value;
-  }
-
-  build() {
-    Column({ space: 4 }) {
-      Row() {
-        Text(this.label)
-          .fontSize(14)
-          .fontColor('#E5E7EB')
-          .layoutWeight(1)
-        Text(this.valueText(this.liveValue))
-          .fontSize(13)
-          .fontColor('#CBD5E1')
-          .width(54)
-          .textAlign(TextAlign.End)
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-
-      Slider({
-        value: this.liveValue,
-        min: this.min,
-        max: this.max,
-        step: this.step
-      })
-        .width('100%')
-        .onChange((value: number, _mode: SliderChangeMode) => {
-          this.liveValue = Math.max(this.min, Math.min(this.max, Math.round(value)));
-          this.onChange(this.liveValue);
-        })
-    }
-    .width('100%')
-    .padding({ left: 16, right: 16, top: 6, bottom: 8 })
-  }
-}
-
-function readerMenuOptionIndex(options: string[], value: string): number {
-  for (let i = 0; i < options.length; i++) {
-    if (options[i] === value) {
-      return i;
-    }
-  }
-  return 0;
-}
-
-function readerAutoTransferSliderValue(value: string): number {
-  return Number.parseInt(normalizeAutoTransferTimeOption(value));
-}
-
-function readerAutoTransferValue(value: number): string {
-  return Math.max(1, Math.min(20, Math.round(value))).toString() + 's';
-}
-
-function readerBrightnessSliderValue(value: string): number {
-  const numberValue = Number.parseInt(value);
-  if (Number.isNaN(numberValue)) {
-    return 50;
-  }
-  return Math.max(0, Math.min(100, numberValue));
-}
-
-function readerBrightnessValue(value: number): string {
-  return normalizeBrightnessLevelOption(Math.max(0, Math.min(100, Math.round(value))).toString() + '%');
-}
-
-function readerUltraDarkSliderValue(value: string): number {
-  const numberValue = Number.parseInt(value);
-  if (Number.isNaN(numberValue)) {
-    return 50;
-  }
-  return Math.max(1, Math.min(100, numberValue));
-}
-
-function readerUltraDarkValue(value: number): string {
-  return normalizeUltraDarkLightnessOption(Math.max(1, Math.min(100, Math.round(value))).toString() + '%');
-}
-
-function stripFileScheme(path: string): string {
-  return path.indexOf('file://') === 0 ? path.substring('file://'.length) : path;
-}
-
-function readerImageFileName(index: number, sourcePath: string, sourceUrl: string): string {
-  const ext = readerImageExtension(sourcePath.length > 0 ? sourcePath : sourceUrl);
-  return 'ehviewer_page_' + (index + 1).toString() + ext;
-}
-
-function readerImageExtension(value: string): string {
-  const lower = value.toLowerCase();
-  const queryIndex = lower.indexOf('?');
-  const clean = queryIndex >= 0 ? lower.substring(0, queryIndex) : lower;
-  const slash = clean.lastIndexOf('/');
-  const dot = clean.lastIndexOf('.');
-  if (dot > slash && dot >= 0) {
-    const ext = clean.substring(dot);
-    if (ext === '.jpg' || ext === '.jpeg' || ext === '.png' || ext === '.webp' || ext === '.gif') {
-      return ext;
-    }
-  }
-  return '.jpg';
-}
-
-function albumImageFileType(sourcePath: string): string {
-  const extension = readerImageExtension(sourcePath);
-  if (extension === '.jpeg') {
-    return 'jpeg';
-  }
-  if (extension === '.jpg') {
-    return 'jpeg';
-  }
-  if (extension === '.png') {
-    return 'png';
-  }
-  if (extension === '.webp') {
-    return 'webp';
-  }
-  if (extension === '.gif') {
-    return 'gif';
-  }
-  return 'jpeg';
-}
-
-function addUniquePath(paths: string[], path?: string): void {
-  if (path === undefined || path.length === 0) {
-    return;
-  }
-  const clean = stripFileScheme(path);
-  if (clean.length === 0) {
-    return;
-  }
-  for (let i = 0; i < paths.length; i++) {
-    if (paths[i] === clean) {
-      return;
-    }
-  }
-  paths.push(clean);
-}
-
-function removeFileIfExists(path: string): boolean {
-  if (path.length === 0) {
-    return false;
-  }
-  try {
-    if (!fs.accessSync(path)) {
-      return false;
-    }
-    fs.unlinkSync(path);
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
-
-function copyFileContent(sourcePath: string, targetUri: string): boolean {
-  let sourceFd = -1;
-  let targetFd = -1;
-  try {
-    const sourceFile = fs.openSync(sourcePath, fs.OpenMode.READ_ONLY);
-    sourceFd = sourceFile.fd;
-    const stat = fs.statSync(sourceFd);
-    const buffer = new ArrayBuffer(stat.size);
-    fs.readSync(sourceFd, buffer);
-    const targetFile = fs.openSync(targetUri, fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
-    targetFd = targetFile.fd;
-    fs.writeSync(targetFd, buffer);
-    return true;
-  } catch (error) {
-    return false;
-  } finally {
-    if (sourceFd >= 0) {
-      try {
-        fs.closeSync(sourceFd);
-      } catch (error) {
-      }
-    }
-    if (targetFd >= 0) {
-      try {
-        fs.closeSync(targetFd);
-      } catch (error) {
-      }
-    }
-  }
-}
-
-@Component
-struct ReaderMenuToggle {
-  label: string = '';
-  value: boolean = false;
-  onChange: (v: boolean) => void = () => {};
-
-  build() {
-    Row() {
-      Text(this.label)
-        .fontSize(14)
-        .fontColor('#E5E7EB')
-        .layoutWeight(1)
-      Toggle({ type: ToggleType.Switch, isOn: this.value })
-        .onChange((v: boolean) => { this.onChange(v); })
-        .selectedColor('#2F6F8F')
-    }
-    .width('100%')
-    .height(44)
-    .padding({ left: 16, right: 16, top: 6, bottom: 6 })
-    .alignItems(VerticalAlign.Center)
-  }
-}
-
-@Component
-export struct ReaderImageViewport {
-  @Prop @Watch('onImageSourceChange') page: GalleryPage = createEmptyPage();
-  @Prop statusText: string = '';
-  @Prop @Watch('onImageSourceChange') preferOriginal: boolean = false;
-  @Prop @Watch('onFitModeChange') fitMode: string = 'Fit screen';
-  @Prop @Watch('onFixedScaleChange') fixedScale: number = READER_BASE_SCALE;
-  @Prop startPosition: string = 'Top right';
-  @Prop @Watch('onActiveChange') isActive: boolean = false;
-  @Prop command: string = '';
-  @Prop @Watch('onCommandChange') commandVersion: number = 0;
-  onTap: (x: number, y: number, w: number, h: number) => void = () => {};
-  onRetry: () => void = () => {};
-  onImageLongPress: () => void = () => {};
-  onSwipeLockChange: (locked: boolean) => void = (_locked: boolean) => {};
-  onZoomChange: (percent: number) => void = (_percent: number) => {};
-  onImageSizeChange: (width: number, height: number) => void = (_width: number, _height: number) => {};
-  onEdgeSwipe: (direction: number) => void = (_direction: number) => {};
-
-  @State imageModel: ReaderPreviewModel = new ReaderPreviewModel();
-  @State completedImageUrl: string = '';
-  @State failedImageUrl: string = '';
-  @State sourceImageWidth: number = 0;
-  @State sourceImageHeight: number = 0;
-  @State displayImageWidth: number = 1;
-  @State displayImageHeight: number = 1;
-  private lastCommandVersion: number = -1;
-  private sourceSizeRequestId: number = 0;
-
-  aboutToAppear(): void {
-    this.onImageSourceChange();
-    this.onFitModeChange();
-    this.reportState();
-  }
-
-  aboutToDisappear(): void {
-    if (this.isActive) {
-      this.onSwipeLockChange(false);
-    }
-  }
-
-  onCommandChange(): void {
-    if (!this.isActive || this.commandVersion === this.lastCommandVersion) {
-      return;
-    }
-    this.lastCommandVersion = this.commandVersion;
-    if (this.command === 'zoom_in') {
-      this.imageModel.zoomBy(1.25);
-    } else if (this.command === 'zoom_out') {
-      this.imageModel.zoomBy(0.8);
-    } else if (this.command === 'double_zoom') {
-      this.imageModel.setScale(READER_DOUBLE_TAP_SCALE);
-    } else if (this.command === 'reset') {
-      this.imageModel.reset();
-    } else if (this.command === 'fixed_scale') {
-      this.syncFixedScale();
-    }
-    this.reportState();
-  }
-
-  onActiveChange(): void {
-    if (this.isActive) {
-      this.syncFixedScale();
-      this.reportImageSize();
-    }
-  }
-
-  private imageUrl(): string {
-    return readerDisplayImageUrl(this.page, this.preferOriginal);
-  }
-
-  private isFailed(): boolean {
-    const url = this.imageUrl();
-    return this.statusText.indexOf('failed') >= 0 || this.statusText.indexOf('Failed') >= 0 ||
-      (url.length > 0 && this.failedImageUrl === url);
-  }
-
-  private isImageLoading(): boolean {
-    const url = this.imageUrl();
-    return url.length > 0 && this.completedImageUrl !== url && this.failedImageUrl !== url;
-  }
-
-  private isImageReady(): boolean {
-    const url = this.imageUrl();
-    return url.length > 0 && this.completedImageUrl === url && this.failedImageUrl !== url;
-  }
-
-  private onImageSourceChange(): void {
-    const url = this.imageUrl();
-    const requestId = this.sourceSizeRequestId + 1;
-    this.sourceSizeRequestId = requestId;
-    if (this.completedImageUrl !== url) {
-      this.completedImageUrl = '';
-    }
-    if (this.failedImageUrl !== url) {
-      this.failedImageUrl = '';
-    }
-    this.sourceImageWidth = 0;
-    this.sourceImageHeight = 0;
-    if (this.isActive) {
-      this.onImageSizeChange(0, 0);
-    }
-    this.updateDisplayImageSize();
-    this.loadCachedSourceImageSize(requestId, url).catch(() => {});
-    this.syncFixedScale();
-  }
-
-  private onFitModeChange(): void {
-    this.updateDisplayImageSize();
-    if (!this.syncFixedScale()) {
-      this.imageModel.reset();
-    }
-    this.reportState();
-  }
-
-  private syncFixedScale(): boolean {
-    if (normalizePageScalingOption(this.fitMode) !== 'Fixed scale') {
-      return false;
-    }
-    this.imageModel.setScale(this.fixedScale);
-    return true;
-  }
-
-  private onFixedScaleChange(): void {
-    if (normalizePageScalingOption(this.fitMode) === 'Fixed scale') {
-      this.imageModel.setScale(this.fixedScale);
-      this.reportState();
-    }
-  }
-
-  private imageFit(): ImageFit {
-    const normalized = normalizePageScalingOption(this.fitMode);
-    if (normalized === 'Actual size' || normalized === 'Fixed scale') {
-      return ImageFit.None;
-    }
-    return ImageFit.Contain;
-  }
-
-  private async loadCachedSourceImageSize(requestId: number, imageUrl: string): Promise<void> {
-    const path = this.localSourceImagePath();
-    if (path.length === 0) {
-      return;
-    }
-    const size = await readReaderSourceImageSize(path);
-    if (requestId !== this.sourceSizeRequestId || imageUrl !== this.imageUrl()) {
-      return;
-    }
-    if (size.width > 0 && size.height > 0) {
-      this.sourceImageWidth = size.width;
-      this.sourceImageHeight = size.height;
-      this.updateDisplayImageSize();
-      this.reportImageSize();
-    }
-  }
-
-  private localSourceImagePath(): string {
-    return readerLocalSourceImagePath(this.page, this.preferOriginal);
-  }
-
-  private imageDisplayWidth(): number | string {
-    if (this.displayImageWidth <= 1) {
-      return '100%';
-    }
-    return this.displayImageWidth;
-  }
-
-  private imageDisplayHeight(): number | string {
-    if (this.displayImageHeight <= 1) {
-      return '100%';
-    }
-    return this.displayImageHeight;
-  }
-
-  private updateDisplayImageSize(): void {
-    const componentWidth = this.imageModel.componentWidth;
-    const componentHeight = this.imageModel.componentHeight;
-    if (componentWidth <= 0 || componentHeight <= 0) {
-      return;
-    }
-    const sourceWidth = this.sourceImageWidth > 0 ? this.sourceImageWidth : componentWidth;
-    const sourceHeight = this.sourceImageHeight > 0 ? this.sourceImageHeight : componentHeight;
-    let displayWidth = componentWidth;
-    let displayHeight = componentHeight;
-    const normalized = normalizePageScalingOption(this.fitMode);
-    if (normalized === 'Fit width') {
-      displayWidth = componentWidth;
-      displayHeight = componentWidth * sourceHeight / sourceWidth;
-    } else if (normalized === 'Fit height') {
-      displayHeight = componentHeight;
-      displayWidth = componentHeight * sourceWidth / sourceHeight;
-    } else if (normalized === 'Fit screen') {
-      const scale = Math.min(componentWidth / sourceWidth, componentHeight / sourceHeight);
-      displayWidth = sourceWidth * scale;
-      displayHeight = sourceHeight * scale;
-    } else if (normalized === 'Actual size') {
-      displayWidth = this.imageSourceWidthVp(sourceWidth);
-      displayHeight = this.imageSourceHeightVp(sourceHeight);
-    } else {
-      displayWidth = sourceWidth;
-      displayHeight = sourceHeight;
-    }
-    this.displayImageWidth = Math.max(1, displayWidth);
-    this.displayImageHeight = Math.max(1, displayHeight);
-    this.imageModel.setImageSize(this.displayImageWidth, this.displayImageHeight);
-  }
-
-  private imageSourceWidthVp(sourceWidth: number): number {
-    if (this.sourceImageWidth > 0) {
-      return this.getUIContext().px2vp(this.sourceImageWidth);
-    }
-    return sourceWidth;
-  }
-
-  private imageSourceHeightVp(sourceHeight: number): number {
-    if (this.sourceImageHeight > 0) {
-      return this.getUIContext().px2vp(this.sourceImageHeight);
-    }
-    return sourceHeight;
-  }
-
-  private startAlignment(): Alignment {
-    const normalized = normalizeStartPositionOption(this.startPosition);
-    const imageFitsVertically = this.displayImageHeight * this.imageModel.currentScale <= this.imageModel.componentHeight + 0.5;
-    if (imageFitsVertically) {
-      if (normalized === 'Top left' || normalized === 'Bottom left') {
-        return Alignment.Start;
-      }
-      if (normalized === 'Top right' || normalized === 'Bottom right') {
-        return Alignment.End;
-      }
-      return Alignment.Center;
-    }
-    if (normalized === 'Top left') {
-      return Alignment.TopStart;
-    }
-    if (normalized === 'Top right') {
-      return Alignment.TopEnd;
-    }
-    if (normalized === 'Bottom left') {
-      return Alignment.BottomStart;
-    }
-    if (normalized === 'Bottom right') {
-      return Alignment.BottomEnd;
-    }
-    return Alignment.Center;
-  }
-
-  private readAreaSize(value: Length): number {
-    const parsed = Number.parseFloat(value.toString());
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-
-  private updateComponentSize(width: number, height: number): void {
-    if (width <= 0 || height <= 0) {
-      return;
-    }
-    this.imageModel.setComponentSize(width, height);
-    this.updateDisplayImageSize();
-    this.reportState();
-  }
-
-  private tapCenterX(event: GestureEvent): number {
-    if (event.fingerList.length > 0) {
-      return event.fingerList[0].localX;
-    }
-    return this.imageModel.componentWidth / 2;
-  }
-
-  private tapCenterY(event: GestureEvent): number {
-    if (event.fingerList.length > 0) {
-      return event.fingerList[0].localY;
-    }
-    return this.imageModel.componentHeight / 2;
-  }
-
-  private reportState(): void {
-    if (!this.isActive) {
-      return;
-    }
-    this.onSwipeLockChange(this.imageModel.disableSwipe);
-    this.onZoomChange(this.imageModel.zoomPercent());
-  }
-
-  private reportImageSize(): void {
-    if (!this.isActive || this.sourceImageWidth <= 0 || this.sourceImageHeight <= 0) {
-      return;
-    }
-    this.onImageSizeChange(this.sourceImageWidth, this.sourceImageHeight);
-  }
-
-  private shouldLetSwiperHandlePan(event: BaseGestureEvent): boolean {
-    const panEvent = event as PanGestureEvent;
-    return this.imageModel.shouldLetSwiperHandlePan(
-      panEvent.offsetX,
-      panEvent.velocityX,
-      panEvent.offsetY,
-      panEvent.velocityY
-    );
-  }
-
-  build() {
-    Stack({ alignContent: this.startAlignment() }) {
-      if (this.imageUrl().length > 0) {
-        Image(this.imageUrl())
-          .width(this.imageDisplayWidth())
-          .height(this.imageDisplayHeight())
-          .objectFit(ImageFit.Fill)
-          .draggable(false)
-          .backgroundColor(readerBackgroundColor())
-          .opacity(this.failedImageUrl === this.imageUrl() ? 0 : 1)
-          .onComplete((event?: ReaderImageCompleteEvent) => {
-            if (event !== undefined && event.width > 0 && event.height > 0 && this.sourceImageWidth <= 0) {
-              this.sourceImageWidth = event.width;
-              this.sourceImageHeight = event.height;
-              this.updateDisplayImageSize();
-              this.reportImageSize();
-            }
-            this.completedImageUrl = this.imageUrl();
-            this.failedImageUrl = '';
-          })
-          .onError(() => {
-            this.failedImageUrl = this.imageUrl();
-          })
-          .scale({ x: this.imageModel.currentScale, y: this.imageModel.currentScale, centerX: '50%', centerY: '50%' })
-          .translate({ x: this.imageModel.currentOffsetX, y: this.imageModel.currentOffsetY })
-        if (this.isImageLoading()) {
-          ReaderStatusView({ failed: false, compact: false })
-            .zIndex(2)
-        } else if (this.isFailed()) {
-          ReaderStatusView({
-            failed: true,
-            compact: false,
-            onRetry: () => {
-              this.failedImageUrl = '';
-              this.completedImageUrl = '';
-              this.onRetry();
-            }
-          })
-            .zIndex(2)
-        }
-      } else {
-        ReaderStatusView({
-          failed: this.isFailed(),
-          compact: false,
-          onRetry: () => {
-            this.onRetry();
-          }
-        })
-      }
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor(readerBackgroundColor())
-    .clip(true)
-    .onAreaChange((_oldValue: Area, newValue: Area) => {
-      this.updateComponentSize(this.readAreaSize(newValue.width), this.readAreaSize(newValue.height));
-    })
-    .gesture(
-      GestureGroup(GestureMode.Exclusive,
-        TapGesture({ count: 2 })
-          .onAction((event: GestureEvent) => {
-            this.imageModel.toggleDoubleTap(this.tapCenterX(event), this.tapCenterY(event));
-            this.reportState();
-          }),
-        TapGesture({ count: 1 })
-          .onAction((event: GestureEvent) => {
-            this.onTap(
-              this.tapCenterX(event),
-              this.tapCenterY(event),
-              this.imageModel.componentWidth,
-              this.imageModel.componentHeight
-            );
-          }),
-        GestureGroup(GestureMode.Parallel,
-          LongPressGesture({ repeat: false })
-            .onAction(() => {
-              if (this.isImageReady()) {
-                this.onImageLongPress();
-              }
-            }),
-          PanGesture({ fingers: 1, distance: 3 })
-            .onActionStart(() => {
-              this.imageModel.panStart();
-              this.reportState();
-            })
-            .onActionUpdate((event: GestureEvent) => {
-              this.imageModel.panUpdate(event.offsetX, event.offsetY);
-              this.reportState();
-            })
-            .onActionEnd((event: GestureEvent) => {
-              const edgeDirection = this.imageModel.edgeSwipeDirection(
-                event.offsetX,
-                event.velocityX,
-                event.offsetY,
-                event.velocityY
-              );
-              this.imageModel.panEnd(event.velocityX, event.velocityY);
-              this.reportState();
-              if (edgeDirection !== 0) {
-                this.onEdgeSwipe(edgeDirection);
-              }
-            })
-            .onActionCancel(() => {
-              this.imageModel.panEnd();
-              this.reportState();
-            }),
-          PinchGesture({ fingers: 2, distance: 1 })
-            .onActionStart((event: GestureEvent) => {
-              this.imageModel.pinchStart(event.pinchCenterX, event.pinchCenterY);
-              this.reportState();
-            })
-            .onActionUpdate((event: GestureEvent) => {
-              this.imageModel.pinchUpdate(event.scale);
-              this.reportState();
-            })
-            .onActionEnd(() => {
-              this.imageModel.pinchEnd();
-              this.reportState();
-            })
-            .onActionCancel(() => {
-              this.imageModel.pinchEnd();
-              this.reportState();
-            })
-        )
-      )
-    )
-    .onGestureJudgeBegin((gestureInfo: GestureInfo, event: BaseGestureEvent) => {
-      if (gestureInfo.type === GestureControl.GestureType.DRAG) {
-        return GestureJudgeResult.REJECT;
-      }
-      if (gestureInfo.type === GestureControl.GestureType.PAN_GESTURE && this.shouldLetSwiperHandlePan(event)) {
-        return GestureJudgeResult.REJECT;
-      }
-      return GestureJudgeResult.CONTINUE;
-    })
-    .draggable(false)
-  }
-}
-
-@Component
-export struct ReaderContinuousImageItem {
-  @Prop @Watch('onImageSourceChange') page: GalleryPage = createEmptyPage();
-  @Prop statusText: string = '';
-  @Prop @Watch('onImageSourceChange') preferOriginal: boolean = false;
-  @Prop @Watch('onFitModeChange') fitMode: string = 'Fixed scale';
-  @Prop @Watch('onZoomScaleChange') zoomScale: number = READER_BASE_SCALE;
-  @Prop isActive: boolean = false;
-  onTap: () => void = () => {};
-  onRetry: () => void = () => {};
-  onImageLongPress: () => void = () => {};
-  onImageSizeChange: (width: number, height: number) => void = (_width: number, _height: number) => {};
-  onZoomChange: (percent: number) => void = (_percent: number) => {};
-
-  @State imageModel: ReaderPreviewModel = new ReaderPreviewModel();
-  @State completedImageUrl: string = '';
-  @State failedImageUrl: string = '';
-  @State sourceImageWidth: number = 0;
-  @State sourceImageHeight: number = 0;
-  @State componentWidth: number = 1;
-  @State displayImageWidth: number = 1;
-  @State displayImageHeight: number = 120;
-  private isPinching: boolean = false;
-  private pinchStartScale: number = READER_BASE_SCALE;
-  private sourceSizeRequestId: number = 0;
-
-  aboutToAppear(): void {
-    this.onImageSourceChange();
-    this.onFitModeChange();
-  }
-
-  private imageUrl(): string {
-    return readerDisplayImageUrl(this.page, this.preferOriginal);
-  }
-
-  private onImageSourceChange(): void {
-    const url = this.imageUrl();
-    const requestId = this.sourceSizeRequestId + 1;
-    this.sourceSizeRequestId = requestId;
-    if (this.completedImageUrl !== url) {
-      this.completedImageUrl = '';
-    }
-    if (this.failedImageUrl !== url) {
-      this.failedImageUrl = '';
-    }
-    this.sourceImageWidth = 0;
-    this.sourceImageHeight = 0;
-    this.loadCachedSourceImageSize(requestId, url).catch(() => {});
-  }
-
-  private async loadCachedSourceImageSize(requestId: number, imageUrl: string): Promise<void> {
-    const path = this.localSourceImagePath();
-    if (path.length === 0) {
-      return;
-    }
-    const size = await readReaderSourceImageSize(path);
-    if (requestId !== this.sourceSizeRequestId || imageUrl !== this.imageUrl()) {
-      return;
-    }
-    if (size.width > 0 && size.height > 0) {
-      this.sourceImageWidth = size.width;
-      this.sourceImageHeight = size.height;
-      this.updateDisplayImageSize();
-      this.reportImageSize();
-    }
-  }
-
-  private localSourceImagePath(): string {
-    return readerLocalSourceImagePath(this.page, this.preferOriginal);
-  }
-
-  private onFitModeChange(): void {
-    this.updateDisplayImageSize();
-    this.syncFixedScale();
-    this.reportState();
-  }
-
-  private syncFixedScale(): void {
-    if (normalizePageScalingOption(this.fitMode) === 'Fixed scale') {
-      this.imageModel.setScale(this.zoomScale);
-    } else {
-      this.imageModel.reset();
-    }
-  }
-
-  private onZoomScaleChange(): void {
-    if (!this.isPinching && normalizePageScalingOption(this.fitMode) === 'Fixed scale') {
-      this.imageModel.setScale(this.zoomScale);
-    }
-  }
-
-  private displayWidth(): number {
-    return Math.max(1, this.displayImageWidth * this.imageModel.currentScale);
-  }
-
-  private displayHeight(): number {
-    return Math.max(120, this.displayImageHeight * this.imageModel.currentScale);
-  }
-
-  private itemHeight(): number {
-    return this.displayHeight();
-  }
-
-  private updateDisplayImageSize(): void {
-    if (this.componentWidth <= 0) {
-      return;
-    }
-    const sourceWidth = this.sourceImageWidth > 0 ? this.sourceImageWidth : this.componentWidth;
-    const sourceHeight = this.sourceImageHeight > 0 ? this.sourceImageHeight : this.componentWidth * 1.35;
-    const normalized = normalizePageScalingOption(this.fitMode);
-    let width = this.componentWidth;
-    if (normalized === 'Actual size') {
-      width = this.sourceImageWidth > 0 ? this.getUIContext().px2vp(this.sourceImageWidth) : sourceWidth;
-    } else if (normalized === 'Fixed scale') {
-      width = this.componentWidth;
-    }
-    this.displayImageWidth = Math.max(1, width);
-    this.displayImageHeight = Math.max(120, this.displayImageWidth * sourceHeight / sourceWidth);
-    this.imageModel.setComponentSize(this.componentWidth, this.displayImageHeight);
-    this.imageModel.setImageSize(this.displayImageWidth, this.displayImageHeight);
-  }
-
-  private isFailed(): boolean {
-    const url = this.imageUrl();
-    return this.statusText.indexOf('failed') >= 0 || this.statusText.indexOf('Failed') >= 0 ||
-      (url.length > 0 && this.failedImageUrl === url);
-  }
-
-  private isImageLoading(): boolean {
-    const url = this.imageUrl();
-    return url.length > 0 && this.completedImageUrl !== url && this.failedImageUrl !== url;
-  }
-
-  private reportImageSize(): void {
-    if (!this.isActive || this.sourceImageWidth <= 0 || this.sourceImageHeight <= 0) {
-      return;
-    }
-    this.onImageSizeChange(this.sourceImageWidth, this.sourceImageHeight);
-  }
-
-  private reportState(): void {
-    this.onZoomChange(this.imageModel.zoomPercent());
-  }
-
-  private tapCenterX(event: GestureEvent): number {
-    if (event.fingerList.length > 0) {
-      return event.fingerList[0].localX;
-    }
-    return this.componentWidth / 2;
-  }
-
-  private tapCenterY(event: GestureEvent): number {
-    if (event.fingerList.length > 0) {
-      return event.fingerList[0].localY;
-    }
-    return this.displayHeight() / 2;
-  }
-
-  build() {
-    Stack({ alignContent: Alignment.Center }) {
-      if (this.imageUrl().length > 0) {
-        Image(this.imageUrl())
-          .width(this.displayWidth())
-          .height(this.displayHeight())
-          .objectFit(ImageFit.Fill)
-          .draggable(false)
-          .backgroundColor(readerBackgroundColor())
-          .opacity(this.failedImageUrl === this.imageUrl() ? 0 : 1)
-          .onComplete((event?: ReaderImageCompleteEvent) => {
-            if (event !== undefined && event.width > 0 && event.height > 0 && this.sourceImageWidth <= 0) {
-              this.sourceImageWidth = event.width;
-              this.sourceImageHeight = event.height;
-              this.reportImageSize();
-            }
-            this.completedImageUrl = this.imageUrl();
-            this.failedImageUrl = '';
-          })
-          .onError(() => {
-            this.failedImageUrl = this.imageUrl();
-          })
-          .translate({ x: this.imageModel.currentOffsetX, y: this.imageModel.currentOffsetY })
-      }
-      if (this.imageUrl().length === 0 || this.isImageLoading()) {
-        ReaderStatusView({ failed: false, compact: true })
-      } else if (this.isFailed()) {
-        ReaderStatusView({
-          failed: true,
-          compact: true,
-          onRetry: () => {
-            this.failedImageUrl = '';
-            this.completedImageUrl = '';
-            this.onRetry();
-          }
-        })
-      }
-    }
-    .width('100%')
-    .height(this.itemHeight())
-    .backgroundColor(readerBackgroundColor())
-    .clip(true)
-    .onAreaChange((_oldValue: Area, newValue: Area) => {
-      const width = Number.parseFloat(newValue.width.toString());
-      if (width > 0 && !Number.isNaN(width)) {
-        this.componentWidth = width;
-        this.updateDisplayImageSize();
-      }
-    })
-    .gesture(
-      GestureGroup(GestureMode.Exclusive,
-        TapGesture({ count: 1 })
-          .onAction(() => {
-            if (this.isFailed()) {
-              this.failedImageUrl = '';
-              this.completedImageUrl = '';
-              this.onRetry();
-              return;
-            }
-            this.onTap();
-          }),
-        GestureGroup(GestureMode.Parallel,
-          LongPressGesture({ repeat: false })
-            .onAction(() => {
-              if (!this.isFailed()) {
-                this.onImageLongPress();
-              }
-            }),
-          PinchGesture({ fingers: 2, distance: 1 })
-            .onActionStart((event: GestureEvent) => {
-              this.isPinching = true;
-              this.pinchStartScale = this.imageModel.currentScale;
-              this.imageModel.pinchStart(event.pinchCenterX, event.pinchCenterY);
-            })
-            .onActionUpdate((event: GestureEvent) => {
-              if (event.scale <= 0 || Number.isNaN(event.scale)) {
-                return;
-              }
-              this.imageModel.setScale(this.pinchStartScale * event.scale);
-              this.reportState();
-            })
-            .onActionEnd(() => {
-              this.imageModel.pinchEnd();
-              this.isPinching = false;
-              this.reportState();
-            })
-            .onActionCancel(() => {
-              this.imageModel.pinchEnd();
-              this.isPinching = false;
-              this.reportState();
-            }),
-          PanGesture({ fingers: 1, distance: 3 })
-            .onActionStart(() => {
-              this.imageModel.panStart();
-              this.reportState();
-            })
-            .onActionUpdate((event: GestureEvent) => {
-              this.imageModel.panUpdate(event.offsetX, event.offsetY);
-              this.reportState();
-            })
-            .onActionEnd((event: GestureEvent) => {
-              this.imageModel.panEnd(event.velocityX, event.velocityY);
-              this.reportState();
-            })
-            .onActionCancel(() => {
-              this.imageModel.panEnd();
-              this.reportState();
-            })
-        )
-      )
-    )
-    .onGestureJudgeBegin((gestureInfo: GestureInfo, _event: BaseGestureEvent) => {
-      if (gestureInfo.type === GestureControl.GestureType.PAN_GESTURE && !this.imageModel.canHandleLocalPan()) {
-        return GestureJudgeResult.REJECT;
-      }
-      return GestureJudgeResult.CONTINUE;
-    })
-  }
-}
-@Component
-export struct ReaderToolButton {
-  text: string = '';
-  active: boolean = true;
-  onTap: () => void = () => {};
-
-  build() {
-    Button(this.text)
-      .height(32)
-      .fontSize(12)
-      .fontColor(this.active ? Color.White : '#6B7280')
-      .backgroundColor(this.active ? '#334155' : '#1F2937')
-      .enabled(this.active)
-      .onClick(() => {
-        if (this.active) {
-          this.onTap();
-        }
-      })
-  }
-}
-
-@Component
-export struct ReaderNavButton {
-  text: string = '';
-  active: boolean = true;
-  onTap: () => void = () => {};
-
-  build() {
-    Row() {
-      Text(this.text)
-        .fontSize(14)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.active ? Color.White : '#98A2B3')
-    }
-    .justifyContent(FlexAlign.Center)
-    .height(42)
-    .width('100%')
-    .backgroundColor(this.active ? '#2F6F8F' : '#1F2937')
-    .borderRadius(4)
-    .onClick(() => {
-      if (this.active) {
-        this.onTap();
-      }
-    })
-  }
-}
-
-@Component
-export struct PlaceholderScene {
-  title: string = '';
-  detail: string = '';
-
-  build() {
-    Column() {
-      Text(this.title)
-        .fontSize(22)
-        .fontWeight(FontWeight.Bold)
-        .fontColor('#17202A')
-      Text(this.detail)
-        .fontSize(14)
-        .fontColor('#667085')
-        .lineHeight(22)
-        .textAlign(TextAlign.Center)
-        .margin({ top: 10 })
-        .width('80%')
-    }
-    .width('100%')
-    .height('100%')
-    .justifyContent(FlexAlign.Center)
-    .padding(24)
   }
 }

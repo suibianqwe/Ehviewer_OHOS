@@ -1,5 +1,5 @@
-import { uiText } from '../../shared/EhShared';
-import { themeOnPrimarySecondaryText, themeScrimColor } from '../../shared/EhTheme';
+import { uiText } from '../../../shared/EhShared';
+import { themeOnPrimarySecondaryText, themeScrimColor } from '../../../shared/EhTheme';
 
 @Component
 export struct ReaderStatusView {
