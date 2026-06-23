@@ -3,7 +3,6 @@ import { common } from '@kit.AbilityKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { batteryInfo } from '@kit.BasicServicesKit';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
-import { image } from '@kit.ImageKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { systemShare } from '@kit.ShareKit';
 import inputConsumer from '@ohos.multimodalInput.inputConsumer';
@@ -46,288 +45,30 @@ import { readerSelectColors, selectArrowModifier } from '../shared/EhSelectStyle
 import {
   themeDividerColor,
   themeOnPrimaryText,
-  themeOnPrimarySecondaryText,
   themePrimaryText,
   themeScrimColor,
   themeSurface
 } from '../shared/EhTheme';
 import { EhSubNavBar } from './NavigationComponents';
+import {
+  READER_BASE_SCALE,
+  READER_DOUBLE_TAP_SCALE,
+  READER_MAX_SCALE,
+  READER_MIN_SCALE,
+  READER_OFFSCREEN_RENDER_COUNT,
+  ReaderImageCompleteEvent,
+  ReaderPreviewModel,
+  readReaderSourceImageSize,
+  readerBackgroundColor,
+  readerLocalSourceImagePath
+} from './reader/ReaderCore';
+import { ReaderStatusView } from './reader/ReaderStatusView';
 
-const READER_MIN_SCALE: number = 0.25;
-const READER_BASE_SCALE: number = 1;
-const READER_MAX_SCALE: number = 4;
-const READER_DOUBLE_TAP_SCALE: number = 2.25;
-const READER_INERTIA_DURATION: number = 180;
 const SLIDER_AUTO_HIDE_DELAY: number = 3000;
-const READER_OFFSCREEN_RENDER_COUNT: number = 2;
 
 export interface ReaderPageState {
   index: number;
   page: GalleryPage;
-}
-
-interface ReaderImageCompleteEvent {
-  width: number;
-  height: number;
-  componentWidth: number;
-  componentHeight: number;
-  loadingStatus: number;
-}
-
-interface ReaderSourceImageSize {
-  width: number;
-  height: number;
-}
-
-@Observed
-class ReaderPreviewModel {
-  currentScale: number = READER_BASE_SCALE;
-  lastScale: number = READER_BASE_SCALE;
-  currentOffsetX: number = 0;
-  currentOffsetY: number = 0;
-  lastOffsetX: number = 0;
-  lastOffsetY: number = 0;
-  componentWidth: number = 1;
-  componentHeight: number = 1;
-  imageWidth: number = 1;
-  imageHeight: number = 1;
-  centerX: number = 0.5;
-  centerY: number = 0.5;
-  disableSwipe: boolean = false;
-
-  reset(): void {
-    this.currentScale = READER_BASE_SCALE;
-    this.lastScale = READER_BASE_SCALE;
-    this.currentOffsetX = 0;
-    this.currentOffsetY = 0;
-    this.lastOffsetX = 0;
-    this.lastOffsetY = 0;
-    this.centerX = 0.5;
-    this.centerY = 0.5;
-    this.disableSwipe = false;
-  }
-
-  setComponentSize(width: number, height: number): void {
-    if (width > 0) {
-      this.componentWidth = width;
-    }
-    if (height > 0) {
-      this.componentHeight = height;
-    }
-    this.restrictBoundary();
-    this.commit();
-  }
-
-  setImageSize(width: number, height: number): void {
-    if (width > 0) {
-      this.imageWidth = width;
-    }
-    if (height > 0) {
-      this.imageHeight = height;
-    }
-    this.restrictBoundary();
-    this.commit();
-  }
-
-  pinchStart(centerX: number, centerY: number): void {
-    const center = this.evaluateCenter(centerX, centerY);
-    this.centerX = center[0];
-    this.centerY = center[1];
-    this.lastScale = this.currentScale;
-    this.lastOffsetX = this.currentOffsetX;
-    this.lastOffsetY = this.currentOffsetY;
-    this.disableSwipe = true;
-  }
-
-  pinchUpdate(scale: number): void {
-    if (scale <= 0 || Number.isNaN(scale)) {
-      return;
-    }
-    const nextScale = this.clampScale(this.lastScale * scale);
-    const deltaScale = nextScale / this.lastScale;
-    this.currentScale = nextScale;
-    this.currentOffsetX = this.lastOffsetX + (0.5 - this.centerX) * this.imageWidth * (1 - deltaScale) * this.lastScale;
-    this.currentOffsetY = this.lastOffsetY + (0.5 - this.centerY) * this.imageHeight * (1 - deltaScale) * this.lastScale;
-    this.restrictBoundary();
-  }
-
-  pinchEnd(): void {
-    this.restrictBoundary();
-    this.commit();
-  }
-
-  panStart(): void {
-    this.lastOffsetX = this.currentOffsetX;
-    this.lastOffsetY = this.currentOffsetY;
-    this.lastScale = this.currentScale;
-    this.disableSwipe = this.canPanHorizontally() && !this.isHorizontalBoundary();
-  }
-
-  panUpdate(offsetX: number, offsetY: number): void {
-    if (!this.canPan()) {
-      this.disableSwipe = false;
-      return;
-    }
-    this.currentOffsetX = this.lastOffsetX + offsetX;
-    this.currentOffsetY = this.lastOffsetY + offsetY;
-    this.restrictBoundary();
-  }
-
-  panEnd(velocityX: number = 0, velocityY: number = 0): void {
-    if (this.canPan() && (Math.abs(velocityX) > 20 || Math.abs(velocityY) > 20)) {
-      const inertiaX = Math.max(-180, Math.min(180, velocityX * 0.12));
-      const inertiaY = Math.max(-180, Math.min(180, velocityY * 0.12));
-      this.currentOffsetX += inertiaX;
-      this.currentOffsetY += inertiaY;
-    }
-    this.restrictBoundary();
-    this.commit();
-  }
-
-  edgeSwipeDirection(offsetX: number, velocityX: number = 0, offsetY: number = 0, velocityY: number = 0): number {
-    const maxX = this.maxOffsetX();
-    if (maxX <= 0 || !this.isHorizontalGestureIntent(offsetX, velocityX, offsetY, velocityY)) {
-      return 0;
-    }
-    const direction = Math.abs(offsetX) >= 8 ? offsetX : velocityX;
-    const strongDrag = Math.abs(offsetX) >= 14 || Math.abs(velocityX) >= 120;
-    if (!strongDrag) {
-      return 0;
-    }
-    if (direction < 0 && this.currentOffsetX <= -maxX + 0.5) {
-      return -1;
-    }
-    if (direction > 0 && this.currentOffsetX >= maxX - 0.5) {
-      return 1;
-    }
-    return 0;
-  }
-
-  toggleDoubleTap(centerX: number, centerY: number): void {
-    if (Math.abs(this.currentScale - READER_BASE_SCALE) > 0.01) {
-      this.reset();
-      return;
-    }
-    const center = this.evaluateCenter(centerX, centerY);
-    this.centerX = center[0];
-    this.centerY = center[1];
-    this.lastScale = READER_BASE_SCALE;
-    this.lastOffsetX = 0;
-    this.lastOffsetY = 0;
-    this.currentScale = READER_DOUBLE_TAP_SCALE;
-    this.currentOffsetX = (0.5 - this.centerX) * this.imageWidth * (1 - READER_DOUBLE_TAP_SCALE);
-    this.currentOffsetY = (0.5 - this.centerY) * this.imageHeight * (1 - READER_DOUBLE_TAP_SCALE);
-    this.restrictBoundary();
-    this.commit();
-  }
-
-  zoomBy(factor: number): void {
-    const target = this.clampScale(this.currentScale * factor);
-    if (Math.abs(target - READER_BASE_SCALE) < 0.01) {
-      this.reset();
-      return;
-    }
-    this.currentScale = target;
-    this.restrictBoundary();
-    this.commit();
-  }
-
-  setScale(target: number): void {
-    this.currentScale = this.clampScale(target);
-    this.restrictBoundary();
-    this.commit();
-  }
-
-  zoomPercent(): number {
-    return Math.round(this.currentScale * 100);
-  }
-
-  private commit(): void {
-    this.lastScale = this.currentScale;
-    this.lastOffsetX = this.currentOffsetX;
-    this.lastOffsetY = this.currentOffsetY;
-    this.disableSwipe = this.canPanHorizontally() && !this.isHorizontalBoundary();
-  }
-
-  private clampScale(value: number): number {
-    return Math.max(READER_MIN_SCALE, Math.min(READER_MAX_SCALE, value));
-  }
-
-  private evaluateCenter(centerX: number, centerY: number): [number, number] {
-    const imgDisplayWidth = this.imageWidth * this.lastScale;
-    const imgDisplayHeight = this.imageHeight * this.lastScale;
-    const imgX = (this.componentWidth - imgDisplayWidth) / 2 + this.lastOffsetX;
-    const imgY = (this.componentHeight - imgDisplayHeight) / 2 + this.lastOffsetY;
-    const cX = Math.max(0, Math.min(1, (centerX - imgX) / imgDisplayWidth));
-    const cY = Math.max(0, Math.min(1, (centerY - imgY) / imgDisplayHeight));
-    return [cX, cY];
-  }
-
-  private maxOffsetX(): number {
-    const scaledWidth = this.imageWidth * this.currentScale;
-    return scaledWidth > this.componentWidth ? (scaledWidth - this.componentWidth) / 2 : 0;
-  }
-
-  private maxOffsetY(): number {
-    const scaledHeight = this.imageHeight * this.currentScale;
-    return scaledHeight > this.componentHeight ? (scaledHeight - this.componentHeight) / 2 : 0;
-  }
-
-  private restrictBoundary(): void {
-    const maxX = this.maxOffsetX();
-    const maxY = this.maxOffsetY();
-    this.currentOffsetX = Math.max(-maxX, Math.min(maxX, this.currentOffsetX));
-    this.currentOffsetY = Math.max(-maxY, Math.min(maxY, this.currentOffsetY));
-    this.disableSwipe = this.canPanHorizontally() && !this.isHorizontalBoundary();
-  }
-
-  private isHorizontalBoundary(): boolean {
-    const maxX = this.maxOffsetX();
-    if (maxX <= 0) {
-      return true;
-    }
-    return Math.abs(this.currentOffsetX) >= maxX - 0.5;
-  }
-
-  private canPan(): boolean {
-    return this.maxOffsetX() > 0 || this.maxOffsetY() > 0;
-  }
-
-  canHandleLocalPan(): boolean {
-    return this.canPanHorizontally();
-  }
-
-  private canPanHorizontally(): boolean {
-    return this.maxOffsetX() > 0;
-  }
-
-  private canPanVertically(): boolean {
-    return this.maxOffsetY() > 0;
-  }
-
-  private isHorizontalGestureIntent(offsetX: number, velocityX: number = 0, offsetY: number = 0, velocityY: number = 0): boolean {
-    const x = Math.abs(offsetX) >= 1 ? Math.abs(offsetX) : Math.abs(velocityX);
-    const y = Math.abs(offsetY) >= 1 ? Math.abs(offsetY) : Math.abs(velocityY);
-    return x > 0.5 && x >= y * 1.15;
-  }
-
-  shouldLetSwiperHandlePan(offsetX: number, velocityX: number, offsetY: number = 0, velocityY: number = 0): boolean {
-    if (this.canPanVertically() && !this.isHorizontalGestureIntent(offsetX, velocityX, offsetY, velocityY)) {
-      return false;
-    }
-    const maxX = this.maxOffsetX();
-    const direction = Math.abs(offsetX) >= 1 ? offsetX : velocityX;
-    if (maxX <= 0) {
-      return true;
-    }
-    if (direction < -0.5 && this.currentOffsetX <= -maxX + 0.5) {
-      return true;
-    }
-    if (direction > 0.5 && this.currentOffsetX >= maxX - 0.5) {
-      return true;
-    }
-    return false;
-  }
 }
 
 @Component
@@ -1431,7 +1172,7 @@ export struct ReaderScene {
         }
         .width('100%')
         .height('100%')
-        .backgroundColor('#050608')
+        .backgroundColor(readerBackgroundColor())
         .scrollBar(BarState.Off)
         .cachedCount(this.readerRenderCacheCount() + 2)
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
@@ -1513,7 +1254,7 @@ export struct ReaderScene {
         })
         .width('100%')
         .height('100%')
-        .backgroundColor('#050608')
+        .backgroundColor(readerBackgroundColor())
       }
 
       this.PreRenderAdjacentPages()
@@ -1875,7 +1616,7 @@ export struct ReaderScene {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#050608')
+    .backgroundColor(readerBackgroundColor())
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 
@@ -2451,7 +2192,7 @@ export struct ReaderImageViewport {
     if (path.length === 0) {
       return;
     }
-    const size = await this.readSourceImageSize(path);
+    const size = await readReaderSourceImageSize(path);
     if (requestId !== this.sourceSizeRequestId || imageUrl !== this.imageUrl()) {
       return;
     }
@@ -2464,50 +2205,7 @@ export struct ReaderImageViewport {
   }
 
   private localSourceImagePath(): string {
-    const page = this.page;
-    if (this.preferOriginal && page.cachedOriginImagePath !== undefined && page.cachedOriginImagePath.length > 0) {
-      return stripFileScheme(page.cachedOriginImagePath);
-    }
-    if (!this.preferOriginal && page.cachedImagePath !== undefined && page.cachedImagePath.length > 0) {
-      return stripFileScheme(page.cachedImagePath);
-    }
-    if (page.cachedImagePath !== undefined && page.cachedImagePath.length > 0) {
-      return stripFileScheme(page.cachedImagePath);
-    }
-    if (page.cachedOriginImagePath !== undefined && page.cachedOriginImagePath.length > 0) {
-      return stripFileScheme(page.cachedOriginImagePath);
-    }
-    const displayUrl = this.imageUrl();
-    if (displayUrl.indexOf('file://') === 0) {
-      return stripFileScheme(displayUrl);
-    }
-    const context = getAbilityContext();
-    if (context === undefined) {
-      return '';
-    }
-    const sourceUrl = this.preferOriginal && page.originImageUrl.length > 0 ? page.originImageUrl : page.imageUrl;
-    return readerImageCache.getCachedPath(context, sourceUrl);
-  }
-
-  private async readSourceImageSize(path: string): Promise<ReaderSourceImageSize> {
-    let imageSource: image.ImageSource | undefined = undefined;
-    try {
-      imageSource = image.createImageSource(path);
-      const imageInfo: image.ImageInfo = imageSource.getImageInfoSync();
-      return {
-        width: imageInfo.size.width,
-        height: imageInfo.size.height
-      };
-    } catch (error) {
-      return { width: 0, height: 0 };
-    } finally {
-      if (imageSource !== undefined) {
-        try {
-          await imageSource.release();
-        } catch (error) {
-        }
-      }
-    }
+    return readerLocalSourceImagePath(this.page, this.preferOriginal);
   }
 
   private imageDisplayWidth(): number | string {
@@ -2659,7 +2357,7 @@ export struct ReaderImageViewport {
           .height(this.imageDisplayHeight())
           .objectFit(ImageFit.Fill)
           .draggable(false)
-          .backgroundColor('#050608')
+          .backgroundColor(readerBackgroundColor())
           .opacity(this.failedImageUrl === this.imageUrl() ? 0 : 1)
           .onComplete((event?: ReaderImageCompleteEvent) => {
             if (event !== undefined && event.width > 0 && event.height > 0 && this.sourceImageWidth <= 0) {
@@ -2677,50 +2375,25 @@ export struct ReaderImageViewport {
           .scale({ x: this.imageModel.currentScale, y: this.imageModel.currentScale, centerX: '50%', centerY: '50%' })
           .translate({ x: this.imageModel.currentOffsetX, y: this.imageModel.currentOffsetY })
         if (this.isImageLoading()) {
-          LoadingProgress()
-            .width(44)
-            .height(44)
-            .color(themeOnPrimarySecondaryText())
-            .padding(8)
-            .backgroundColor(themeScrimColor())
-            .borderRadius(22)
+          ReaderStatusView({ failed: false, compact: false })
             .zIndex(2)
         } else if (this.isFailed()) {
-          Column({ space: 12 }) {
-            SymbolGlyph($r('sys.symbol.exclamationmark_triangle'))
-              .fontSize(32)
-              .fontColor(['#98A2B3'])
-            Text(uiText('Image page failed to load'))
-              .fontSize(16)
-              .fontColor('#98A2B3')
-          }
-          .justifyContent(FlexAlign.Center)
-          .onClick(() => {
-            this.failedImageUrl = '';
-            this.completedImageUrl = '';
-            this.onRetry();
+          ReaderStatusView({
+            failed: true,
+            compact: false,
+            onRetry: () => {
+              this.failedImageUrl = '';
+              this.completedImageUrl = '';
+              this.onRetry();
+            }
           })
-          .zIndex(2)
+            .zIndex(2)
         }
       } else {
-        Column({ space: 12 }) {
-          if (this.isFailed()) {
-            SymbolGlyph($r('sys.symbol.exclamationmark_triangle'))
-              .fontSize(32)
-              .fontColor(['#98A2B3'])
-          } else {
-            LoadingProgress()
-              .width(36)
-              .height(36)
-              .color('#98A2B3')
-          }
-          Text(this.isFailed() ? uiText('Image page failed to load') : uiText('Image page is loading'))
-            .fontSize(16)
-            .fontColor('#98A2B3')
-        }
-        .justifyContent(FlexAlign.Center)
-        .onClick(() => {
-          if (this.isFailed()) {
+        ReaderStatusView({
+          failed: this.isFailed(),
+          compact: false,
+          onRetry: () => {
             this.onRetry();
           }
         })
@@ -2728,7 +2401,7 @@ export struct ReaderImageViewport {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#050608')
+    .backgroundColor(readerBackgroundColor())
     .clip(true)
     .onAreaChange((_oldValue: Area, newValue: Area) => {
       this.updateComponentSize(this.readAreaSize(newValue.width), this.readAreaSize(newValue.height));
@@ -2870,7 +2543,7 @@ export struct ReaderContinuousImageItem {
     if (path.length === 0) {
       return;
     }
-    const size = await this.readSourceImageSize(path);
+    const size = await readReaderSourceImageSize(path);
     if (requestId !== this.sourceSizeRequestId || imageUrl !== this.imageUrl()) {
       return;
     }
@@ -2883,50 +2556,7 @@ export struct ReaderContinuousImageItem {
   }
 
   private localSourceImagePath(): string {
-    const page = this.page;
-    if (this.preferOriginal && page.cachedOriginImagePath !== undefined && page.cachedOriginImagePath.length > 0) {
-      return stripFileScheme(page.cachedOriginImagePath);
-    }
-    if (!this.preferOriginal && page.cachedImagePath !== undefined && page.cachedImagePath.length > 0) {
-      return stripFileScheme(page.cachedImagePath);
-    }
-    if (page.cachedImagePath !== undefined && page.cachedImagePath.length > 0) {
-      return stripFileScheme(page.cachedImagePath);
-    }
-    if (page.cachedOriginImagePath !== undefined && page.cachedOriginImagePath.length > 0) {
-      return stripFileScheme(page.cachedOriginImagePath);
-    }
-    const displayUrl = this.imageUrl();
-    if (displayUrl.indexOf('file://') === 0) {
-      return stripFileScheme(displayUrl);
-    }
-    const context = getAbilityContext();
-    if (context === undefined) {
-      return '';
-    }
-    const sourceUrl = this.preferOriginal && page.originImageUrl.length > 0 ? page.originImageUrl : page.imageUrl;
-    return readerImageCache.getCachedPath(context, sourceUrl);
-  }
-
-  private async readSourceImageSize(path: string): Promise<ReaderSourceImageSize> {
-    let imageSource: image.ImageSource | undefined = undefined;
-    try {
-      imageSource = image.createImageSource(path);
-      const imageInfo: image.ImageInfo = imageSource.getImageInfoSync();
-      return {
-        width: imageInfo.size.width,
-        height: imageInfo.size.height
-      };
-    } catch (error) {
-      return { width: 0, height: 0 };
-    } finally {
-      if (imageSource !== undefined) {
-        try {
-          await imageSource.release();
-        } catch (error) {
-        }
-      }
-    }
+    return readerLocalSourceImagePath(this.page, this.preferOriginal);
   }
 
   private onFitModeChange(): void {
@@ -3024,7 +2654,7 @@ export struct ReaderContinuousImageItem {
           .height(this.displayHeight())
           .objectFit(ImageFit.Fill)
           .draggable(false)
-          .backgroundColor('#050608')
+          .backgroundColor(readerBackgroundColor())
           .opacity(this.failedImageUrl === this.imageUrl() ? 0 : 1)
           .onComplete((event?: ReaderImageCompleteEvent) => {
             if (event !== undefined && event.width > 0 && event.height > 0 && this.sourceImageWidth <= 0) {
@@ -3041,22 +2671,22 @@ export struct ReaderContinuousImageItem {
           .translate({ x: this.imageModel.currentOffsetX, y: this.imageModel.currentOffsetY })
       }
       if (this.imageUrl().length === 0 || this.isImageLoading()) {
-        LoadingProgress()
-          .width(36)
-          .height(36)
-          .color(themeOnPrimarySecondaryText())
-          .padding(8)
-          .backgroundColor(themeScrimColor())
-          .borderRadius(18)
+        ReaderStatusView({ failed: false, compact: true })
       } else if (this.isFailed()) {
-        SymbolGlyph($r('sys.symbol.exclamationmark_triangle'))
-          .fontSize(32)
-          .fontColor(['#98A2B3'])
+        ReaderStatusView({
+          failed: true,
+          compact: true,
+          onRetry: () => {
+            this.failedImageUrl = '';
+            this.completedImageUrl = '';
+            this.onRetry();
+          }
+        })
       }
     }
     .width('100%')
     .height(this.itemHeight())
-    .backgroundColor('#050608')
+    .backgroundColor(readerBackgroundColor())
     .clip(true)
     .onAreaChange((_oldValue: Area, newValue: Area) => {
       const width = Number.parseFloat(newValue.width.toString());

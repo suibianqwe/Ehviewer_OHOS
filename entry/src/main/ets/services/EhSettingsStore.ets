@@ -39,6 +39,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'gallery_show_battery', value: 'On' },
     { key: 'volume_page', value: 'Off' },
     { key: 'reading_fullscreen', value: 'On' },
+    { key: 'reader_background', value: 'Deep gray' },
     { key: 'screen_lightness', value: '50%' },
     { key: 'custom_screen_lightness', value: 'Off' },
     { key: 'ultra_dark_mode', value: 'Off' },

@@ -517,6 +517,11 @@ export function zhText(text: string): string {
     case 'Smart fit': return '匹配屏幕';
     case 'Image page failed to load': return '图片页面加载失败';
     case 'Image page is loading': return '图片页面加载中';
+    case 'Reader background': return '阅读器背景';
+    case 'Background color behind reader pages': return '阅读器页面背后的背景颜色';
+    case 'Black': return '黑色';
+    case 'White': return '白色';
+    case 'Deep gray': return '深灰';
     case 'unknown uploader': return '未知上传者';
     case 'Clear all': return '清空';
     case 'Remove': return '移除';
@@ -1663,6 +1668,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('gallery_show_battery', 'Show battery', 'Show battery overlay', entries, ON_OFF_OPTIONS),
       optionSettingsRow('volume_page', 'Volume page', 'Use volume buttons to turn pages', entries, ON_OFF_OPTIONS),
       optionSettingsRow('reading_fullscreen', 'Reading fullscreen', 'Hide system chrome while reading', entries, ON_OFF_OPTIONS),
+      optionSettingsRow('reader_background', 'Reader background', 'Background color behind reader pages', entries, ['Black', 'White', 'Deep gray']),
       optionSettingsRow('custom_screen_lightness', 'Custom brightness', 'Enable custom reader brightness', entries, ON_OFF_OPTIONS),
       optionSettingsRow('screen_lightness', 'Screen lightness', 'Custom reader brightness when enabled', entries, readerBrightnessLevelOptions()),
       optionSettingsRow('ultra_dark_mode', 'Ultra dark mode', 'Dim reader with a black overlay and minimum system brightness', entries, ON_OFF_OPTIONS),
