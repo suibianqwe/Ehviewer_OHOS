@@ -283,9 +283,8 @@ export struct ReaderScene {
     return Math.max(12, this.statusBarHeightVp() + 8);
   }
 
-  private readerStatusOverlayLeft(): number {
-    const estimatedWidth = 138;
-    return Math.max(12, this.readerLayoutWidth - estimatedWidth - 12);
+  private readerStatusOverlayRight(): number {
+    return 12;
   }
 
   private readerBottomInset(): number {
@@ -987,8 +986,7 @@ export struct ReaderScene {
   }
 
   private sliderPageText(): string {
-    const total = this.totalPages <= 0 ? 1 : this.totalPages;
-    return (this.sliderLiveIndex + 1).toString() + '/' + total.toString();
+    return (this.sliderLiveIndex + 1).toString();
   }
 
   private jumpTo(value: number): void {
@@ -1203,7 +1201,7 @@ export struct ReaderScene {
           progressText: this.progressText(),
           batteryText: this.batteryText(),
           top: this.readerStatusOverlayTop(),
-          left: this.readerStatusOverlayLeft()
+          right: this.readerStatusOverlayRight()
         })
           .zIndex(4)
       }

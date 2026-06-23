@@ -33,31 +33,161 @@ export struct ReaderInfoOverlay {
 
   build() {
     Row({ space: 8 }) {
-      if (this.showProgress) {
-        Text(this.progressText)
-          .fontSize(12)
-          .fontColor(themeOnPrimaryText())
-          .lineHeight(16)
-      }
       if (this.showClock) {
-        Text(readerClockText())
-          .fontSize(12)
-          .fontColor(themeOnPrimaryText())
-          .lineHeight(16)
+        ReaderInfoPillText({ text: readerClockText() })
+      }
+      if (this.showProgress) {
+        ReaderInfoPillText({ text: this.progressText })
       }
       if (this.showBattery) {
-        Text(this.batteryText)
-          .fontSize(12)
-          .fontColor(themeOnPrimaryText())
-          .lineHeight(16)
+        ReaderInfoPillText({ text: this.batteryText })
       }
     }
+    .width('100%')
     .alignItems(VerticalAlign.Center)
-    .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-    .backgroundColor(themeScrimColor())
-    .borderRadius(10)
-    .position({ x: this.left, y: this.top })
+    .justifyContent(FlexAlign.End)
+    .padding({ right: Math.max(12, this.right) })
+    .position({ x: 0, y: this.top })
     .hitTestBehavior(HitTestMode.None)
+  }
+}
+
+@Component
+struct ReaderInfoPillText {
+  text: string = '';
+
+  build() {
+    Text(this.text)
+      .fontSize(12)
+      .fontColor(themeOnPrimaryText())
+      .lineHeight(16)
+      .maxLines(1)
+      .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+      .backgroundColor(themeScrimColor())
+      .borderRadius(10)
+  }
+}
+
+@Component
+struct ReaderSliderBubble {
+  text: string = '';
+
+  build() {
+    Text(this.text)
+      .fontSize(12)
+      .fontWeight(FontWeight.Medium)
+      .fontColor(themeOnPrimaryText())
+      .lineHeight(42)
+      .textAlign(TextAlign.Center)
+      .width(42)
+      .height(42)
+      .backgroundColor(themeScrimColor())
+      .borderRadius(21)
+  }
+}
+
+@Component
+struct ReaderSliderPageText {
+  text: string = '';
+
+  build() {
+    Text(this.text)
+      .fontSize(12)
+      .fontColor('#E5E7EB')
+      .width(50)
+      .height(32)
+      .lineHeight(32)
+      .textAlign(TextAlign.Center)
+      .maxLines(1)
+  }
+}
+
+@Component
+struct ReaderAutoTransferButton {
+  autoTransferPlaying: boolean = false;
+  autoTransferEnabled: boolean = false;
+  onToggleAutoTransfer: () => void = () => {};
+
+  build() {
+    Button({ type: ButtonType.Circle, stateEffect: true }) {
+      SymbolGlyph(this.autoTransferPlaying ? $r('sys.symbol.pause_fill') : $r('sys.symbol.play_fill'))
+        .fontSize(17)
+        .fontColor([Color.White])
+    }
+    .width(32)
+    .height(32)
+    .enabled(this.autoTransferEnabled)
+    .backgroundColor(this.autoTransferEnabled ? '#334155' : '#1F2937')
+    .onClick(() => {
+      this.onToggleAutoTransfer();
+    })
+  }
+}
+
+@Component
+struct ReaderSliderTrack {
+  sliderLiveIndex: number = 0;
+  totalPages: number = 0;
+  onSliderChange: (value: number, mode: SliderChangeMode) => void = (_value: number, _mode: SliderChangeMode) => {};
+  onTrackWidthChange: (width: number) => void = (_width: number) => {};
+
+  build() {
+    Stack({ alignContent: Alignment.Center }) {
+      Slider({
+        value: this.sliderLiveIndex,
+        min: 0,
+        max: Math.max(0, this.totalPages - 1),
+        step: 1
+      })
+        .width('100%')
+        .height(32)
+        .enabled(this.totalPages > 1)
+        .onChange((value: number, mode: SliderChangeMode) => {
+          this.onSliderChange(value, mode);
+        })
+    }
+    .layoutWeight(1)
+    .height(32)
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      const width = newArea.width as number;
+      if (width > 0 && !Number.isNaN(width)) {
+        this.onTrackWidthChange(width);
+      }
+    })
+  }
+}
+
+@Component
+struct ReaderSliderBar {
+  progressText: string = '';
+  sliderLiveIndex: number = 0;
+  totalPages: number = 0;
+  autoTransferPlaying: boolean = false;
+  autoTransferEnabled: boolean = false;
+  onSliderChange: (value: number, mode: SliderChangeMode) => void = (_value: number, _mode: SliderChangeMode) => {};
+  onTrackWidthChange: (width: number) => void = (_width: number) => {};
+  onToggleAutoTransfer: () => void = () => {};
+
+  build() {
+    Row() {
+      ReaderSliderPageText({ text: this.progressText })
+
+      ReaderSliderTrack({
+        sliderLiveIndex: this.sliderLiveIndex,
+        totalPages: this.totalPages,
+        onSliderChange: this.onSliderChange,
+        onTrackWidthChange: this.onTrackWidthChange
+      })
+
+      ReaderAutoTransferButton({
+        autoTransferPlaying: this.autoTransferPlaying,
+        autoTransferEnabled: this.autoTransferEnabled,
+        onToggleAutoTransfer: this.onToggleAutoTransfer
+      })
+    }
+    .width('100%')
+    .height(32)
+    .alignItems(VerticalAlign.Center)
   }
 }
 
@@ -85,11 +215,11 @@ export struct ReaderSliderPanel {
   }
 
   private panelHeight(): number {
-    return 50 + Math.max(0, this.bottomInset);
+    return 40 + Math.max(0, this.bottomInset);
   }
 
-  private bubbleLift(): number {
-    return this.panelHeight() + 48;
+  private bubbleBottomMargin(): number {
+    return this.panelHeight() + 6;
   }
 
   build() {
@@ -105,79 +235,38 @@ export struct ReaderSliderPanel {
       if (this.sliderDragging) {
         Row() {
           Blank()
-            .width(58)
+            .width(50)
           Stack() {
-            Text(this.sliderPageText)
-              .fontSize(12)
-              .fontColor(themeOnPrimaryText())
-              .lineHeight(42)
-              .textAlign(TextAlign.Center)
-              .width(42)
-              .height(42)
-              .backgroundColor(themeScrimColor())
-              .borderRadius(21)
+            ReaderSliderBubble({ text: this.sliderPageText })
               .position({ x: this.sliderBubbleLeft(), y: 0 })
           }
           .layoutWeight(1)
           .height(42)
           Blank()
-            .width(36)
+            .width(32)
         }
         .width('100%')
-        .padding({ left: 12, right: 12 })
-        .margin({ bottom: this.bubbleLift() })
+        .padding({ left: 10, right: 10 })
+        .margin({ bottom: this.bubbleBottomMargin() })
         .zIndex(2)
         .hitTestBehavior(HitTestMode.Transparent)
       }
 
       Column() {
-        Row() {
-          Text(this.progressText)
-            .fontSize(12)
-            .fontColor('#E5E7EB')
-            .width(58)
-            .height(36)
-            .lineHeight(36)
-            .textAlign(TextAlign.Center)
-          Stack({ alignContent: Alignment.Center }) {
-            Slider({
-              value: this.sliderLiveIndex,
-              min: 0,
-              max: Math.max(0, this.totalPages - 1),
-              step: 1
-            })
-              .width('100%')
-              .enabled(this.totalPages > 1)
-              .onChange((value: number, mode: SliderChangeMode) => {
-                this.onSliderChange(value, mode);
-              })
-          }
-          .layoutWeight(1)
-          .height(36)
-          .onAreaChange((_oldArea: Area, newArea: Area) => {
-            const width = newArea.width as number;
-            if (width > 0 && !Number.isNaN(width)) {
-              this.onTrackWidthChange(width);
-            }
-          })
-          Button({ type: ButtonType.Circle, stateEffect: true }) {
-            SymbolGlyph(this.autoTransferPlaying ? $r('sys.symbol.pause_fill') : $r('sys.symbol.play_fill'))
-              .fontSize(18)
-              .fontColor([Color.White])
-          }
-          .width(36)
-          .height(36)
-          .enabled(this.autoTransferEnabled)
-          .backgroundColor(this.autoTransferEnabled ? '#334155' : '#1F2937')
-          .onClick(() => {
-            this.onToggleAutoTransfer();
-          })
-        }
-        .width('100%')
-        .alignItems(VerticalAlign.Center)
+        ReaderSliderBar({
+          progressText: this.progressText,
+          sliderLiveIndex: this.sliderLiveIndex,
+          totalPages: this.totalPages,
+          autoTransferPlaying: this.autoTransferPlaying,
+          autoTransferEnabled: this.autoTransferEnabled,
+          onSliderChange: this.onSliderChange,
+          onTrackWidthChange: this.onTrackWidthChange,
+          onToggleAutoTransfer: this.onToggleAutoTransfer
+        })
       }
       .width('100%')
-      .padding({ left: 12, right: 12, top: 7, bottom: 7 + Math.max(0, this.bottomInset) })
+      .height(this.panelHeight())
+      .padding({ left: 10, right: 10, top: 4, bottom: 4 + Math.max(0, this.bottomInset) })
       .backgroundColor('#CC111827')
       .zIndex(1)
     }
