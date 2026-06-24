@@ -185,6 +185,13 @@ function normalizeGalleryListScrollOffset(offset: number): number {
 
 function mergeLoadedGalleryDetail(loaded: GalleryDetail, previous: GalleryDetail): GalleryDetail {
   const next = cloneGalleryDetail(loaded);
+  if (next.title.length === 0 && previous.title.length > 0) {
+    next.title = previous.title;
+  }
+  if ((next.titleJpn === undefined || next.titleJpn.length === 0) && previous.titleJpn !== undefined &&
+    previous.titleJpn.length > 0) {
+    next.titleJpn = previous.titleJpn;
+  }
   if ((next.thumb === undefined || next.thumb.length === 0) && previous.thumb !== undefined &&
     previous.thumb.length > 0) {
     next.thumb = previous.thumb;
@@ -813,7 +820,7 @@ export struct GalleryListScene {
         this.optimisticFavorite = this.detail.isFavorited;
         this.favoriteBusy = false;
         this.renderVersion++;
-        saveGalleryToHistory(result.detail);
+        saveGalleryToHistory(this.detail);
         this.prewarmReader();
       })
       .catch((error: Error) => {

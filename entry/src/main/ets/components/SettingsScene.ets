@@ -33,7 +33,7 @@ import {
   EH_REPOSITORY_URL,
   EH_TARGET_PLATFORM
 } from '../services/EhBuildInfo';
-import { LANGUAGE_REVISION_KEY, notifyLanguageChanged, notifyThemeChanged } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, notifyGalleryTitleChanged, notifyLanguageChanged, notifyThemeChanged } from '../shared/EhShared';
 import {
   themeFieldBackground,
   themeOnPrimaryText,
@@ -214,6 +214,9 @@ export struct SettingsScene {
     }
     if (key === 'app_language') {
       notifyLanguageChanged();
+    }
+    if (key === 'show_jpn_title') {
+      notifyGalleryTitleChanged();
     }
     if (key === 'theme') {
       notifyThemeChanged();

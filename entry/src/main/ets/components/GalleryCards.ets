@@ -10,6 +10,7 @@ import {
   galleryListMode,
   galleryThumbHeight,
   galleryThumbWidth,
+  GALLERY_TITLE_REVISION_KEY,
   HISTORY_READ_REVISION_KEY,
   readerLocalImageSource,
   showGalleryPages,
@@ -32,6 +33,7 @@ export struct GalleryListRow {
   @Prop gallery: GalleryInfo = createEmptyGallery();
   @Prop selected: boolean = false;
   @StorageProp(HISTORY_READ_REVISION_KEY) historyReadRevision: number = 0;
+  @StorageProp(GALLERY_TITLE_REVISION_KEY) galleryTitleRevision: number = 0;
 
   private cardHeight(): number {
     return galleryThumbHeight();
@@ -372,6 +374,7 @@ export struct GalleryThumbCard {
   @Prop gallery: GalleryInfo = createEmptyGallery();
   @Prop selected: boolean = false;
   @StorageProp(HISTORY_READ_REVISION_KEY) historyReadRevision: number = 0;
+  @StorageProp(GALLERY_TITLE_REVISION_KEY) galleryTitleRevision: number = 0;
 
   private readPageText(): string {
     if (this.historyReadRevision < 0) {

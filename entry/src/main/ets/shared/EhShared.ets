@@ -49,6 +49,7 @@ export interface EhBackupBundle {
 
 export const LANGUAGE_REVISION_KEY: string = 'ehviewer_language_revision';
 export const HISTORY_READ_REVISION_KEY: string = 'ehviewer_history_read_revision';
+export const GALLERY_TITLE_REVISION_KEY: string = 'ehviewer_gallery_title_revision';
 
 export interface DrawerItem {
   route: GalleryRoute;
@@ -125,6 +126,11 @@ export function notifyThemeChanged(): void {
 export function notifyHistoryReadChanged(): void {
   const current = AppStorage.get<number>(HISTORY_READ_REVISION_KEY);
   AppStorage.setOrCreate<number>(HISTORY_READ_REVISION_KEY, current === undefined ? 1 : current + 1);
+}
+
+export function notifyGalleryTitleChanged(): void {
+  const current = AppStorage.get<number>(GALLERY_TITLE_REVISION_KEY);
+  AppStorage.setOrCreate<number>(GALLERY_TITLE_REVISION_KEY, current === undefined ? 1 : current + 1);
 }
 
 export function shouldUseChineseUi(): boolean {
@@ -501,6 +507,7 @@ export function zhText(text: string): string {
     case 'Save to album': return '保存到相册';
     case 'Save to...': return '保存到…';
     case 'Saved to album': return '已保存到相册';
+    case 'Save failed': return '保存失败';
     case 'Rate': return '评分';
     case 'Cancel': return '取消';
     case 'Submit': return '提交';
@@ -2361,7 +2368,13 @@ export function galleryDisplayTitle(gallery: GalleryInfo): string {
     gallery.titleJpn !== undefined && gallery.titleJpn.length > 0) {
     return gallery.titleJpn;
   }
-  return gallery.title.length === 0 ? 'Untitled' : gallery.title;
+  if (gallery.title.length > 0) {
+    return gallery.title;
+  }
+  if (gallery.titleJpn !== undefined && gallery.titleJpn.length > 0) {
+    return gallery.titleJpn;
+  }
+  return 'Untitled';
 }
 
 export function showGalleryPages(): boolean {

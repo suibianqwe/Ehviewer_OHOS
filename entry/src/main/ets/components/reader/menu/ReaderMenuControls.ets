@@ -28,7 +28,7 @@ export struct ReaderPopupBackdrop {
 export struct ReaderImageActionDialog {
   onRefresh: () => void = () => {};
   onShare: () => void = () => {};
-  onSaveToAlbum: () => void = () => {};
+  onSaveToAlbum: (result: SaveButtonOnClickResult) => void = (_result: SaveButtonOnClickResult) => {};
   onSave: () => void = () => {};
 
   build() {
@@ -60,9 +60,7 @@ export struct ReaderImageActionDialog {
         .iconSize(20)
         .layoutDirection(SecurityComponentLayoutDirection.HORIZONTAL)
         .onClick((_event: ClickEvent, result: SaveButtonOnClickResult) => {
-          if (result === SaveButtonOnClickResult.SUCCESS) {
-            this.onSaveToAlbum();
-          }
+          this.onSaveToAlbum(result);
         })
       ReaderMenuDivider()
       ReaderImageActionButton({
@@ -99,7 +97,7 @@ struct ReaderImageActionButton {
           .fontColor(themePrimaryText())
           .margin({ left: 12 })
           .layoutWeight(1)
-          .textAlign(TextAlign.Start)
+          .textAlign(TextAlign.End)
       }
       .width('100%')
       .padding({ left: 16, right: 16 })

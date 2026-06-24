@@ -72,6 +72,18 @@ function normalizeSceneScrollOffset(offset: number): number {
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
 const DOWNLOAD_PROGRESS_UPDATE_INTERVAL_MS: number = 250;
 
+function mergeDownloadDetailTitles(detail: GalleryDetail, item: DownloadInfo): GalleryDetail {
+  const next = cloneGalleryDetail(detail);
+  if (next.title.length === 0 && item.title.length > 0) {
+    next.title = item.title;
+  }
+  if ((next.titleJpn === undefined || next.titleJpn.length === 0) && item.titleJpn !== undefined &&
+    item.titleJpn.length > 0) {
+    next.titleJpn = item.titleJpn;
+  }
+  return next;
+}
+
 interface DownloadWorkerState {
   cursor: number;
   finished: number;
@@ -669,11 +681,11 @@ export struct DownloadScene {
           this.detailRenderVersion++;
           return;
         }
-        this.detail = cloneGalleryDetail(result.detail);
+        this.detail = mergeDownloadDetailTitles(result.detail, item);
         this.detailRequestUrl = result.url;
         this.detailStatus = 'Gallery detail loaded';
         this.detailLoaded = true;
-        ehDownloadStore.updateGallery(result.detail);
+        ehDownloadStore.updateGallery(this.detail);
         this.persistDownloads();
         this.detailRenderVersion++;
       }).catch((error: Error) => {
@@ -768,7 +780,7 @@ export struct DownloadScene {
         throw new Error(detailResult.message);
       }
 
-      const detail = await this.loadCompleteDownloadDetail(detailResult.detail, detailResult.url);
+      const detail = mergeDownloadDetailTitles(await this.loadCompleteDownloadDetail(detailResult.detail, detailResult.url), item);
       ehDownloadStore.updateGallery(detail);
       const total = Math.max(detail.pages, detail.previewSet.length);
       const downloadDirectory = ehDownloadFileStore.prepareGallery(context, detail);
@@ -996,10 +1008,10 @@ export struct DownloadScene {
       const result = await this.client.loadGalleryDetail(item.gid, item.token, 0, currentGallerySite(),
         EhUrl.getReferer(currentGallerySite()));
       if (result.ok && result.detail !== null) {
-        detail = cloneGalleryDetail(result.detail);
+        detail = mergeDownloadDetailTitles(result.detail, item);
         this.localReaderPreviewPageSize = detail.previewSet.length;
         detailRequestUrl = result.url;
-        ehDownloadStore.updateGallery(result.detail);
+        ehDownloadStore.updateGallery(detail);
         this.persistDownloads();
       }
     } catch (error) {

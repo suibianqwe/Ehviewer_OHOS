@@ -71,6 +71,16 @@ export { CommentsScene, PlaceholderScene } from './reader/scenes/ReaderAuxScenes
 const SLIDER_AUTO_HIDE_DELAY: number = 3000;
 const READER_SCREEN_TAP_DELAY: number = 220;
 
+function mediaAssetTitle(fileName: string): string {
+  const dotIndex = fileName.lastIndexOf('.');
+  const baseName = dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
+  const cleaned = baseName.replace(/[.\\/:*?"'`<>|{}\[\]]/g, '_').replace(/\s+/g, ' ').trim();
+  if (cleaned.length === 0) {
+    return 'ehviewer_page';
+  }
+  return cleaned.length > 120 ? cleaned.substring(0, 120).trim() : cleaned;
+}
+
 export interface ReaderPageState {
   index: number;
   page: GalleryPage;
@@ -824,7 +834,6 @@ export struct ReaderScene {
   private saveCurrentImageToAlbum(): void {
     const page = this.pageForIndex(this.currentIndex);
     const index = this.currentIndex;
-    this.hideImageActions();
     this.saveReaderImageToAlbumAsync(page, index).catch(() => {});
   }
 
@@ -896,27 +905,24 @@ export struct ReaderScene {
     }
     const sourcePath = await this.ensureLocalImagePathForPage(page);
     if (sourcePath.length === 0) {
+      this.getUIContext().getPromptAction().showToast({ message: uiText('Save failed') });
       return;
     }
     try {
       const helper = photoAccessHelper.getPhotoAccessHelper(context);
-      const config: photoAccessHelper.PhotoCreationConfig = {
-        title: readerImageFileName(index, sourcePath, this.currentImageShareTarget()),
-        fileNameExtension: albumImageFileType(sourcePath),
-        photoType: photoAccessHelper.PhotoType.IMAGE,
-        subtype: photoAccessHelper.PhotoSubtype.DEFAULT
-      };
-      const uris = await helper.showAssetsCreationDialog([fileUri.getUriFromPath(sourcePath)], [config]);
-      if (uris.length === 0) {
-        return;
-      }
-      const uri = uris[0];
+      const fileName = readerImageFileName(index, sourcePath, this.currentImageShareTarget());
+      const title = mediaAssetTitle(fileName);
+      const uri = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE, albumImageFileType(sourcePath), { title: title });
       if (copyFileContent(sourcePath, uri)) {
         this.getUIContext().getPromptAction().showToast({
-          message: uiText('Saved to album') + ': ' + config.title
+          message: uiText('Saved to album') + ': ' + fileName
         });
+        this.hideImageActions();
+      } else {
+        this.getUIContext().getPromptAction().showToast({ message: uiText('Save failed') });
       }
     } catch (error) {
+      this.getUIContext().getPromptAction().showToast({ message: uiText('Save failed') });
     }
   }
 
@@ -1437,8 +1443,12 @@ export struct ReaderScene {
           onShare: () => {
             this.shareCurrentImage();
           },
-          onSaveToAlbum: () => {
-            this.saveCurrentImageToAlbum();
+          onSaveToAlbum: (result: SaveButtonOnClickResult) => {
+            if (result === SaveButtonOnClickResult.SUCCESS) {
+              this.saveCurrentImageToAlbum();
+            } else {
+              this.getUIContext().getPromptAction().showToast({ message: uiText('Save failed') });
+            }
           },
           onSave: () => {
             this.saveCurrentImageToPicker();

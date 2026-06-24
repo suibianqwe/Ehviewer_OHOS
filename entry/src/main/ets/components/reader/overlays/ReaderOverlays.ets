@@ -327,7 +327,7 @@ export struct ReaderImageActionsOverlay {
   onDismiss: () => void = () => {};
   onRefresh: () => void = () => {};
   onShare: () => void = () => {};
-  onSaveToAlbum: () => void = () => {};
+  onSaveToAlbum: (result: SaveButtonOnClickResult) => void = (_result: SaveButtonOnClickResult) => {};
   onSave: () => void = () => {};
 
   build() {
