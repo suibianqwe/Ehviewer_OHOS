@@ -25,6 +25,8 @@ import { applyWindowPrivacyMode } from '../services/EhWindowPrivacy';
 import {
   EH_APP_VERSION_CODE,
   EH_APP_VERSION_NAME,
+  EH_AUTHOR_NAME,
+  EH_AUTHOR_URL,
   EH_GIT_BRANCH,
   EH_ISSUES_URL,
   EH_RELEASE_TAG,
@@ -495,7 +497,7 @@ export struct SettingsScene {
       return true;
     }
     if (key === 'author') {
-      this.statusText = 'Original project: xiaojieonly/Ehviewer_CN_SXJ. Current port: ' + EH_REPOSITORY_NAME + '.';
+      this.openExternalUrl(EH_AUTHOR_URL, EH_AUTHOR_NAME);
       return true;
     }
     if (key === 'latest_release') {

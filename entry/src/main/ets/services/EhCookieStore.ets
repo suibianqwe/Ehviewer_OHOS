@@ -8,6 +8,7 @@ const KEY_IPB_PASS_HASH: string = 'ipb_pass_hash';
 const KEY_CONTENT_WARNING: string = 'nw';
 const KEY_UCONFIG: string = 'uconfig';
 const CONTENT_WARNING_NOT_SHOW: string = '1';
+const UCONFIG_DISABLED_VALUE: string = '';
 
 export interface CookieEntry {
   name: string;
@@ -77,6 +78,9 @@ export class EhCookieStore {
     }
     if (includeContentWarning && !hasContentWarning) {
       pairs.push(KEY_CONTENT_WARNING + '=' + CONTENT_WARNING_NOT_SHOW);
+    }
+    if (!includeUConfig) {
+      pairs.push(KEY_UCONFIG + '=' + UCONFIG_DISABLED_VALUE);
     }
     return pairs.join('; ');
   }

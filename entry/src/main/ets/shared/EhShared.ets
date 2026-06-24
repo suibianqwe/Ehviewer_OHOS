@@ -10,7 +10,7 @@ import { EhUrl, ListMode } from '../services/EhUrl';
 import { readerImageCache } from '../services/ReaderImageCache';
 import { previewThumbnailCache } from '../services/PreviewThumbnailCache';
 import { FilterRule, ehFilterStore } from '../services/EhFilterStore';
-import { EH_APP_VERSION_NAME, EH_GIT_BRANCH, EH_RELEASE_TAG } from '../services/EhBuildInfo';
+import { EH_APP_VERSION_NAME, EH_AUTHOR_NAME, EH_GIT_BRANCH, EH_RELEASE_TAG } from '../services/EhBuildInfo';
 import {
   EH_THEME_PRIMARY_COLOR,
   currentThemeName as themeCurrentThemeName,
@@ -1855,7 +1855,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
   if (panel === SettingsPanel.About) {
     return [
       staticSettingsRow('declaration', 'Declaration', 'Current HarmonyOS repository', 'Info', 'message'),
-      staticSettingsRow('author', 'Author', 'xiaojieonly/Ehviewer_CN_SXJ contributors', '', 'message'),
+      staticSettingsRow('author', 'Author', EH_AUTHOR_NAME, 'GitHub', 'url'),
       staticSettingsRow('latest_release', 'Latest release', 'GitHub release for the current port', EH_RELEASE_TAG, 'url'),
       staticSettingsRow('issue_help', 'Issue help', 'Issue tracker for the current port', 'Issues', 'url'),
       staticSettingsRow('license', 'License', 'Open-source license view', 'GPL', 'activity'),

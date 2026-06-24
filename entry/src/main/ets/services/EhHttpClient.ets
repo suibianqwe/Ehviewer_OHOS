@@ -141,9 +141,10 @@ export interface NetworkDiagnosticResult {
 export class EhHttpClient {
   async getText(url: string, referer: string = EhUrl.getReferer(), cacheTtlMs: number = 45000,
     options?: EhTextRequestOptions): Promise<EhHttpResponse> {
-    const cookieHeader = options?.includeUConfig === false ?
-      ehCookieStore.getCookieHeaderWithOptions({ includeContentWarning: true, includeUConfig: false }) :
-      ehCookieStore.getCookieHeader();
+    const includeUConfig = options?.includeUConfig !== false;
+    const cookieHeader = includeUConfig ?
+      ehCookieStore.getCookieHeader() :
+      ehCookieStore.getCookieHeaderWithOptions({ includeContentWarning: true, includeUConfig: false });
     const cacheKey = buildCacheKey('GET', url, referer, cookieHeader);
     if (cacheTtlMs > 0) {
       const cached = this.getCachedResponse(cacheKey);
@@ -157,12 +158,13 @@ export class EhHttpClient {
       }
     }
 
-    const promise = this.getTextNetwork(url, referer, cookieHeader, cacheTtlMs).then((response: EhHttpResponse) => {
-      if (cacheTtlMs > 0 && response.statusCode >= 200 && response.statusCode < 300) {
-        this.putCachedResponse(cacheKey, response, cacheTtlMs);
-      }
-      return response;
-    });
+    const promise = this.getTextNetwork(url, referer, cookieHeader, cacheTtlMs, includeUConfig)
+      .then((response: EhHttpResponse) => {
+        if (cacheTtlMs > 0 && response.statusCode >= 200 && response.statusCode < 300) {
+          this.putCachedResponse(cacheKey, response, cacheTtlMs);
+        }
+        return response;
+      });
 
     if (cacheTtlMs > 0) {
       this.putPendingResponse(cacheKey, promise);
@@ -176,19 +178,22 @@ export class EhHttpClient {
   }
 
   private async getTextNetwork(url: string, referer: string, cookieHeader: string,
-    cacheTtlMs: number): Promise<EhHttpResponse> {
+    cacheTtlMs: number, includeUConfig: boolean): Promise<EhHttpResponse> {
     return requestTextWithRetry((): Promise<EhHttpResponse> => {
-      return this.getTextOnce(url, referer, cookieHeader, cacheTtlMs);
+      return this.getTextOnce(url, referer, cookieHeader, cacheTtlMs, includeUConfig);
     }, 3);
   }
 
   private async getTextOnce(url: string, referer: string, cookieHeader: string,
-    cacheTtlMs: number): Promise<EhHttpResponse> {
+    cacheTtlMs: number, includeUConfig: boolean): Promise<EhHttpResponse> {
     const request = http.createHttp();
     await acquireTextSlot();
     try {
       const header = buildRequestHeader(url, referer, cookieHeader, cacheTtlMs);
       await ensureEhHostRules();
+      if (!includeUConfig) {
+        clearUConfigWebCookieForRequest(url);
+      }
       const options: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: header,
@@ -942,6 +947,29 @@ function syncSetCookiesToWebView(url: string, setCookieHeader: string): void {
   }
 
   if (synced) {
+    try {
+      webview.WebCookieManager.saveCookieSync();
+    } catch (error) {
+    }
+  }
+}
+
+function clearUConfigWebCookieForRequest(url: string): void {
+  const expiredCookie = 'uconfig=; Max-Age=0; path=/';
+  const targets: string[] = [
+    url,
+    EhUrl.HOST_E,
+    EhUrl.HOST_EX
+  ];
+  let changed = false;
+  for (let i = 0; i < targets.length; i++) {
+    try {
+      webview.WebCookieManager.configCookieSync(targets[i], expiredCookie);
+      changed = true;
+    } catch (error) {
+    }
+  }
+  if (changed) {
     try {
       webview.WebCookieManager.saveCookieSync();
     } catch (error) {
