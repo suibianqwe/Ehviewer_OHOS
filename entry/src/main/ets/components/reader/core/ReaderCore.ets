@@ -350,6 +350,9 @@ export class ReaderPreviewModel {
   }
 
   private isHorizontalGestureIntent(offsetX: number, velocityX: number = 0, offsetY: number = 0, velocityY: number = 0): boolean {
+    if (!this.canPanVertically()) {
+      return Math.abs(offsetX) > 0.5 || Math.abs(velocityX) > 0.5;
+    }
     const x = Math.abs(offsetX) >= 1 ? Math.abs(offsetX) : Math.abs(velocityX);
     const y = Math.abs(offsetY) >= 1 ? Math.abs(offsetY) : Math.abs(velocityY);
     return x > 0.5 && x >= y * 1.15;

@@ -26,6 +26,7 @@ export struct ReaderInfoOverlay {
   showClock: boolean = true;
   showBattery: boolean = true;
   progressText: string = '';
+  clockText: string = '';
   batteryText: string = '';
   top: number = 0;
   right: number = 12;
@@ -33,7 +34,7 @@ export struct ReaderInfoOverlay {
   build() {
     Row({ space: 6 }) {
       if (this.showClock) {
-        Text(readerClockText())
+        Text(this.clockText)
           .fontSize(14)
           .fontColor(themeOnPrimaryText())
           .lineHeight(16)

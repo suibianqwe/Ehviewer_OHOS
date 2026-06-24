@@ -27,6 +27,7 @@ import {
   createEmptyPage,
   getAbilityContext,
   readerDisplayImageUrl,
+  readerClockText,
   normalizePageScalingOption,
   normalizeReadingDirectionOption,
   normalizeStartPositionOption,
@@ -118,6 +119,8 @@ export struct ReaderScene {
   @State overlayShowClock: boolean = true;
   @State overlayShowBattery: boolean = true;
   @State batteryLevel: number = -1;
+  @State clockText: string = '';
+  @State overlayTick: number = 0;
   private swiperController: SwiperController = new SwiperController();
   private sliderHideTimer: number = -1;
   private readerPageIndexesSource: ArrayDataSource<number> = new ArrayDataSource<number>([]);
@@ -146,6 +149,7 @@ export struct ReaderScene {
   private readerWindowActive: boolean = false;
   private hostReaderWindow: window.Window | undefined = undefined;
   private autoTransferTimer: number = -1;
+  private overlayRefreshTimer: number = -1;
   private volumeUpConfig: inputConsumer.KeyPressedConfig = {
     key: KeyCode.KEYCODE_VOLUME_UP,
     action: 1,
@@ -177,6 +181,8 @@ export struct ReaderScene {
     this.syncDirectionState();
     this.syncUltraDarkState();
     this.refreshBattery();
+    this.refreshOverlayInfo();
+    this.startOverlayRefreshTimer();
     this.applyReaderWindowSettings();
     this.applyBrightnessFromSettings().catch(() => {});
     this.updateVolumePageBinding();
@@ -186,6 +192,7 @@ export struct ReaderScene {
     this.readerWindowActive = false;
     this.clearSliderTimer();
     this.clearAutoTransferTimer();
+    this.clearOverlayRefreshTimer();
     this.unregisterVolumePageKeys();
     this.resetReaderBrightness().catch(() => {});
     this.restoreWindowSettings();
@@ -333,6 +340,31 @@ export struct ReaderScene {
 
   private batteryText(): string {
     return this.batteryLevel >= 0 ? this.batteryLevel.toString() + '%' : '--';
+  }
+
+  private refreshOverlayInfo(): void {
+    this.clockText = readerClockText();
+    this.overlayTick++;
+    if (this.overlayTick % 10 === 0 || this.batteryLevel < 0) {
+      this.refreshBattery();
+    }
+  }
+
+  private startOverlayRefreshTimer(): void {
+    this.clearOverlayRefreshTimer();
+    this.overlayRefreshTimer = setInterval(() => {
+      if (!this.readerWindowActive) {
+        return;
+      }
+      this.refreshOverlayInfo();
+    }, 1000);
+  }
+
+  private clearOverlayRefreshTimer(): void {
+    if (this.overlayRefreshTimer >= 0) {
+      clearInterval(this.overlayRefreshTimer);
+      this.overlayRefreshTimer = -1;
+    }
   }
 
   onPageIndexChange(): void {
@@ -1201,6 +1233,7 @@ export struct ReaderScene {
           showClock: this.overlayShowClock,
           showBattery: this.overlayShowBattery,
           progressText: this.progressText(),
+          clockText: this.clockText,
           batteryText: this.batteryText(),
           top: this.readerStatusOverlayTop(),
           right: this.readerStatusOverlayRight()

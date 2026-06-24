@@ -8,6 +8,7 @@ import {
 import {
   READER_BASE_SCALE,
   READER_DOUBLE_TAP_SCALE,
+  READER_INERTIA_DURATION,
   ReaderImageCompleteEvent,
   ReaderPreviewModel,
   cachedReaderSourceImageSize,
@@ -421,14 +422,18 @@ export struct ReaderImageViewport {
                 event.offsetY,
                 event.velocityY
               );
-              this.imageModel.panEnd(event.velocityX, event.velocityY);
+              this.getUIContext().animateTo({ duration: READER_INERTIA_DURATION, curve: Curve.EaseOut }, () => {
+                this.imageModel.panEnd(event.velocityX, event.velocityY);
+              });
               this.reportState();
               if (edgeDirection !== 0) {
                 this.onEdgeSwipe(edgeDirection);
               }
             })
             .onActionCancel(() => {
-              this.imageModel.panEnd();
+              this.getUIContext().animateTo({ duration: READER_INERTIA_DURATION, curve: Curve.EaseOut }, () => {
+                this.imageModel.panEnd();
+              });
               this.reportState();
             }),
           PinchGesture({ fingers: 2, distance: 1 })
