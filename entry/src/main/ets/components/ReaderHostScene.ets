@@ -116,7 +116,7 @@ export struct ReaderHostScene {
 
     this.readerPreviewMap.set(preview.index, preview);
     this.pageIndex = preview.index;
-    saveGalleryReadPosition(this.detail.gid, preview.index);
+    saveGalleryReadPosition(this.detail.gid, preview.index, this.detail);
     this.statusText = 'Loading page ' + (preview.index + 1).toString() + '...';
     this.page = createReaderLoadingPage(preview.pageUrl);
     this.setReaderPage(preview.index, this.page);
@@ -226,7 +226,7 @@ export struct ReaderHostScene {
       return;
     }
     this.pageIndex = index;
-    saveGalleryReadPosition(this.detail.gid, index);
+    saveGalleryReadPosition(this.detail.gid, index, this.detail);
     this.statusText = 'Resolving page ' + (index + 1).toString() + '...';
     this.page = createReaderLoadingPage('');
     this.setReaderPage(index, this.page);

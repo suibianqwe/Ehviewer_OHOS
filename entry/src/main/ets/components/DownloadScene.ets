@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { GalleryCategory, GalleryDetail, GalleryPage, GalleryPreview, GalleryRoute, GallerySite } from '../model/GalleryModels';
 import { ehDownloadFileStore, RestoredDownloadGallery } from '../services/EhDownloadFileStore';
+import { ehDownloadManager } from '../services/EhDownloadManager';
 import { DownloadInfo, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import { EhHttpClient } from '../services/EhHttpClient';
 import { ehHistoryStore } from '../services/EhHistoryStore';
@@ -71,6 +72,7 @@ function normalizeSceneScrollOffset(offset: number): number {
 
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
 const DOWNLOAD_PROGRESS_UPDATE_INTERVAL_MS: number = 250;
+const DOWNLOAD_PAGE_RETRY_LIMIT: number = 3;
 const ACTION_BUBBLE_SIZE: number = 44;
 const ACTION_BUBBLE_GAP: number = 8;
 const ACTION_BUBBLE_PRIMARY_SIZE: number = 54;
@@ -88,6 +90,12 @@ function mergeDownloadDetailTitles(detail: GalleryDetail, item: DownloadInfo): G
   return next;
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve: () => void) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 interface DownloadWorkerState {
   cursor: number;
   finished: number;
@@ -97,12 +105,18 @@ interface DownloadWorkerState {
   failedMessage: string;
 }
 
+interface DownloadedPageResult {
+  page: GalleryPage;
+  cachedPath: string;
+}
+
 @Component
 export struct DownloadScene {
   private client: EhHttpClient = new EhHttpClient();
   private shouldStop: boolean = false;
   private stoppedGids: number[] = [];
   private unsubscribeStore: () => void = () => {};
+  private unsubscribeDownloadManager: () => void = () => {};
   onMenu: () => void = () => {};
 
   @State items: DownloadInfo[] = [];
@@ -119,6 +133,7 @@ export struct DownloadScene {
   @State detailLoaded: boolean = false;
   @State detailRenderVersion: number = 0;
   @State showReader: boolean = false;
+  @State showComments: boolean = false;
   @State localReaderDetail: GalleryDetail = createEmptyDetail();
   @State localReaderPage: GalleryPage = createEmptyPage();
   @State localReaderPages: ReaderPageState[] = [];
@@ -152,6 +167,9 @@ export struct DownloadScene {
       this.items = items;
       this.refreshDownloadRows();
     });
+    this.unsubscribeDownloadManager = ehDownloadManager.subscribe((status: string) => {
+      this.statusText = status;
+    });
     this.loadDownloads();
     setTimeout(() => {
       this.syncDownloadContentWidthFromWindow();
@@ -160,6 +178,7 @@ export struct DownloadScene {
 
   aboutToDisappear(): void {
     this.unsubscribeStore();
+    this.unsubscribeDownloadManager();
   }
 
   private handleSystemBack(): boolean {
@@ -173,6 +192,10 @@ export struct DownloadScene {
     }
     if (this.showReader) {
       this.closeLocalReader();
+      return true;
+    }
+    if (this.showComments) {
+      this.closeComments();
       return true;
     }
     if (this.showDetail) {
@@ -252,10 +275,23 @@ export struct DownloadScene {
 
     ehDownloadStore.load(context).then(() => {
       this.statusText = this.items.length.toString() + ' download items';
+      if (ehDownloadManager.hasWaitingDownloads()) {
+        ehDownloadManager.startQueue(context);
+      }
     }).catch((error: Error) => {
       this.statusText = 'Download load failed: ' + error.message;
       this.items = ehDownloadStore.getItems();
     });
+  }
+
+  private hasWaitingDownloads(): boolean {
+    const items = ehDownloadStore.getItems();
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].state === DownloadState.Wait) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private persistDownloads(): void {
@@ -520,7 +556,7 @@ export struct DownloadScene {
     ehDownloadStore.startAll();
     this.statusText = 'Queued idle and failed downloads';
     this.persistDownloads();
-    this.runDownloadQueue();
+    this.startGlobalDownloadQueue();
   }
 
   private startSelectedOrAll(): void {
@@ -537,13 +573,13 @@ export struct DownloadScene {
     this.statusText = 'Queued ' + selected.length.toString() + ' selected downloads';
     this.clearDownloadSelection();
     this.persistDownloads();
-    this.runDownloadQueue();
+    this.startGlobalDownloadQueue();
   }
 
   private stopAll(): void {
     this.shouldStop = true;
     this.stoppedGids = [];
-    ehDownloadStore.stopAll();
+    ehDownloadManager.stopAll();
     this.statusText = 'Stopped waiting downloads';
     this.persistDownloads();
   }
@@ -556,7 +592,7 @@ export struct DownloadScene {
     }
     for (let i = 0; i < selected.length; i++) {
       this.addStoppedGid(selected[i].gid);
-      ehDownloadStore.stopGallery(selected[i].gid);
+      ehDownloadManager.stopGallery(selected[i].gid);
     }
     this.statusText = 'Stopped ' + selected.length.toString() + ' selected downloads';
     this.clearDownloadSelection();
@@ -612,17 +648,26 @@ export struct DownloadScene {
   private startItem(item: DownloadInfo): void {
     this.shouldStop = false;
     this.removeStoppedGid(item.gid);
-    ehDownloadStore.startGallery(item.gid);
+    ehDownloadManager.resumeGallery(item.gid);
     this.statusText = 'Queued: ' + item.title;
     this.persistDownloads();
-    this.runDownloadQueue();
+    this.startGlobalDownloadQueue();
   }
 
   private stopItem(item: DownloadInfo): void {
     this.addStoppedGid(item.gid);
-    ehDownloadStore.stopGallery(item.gid);
+    ehDownloadManager.stopGallery(item.gid);
     this.statusText = 'Stopped: ' + item.title;
     this.persistDownloads();
+  }
+
+  private startGlobalDownloadQueue(): void {
+    const context = getAbilityContext();
+    if (context === undefined) {
+      this.statusText = 'Download needs app context';
+      return;
+    }
+    ehDownloadManager.startQueue(context);
   }
 
   private removeItem(item: DownloadInfo): void {
@@ -700,7 +745,21 @@ export struct DownloadScene {
 
   private closeDetail(): void {
     this.showDetail = false;
+    this.showComments = false;
     this.detailStatus = '';
+  }
+
+  private openComments(): void {
+    if (!this.detailLoaded || this.detail.comments.length === 0) {
+      return;
+    }
+    this.showComments = true;
+    this.detailRenderVersion++;
+  }
+
+  private closeComments(): void {
+    this.showComments = false;
+    this.detailRenderVersion++;
   }
 
   private openTagSearch(namespace: string, tag: string): void {
@@ -864,51 +923,10 @@ export struct DownloadScene {
       }
 
       try {
-        const pageResult = await this.client.loadGalleryPage(preview.pageUrl, currentGallerySite(),
-          readerPageReferer(detailUrl, detail.previewSet, pageIndex, currentGallerySite()));
-        if (!pageResult.ok || pageResult.page === null) {
-          throw new Error(pageResult.message);
-        }
+        const downloaded = await this.downloadPageWithRetry(context, item, detail, detailUrl, pageIndex, total, state);
 
-        const imageUrl = downloadImageUrlForPage(pageResult.page);
-        if (imageUrl.length === 0) {
-          throw new Error('Image URL missing');
-        }
-
-        let progressBytes = 0;
-        let progressTime = Date.now();
-        let progressUiTime = 0;
-        const existingCachedPath = readerImageCache.getCachedPath(context, imageUrl);
-        const cachedPath = existingCachedPath.length > 0 ? existingCachedPath :
-          await readerImageCache.ensureCached(context, imageUrl, pageResult.page.pageUrl, false,
-            (progress: ImageDownloadProgress) => {
-              const now = Date.now();
-              const receivedBytes = Math.max(0, progress.receivedBytes);
-              const totalBytes = Math.max(0, progress.totalBytes);
-              const isCompleteProgress = totalBytes > 0 && receivedBytes >= totalBytes;
-              if (now - progressUiTime < DOWNLOAD_PROGRESS_UPDATE_INTERVAL_MS && !isCompleteProgress) {
-                return;
-              }
-              const deltaBytes = Math.max(0, receivedBytes - progressBytes);
-              const deltaMs = Math.max(1, now - progressTime);
-              const speed = Math.round(deltaBytes * 1000 / deltaMs);
-              progressBytes = receivedBytes;
-              progressTime = now;
-              progressUiTime = now;
-
-              const pageUnits = totalBytes > 0 ?
-                Math.min(DOWNLOAD_PAGE_PROGRESS_SCALE - 1,
-                  Math.floor(receivedBytes * DOWNLOAD_PAGE_PROGRESS_SCALE / totalBytes)) : 0;
-              const currentProgress = state.finished * DOWNLOAD_PAGE_PROGRESS_SCALE + pageUnits;
-              const averageBytes = state.finished > 0 ? Math.max(1, Math.round(state.fileSize / state.finished)) :
-                Math.max(1, totalBytes);
-              const currentRemainingBytes = totalBytes > receivedBytes ? totalBytes - receivedBytes : 0;
-              const remainingBytes = currentRemainingBytes + Math.max(0, total - state.finished - 1) * averageBytes;
-              ehDownloadStore.setProgress(item.gid, state.finished, total, currentProgress);
-              ehDownloadStore.setTransfer(item.gid, speed, speed > 0 ? Math.round(remainingBytes / speed) : 0);
-            });
-
-        const savedPath = ehDownloadFileStore.savePageImage(context, detail, pageResult.page, pageIndex, cachedPath);
+        const savedPath = ehDownloadFileStore.savePageImage(context, detail, downloaded.page, pageIndex,
+          downloaded.cachedPath);
         state.fileSize += ehDownloadFileStore.statFileSize(savedPath);
         state.finished++;
 
@@ -929,6 +947,81 @@ export struct DownloadScene {
         state.failedMessage = String(error);
       }
     }
+  }
+
+  private async downloadPageWithRetry(context: common.UIAbilityContext, item: DownloadInfo, detail: GalleryDetail,
+    detailUrl: string, pageIndex: number, total: number, state: DownloadWorkerState): Promise<DownloadedPageResult> {
+    let lastError = '';
+    for (let attempt = 0; attempt <= DOWNLOAD_PAGE_RETRY_LIMIT; attempt++) {
+      if (this.shouldStop || this.isStopped(item.gid)) {
+        throw new Error('Download stopped');
+      }
+      try {
+        return await this.downloadPageOnce(context, item, detail, detailUrl, pageIndex, total, state);
+      } catch (error) {
+        lastError = String(error);
+        if (attempt >= DOWNLOAD_PAGE_RETRY_LIMIT) {
+          break;
+        }
+        this.statusText = 'Retry ' + (attempt + 1).toString() + '/' + DOWNLOAD_PAGE_RETRY_LIMIT.toString() +
+          ' page ' + (pageIndex + 1).toString() + ': ' + item.title;
+        await wait(500 * (attempt + 1));
+      }
+    }
+    throw new Error('Page ' + (pageIndex + 1).toString() + ' failed after ' +
+      (DOWNLOAD_PAGE_RETRY_LIMIT + 1).toString() + ' attempts: ' + lastError);
+  }
+
+  private async downloadPageOnce(context: common.UIAbilityContext, item: DownloadInfo, detail: GalleryDetail,
+    detailUrl: string, pageIndex: number, total: number, state: DownloadWorkerState): Promise<DownloadedPageResult> {
+    const preview = detail.previewSet[pageIndex];
+    const pageResult = await this.client.loadGalleryPage(preview.pageUrl, currentGallerySite(),
+      readerPageReferer(detailUrl, detail.previewSet, pageIndex, currentGallerySite()));
+    if (!pageResult.ok || pageResult.page === null) {
+      throw new Error(pageResult.message);
+    }
+
+    const imageUrl = downloadImageUrlForPage(pageResult.page);
+    if (imageUrl.length === 0) {
+      throw new Error('Image URL missing');
+    }
+
+    let progressBytes = 0;
+    let progressTime = Date.now();
+    let progressUiTime = 0;
+    const existingCachedPath = readerImageCache.getCachedPath(context, imageUrl);
+    const cachedPath = existingCachedPath.length > 0 ? existingCachedPath :
+      await readerImageCache.ensureCached(context, imageUrl, pageResult.page.pageUrl, false,
+        (progress: ImageDownloadProgress) => {
+          const now = Date.now();
+          const receivedBytes = Math.max(0, progress.receivedBytes);
+          const totalBytes = Math.max(0, progress.totalBytes);
+          const isCompleteProgress = totalBytes > 0 && receivedBytes >= totalBytes;
+          if (now - progressUiTime < DOWNLOAD_PROGRESS_UPDATE_INTERVAL_MS && !isCompleteProgress) {
+            return;
+          }
+          const deltaBytes = Math.max(0, receivedBytes - progressBytes);
+          const deltaMs = Math.max(1, now - progressTime);
+          const speed = Math.round(deltaBytes * 1000 / deltaMs);
+          progressBytes = receivedBytes;
+          progressTime = now;
+          progressUiTime = now;
+
+          const pageUnits = totalBytes > 0 ?
+            Math.min(DOWNLOAD_PAGE_PROGRESS_SCALE - 1,
+              Math.floor(receivedBytes * DOWNLOAD_PAGE_PROGRESS_SCALE / totalBytes)) : 0;
+          const currentProgress = state.finished * DOWNLOAD_PAGE_PROGRESS_SCALE + pageUnits;
+          const averageBytes = state.finished > 0 ? Math.max(1, Math.round(state.fileSize / state.finished)) :
+            Math.max(1, totalBytes);
+          const currentRemainingBytes = totalBytes > receivedBytes ? totalBytes - receivedBytes : 0;
+          const remainingBytes = currentRemainingBytes + Math.max(0, total - state.finished - 1) * averageBytes;
+          ehDownloadStore.setProgress(item.gid, state.finished, total, currentProgress);
+          ehDownloadStore.setTransfer(item.gid, speed, speed > 0 ? Math.round(remainingBytes / speed) : 0);
+        });
+    return {
+      page: pageResult.page,
+      cachedPath: cachedPath
+    };
   }
 
   private async loadCompleteDownloadDetail(initial: GalleryDetail, referer: string): Promise<GalleryDetail> {
@@ -1122,7 +1215,7 @@ export struct DownloadScene {
     this.localReaderPage = cloneGalleryPage(this.localReaderPages[index].page);
     this.localReaderStatus = this.pageHasLocalImage(this.localReaderPage) ? 'Page loaded from downloads' :
       'Page is not downloaded yet';
-    saveGalleryReadPosition(this.localReaderDetail.gid, index);
+    saveGalleryReadPosition(this.localReaderDetail.gid, index, this.localReaderDetail);
     this.localReaderRenderVersion++;
     readerSessionStore.updateSession(createReaderSessionState(this.localReaderDetail, this.localReaderPage,
       this.localReaderStatus, '', '', GallerySite.E, this.localReaderIndex));
@@ -1510,7 +1603,7 @@ export struct DownloadScene {
     } else if (this.showDetail) {
       GalleryDetailOverlayScene({
         renderVersion: this.detailRenderVersion,
-        showComments: false,
+        showComments: this.showComments,
         detail: this.detail,
         isDetailLoaded: this.detailLoaded,
         isFavorited: this.detail.isFavorited,
@@ -1519,6 +1612,9 @@ export struct DownloadScene {
         downloadText: downloadButtonText(this.detail.gid),
         onBack: () => {
           this.closeDetail();
+        },
+        onCloseComments: () => {
+          this.closeComments();
         },
         onDownload: () => {
           if (this.detailItem !== null) {
@@ -1533,7 +1629,9 @@ export struct DownloadScene {
             this.openDownloadedItemAt(this.detailItem, preview.index);
           }
         },
-        onComments: () => {},
+        onComments: () => {
+          this.openComments();
+        },
         onFavorite: () => {},
         onShare: () => {},
         onRate: (_rating: number) => {},

@@ -1304,14 +1304,20 @@ export function saveGalleryToHistory(gallery: GalleryInfo): void {
   }).catch(() => {});
 }
 
-export function saveGalleryReadPosition(gid: number, pageIndex: number): void {
+export function saveGalleryReadPosition(gid: number, pageIndex: number, gallery?: GalleryInfo): void {
   const context = getAbilityContext();
   if (context === undefined) {
+    if (gallery !== undefined) {
+      ehHistoryStore.addGallery(gallery);
+    }
     ehHistoryStore.setReadPage(gid, pageIndex);
     notifyHistoryReadChanged();
     return;
   }
   ehHistoryStore.ensureLoaded(context).then(() => {
+    if (gallery !== undefined) {
+      ehHistoryStore.addGallery(gallery);
+    }
     ehHistoryStore.setReadPage(gid, pageIndex);
     notifyHistoryReadChanged();
     ehHistoryStore.save(context).catch(() => {});
@@ -1347,7 +1353,10 @@ export function toggleGalleryDownload(gallery: GalleryInfo): boolean {
     return false;
   }
 
-  ehDownloadStore.addGallery(gallery, '');
+  const item = ehDownloadStore.addGallery(gallery, '');
+  if (item !== null) {
+    ehDownloadStore.startGallery(item.gid);
+  }
   saveDownloadsQuietly();
   return true;
 }

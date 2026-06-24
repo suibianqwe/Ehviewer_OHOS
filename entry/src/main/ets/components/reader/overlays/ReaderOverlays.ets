@@ -66,23 +66,14 @@ export struct ReaderInfoOverlay {
 
 @Component
 struct ReaderProgressText {
-  @Prop @Watch('onTextChange') text: string = '';
+  @Prop text: string = '';
   @Prop fontSize: number = 14;
   @Prop fontColor: ResourceColor = '#E5E7EB';
   @Prop textWidth: number = 54;
   @Prop textHeight: number = 50;
-  @State displayText: string = '';
-
-  aboutToAppear(): void {
-    this.displayText = this.text;
-  }
-
-  onTextChange(): void {
-    this.displayText = this.text;
-  }
 
   build() {
-    Text(this.displayText)
+    Text(this.text)
       .fontSize(this.fontSize)
       .fontColor(this.fontColor)
       .lineHeight(Math.max(16, this.fontSize + 2))

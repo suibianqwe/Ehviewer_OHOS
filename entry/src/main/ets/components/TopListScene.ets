@@ -6,6 +6,7 @@ import { DEFAULT_ADVANCE_SEARCH, EhUrl, ListMode } from '../services/EhUrl';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
+import { ehDownloadManager } from '../services/EhDownloadManager';
 import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen, leaveEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, nextFloatingToolbarOffset } from '../shared/EhShared';
 import {
@@ -289,7 +290,7 @@ export struct TopListScene {
 
     this.readerPreviewMap.set(preview.index, preview);
     this.readerPreviewIndex = preview.index;
-    saveGalleryReadPosition(this.detail.gid, preview.index);
+    saveGalleryReadPosition(this.detail.gid, preview.index, this.detail);
     this.readerStatus = 'Loading page ' + (preview.index + 1).toString() + '...';
     this.readerPage = createReaderLoadingPage(preview.pageUrl);
     this.setReaderPage(preview.index, this.readerPage);
@@ -428,7 +429,7 @@ export struct TopListScene {
     }
 
     this.readerPreviewIndex = index;
-    saveGalleryReadPosition(this.detail.gid, index);
+    saveGalleryReadPosition(this.detail.gid, index, this.detail);
     this.readerStatus = 'Resolving page ' + (index + 1).toString() + '...';
     this.readerPage = createReaderLoadingPage('');
     this.setReaderPage(index, this.readerPage);
@@ -597,8 +598,14 @@ export struct TopListScene {
       return;
     }
     const queued = toggleGalleryDownload(this.detail);
+    if (queued) {
+      const context = getAbilityContext();
+      if (context !== undefined) {
+        ehDownloadManager.startQueue(context);
+      }
+    }
     this.detailDownloadText = queued ? 'Queued' : 'Download';
-    this.detailStatus = queued ? 'Added to download queue' : 'Removed from download queue';
+    this.detailStatus = queued ? 'Added to download queue and started' : 'Removed from download queue';
     this.renderVersion++;
   }
 

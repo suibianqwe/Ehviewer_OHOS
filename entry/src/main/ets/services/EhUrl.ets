@@ -121,7 +121,8 @@ export class ListUrlBuilder {
       case ListMode.Uploader:
         return buildPathUrl(EhUrl.getHost(site), 'uploader', this.keyword, this.pageIndex);
       case ListMode.Tag:
-        return buildPathUrl(EhUrl.getHost(site), 'tag', this.keyword, this.pageIndex);
+        return buildUrl(buildPathUrl(EhUrl.getHost(site), 'tag', this.keyword, this.pageIndex),
+          this.buildPathSearchParams());
       case ListMode.Filter:
         return buildUrl(EhUrl.getHost(site), this.buildFilterParams());
       case ListMode.WhatsHot:
@@ -160,6 +161,15 @@ export class ListUrlBuilder {
       params.push({ key: 'page', value: this.pageIndex.toString() });
     }
     params.push({ key: 'f_search', value: this.keyword });
+    return params;
+  }
+
+  private buildPathSearchParams(): QueryParam[] {
+    const params: QueryParam[] = [];
+    if (this.category !== GalleryCategory.None) {
+      params.push({ key: 'f_cats', value: ((~this.category) & ALL_CATEGORY).toString() });
+    }
+    this.appendAdvanceParams(params);
     return params;
   }
 

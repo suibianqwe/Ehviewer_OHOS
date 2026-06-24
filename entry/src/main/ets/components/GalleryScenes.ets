@@ -24,6 +24,7 @@ import { ehFilterStore } from '../services/EhFilterStore';
 import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
+import { ehDownloadManager } from '../services/EhDownloadManager';
 import {
   applyAppChromeImmersiveMode,
   enterEmbeddedReaderFullscreen,
@@ -702,7 +703,7 @@ export struct GalleryListScene {
     }
 
     const builder = new ListUrlBuilder();
-    builder.keyword = routeUsesKeyword(this.sourceRoute) ? this.keyword : '';
+    builder.keyword = (this.isSearchResultScene || routeUsesKeyword(this.sourceRoute)) ? this.keyword : '';
     builder.pageIndex = pageIndex;
     const routeMode = this.useForcedMode ? this.forcedMode : listModeForRoute(this.sourceRoute);
     builder.mode = this.searchModeForRoute(routeMode, builder.keyword);
@@ -766,7 +767,7 @@ export struct GalleryListScene {
   }
 
   private searchSupportsAdvanced(mode: ListMode): boolean {
-    return mode === ListMode.Normal || mode === ListMode.Subscription;
+    return mode === ListMode.Normal || mode === ListMode.Subscription || mode === ListMode.Tag;
   }
 
   private applySearch(): void {
@@ -990,7 +991,7 @@ export struct GalleryListScene {
 
     this.readerPreviewMap.set(preview.index, preview);
     this.readerPreviewIndex = preview.index;
-    saveGalleryReadPosition(this.detail.gid, preview.index);
+    saveGalleryReadPosition(this.detail.gid, preview.index, this.detail);
     this.readerStatus = 'Loading page ' + (preview.index + 1).toString() + '...';
     this.readerPage = createReaderLoadingPage(preview.pageUrl);
     this.setReaderPage(preview.index, this.readerPage);
@@ -1131,7 +1132,7 @@ export struct GalleryListScene {
     }
 
     this.readerPreviewIndex = index;
-    saveGalleryReadPosition(this.detail.gid, index);
+    saveGalleryReadPosition(this.detail.gid, index, this.detail);
     this.readerStatus = 'Resolving page ' + (index + 1).toString() + '...';
     this.readerPage = createReaderLoadingPage('');
     this.setReaderPage(index, this.readerPage);
@@ -1328,8 +1329,14 @@ export struct GalleryListScene {
       return;
     }
     const queued = toggleGalleryDownload(this.detail);
+    if (queued) {
+      const context = getAbilityContext();
+      if (context !== undefined) {
+        ehDownloadManager.startQueue(context);
+      }
+    }
     this.detailDownloadText = queued ? 'Queued' : 'Download';
-    this.detailStatus = queued ? 'Added to download queue' : 'Removed from download queue';
+    this.detailStatus = queued ? 'Added to download queue and started' : 'Removed from download queue';
     this.renderVersion++;
   }
 

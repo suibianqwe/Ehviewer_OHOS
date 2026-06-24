@@ -37,6 +37,11 @@ export struct DetailComments {
       }
       .width('100%')
       .margin({ bottom: 10 })
+      .onClick(() => {
+        if (this.isDetailLoaded && this.comments.length > 0) {
+          this.onComments();
+        }
+      })
 
       if (!this.isDetailLoaded) {
         Text(uiText('Loading comments...'))
@@ -75,6 +80,9 @@ export struct DetailComments {
           .margin({ bottom: 6 })
           .backgroundColor(themeSurfaceVariant())
           .borderRadius(6)
+          .onClick(() => {
+            this.onComments();
+          })
         }, (comment: GalleryComment) => comment.id)
 
       }
