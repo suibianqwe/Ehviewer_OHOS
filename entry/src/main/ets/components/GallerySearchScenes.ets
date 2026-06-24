@@ -62,6 +62,10 @@ const TAG_NAMESPACE_OPTIONS: TagNamespaceOption[] = [
   { label: 'Rows', value: 'rows' }
 ];
 
+function isDefaultFilterDisableFlag(flag: number): boolean {
+  return flag === 0x100 || flag === 0x200 || flag === 0x400;
+}
+
 function activeTagPrefix(keyword: string): string {
   const parts = keyword.trim().split(/\s+/);
   const collected: string[] = [];
@@ -394,6 +398,7 @@ export struct SearchAdvancedPanel {
   @Prop searchCategory: number = GalleryCategory.None;
   @Prop advancedSearchEnabled: boolean = false;
   @Prop advanceSearch: number = DEFAULT_ADVANCE_SEARCH;
+  @Prop searchFilterEnabled: boolean = true;
   @Prop minRating: number = -1;
   @Prop pageFrom: number = -1;
   @Prop pageTo: number = -1;
@@ -530,10 +535,16 @@ export struct SearchAdvancedPanel {
   }
 
   private flagOn(flag: number): boolean {
+    if (!this.searchFilterEnabled && isDefaultFilterDisableFlag(flag)) {
+      return true;
+    }
     return (this.advanceSearchDraft & flag) !== 0;
   }
 
   private setFlag(flag: number, enabled: boolean): void {
+    if (!this.searchFilterEnabled && isDefaultFilterDisableFlag(flag)) {
+      return;
+    }
     const next = enabled ? (this.advanceSearchDraft | flag) : (this.advanceSearchDraft & ~flag);
     this.advanceSearchDraft = next;
     this.onAdvanceSearchChange(next);
@@ -649,11 +660,11 @@ export struct SearchAdvancedPanel {
 
             this.sectionTitle('Disable default filter')
             Row({ space: 8 }) {
-              SearchFlagChip({ label: 'No lang filter', isOn: this.flagOn(0x100), onToggle: (isOn: boolean) => { this.setFlag(0x100, isOn); } })
-              SearchFlagChip({ label: 'No uploader filter', isOn: this.flagOn(0x200), onToggle: (isOn: boolean) => { this.setFlag(0x200, isOn); } })
+              SearchFlagChip({ label: 'No lang filter', isOn: this.flagOn(0x100), isEnabled: this.searchFilterEnabled, onToggle: (isOn: boolean) => { this.setFlag(0x100, isOn); } })
+              SearchFlagChip({ label: 'No uploader filter', isOn: this.flagOn(0x200), isEnabled: this.searchFilterEnabled, onToggle: (isOn: boolean) => { this.setFlag(0x200, isOn); } })
             }
             Row({ space: 8 }) {
-              SearchFlagChip({ label: 'No tag filter', isOn: this.flagOn(0x400), onToggle: (isOn: boolean) => { this.setFlag(0x400, isOn); } })
+              SearchFlagChip({ label: 'No tag filter', isOn: this.flagOn(0x400), isEnabled: this.searchFilterEnabled, onToggle: (isOn: boolean) => { this.setFlag(0x400, isOn); } })
               Blank().layoutWeight(1)
             }
 
@@ -948,16 +959,19 @@ export struct ActionBubble {
 export struct SearchFlagChip {
   label: string = '';
   @Prop isOn: boolean = false;
+  @Prop isEnabled: boolean = true;
   onToggle: (isOn: boolean) => void = (_isOn: boolean) => {};
 
   build() {
     Button(uiText(this.label))
       .height(30)
       .fontSize(13)
-      .fontColor(this.isOn ? themeOnPrimaryText() : themeSecondaryText())
+      .fontColor(this.isOn ? themeOnPrimaryText() : (this.isEnabled ? themeSecondaryText() : themeInactiveActionText()))
       .backgroundColor(this.isOn ? themePrimaryColor() : themeSurfaceVariant())
       .borderRadius(4)
       .layoutWeight(1)
+      .enabled(this.isEnabled)
+      .opacity(this.isEnabled ? 1 : 0.72)
       .onClick(() => {
         this.onToggle(!this.isOn);
       })

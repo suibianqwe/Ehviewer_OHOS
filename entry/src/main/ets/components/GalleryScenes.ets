@@ -139,6 +139,7 @@ interface GalleryListSceneCache {
   pageFrom: number;
   pageTo: number;
   searchFilterEnabled: boolean;
+  searchAdvancedPanelOpened: boolean;
   searchSubmitted: boolean;
   listScrollOffset: number;
 }
@@ -154,6 +155,7 @@ interface SearchResultDraft {
   pageTo: number;
   filterActive: boolean;
   searchFilterEnabled: boolean;
+  searchAdvancedPanelOpened: boolean;
   submitted: boolean;
 }
 
@@ -172,6 +174,7 @@ function createEmptySearchResultDraft(): SearchResultDraft {
     pageTo: -1,
     filterActive: false,
     searchFilterEnabled: true,
+    searchAdvancedPanelOpened: false,
     submitted: false
   };
 }
@@ -234,6 +237,7 @@ export struct GalleryListScene {
   initialPageFrom: number = -1;
   initialPageTo: number = -1;
   initialSearchSubmitted: boolean = false;
+  initialSearchAdvancedPanelOpened: boolean = false;
   isSearchResultScene: boolean = false;
   useForcedMode: boolean = false;
   forcedMode: ListMode = ListMode.Normal;
@@ -277,6 +281,7 @@ export struct GalleryListScene {
   @State searchResultDraft: SearchResultDraft = createEmptySearchResultDraft();
   @State searchMode: ListMode = ListMode.Normal;
   @State searchCategory: number = GalleryCategory.None;
+  @State searchAdvancedPanelOpened: boolean = false;
   @State advancedSearchEnabled: boolean = false;
   @State advanceSearch: number = DEFAULT_ADVANCE_SEARCH;
   @State minRating: number = -1;
@@ -318,7 +323,8 @@ export struct GalleryListScene {
         this.searchCategory.toString() + '|' + (this.advancedSearchEnabled ? '1' : '0') + '|' +
         this.advanceSearch.toString() + '|' + this.minRating.toString() + '|' +
         (this.accountFilterEnabled ? 'account-filter-on' : 'account-filter-off') + '|' +
-        (this.searchFilterEnabled ? 'search-filter-on' : 'search-filter-off');
+        (this.searchFilterEnabled ? 'search-filter-on' : 'search-filter-off') + '|' +
+        (this.searchAdvancedPanelOpened ? 'advanced-panel-opened' : 'advanced-panel-closed');
     }
     return this.sourceRoute.toString() + '|' + mode + '|' + this.follow + '|' + this.initialKeyword + '|' +
       this.initialSearchMode.toString() + '|' + this.initialSearchCategory.toString() + '|' +
@@ -348,6 +354,7 @@ export struct GalleryListScene {
     this.filterActive = this.isSearchResultScene ? false : cache.filterActive;
     this.accountFilterEnabled = cache.accountFilterEnabled !== false;
     this.searchFilterEnabled = cache.searchFilterEnabled !== false;
+    this.searchAdvancedPanelOpened = cache.searchAdvancedPanelOpened === true;
     this.searchMode = cache.searchMode;
     this.searchCategory = cache.searchCategory;
     this.advancedSearchEnabled = cache.advancedSearchEnabled;
@@ -375,6 +382,7 @@ export struct GalleryListScene {
       filterActive: this.filterActive,
       accountFilterEnabled: this.accountFilterEnabled,
       searchFilterEnabled: this.searchFilterEnabled,
+      searchAdvancedPanelOpened: this.searchAdvancedPanelOpened,
       searchMode: this.searchMode,
       searchCategory: this.searchCategory,
       advancedSearchEnabled: this.advancedSearchEnabled,
@@ -409,6 +417,8 @@ export struct GalleryListScene {
       this.pageTo = this.initialPageTo;
       this.filterActive = this.isSearchResultScene ? false : this.searchResultDraft.filterActive;
       this.searchFilterEnabled = this.isSearchResultScene ? this.searchResultDraft.searchFilterEnabled : true;
+      this.searchAdvancedPanelOpened = this.isSearchResultScene ?
+        (this.searchResultDraft.searchAdvancedPanelOpened || this.initialSearchAdvancedPanelOpened) : false;
       this.searchSubmitted = !this.isSearchResultScene || this.initialSearchSubmitted;
     }
     const context = getAbilityContext();
@@ -705,8 +715,8 @@ export struct GalleryListScene {
       builder.pageTo = this.pageTo;
     }
     if (this.isSearchResultScene && !this.searchFilterEnabled && this.searchSupportsAdvanced(builder.mode)) {
-      builder.category = ALL_CATEGORY;
-      builder.advanceSearch = ACCOUNT_DEFAULT_FILTER_DISABLE_FLAGS;
+      const baseFlags = builder.advanceSearch === -1 ? 0 : builder.advanceSearch;
+      builder.advanceSearch = baseFlags | ACCOUNT_DEFAULT_FILTER_DISABLE_FLAGS;
       builder.includeAdvSearchParam = false;
     }
     if (!this.isSearchResultScene && !this.includeAccountUConfig() && this.searchSupportsAdvanced(builder.mode)) {
@@ -739,11 +749,14 @@ export struct GalleryListScene {
   }
 
   private shouldApplySearchFilters(): boolean {
-    return !this.isSearchResultScene || this.searchFilterEnabled;
+    return !this.isSearchResultScene || this.searchAdvancedPanelOpened;
   }
 
   private requestCategoryForMode(mode: ListMode): number {
-    if (this.shouldApplySearchFilters() && this.searchCategory !== GalleryCategory.None) {
+    if (this.isSearchResultScene && this.searchAdvancedPanelOpened && this.searchSupportsAdvanced(mode)) {
+      return this.searchCategory === GalleryCategory.None ? ALL_CATEGORY : this.searchCategory;
+    }
+    if (!this.isSearchResultScene && this.shouldApplySearchFilters() && this.searchCategory !== GalleryCategory.None) {
       return this.searchCategory;
     }
     if (!this.isSearchResultScene && this.searchSupportsAdvanced(mode) && !this.accountFilterEnabled) {
@@ -790,6 +803,7 @@ export struct GalleryListScene {
       pageTo: -1,
       filterActive: false,
       searchFilterEnabled: true,
+      searchAdvancedPanelOpened: false,
       submitted: false
     };
     this.showSearchResultScene = true;
@@ -822,6 +836,7 @@ export struct GalleryListScene {
       pageTo: -1,
       filterActive: false,
       searchFilterEnabled: true,
+      searchAdvancedPanelOpened: false,
       submitted: true
     };
     this.showSearchResultScene = true;
@@ -849,7 +864,10 @@ export struct GalleryListScene {
   }
 
   private toggleSearchFilterEnabled(): void {
-    this.searchFilterEnabled = !this.searchFilterEnabled;
+    const nextEnabled = !this.searchFilterEnabled;
+    this.searchFilterEnabled = nextEnabled;
+    this.advanceSearch = nextEnabled ? (this.advanceSearch & ~ACCOUNT_DEFAULT_FILTER_DISABLE_FLAGS) :
+      (this.advanceSearch | ACCOUNT_DEFAULT_FILTER_DISABLE_FLAGS);
     this.fabExpanded = false;
     this.statusText = this.searchFilterEnabled ? 'Search filters enabled' : 'Search filters disabled';
     this.searchSubmitted = true;
@@ -1438,6 +1456,7 @@ export struct GalleryListScene {
           initialPageFrom: this.searchResultDraft.pageFrom,
           initialPageTo: this.searchResultDraft.pageTo,
           initialSearchSubmitted: this.searchResultDraft.submitted,
+          initialSearchAdvancedPanelOpened: this.searchResultDraft.searchAdvancedPanelOpened,
           isSearchResultScene: true,
           onBack: () => {
             this.closeSearchResultScene();
@@ -1493,30 +1512,30 @@ export struct GalleryListScene {
               }
             },
             onSearchCategoryChange: (category: number) => {
+              this.searchAdvancedPanelOpened = true;
               this.searchCategory = category;
               if (this.isSearchResultScene) {
-                this.searchFilterEnabled = true;
                 this.searchSubmitted = false;
               }
             },
             onAdvancedEnabledChange: (enabled: boolean) => {
+              this.searchAdvancedPanelOpened = true;
               this.advancedSearchEnabled = enabled;
               if (this.isSearchResultScene) {
-                this.searchFilterEnabled = true;
                 this.searchSubmitted = false;
               }
             },
             onAdvanceSearchChange: (flags: number) => {
+              this.searchAdvancedPanelOpened = true;
               this.advanceSearch = flags;
               if (this.isSearchResultScene) {
-                this.searchFilterEnabled = true;
                 this.searchSubmitted = false;
               }
             },
             onMinRatingChange: (rating: number) => {
+              this.searchAdvancedPanelOpened = true;
               this.minRating = rating;
               if (this.isSearchResultScene) {
-                this.searchFilterEnabled = true;
                 this.searchSubmitted = false;
               }
             },
@@ -1559,6 +1578,9 @@ export struct GalleryListScene {
             },
             onFilter: () => {
               this.toggleFilter();
+            },
+            onAdvancedPanelOpen: () => {
+              this.searchAdvancedPanelOpened = true;
             },
             onJump: () => {
               this.jumpGalleryPage();
@@ -1735,6 +1757,8 @@ export struct GalleryListContent {
   };
   onFilter: () => void = () => {
   };
+  onAdvancedPanelOpen: () => void = () => {
+  };
   onJump: () => void = () => {
   };
   onRandom: () => void = () => {
@@ -1826,6 +1850,9 @@ export struct GalleryListContent {
   }
 
   private toggleAdvancedPanel(): void {
+    if (this.isSearchResultScene) {
+      this.onAdvancedPanelOpen();
+    }
     this.advancedPanelVisible = !this.advancedPanelVisible;
   }
 
@@ -2068,20 +2095,6 @@ export struct GalleryListContent {
             this.closeAdvancedPanel();
             this.onSearch();
           })
-
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.funnel'))
-            .fontSize(22)
-            .fontColor([themeOnPrimaryText()])
-        }
-        .width(40)
-        .height(40)
-        .backgroundColor(
-          this.searchFilterEnabled ? themeOnPrimaryActionStrongBackground() : themeOnPrimaryActionBackground())
-        .flexShrink(0)
-        .onClick(() => {
-          this.onFilter();
-        })
 
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.plus'))
@@ -2371,6 +2384,7 @@ export struct GalleryListContent {
           searchCategory: this.searchCategory,
           advancedSearchEnabled: this.advancedSearchEnabled,
           advanceSearch: this.advanceSearch,
+          searchFilterEnabled: this.searchFilterEnabled,
           minRating: this.minRating,
           pageFrom: -1,
           pageTo: -1,
