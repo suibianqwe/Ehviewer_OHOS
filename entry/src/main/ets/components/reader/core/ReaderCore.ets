@@ -120,6 +120,8 @@ export class ReaderPreviewModel {
   centerX: number = 0.5;
   centerY: number = 0.5;
   disableSwipe: boolean = false;
+  panStartedAtMinX: boolean = false;
+  panStartedAtMaxX: boolean = false;
 
   reset(): void {
     this.currentScale = READER_BASE_SCALE;
@@ -131,6 +133,8 @@ export class ReaderPreviewModel {
     this.centerX = 0.5;
     this.centerY = 0.5;
     this.disableSwipe = false;
+    this.panStartedAtMinX = false;
+    this.panStartedAtMaxX = false;
   }
 
   setComponentSize(width: number, height: number): void {
@@ -186,6 +190,9 @@ export class ReaderPreviewModel {
     this.lastOffsetX = this.currentOffsetX;
     this.lastOffsetY = this.currentOffsetY;
     this.lastScale = this.currentScale;
+    const maxX = this.maxOffsetX();
+    this.panStartedAtMinX = maxX > 0 && this.currentOffsetX <= -maxX + 0.5;
+    this.panStartedAtMaxX = maxX > 0 && this.currentOffsetX >= maxX - 0.5;
     this.disableSwipe = this.canPanHorizontally() && !this.isHorizontalBoundary();
   }
 
@@ -220,10 +227,10 @@ export class ReaderPreviewModel {
     if (!strongDrag) {
       return 0;
     }
-    if (direction < 0 && this.currentOffsetX <= -maxX + 0.5) {
+    if (direction < 0 && this.panStartedAtMinX && this.currentOffsetX <= -maxX + 0.5) {
       return -1;
     }
-    if (direction > 0 && this.currentOffsetX >= maxX - 0.5) {
+    if (direction > 0 && this.panStartedAtMaxX && this.currentOffsetX >= maxX - 0.5) {
       return 1;
     }
     return 0;

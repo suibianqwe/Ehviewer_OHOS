@@ -120,7 +120,6 @@ export struct ReaderScene {
   @State overlayShowBattery: boolean = true;
   @State batteryLevel: number = -1;
   @State clockText: string = '';
-  @State overlayTick: number = 0;
   private swiperController: SwiperController = new SwiperController();
   private sliderHideTimer: number = -1;
   private readerPageIndexesSource: ArrayDataSource<number> = new ArrayDataSource<number>([]);
@@ -150,6 +149,7 @@ export struct ReaderScene {
   private hostReaderWindow: window.Window | undefined = undefined;
   private autoTransferTimer: number = -1;
   private overlayRefreshTimer: number = -1;
+  private overlayRefreshCount: number = 0;
   private volumeUpConfig: inputConsumer.KeyPressedConfig = {
     key: KeyCode.KEYCODE_VOLUME_UP,
     action: 1,
@@ -344,8 +344,8 @@ export struct ReaderScene {
 
   private refreshOverlayInfo(): void {
     this.clockText = readerClockText();
-    this.overlayTick++;
-    if (this.overlayTick % 10 === 0 || this.batteryLevel < 0) {
+    this.overlayRefreshCount++;
+    if (this.overlayRefreshCount % 10 === 0 || this.batteryLevel < 0) {
       this.refreshBattery();
     }
   }

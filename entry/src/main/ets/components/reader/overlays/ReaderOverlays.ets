@@ -41,11 +41,13 @@ export struct ReaderInfoOverlay {
           .maxLines(1)
       }
       if (this.showProgress) {
-        Text(this.progressText)
-          .fontSize(14)
-          .fontColor(themeOnPrimaryText())
-          .lineHeight(16)
-          .maxLines(1)
+        ReaderProgressText({
+          text: this.progressText,
+          fontSize: 14,
+          fontColor: themeOnPrimaryText(),
+          textWidth: 0,
+          textHeight: 16
+        })
       }
       if (this.showBattery) {
         Text(this.batteryText)
@@ -59,6 +61,35 @@ export struct ReaderInfoOverlay {
     .backgroundColor(themeScrimColor())
     .borderRadius(10)
     .hitTestBehavior(HitTestMode.Transparent)
+  }
+}
+
+@Component
+struct ReaderProgressText {
+  @Prop @Watch('onTextChange') text: string = '';
+  @Prop fontSize: number = 14;
+  @Prop fontColor: ResourceColor = '#E5E7EB';
+  @Prop textWidth: number = 54;
+  @Prop textHeight: number = 50;
+  @State displayText: string = '';
+
+  aboutToAppear(): void {
+    this.displayText = this.text;
+  }
+
+  onTextChange(): void {
+    this.displayText = this.text;
+  }
+
+  build() {
+    Text(this.displayText)
+      .fontSize(this.fontSize)
+      .fontColor(this.fontColor)
+      .lineHeight(Math.max(16, this.fontSize + 2))
+      .maxLines(1)
+      .textAlign(TextAlign.Center)
+      .width(this.textWidth > 0 ? this.textWidth : 'auto')
+      .height(this.textHeight)
   }
 }
 
@@ -99,10 +130,13 @@ struct ReaderSliderPageText {
 
   build() {
     Column() {
-      Text(this.text)
-        .fontSize(14)
-        .fontColor('#E5E7EB')
-        .maxLines(1)
+      ReaderProgressText({
+        text: this.text,
+        fontSize: 14,
+        fontColor: '#E5E7EB',
+        textWidth: 54,
+        textHeight: 50
+      })
     }
     .width(54)
     .height(50)
