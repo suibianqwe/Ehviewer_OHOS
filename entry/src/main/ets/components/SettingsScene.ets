@@ -201,10 +201,6 @@ export struct SettingsScene {
       this.statusText = 'Invalid proxy port: ' + value;
       return;
     }
-    if (key === 'domain_fronting_sni' && value.length > 0 && !isValidSniHostText(value)) {
-      this.statusText = 'Invalid SNI host: ' + value;
-      return;
-    }
     const normalizedValue = this.normalizedSettingValue(key, value);
     ehSettingsStore.setValue(key, normalizedValue);
     if (key === 'reading_direction' && normalizedValue === 'Top to bottom') {
@@ -1776,13 +1772,6 @@ function settingsRowRenderKey(row: SettingsRowItem): string {
 
 function isNetworkSettingKey(key: string): boolean {
   return key === 'proxy' || key === 'proxy_host' || key === 'proxy_port' || key === 'built_in_hosts' ||
-    key === 'built_ex_hosts' || key === 'dns_over_https' || key === 'domain_fronting' ||
-    key === 'domain_fronting_sni';
-}
-
-function isValidSniHostText(value: string): boolean {
-  const host = value.trim();
-  return host.length > 0 && host.length <= 255 && host.indexOf('://') < 0 && host.indexOf('/') < 0 &&
-    host.indexOf(':') < 0 && host.indexOf(' ') < 0 && host.indexOf('\t') < 0;
+    key === 'built_ex_hosts' || key === 'dns_over_https' || key === 'domain_fronting';
 }
 

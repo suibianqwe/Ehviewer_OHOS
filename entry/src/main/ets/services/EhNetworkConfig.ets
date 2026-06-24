@@ -3,7 +3,6 @@ import { connection } from '@kit.NetworkKit';
 import { ehSettingsStore } from './EhSettingsStore';
 
 const DOH_URL: string = 'https://77.88.8.1/dns-query';
-const DEFAULT_SNI_HOST: string = 'cloudflare.com';
 const BUILT_IN_RULES: HostRule[] = [
   { host: 'e-hentai.org', ips: ['104.20.18.168', '104.20.19.168', '172.66.132.196', '172.66.140.62', '172.67.2.238'] },
   { host: 'repo.e-hentai.org', ips: ['104.20.18.168', '104.20.19.168', '172.67.2.238'] },
@@ -86,23 +85,47 @@ function domainFrontingSniHost(url: string): string {
   if (ehSettingsStore.getValue('domain_fronting', 'On') !== 'On' || !isHttpsUrl(url)) {
     return '';
   }
-  const configured = normalizeSniHost(ehSettingsStore.getValue('domain_fronting_sni', DEFAULT_SNI_HOST));
-  if (configured.length > 0) {
-    return configured;
-  }
-  return DEFAULT_SNI_HOST;
+  return frontingIpForHost(requestHost(url));
 }
 
-function normalizeSniHost(value: string): string {
-  const host = value.trim().toLowerCase();
-  if (host.length === 0 || host.length > 255) {
-    return '';
+function frontingIpForHost(host: string): string {
+  const normalizedHost = host.toLowerCase();
+  if (ehSettingsStore.getValue('built_in_hosts', 'Off') === 'On') {
+    const ip = firstIpv4ForHost(normalizedHost, BUILT_IN_RULES);
+    if (ip.length > 0) {
+      return ip;
+    }
   }
-  if (host.indexOf('://') >= 0 || host.indexOf('/') >= 0 || host.indexOf(':') >= 0 ||
-      host.indexOf(' ') >= 0 || host.indexOf('\t') >= 0) {
-    return '';
+  if (ehSettingsStore.getValue('built_ex_hosts', 'Off') === 'On') {
+    const ip = firstIpv4ForHost(normalizedHost, BUILT_EX_RULES);
+    if (ip.length > 0) {
+      return ip;
+    }
   }
-  return host;
+  return '';
+}
+
+function firstIpv4ForHost(host: string, rules: HostRule[]): string {
+  for (let i = 0; i < rules.length; i++) {
+    if (rules[i].host !== host) {
+      continue;
+    }
+    for (let j = 0; j < rules[i].ips.length; j++) {
+      if (isIpv4(rules[i].ips[j])) {
+        return rules[i].ips[j];
+      }
+    }
+  }
+  return '';
+}
+
+function requestHost(url: string): string {
+  const match = /^https?:\/\/([^\/?#:]+)/i.exec(url);
+  return match === null ? '' : match[1];
+}
+
+function isIpv4(value: string): boolean {
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(value);
 }
 
 function isHttpsUrl(url: string): boolean {

@@ -66,7 +66,6 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'built_ex_hosts', value: 'On' },
     { key: 'dns_over_https', value: 'Off' },
     { key: 'domain_fronting', value: 'On' },
-    { key: 'domain_fronting_sni', value: 'cloudflare.com' },
     { key: 'close_auto_updates', value: 'Off' },
     { key: 'network_defaults_20260612', value: 'Applied' },
     { key: 'network_runtime_20260613', value: 'Applied' },

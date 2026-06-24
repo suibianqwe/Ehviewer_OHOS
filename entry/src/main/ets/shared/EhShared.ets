@@ -623,7 +623,6 @@ export function zhText(text: string): string {
     case 'Built EX hosts': return '内置 EX hosts';
     case 'DNS over HTTPS': return 'DNS over HTTPS';
     case 'Domain fronting': return '域名前置';
-    case 'SNI host': return 'SNI 主机';
     case 'Account, site, gallery list and comments': return '账号、站点、画廊列表和评论';
     case 'Reader direction, scaling and screen behavior': return '阅读方向、缩放和屏幕行为';
     case 'Location, threads, preload and cleanup': return '位置、线程、预加载和清理';
@@ -752,8 +751,7 @@ export function zhText(text: string): string {
     case 'Force bundled ExHentai host overrides; leave Off unless your network needs them': return '强制使用内置 ExHentai host；仅在网络需要时开启';
     case 'Use DoH resolver': return '使用 DoH 解析器';
     case 'Original network compatibility switch': return '原应用网络兼容性开关';
-    case 'Use API 23 SNI compatibility for fronted requests': return '使用 API 23 SNI 兼容前置请求';
-    case 'TLS SNI hostname used while keeping the request Host header': return '保持请求 Host 头不变时使用的 TLS SNI 主机名';
+    case 'Bypass SNI blocking using built-in host fronting': return '使用内置 hosts 绕过 SNI 封锁';
     case 'Export data': return '导出数据';
     case 'Export settings, database and app state': return '导出设置、数据库和应用状态';
     case 'Import data': return '导入数据';
@@ -1827,10 +1825,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     rows.push(optionSettingsRow('built_in_hosts', 'Built-in hosts', 'Force bundled host overrides; leave Off for normal Cloudflare DNS', entries, ON_OFF_OPTIONS));
     rows.push(optionSettingsRow('built_ex_hosts', 'Built EX hosts', 'Force bundled ExHentai host overrides; leave Off unless your network needs them', entries, ON_OFF_OPTIONS));
     rows.push(optionSettingsRow('dns_over_https', 'DNS over HTTPS', 'Use DoH resolver', entries, ON_OFF_OPTIONS));
-    rows.push(optionSettingsRow('domain_fronting', 'Domain fronting', 'Use API 23 SNI compatibility for fronted requests', entries, ON_OFF_OPTIONS));
-    if (settingEntryValue(entries, 'domain_fronting', 'On') === 'On') {
-      rows.push(textSettingsRow('domain_fronting_sni', 'SNI host', 'TLS SNI hostname used while keeping the request Host header', entries, 'cloudflare.com'));
-    }
+    rows.push(optionSettingsRow('domain_fronting', 'Domain fronting', 'Bypass SNI blocking using built-in host fronting', entries, ON_OFF_OPTIONS));
     rows.push(staticSettingsRow('export_data', 'Export data', 'Save settings, history, downloads and filter rules to a JSON file', 'Export', 'action'));
     rows.push(staticSettingsRow('import_data', 'Import data', 'Restore from a previously exported JSON backup', 'Import', 'action'));
     rows.push(staticSettingsRow('wifi_transfer', 'Wi-Fi server/client', 'Original Wi-Fi transfer tools', 'Not migrated', 'activity'));
