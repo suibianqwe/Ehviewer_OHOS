@@ -280,7 +280,8 @@ export class ReaderPreviewModel {
   }
 
   shouldHandleContinuousImagePan(offsetX: number, velocityX: number, offsetY: number = 0, velocityY: number = 0): boolean {
-    return this.canPanHorizontally() && this.isHorizontalGestureIntent(offsetX, velocityX, offsetY, velocityY);
+    const x = Math.abs(offsetX) >= 1 ? Math.abs(offsetX) : Math.abs(velocityX);
+    return this.canPanHorizontally() && x > 0.5;
   }
 
   shouldLetSwiperHandlePan(offsetX: number, velocityX: number, offsetY: number = 0, velocityY: number = 0): boolean {

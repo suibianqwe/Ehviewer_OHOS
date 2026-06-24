@@ -19,12 +19,17 @@ export struct ReaderContinuousImageItem {
   @Prop @Watch('onImageSourceChange') preferOriginal: boolean = false;
   @Prop @Watch('onFitModeChange') fitMode: string = 'Fixed scale';
   @Prop @Watch('onZoomScaleChange') zoomScale: number = READER_BASE_SCALE;
+  @Prop sharedOffsetX: number = 0;
   @Prop isActive: boolean = false;
   onTap: () => void = () => {};
   onRetry: () => void = () => {};
   onImageLongPress: () => void = () => {};
   onImageSizeChange: (width: number, height: number) => void = (_width: number, _height: number) => {};
   onZoomChange: (percent: number) => void = (_percent: number) => {};
+  onHorizontalBoundsChange: (maxOffsetX: number) => void = (_maxOffsetX: number) => {};
+  onHorizontalDragStart: (maxOffsetX: number) => void = (_maxOffsetX: number) => {};
+  onHorizontalDragUpdate: (offsetX: number, maxOffsetX: number) => void = (_offsetX: number, _maxOffsetX: number) => {};
+  onHorizontalDragEnd: (velocityX: number, maxOffsetX: number) => void = (_velocityX: number, _maxOffsetX: number) => {};
 
   @State imageModel: ReaderPreviewModel = new ReaderPreviewModel();
   @State completedImageUrl: string = '';
@@ -142,6 +147,7 @@ export struct ReaderContinuousImageItem {
     this.displayImageHeight = Math.max(120, this.displayImageWidth * sourceHeight / sourceWidth);
     this.imageModel.setComponentSize(this.componentWidth, this.displayImageHeight);
     this.imageModel.setImageSize(this.displayImageWidth, this.displayImageHeight);
+    this.reportHorizontalBounds();
   }
 
   private isFailed(): boolean {
@@ -164,6 +170,7 @@ export struct ReaderContinuousImageItem {
 
   private reportState(): void {
     this.onZoomChange(this.imageModel.zoomPercent());
+    this.reportHorizontalBounds();
   }
 
   private shouldHandleImagePan(event: BaseGestureEvent): boolean {
@@ -174,6 +181,16 @@ export struct ReaderContinuousImageItem {
       panEvent.offsetY,
       panEvent.velocityY
     );
+  }
+
+  private horizontalMaxOffsetX(): number {
+    return Math.max(0, (this.displayWidth() - this.componentWidth) / 2);
+  }
+
+  private reportHorizontalBounds(): void {
+    if (this.isActive) {
+      this.onHorizontalBoundsChange(this.horizontalMaxOffsetX());
+    }
   }
 
   build() {
@@ -200,7 +217,7 @@ export struct ReaderContinuousImageItem {
           .onError(() => {
             this.failedImageUrl = this.imageUrl();
           })
-          .translate({ x: this.imageModel.currentOffsetX, y: this.imageModel.currentOffsetY })
+          .translate({ x: this.sharedOffsetX, y: 0 })
       }
       if (this.imageUrl().length === 0 || this.isImageLoading()) {
         ReaderStatusView({ failed: false, compact: true })
@@ -272,18 +289,19 @@ export struct ReaderContinuousImageItem {
           PanGesture({ fingers: 1, distance: 3 })
             .onActionStart(() => {
               this.imageModel.panStart();
+              this.onHorizontalDragStart(this.horizontalMaxOffsetX());
               this.reportState();
             })
             .onActionUpdate((event: GestureEvent) => {
-              this.imageModel.panUpdate(event.offsetX, 0);
+              this.onHorizontalDragUpdate(event.offsetX, this.horizontalMaxOffsetX());
               this.reportState();
             })
             .onActionEnd((event: GestureEvent) => {
-              this.imageModel.panEnd(event.velocityX, 0);
+              this.onHorizontalDragEnd(event.velocityX, this.horizontalMaxOffsetX());
               this.reportState();
             })
             .onActionCancel(() => {
-              this.imageModel.panEnd();
+              this.onHorizontalDragEnd(0, this.horizontalMaxOffsetX());
               this.reportState();
             })
         )

@@ -109,6 +109,7 @@ export struct ReaderScene {
   @State isDisableSwipe: boolean = false;
   @State zoomPercent: number = 100;
   @State fixedScale: number = READER_BASE_SCALE;
+  @State continuousOffsetX: number = 0;
   @State viewportCommand: string = '';
   @State viewportCommandVersion: number = 0;
   // Swiper direction state (applied from menu)
@@ -128,6 +129,7 @@ export struct ReaderScene {
   private continuousScroller: Scroller = new Scroller();
   private activeImageWidth: number = 0;
   private activeImageHeight: number = 0;
+  private continuousDragStartOffsetX: number = 0;
 
   // Menu settings state (reflects ehSettingsStore, applied on menu close)
   @State menuScreenRotation: string = 'Default';
@@ -1077,6 +1079,35 @@ export struct ReaderScene {
     this.activeImageHeight = 0;
   }
 
+  private clampContinuousOffsetX(value: number, maxOffsetX: number): number {
+    const maxX = Math.max(0, maxOffsetX);
+    return Math.max(-maxX, Math.min(maxX, value));
+  }
+
+  private onContinuousHorizontalBoundsChange(maxOffsetX: number): void {
+    const clamped = this.clampContinuousOffsetX(this.continuousOffsetX, maxOffsetX);
+    if (Math.abs(clamped - this.continuousOffsetX) > 0.5) {
+      this.continuousOffsetX = clamped;
+    }
+  }
+
+  private onContinuousHorizontalDragStart(maxOffsetX: number): void {
+    this.continuousDragStartOffsetX = this.clampContinuousOffsetX(this.continuousOffsetX, maxOffsetX);
+    this.continuousOffsetX = this.continuousDragStartOffsetX;
+  }
+
+  private onContinuousHorizontalDragUpdate(offsetX: number, maxOffsetX: number): void {
+    this.continuousOffsetX = this.clampContinuousOffsetX(this.continuousDragStartOffsetX + offsetX, maxOffsetX);
+  }
+
+  private onContinuousHorizontalDragEnd(velocityX: number, maxOffsetX: number): void {
+    const inertiaX = Math.abs(velocityX) > 20 ? Math.max(-180, Math.min(180, velocityX * 0.12)) : 0;
+    this.getUIContext().animateTo({ duration: 180, curve: Curve.EaseOut }, () => {
+      this.continuousOffsetX = this.clampContinuousOffsetX(this.continuousOffsetX + inertiaX, maxOffsetX);
+    });
+    this.continuousDragStartOffsetX = this.continuousOffsetX;
+  }
+
   private onActiveImageSizeChange(width: number, height: number): void {
     this.activeImageWidth = width > 0 ? width : 0;
     this.activeImageHeight = height > 0 ? height : 0;
@@ -1102,6 +1133,7 @@ export struct ReaderScene {
                 preferOriginal: this.preferOriginal,
                 fitMode: this.fitMode,
                 zoomScale: this.fixedScale,
+                sharedOffsetX: this.continuousOffsetX,
                 isActive: index === this.currentIndex,
                 onTap: () => {
                   this.showMenu();
@@ -1121,6 +1153,26 @@ export struct ReaderScene {
                 onZoomChange: (percent: number) => {
                   this.zoomPercent = percent;
                   this.fixedScale = Math.max(READER_MIN_SCALE, Math.min(READER_MAX_SCALE, percent / 100));
+                },
+                onHorizontalBoundsChange: (maxOffsetX: number) => {
+                  if (index === this.currentIndex) {
+                    this.onContinuousHorizontalBoundsChange(maxOffsetX);
+                  }
+                },
+                onHorizontalDragStart: (maxOffsetX: number) => {
+                  if (index === this.currentIndex) {
+                    this.onContinuousHorizontalDragStart(maxOffsetX);
+                  }
+                },
+                onHorizontalDragUpdate: (offsetX: number, maxOffsetX: number) => {
+                  if (index === this.currentIndex) {
+                    this.onContinuousHorizontalDragUpdate(offsetX, maxOffsetX);
+                  }
+                },
+                onHorizontalDragEnd: (velocityX: number, maxOffsetX: number) => {
+                  if (index === this.currentIndex) {
+                    this.onContinuousHorizontalDragEnd(velocityX, maxOffsetX);
+                  }
                 }
               })
                 .width('100%')
@@ -1409,6 +1461,7 @@ export struct ReaderScene {
           preferOriginal: this.preferOriginal,
           fitMode: this.fitMode,
           zoomScale: this.fixedScale,
+          sharedOffsetX: this.continuousOffsetX,
           isActive: false,
           onTap: () => {},
           onRetry: () => {
@@ -1416,7 +1469,11 @@ export struct ReaderScene {
           },
           onImageLongPress: () => {},
           onImageSizeChange: () => {},
-          onZoomChange: () => {}
+          onZoomChange: () => {},
+          onHorizontalBoundsChange: () => {},
+          onHorizontalDragStart: () => {},
+          onHorizontalDragUpdate: () => {},
+          onHorizontalDragEnd: () => {}
         })
           .width('100%')
           .translate({ y: this.offscreenTranslateY(index) })
