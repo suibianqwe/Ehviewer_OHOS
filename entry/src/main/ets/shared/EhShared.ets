@@ -300,6 +300,15 @@ export function uiStatusText(text: string): string {
   if (text === 'Random needs a loaded gallery list') {
     return '随机功能需要先加载画廊列表';
   }
+  if (text === 'Account filters enabled') {
+    return '账号过滤已开启';
+  }
+  if (text === 'Account filters disabled') {
+    return '账号过滤已关闭';
+  }
+  if (text.indexOf('Save setting failed: ') === 0) {
+    return '保存设置失败：' + text.substring('Save setting failed: '.length);
+  }
   if (text === 'Downloads: idle') {
     return '下载：空闲';
   }
@@ -649,6 +658,8 @@ export function zhText(text: string): string {
     case 'Gallery site': return '画廊站点';
     case 'Original setting chooses E-Hentai or ExHentai where supported': return '按原设置选择 E-Hentai 或可用时的 ExHentai';
     case 'Account configuration page, requires sign in': return '账号配置页面，需要登录';
+    case 'Use account filters': return '使用账号过滤';
+    case 'Use filtering options captured from UConfig': return '使用账号配置中抓取的过滤选项';
     case 'User tag set management, requires sign in': return '用户标签集管理，需要登录';
     case 'Launch page': return '启动页面';
     case 'Default start scene after warnings and sign-in checks': return '警告和登录检查后的默认启动页面';
@@ -1744,6 +1755,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       staticSettingsRow('identity_cookie', 'Identity cookies', 'View or import ipb_member_id, ipb_pass_hash and igneous', 'Session', 'action'),
       optionSettingsRow('gallery_site', 'Gallery site', 'Original setting chooses E-Hentai or ExHentai where supported', entries, ['E-Hentai', 'ExHentai']),
       staticSettingsRow('u_config', 'UConfig', 'Account configuration page, requires sign in', 'Open', 'action'),
+      optionSettingsRow('use_account_default_filter', 'Use account filters', 'Use filtering options captured from UConfig', entries, ON_OFF_OPTIONS),
       staticSettingsRow('my_tags', 'My Tags', 'User tag set management, requires sign in', 'Open', 'action'),
       optionSettingsRow('launch_page', 'Launch page', 'Default start scene after warnings and sign-in checks', entries, ['Homepage', 'Subscription', 'What\'s Hot', 'Favorites']),
       optionSettingsRow('list_mode', 'List mode', 'Gallery list style from original Android preferences', entries, ['Detail', 'Thumb', 'Extended']),

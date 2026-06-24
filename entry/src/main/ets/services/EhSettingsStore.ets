@@ -17,6 +17,7 @@ interface StoredSettingEntry {
 export function defaultSettingEntries(): SettingEntry[] {
   return [
     { key: 'gallery_site', value: 'E-Hentai' },
+    { key: 'use_account_default_filter', value: 'On' },
     { key: 'theme', value: 'Light' },
     { key: 'launch_page', value: 'Homepage' },
     { key: 'list_mode', value: 'Detail' },

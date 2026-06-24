@@ -732,6 +732,7 @@ export struct SearchAdvancedPanel {
 export struct QuickActionColumn {
   @Prop expanded: boolean = false;
   @Prop filterActive: boolean = false;
+  @Prop accountFilterEnabled: boolean = true;
   @Prop canJump: boolean = false;
   @Prop canRandom: boolean = false;
   onToggle: () => void = () => {};
@@ -838,9 +839,10 @@ export struct QuickActionColumn {
       if (this.expanded) {
         Column({ space: 8 }) {
           ActionBubble({
-            label: this.filterActive ? uiText('Filter On') : uiText('Filter'),
-            symbolIcon: $r('sys.symbol.magnifyingglass'),
+            label: this.accountFilterEnabled ? uiText('Filter On') : uiText('Filter'),
+            symbolIcon: $r('sys.symbol.funnel'),
             isEnabled: true,
+            checked: this.accountFilterEnabled,
             active: this.activeActionIndex === 0,
             directTap: false
           })
@@ -896,6 +898,7 @@ export struct ActionBubble {
   @Prop symbolIcon: Resource = $r('sys.symbol.plus');
   @Prop isEnabled: boolean = true;
   @Prop active: boolean = false;
+  @Prop checked: boolean = false;
   primary: boolean = false;
   directTap: boolean = true;
   onTapAction: () => void = () => {};
@@ -927,7 +930,8 @@ export struct ActionBubble {
       .justifyContent(FlexAlign.Center)
       .alignItems(HorizontalAlign.Center)
       .borderRadius(this.primary ? 27 : 22)
-      .backgroundColor(this.isEnabled ? (this.primary ? themePrimaryColor() : themeControlNeutralBackground()) :
+      .backgroundColor(this.isEnabled ? (this.primary || this.checked ? themePrimaryColor() :
+        themeControlNeutralBackground()) :
         themeControlMutedBackground())
       .shadow({ radius: this.primary ? 14 : 8, color: themeShadowColor(), offsetX: 0, offsetY: 3 })
       .scale({ x: this.active ? 0.92 : 1, y: this.active ? 0.92 : 1 })
