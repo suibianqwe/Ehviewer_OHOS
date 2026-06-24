@@ -12,7 +12,7 @@
 - API 6.1.1 (24)
 - Bundle：`yt.ehviewer.huawei`
 - 技术栈：ArkTS + ArkUI + Stage 模型
-- 当前版本：`0.3.29`
+- 当前版本：`0.3.30`
 
 ## 预览
 

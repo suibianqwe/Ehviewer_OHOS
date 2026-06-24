@@ -1724,7 +1724,7 @@ export struct DownloadScene {
         .justifyContent(FlexAlign.End)
         .alignItems(HorizontalAlign.End)
         .padding({ right: 16, bottom: 24 })
-        .hitTestBehavior(HitTestMode.Transparent)
+        .hitTestBehavior(HitTestMode.None)
       }
       .width('100%')
       .height('100%')
@@ -1848,7 +1848,7 @@ struct DownloadToolColumn {
       })
     }
     .alignItems(HorizontalAlign.End)
-    .hitTestBehavior(HitTestMode.Block)
+    .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
   }
 }
 

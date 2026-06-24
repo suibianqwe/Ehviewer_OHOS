@@ -797,7 +797,7 @@ export struct QuickActionColumn {
       })
     }
     .alignItems(HorizontalAlign.End)
-    .hitTestBehavior(HitTestMode.Block)
+    .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
   }
 }
 
@@ -880,7 +880,7 @@ export struct ActionBubble {
     }
     .alignItems(VerticalAlign.Center)
     .justifyContent(FlexAlign.End)
-    .hitTestBehavior(HitTestMode.Block)
+    .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
     .transition(TransitionEffect.OPACITY
       .combine(TransitionEffect.translate({ y: 12 }))
       .animation({ duration: 160, curve: Curve.EaseOut }))
