@@ -276,7 +276,7 @@ export class ReaderPreviewModel {
   }
 
   canHandleLocalPan(): boolean {
-    return this.canPanHorizontally();
+    return this.canPan();
   }
 
   shouldLetSwiperHandlePan(offsetX: number, velocityX: number, offsetY: number = 0, velocityY: number = 0): boolean {

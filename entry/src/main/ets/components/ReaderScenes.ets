@@ -1148,6 +1148,7 @@ export struct ReaderScene {
               fixedScale: this.fixedScale,
               startPosition: this.startPosition,
               isActive: index === this.currentIndex,
+              allowEdgeSwipe: !this.swiperVertical,
               command: this.viewportCommand,
               commandVersion: this.viewportCommandVersion,
               onTap: (x: number, y: number, w: number, h: number) => {
@@ -1429,6 +1430,7 @@ export struct ReaderScene {
           fixedScale: this.fixedScale,
           startPosition: this.startPosition,
           isActive: false,
+          allowEdgeSwipe: false,
           command: '',
           commandVersion: 0,
           onTap: () => {},

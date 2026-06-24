@@ -28,6 +28,7 @@ export struct ReaderImageViewport {
   @Prop @Watch('onFixedScaleChange') fixedScale: number = READER_BASE_SCALE;
   @Prop startPosition: string = 'Top right';
   @Prop @Watch('onActiveChange') isActive: boolean = false;
+  @Prop allowEdgeSwipe: boolean = true;
   @Prop command: string = '';
   @Prop @Watch('onCommandChange') commandVersion: number = 0;
   onTap: (x: number, y: number, w: number, h: number) => void = () => {};
@@ -426,7 +427,7 @@ export struct ReaderImageViewport {
                 this.imageModel.panEnd(event.velocityX, event.velocityY);
               });
               this.reportState();
-              if (edgeDirection !== 0) {
+              if (this.allowEdgeSwipe && edgeDirection !== 0) {
                 this.onEdgeSwipe(edgeDirection);
               }
             })
