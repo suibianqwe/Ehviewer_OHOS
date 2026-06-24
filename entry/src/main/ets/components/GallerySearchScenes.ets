@@ -917,19 +917,23 @@ export struct ActionBubble {
             .animation({ duration: 140, curve: Curve.EaseOut }))
       }
 
-      Button({ type: ButtonType.Circle, stateEffect: true }) {
+      Column() {
         SymbolGlyph(this.symbolIcon)
           .fontSize(this.primary ? 26 : 20)
           .fontColor([this.isEnabled ? themeOnPrimaryText() : themeInactiveActionText()])
       }
       .width(this.primary ? 54 : 44)
       .height(this.primary ? 54 : 44)
-      .enabled(this.isEnabled)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+      .borderRadius(this.primary ? 27 : 22)
       .backgroundColor(this.isEnabled ? (this.primary ? themePrimaryColor() : themeControlNeutralBackground()) :
         themeControlMutedBackground())
       .shadow({ radius: this.primary ? 14 : 8, color: themeShadowColor(), offsetX: 0, offsetY: 3 })
+      .scale({ x: this.active ? 0.92 : 1, y: this.active ? 0.92 : 1 })
+      .animation({ duration: 120, curve: Curve.EaseOut })
       .onClick(() => {
-        if (this.directTap) {
+        if (this.directTap && this.isEnabled) {
           this.onTapAction();
         }
       })
