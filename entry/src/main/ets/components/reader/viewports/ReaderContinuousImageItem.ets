@@ -166,6 +166,16 @@ export struct ReaderContinuousImageItem {
     this.onZoomChange(this.imageModel.zoomPercent());
   }
 
+  private shouldHandleImagePan(event: BaseGestureEvent): boolean {
+    const panEvent = event as PanGestureEvent;
+    return this.imageModel.shouldHandleContinuousImagePan(
+      panEvent.offsetX,
+      panEvent.velocityX,
+      panEvent.offsetY,
+      panEvent.velocityY
+    );
+  }
+
   build() {
     Stack({ alignContent: Alignment.Center }) {
       if (this.imageUrl().length > 0) {
@@ -265,11 +275,11 @@ export struct ReaderContinuousImageItem {
               this.reportState();
             })
             .onActionUpdate((event: GestureEvent) => {
-              this.imageModel.panUpdate(event.offsetX, event.offsetY);
+              this.imageModel.panUpdate(event.offsetX, 0);
               this.reportState();
             })
             .onActionEnd((event: GestureEvent) => {
-              this.imageModel.panEnd(event.velocityX, event.velocityY);
+              this.imageModel.panEnd(event.velocityX, 0);
               this.reportState();
             })
             .onActionCancel(() => {
@@ -279,8 +289,8 @@ export struct ReaderContinuousImageItem {
         )
       )
     )
-    .onGestureJudgeBegin((gestureInfo: GestureInfo, _event: BaseGestureEvent) => {
-      if (gestureInfo.type === GestureControl.GestureType.PAN_GESTURE && !this.imageModel.canHandleLocalPan()) {
+    .onGestureJudgeBegin((gestureInfo: GestureInfo, event: BaseGestureEvent) => {
+      if (gestureInfo.type === GestureControl.GestureType.PAN_GESTURE && !this.shouldHandleImagePan(event)) {
         return GestureJudgeResult.REJECT;
       }
       return GestureJudgeResult.CONTINUE;
