@@ -598,7 +598,7 @@ export struct GalleryListScene {
 
     const request =
       this.nextUrl.length > 0 ?
-        this.client.loadGalleryListUrl(this.absoluteListUrl(this.nextUrl), this.activeSite, this.accountFilterEnabled) :
+        this.client.loadGalleryListUrl(this.absoluteListUrl(this.nextUrl), this.activeSite, this.includeAccountUConfig()) :
         this.loadRoutePageWithFallback(nextPage);
 
     request.then((result: GalleryListLoadResult) => {
@@ -696,12 +696,16 @@ export struct GalleryListScene {
       builder.pageFrom = this.pageFrom;
       builder.pageTo = this.pageTo;
     }
-    if (!this.accountFilterEnabled && this.searchSupportsAdvanced(builder.mode)) {
+    if (!this.includeAccountUConfig() && this.searchSupportsAdvanced(builder.mode)) {
       builder.advanceSearch =
         (builder.advanceSearch === -1 ? 0 : builder.advanceSearch) | ACCOUNT_DEFAULT_FILTER_DISABLE_FLAGS;
     }
     this.requestUrl = builder.build(site);
-    return this.client.loadGalleryList(builder, site, this.accountFilterEnabled);
+    return this.client.loadGalleryList(builder, site, this.includeAccountUConfig());
+  }
+
+  private includeAccountUConfig(): boolean {
+    return !this.isSearchResultScene && this.accountFilterEnabled;
   }
 
   private searchModeForRoute(routeMode: ListMode, keyword: string): ListMode {
