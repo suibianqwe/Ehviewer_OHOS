@@ -45,17 +45,11 @@ export struct ReaderImageActionDialog {
         onTap: this.onShare
       })
       ReaderMenuDivider()
-      SaveButton()
-        .width('100%')
-        .height(48)
-        .padding({ left: 16, right: 16 })
-        .backgroundColor(Color.Transparent)
-        .borderRadius(0)
-        .onClick((_event: ClickEvent, result: SaveButtonOnClickResult) => {
-          if (result === SaveButtonOnClickResult.SUCCESS) {
-            this.onSaveToAlbum();
-          }
-        })
+      ReaderImageActionButton({
+        label: uiText('Save to gallery'),
+        symbolIcon: $r('sys.symbol.plus'),
+        onTap: this.onSaveToAlbum
+      })
       ReaderMenuDivider()
       ReaderImageActionButton({
         label: uiText('Save to...'),

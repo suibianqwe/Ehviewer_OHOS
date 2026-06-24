@@ -69,6 +69,7 @@ export { ReaderNavButton, ReaderToolButton } from './reader/controls/ReaderButto
 export { CommentsScene, PlaceholderScene } from './reader/scenes/ReaderAuxScenes';
 
 const SLIDER_AUTO_HIDE_DELAY: number = 3000;
+const READER_SCREEN_TAP_DELAY: number = 220;
 
 export interface ReaderPageState {
   index: number;
@@ -153,6 +154,7 @@ export struct ReaderScene {
   private autoTransferTimer: number = -1;
   private overlayRefreshTimer: number = -1;
   private overlayRefreshCount: number = 0;
+  private screenTapTimer: number = -1;
   private volumeUpConfig: inputConsumer.KeyPressedConfig = {
     key: KeyCode.KEYCODE_VOLUME_UP,
     action: 1,
@@ -163,8 +165,12 @@ export struct ReaderScene {
     action: 1,
     isRepeat: false
   };
-  private volumePageRegistered: boolean = false;
-  private volumePageCallback: (event: KeyEvent) => void = (event: KeyEvent) => {
+  private volumeUpRegistered: boolean = false;
+  private volumeDownRegistered: boolean = false;
+  private volumeUpCallback: (event: KeyEvent) => void = (event: KeyEvent) => {
+    this.handleVolumePageKey(event);
+  };
+  private volumeDownCallback: (event: KeyEvent) => void = (event: KeyEvent) => {
     this.handleVolumePageKey(event);
   };
 
@@ -194,6 +200,7 @@ export struct ReaderScene {
   aboutToDisappear(): void {
     this.readerWindowActive = false;
     this.clearSliderTimer();
+    this.clearScreenTapTimer();
     this.clearAutoTransferTimer();
     this.clearOverlayRefreshTimer();
     this.unregisterVolumePageKeys();
@@ -486,6 +493,13 @@ export struct ReaderScene {
     }
   }
 
+  private clearScreenTapTimer(): void {
+    if (this.screenTapTimer !== -1) {
+      clearTimeout(this.screenTapTimer);
+      this.screenTapTimer = -1;
+    }
+  }
+
   private scheduleSliderHide(): void {
     this.clearSliderTimer();
     this.sliderHideTimer = setTimeout(() => {
@@ -713,27 +727,42 @@ export struct ReaderScene {
   }
 
   private registerVolumePageKeys(): void {
-    if (this.volumePageRegistered) {
+    if (this.volumeUpRegistered && this.volumeDownRegistered) {
       return;
     }
     try {
-      inputConsumer.on('keyPressed', this.volumeUpConfig, this.volumePageCallback);
-      inputConsumer.on('keyPressed', this.volumeDownConfig, this.volumePageCallback);
-      this.volumePageRegistered = true;
+      if (!this.volumeUpRegistered) {
+        inputConsumer.on('keyPressed', this.volumeUpConfig, this.volumeUpCallback);
+        this.volumeUpRegistered = true;
+      }
     } catch (error) {
-      this.volumePageRegistered = false;
+      this.volumeUpRegistered = false;
+    }
+    try {
+      if (!this.volumeDownRegistered) {
+        inputConsumer.on('keyPressed', this.volumeDownConfig, this.volumeDownCallback);
+        this.volumeDownRegistered = true;
+      }
+    } catch (error) {
+      this.volumeDownRegistered = false;
     }
   }
 
   private unregisterVolumePageKeys(): void {
-    if (!this.volumePageRegistered) {
-      return;
+    if (this.volumeUpRegistered) {
+      try {
+        inputConsumer.off('keyPressed', this.volumeUpCallback);
+      } catch (error) {
+      }
+      this.volumeUpRegistered = false;
     }
-    try {
-      inputConsumer.off('keyPressed', this.volumePageCallback);
-    } catch (error) {
+    if (this.volumeDownRegistered) {
+      try {
+        inputConsumer.off('keyPressed', this.volumeDownCallback);
+      } catch (error) {
+      }
+      this.volumeDownRegistered = false;
     }
-    this.volumePageRegistered = false;
   }
 
   private handleVolumePageKey(event: KeyEvent): void {
@@ -1150,6 +1179,35 @@ export struct ReaderScene {
     return (this.currentIndex + 1).toString() + '/' + total.toString();
   }
 
+  private tapLocalX(event: GestureEvent): number {
+    if (event.fingerList.length > 0) {
+      return event.fingerList[0].localX;
+    }
+    return this.readerLayoutWidth / 2;
+  }
+
+  private tapLocalY(event: GestureEvent): number {
+    if (event.fingerList.length > 0) {
+      return event.fingerList[0].localY;
+    }
+    return this.readerLayoutHeight / 2;
+  }
+
+  private onReaderScreenTap(event: GestureEvent): void {
+    if (this.screenTapTimer !== -1) {
+      this.clearScreenTapTimer();
+      return;
+    }
+    const tapX = this.tapLocalX(event);
+    const tapY = this.tapLocalY(event);
+    const width = Math.max(1, this.readerLayoutWidth);
+    const height = Math.max(1, this.readerLayoutHeight);
+    this.screenTapTimer = setTimeout(() => {
+      this.screenTapTimer = -1;
+      this.onTap(tapX, tapY, width, height);
+    }, READER_SCREEN_TAP_DELAY) as number;
+  }
+
   build() {
     Stack({ alignContent: Alignment.Center }) {
       if (this.isContinuousVerticalMode()) {
@@ -1164,11 +1222,7 @@ export struct ReaderScene {
                 zoomScale: this.fixedScale,
                 sharedOffsetX: this.continuousOffsetX,
                 isActive: index === this.currentIndex,
-                onTap: (x: number, y: number, w: number, h: number) => {
-                  if (index === this.currentIndex) {
-                    this.onTap(x, y, w, h);
-                  }
-                },
+                onTap: () => {},
                 onRetry: () => {
                   this.onJump(index);
                 },
@@ -1234,11 +1288,7 @@ export struct ReaderScene {
               allowEdgeSwipe: !this.swiperVertical,
               command: this.viewportCommand,
               commandVersion: this.viewportCommandVersion,
-              onTap: (x: number, y: number, w: number, h: number) => {
-                if (index === this.currentIndex) {
-                  this.onTap(x, y, w, h);
-                }
-              },
+              onTap: () => {},
               onRetry: () => {
                 if (index === this.currentIndex) {
                   this.onRetry();
@@ -1310,6 +1360,19 @@ export struct ReaderScene {
           .hitTestBehavior(HitTestMode.Transparent)
           .zIndex(2)
       }
+
+      Stack() {}
+        .width('100%')
+        .height('100%')
+        .backgroundColor(Color.Transparent)
+        .hitTestBehavior(HitTestMode.Transparent)
+        .gesture(
+          TapGesture({ count: 1 })
+            .onAction((event: GestureEvent) => {
+              this.onReaderScreenTap(event);
+            })
+        )
+        .zIndex(3)
 
       if (!this.menuVisible) {
         ReaderInfoOverlay({
