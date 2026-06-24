@@ -21,7 +21,8 @@ export struct ReaderContinuousImageItem {
   @Prop @Watch('onZoomScaleChange') zoomScale: number = READER_BASE_SCALE;
   @Prop sharedOffsetX: number = 0;
   @Prop isActive: boolean = false;
-  onTap: () => void = () => {};
+  onTap: (x: number, y: number, w: number, h: number) => void =
+    (_x: number, _y: number, _w: number, _h: number) => {};
   onRetry: () => void = () => {};
   onImageLongPress: () => void = () => {};
   onImageSizeChange: (width: number, height: number) => void = (_width: number, _height: number) => {};
@@ -193,6 +194,20 @@ export struct ReaderContinuousImageItem {
     }
   }
 
+  private tapCenterX(event: GestureEvent): number {
+    if (event.fingerList.length > 0) {
+      return event.fingerList[0].localX;
+    }
+    return this.componentWidth / 2;
+  }
+
+  private tapCenterY(event: GestureEvent): number {
+    if (event.fingerList.length > 0) {
+      return event.fingerList[0].localY;
+    }
+    return this.itemHeight() / 2;
+  }
+
   build() {
     Stack({ alignContent: Alignment.Center }) {
       if (this.imageUrl().length > 0) {
@@ -247,14 +262,14 @@ export struct ReaderContinuousImageItem {
     .gesture(
       GestureGroup(GestureMode.Exclusive,
         TapGesture({ count: 1 })
-          .onAction(() => {
+          .onAction((event: GestureEvent) => {
             if (this.isFailed()) {
               this.failedImageUrl = '';
               this.completedImageUrl = '';
               this.onRetry();
               return;
             }
-            this.onTap();
+            this.onTap(this.tapCenterX(event), this.tapCenterY(event), this.componentWidth, this.itemHeight());
           }),
         GestureGroup(GestureMode.Parallel,
           LongPressGesture({ repeat: false })

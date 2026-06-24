@@ -104,6 +104,7 @@ export struct ReaderScene {
   @State sliderDragging: boolean = false;
   @State sliderTrackWidth: number = 1;
   @State readerLayoutWidth: number = 0;
+  @State readerLayoutHeight: number = 0;
   @State autoTransferPlaying: boolean = false;
   @State currentIndex: number = 0;
   @State isDisableSwipe: boolean = false;
@@ -740,9 +741,9 @@ export struct ReaderScene {
       return;
     }
     if (event.key.code === KeyCode.KEYCODE_VOLUME_UP) {
-      this.jumpTo(this.currentIndex - 1);
+      this.previousReaderPage();
     } else if (event.key.code === KeyCode.KEYCODE_VOLUME_DOWN) {
-      this.jumpTo(this.currentIndex + 1);
+      this.nextReaderPage();
     }
   }
 
@@ -977,11 +978,12 @@ export struct ReaderScene {
     const relX = w > 0 ? x / w : 0.5;
     const relY = h > 0 ? y / h : 0.5;
     if (this.swiperVertical) {
-      // Top-to-bottom: tap top 1/3 → prev, bottom 1/3 → next, center → menu
       if (relY < 1.0 / 3.0) {
-        this.jumpTo(this.currentIndex - 1);
+        this.previousReaderPage();
       } else if (relY > 2.0 / 3.0) {
-        this.jumpTo(this.currentIndex + 1);
+        this.nextReaderPage();
+      } else if (relX < 1.0 / 3.0 || relX > 2.0 / 3.0) {
+        this.showSlider();
       } else {
         this.showMenu();
       }
@@ -1046,6 +1048,33 @@ export struct ReaderScene {
       this.swiperController.changeIndex(this.visualIndexForPageIndex(target), true);
     } catch (e) {}
     this.onJump(target);
+  }
+
+  private previousReaderPage(): void {
+    if (this.swiperVertical) {
+      this.scrollVerticalReaderByPage(-1);
+      return;
+    }
+    this.jumpTo(this.currentIndex - 1);
+  }
+
+  private nextReaderPage(): void {
+    if (this.swiperVertical) {
+      this.scrollVerticalReaderByPage(1);
+      return;
+    }
+    this.jumpTo(this.currentIndex + 1);
+  }
+
+  private verticalPageScrollDistance(): number {
+    return Math.max(1, this.readerLayoutHeight * 0.8);
+  }
+
+  private scrollVerticalReaderByPage(direction: number): void {
+    if (direction === 0) {
+      return;
+    }
+    this.continuousScroller.scrollBy(0, this.verticalPageScrollDistance() * direction);
   }
 
   private onSwiperChange(visualIndex: number): void {
@@ -1135,8 +1164,10 @@ export struct ReaderScene {
                 zoomScale: this.fixedScale,
                 sharedOffsetX: this.continuousOffsetX,
                 isActive: index === this.currentIndex,
-                onTap: () => {
-                  this.showMenu();
+                onTap: (x: number, y: number, w: number, h: number) => {
+                  if (index === this.currentIndex) {
+                    this.onTap(x, y, w, h);
+                  }
                 },
                 onRetry: () => {
                   this.onJump(index);
@@ -1436,6 +1467,10 @@ export struct ReaderScene {
       const width = newArea.width as number;
       if (width > 0 && !Number.isNaN(width)) {
         this.readerLayoutWidth = width;
+      }
+      const height = newArea.height as number;
+      if (height > 0 && !Number.isNaN(height)) {
+        this.readerLayoutHeight = height;
       }
     })
     .backgroundColor(readerBackgroundColor())
