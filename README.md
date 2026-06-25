@@ -4,13 +4,13 @@
   <img src="entry/src/main/resources/base/media/app_icon.png" width="120" alt="EhViewer HarmonyOS app icon" />
 </p>
 
-这是 [Ehviewer_CN_SXJ](https://github.com/xiaojieonly/Ehviewer_CN_SXJ) 的 HarmonyOS 移植版本，目标是在鸿蒙设备上使用接近原应用的浏览、搜索、阅读、下载和设置体验。
-
-当前版本：`0.3.58`
+这是 [Ehviewer_CN_SXJ](https://github.com/xiaojieonly/Ehviewer_CN_SXJ) 的 HarmonyOS 移植版本，目标是在鸿蒙设备上使用接近原应用的浏览、搜索、阅读、下载和设置体验。目前版本仍在快速迭代中（烧token如流水），请各位多多反馈意见和建议，多提bug，我会尽快完善（token没烧完的话）。
 
 ## 下载
 
 请在 [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases) 中下载最新的 `.hap` 安装包。
+
+当前版本：`0.3.58`
 
 ## 功能
 
