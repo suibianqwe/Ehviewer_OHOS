@@ -1518,6 +1518,7 @@ export struct ReaderScene {
           },
           onCustomBrightnessChange: (value: boolean) => {
             this.menuCustomBrightness = value;
+            this.applyBrightness().catch(() => {});
           },
           onBrightnessLevelChange: (value: string) => {
             this.menuBrightnessLevel = value;

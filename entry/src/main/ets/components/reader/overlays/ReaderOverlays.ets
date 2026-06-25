@@ -343,25 +343,25 @@ export struct ReaderImageActionsOverlay {
 
 @Component
 export struct ReaderSettingsMenuOverlay {
-  statusText: string = '';
-  menuShowClock: boolean = true;
-  menuShowProgress: boolean = true;
-  progressText: string = '';
-  menuScreenRotation: string = 'Default';
-  menuReadingDirection: string = 'Right to left';
-  menuPageScaling: string = 'Fit screen';
-  menuStartPosition: string = 'Top right';
-  menuAutoTransferTime: string = '5s';
-  menuKeepScreenOn: boolean = false;
-  menuShowBattery: boolean = true;
-  menuReadingFullscreen: boolean = true;
-  menuVolumePage: boolean = false;
-  menuCustomBrightness: boolean = false;
-  menuBrightnessLevel: string = '50%';
-  menuUltraDarkMode: boolean = false;
-  menuUltraDarkBrightness: string = '50%';
-  screenRotationOptions: string[] = [];
-  pageScalingOptions: string[] = [];
+  @Prop statusText: string = '';
+  @Prop menuShowClock: boolean = true;
+  @Prop menuShowProgress: boolean = true;
+  @Prop progressText: string = '';
+  @Prop menuScreenRotation: string = 'Default';
+  @Prop menuReadingDirection: string = 'Right to left';
+  @Prop menuPageScaling: string = 'Fit screen';
+  @Prop menuStartPosition: string = 'Top right';
+  @Prop menuAutoTransferTime: string = '5s';
+  @Prop menuKeepScreenOn: boolean = false;
+  @Prop menuShowBattery: boolean = true;
+  @Prop menuReadingFullscreen: boolean = true;
+  @Prop menuVolumePage: boolean = false;
+  @Prop menuCustomBrightness: boolean = false;
+  @Prop menuBrightnessLevel: string = '50%';
+  @Prop menuUltraDarkMode: boolean = false;
+  @Prop menuUltraDarkBrightness: string = '50%';
+  @Prop screenRotationOptions: string[] = [];
+  @Prop pageScalingOptions: string[] = [];
   onDismiss: () => void = () => {};
   onBack: () => void = () => {};
   onScreenRotationChange: (value: string) => void = (_value: string) => {};

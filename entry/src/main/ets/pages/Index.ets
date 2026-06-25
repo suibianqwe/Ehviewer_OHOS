@@ -56,11 +56,11 @@ struct Index {
   }
 
   onBackPress(): boolean {
-    if (runActiveBackHandler()) {
-      return true;
-    }
     if (this.drawerVisible) {
       this.closeDrawer();
+      return true;
+    }
+    if (runActiveBackHandler()) {
       return true;
     }
     if (this.routeStack.length > 0) {

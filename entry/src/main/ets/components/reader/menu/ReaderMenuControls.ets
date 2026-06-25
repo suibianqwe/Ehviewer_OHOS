@@ -263,7 +263,7 @@ export function readerUltraDarkValue(value: number): string {
 @Component
 export struct ReaderMenuToggle {
   label: string = '';
-  value: boolean = false;
+  @Prop value: boolean = false;
   onChange: (v: boolean) => void = () => {};
 
   build() {
