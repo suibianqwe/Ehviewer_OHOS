@@ -27,7 +27,7 @@ export struct DetailTags {
           .fontColor(themeSecondaryText())
           .margin({ top: 8 })
       } else {
-        Column({ space: 8 }) {
+        Column({ space: 4 }) {
           ForEach(this.tags, (group: GalleryTagGroup) => {
             TagGroupRow({
               namespace: group.namespace,
@@ -66,9 +66,9 @@ export struct TagGroupRow {
   build() {
     Row() {
       Text(this.namespace)
-        .fontSize(12)
+        .fontSize(14)
         .fontColor(themeSecondaryText())
-        .width(86)
+        .width(80)
       Flex({ wrap: FlexWrap.Wrap }) {
         ForEach(this.tags, (tag: string) => {
           Button(this.tagLabel(tag), { type: ButtonType.Normal, stateEffect: true })

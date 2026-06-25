@@ -6,7 +6,7 @@ import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
 import { EhDrawer } from '../components/NavigationComponents';
-import { applyAppChromeImmersiveMode } from '../services/EhWindowImmersive';
+import { applyAppChromeImmersiveMode, isEmbeddedReaderActive } from '../services/EhWindowImmersive';
 import { FavoriteGalleryScene, HomeGalleryScene, HotGalleryScene, SubscriptionGalleryScene } from '../components/GalleryScenes';
 import { HistoryScene, TopListScene } from '../components/HistoryTopScenes';
 import { DownloadScene, MigrationScene } from '../components/DownloadMigrationScenes';
@@ -37,6 +37,22 @@ struct Index {
 
   private statusBarVp(): number {
     return this.getUIContext().px2vp(this.statusBarHeight);
+  }
+
+  private canOpenDrawerBySwipe(): boolean {
+    return !this.drawerVisible && !isEmbeddedReaderActive();
+  }
+
+  private handleOpenDrawerPan(event: GestureEvent | undefined): void {
+    if (!this.canOpenDrawerBySwipe() || event === undefined) {
+      return;
+    }
+    const distanceX = event.offsetX;
+    const distanceY = Math.abs(event.offsetY);
+    const velocityX = event.velocityX;
+    if (distanceX > 72 && distanceY < Math.max(48, Math.abs(distanceX) * 0.7) && velocityX >= -80) {
+      this.openDrawer();
+    }
   }
 
   onBackPress(): boolean {
@@ -181,6 +197,12 @@ struct Index {
     }
     .width('100%')
     .height('100%')
+    .gesture(
+      PanGesture({ fingers: 1, direction: PanDirection.Right, distance: 28 })
+        .onActionEnd((event: GestureEvent | undefined) => {
+          this.handleOpenDrawerPan(event);
+        })
+    )
   }
 
   @Builder

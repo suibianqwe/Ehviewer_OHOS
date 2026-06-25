@@ -894,6 +894,7 @@ export struct TopListScene {
         kind: 'title',
         title: '排行',
         requestUrl: '',
+        showRefreshButton: false,
         toolbarOffsetY: this.toolbarOffsetY,
         toolbarHeight: 56,
         onMenu: this.onMenu,

@@ -2499,6 +2499,7 @@ export struct GalleryListContent {
             keyword: this.keyword,
             filterActive: this.filterActive,
             showSearchButton: this.showSearchButton,
+            showRefreshButton: false,
             showBackButton: this.showBackButton,
             translateY: this.toolbarOffsetY,
             onMenu: () => {
