@@ -243,11 +243,14 @@ export struct EhNavBar {
   @Prop showSearchButton: boolean = false;
   @Prop showRefreshButton: boolean = true;
   @Prop showBackButton: boolean = false;
+  @Prop searchShowsAdvancedButton: boolean = false;
   // translate offset injected by parent for scroll-hide; 0 = visible, negative = hidden
   @Prop translateY: number = 0;
   onMenu: () => void = () => {};
   onBack: () => void = () => {};
   onSearch: () => void = () => {};
+  onSearchFocus: () => void = () => {};
+  onAdvanced: () => void = () => {};
   onKeywordChange: (value: string) => void = () => {};
   onRefresh: () => void = () => {};
   onClear: () => void = () => {};
@@ -308,6 +311,7 @@ export struct EhNavBar {
               .fontColor(themePrimaryText())
               .caretColor(themePrimaryColor())
               .padding({ left: 16, right: 42 })
+              .onFocus(() => { this.onSearchFocus(); })
               .onChange((v: string) => { this.onKeywordChange(v); })
               .onSubmit(() => { this.onSearch(); })
 
@@ -327,16 +331,23 @@ export struct EhNavBar {
 
           // Search confirm
           Button({ type: ButtonType.Circle, stateEffect: true }) {
-            SymbolGlyph($r('sys.symbol.magnifyingglass'))
-              .fontSize(20)
+            SymbolGlyph(this.searchShowsAdvancedButton ? $r('sys.symbol.plus') : $r('sys.symbol.magnifyingglass'))
+              .fontSize(this.searchShowsAdvancedButton ? 22 : 20)
               .fontColor([themeOnPrimaryText()])
           }
           .width(40)
           .height(40)
-          .backgroundColor(themeOnPrimaryActionBackground())
+          .backgroundColor(this.searchShowsAdvancedButton && this.filterActive ? themeOnPrimaryActionStrongBackground() :
+            themeOnPrimaryActionBackground())
           .flexShrink(0)
           .margin({ left: 8 })
-          .onClick(() => { this.onSearch(); })
+          .onClick(() => {
+            if (this.searchShowsAdvancedButton) {
+              this.onAdvanced();
+            } else {
+              this.onSearch();
+            }
+          })
 
         } else {
           // Title text
@@ -579,13 +590,17 @@ export struct FloatingToolbarHost {
   @Prop requestUrl: string = '';
   @Prop showClear: boolean = false;
   @Prop canClear: boolean = false;
+  @Prop showSearchButton: boolean = false;
   @Prop showRefreshButton: boolean = true;
+  @Prop searchShowsAdvancedButton: boolean = false;
   @Prop toolbarOffsetY: number = 0;
   @Prop toolbarHeight: number = 62;
   @BuilderParam content: () => void = this.EmptyContent;
   onKeywordChange: (value: string) => void = () => {};
   onMenu: () => void = () => {};
   onSearch: () => void = () => {};
+  onSearchFocus: () => void = () => {};
+  onAdvanced: () => void = () => {};
   onRefresh: () => void = () => {};
   onClear: () => void = () => {};
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
@@ -613,8 +628,12 @@ export struct FloatingToolbarHost {
           filterActive: this.filterActive,
           showClear: this.showClear,
           canClear: this.canClear,
+          showSearchButton: this.showSearchButton,
           showRefreshButton: this.showRefreshButton,
+          searchShowsAdvancedButton: this.searchShowsAdvancedButton,
           onKeywordChange: this.onKeywordChange,
+          onSearchFocus: this.onSearchFocus,
+          onAdvanced: this.onAdvanced,
           onMenu: this.onMenu,
           onSearch: this.onSearch,
           onRefresh: this.onRefresh,

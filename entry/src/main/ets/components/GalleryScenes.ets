@@ -288,6 +288,7 @@ export struct GalleryListScene {
   @State searchMode: ListMode = ListMode.Normal;
   @State searchCategory: number = GalleryCategory.None;
   @State searchAdvancedPanelOpened: boolean = false;
+  @State localSearchBarVisible: boolean = false;
   @State advancedSearchEnabled: boolean = false;
   @State advanceSearch: number = DEFAULT_ADVANCE_SEARCH;
   @State minRating: number = -1;
@@ -362,6 +363,7 @@ export struct GalleryListScene {
     this.accountFilterEnabled = cache.accountFilterEnabled !== false;
     this.searchFilterEnabled = cache.searchFilterEnabled !== false;
     this.searchAdvancedPanelOpened = cache.searchAdvancedPanelOpened === true;
+    this.localSearchBarVisible = this.useLocalProvider && cache.searchSubmitted !== true;
     this.searchMode = cache.searchMode;
     this.searchCategory = cache.searchCategory;
     this.advancedSearchEnabled = cache.advancedSearchEnabled;
@@ -427,6 +429,7 @@ export struct GalleryListScene {
       this.searchAdvancedPanelOpened = this.isSearchResultScene ?
         (this.searchResultDraft.searchAdvancedPanelOpened || this.initialSearchAdvancedPanelOpened) : false;
       this.searchSubmitted = !this.isSearchResultScene || this.initialSearchSubmitted;
+      this.localSearchBarVisible = false;
     }
     const context = getAbilityContext();
     if (context !== undefined) {
@@ -479,6 +482,10 @@ export struct GalleryListScene {
     }
     if (this.showSearchResultScene) {
       this.closeSearchResultScene();
+      return true;
+    }
+    if (this.useLocalProvider && this.localSearchBarVisible) {
+      this.closeLocalSearchBar();
       return true;
     }
     if (this.isSearchResultScene) {
@@ -864,6 +871,10 @@ export struct GalleryListScene {
 
   private openSearchScene(): void {
     this.fabExpanded = false;
+    if (this.useLocalProvider) {
+      this.openLocalSearchBar();
+      return;
+    }
     this.searchResultDraft = {
       keyword: this.keyword.trim(),
       mode: this.searchMode,
@@ -879,6 +890,24 @@ export struct GalleryListScene {
       submitted: false
     };
     this.showSearchResultScene = true;
+  }
+
+  private openLocalSearchBar(): void {
+    this.localSearchBarVisible = true;
+    this.searchSubmitted = false;
+    this.galleries = [];
+    this.resultCount = '';
+    this.nextUrl = '';
+    this.statusText = '';
+    this.saveListCache();
+  }
+
+  private closeLocalSearchBar(): void {
+    this.localSearchBarVisible = false;
+    this.searchSubmitted = true;
+    this.hasFirstRefresh = false;
+    this.saveListCache();
+    this.loadListPage(0);
   }
 
   private closeSearchResultScene(): void {
@@ -1604,7 +1633,7 @@ export struct GalleryListScene {
             showSearchButton: (routeUsesKeyword(this.sourceRoute) || this.useLocalProvider) && !this.isSearchResultScene,
             showBackButton: this.isSearchResultScene,
             isSearchResultScene: this.isSearchResultScene,
-            useLocalSearchBar: this.useLocalProvider,
+            useLocalSearchBar: this.useLocalProvider && this.localSearchBarVisible,
             searchSubmitted: this.searchSubmitted,
             searchModeValue: this.searchMode,
             searchCategory: this.searchCategory,
@@ -1622,6 +1651,16 @@ export struct GalleryListScene {
             galleries: this.galleries,
             onKeywordChange: (value: string) => {
               this.keyword = value;
+              if (this.isSearchResultScene || this.useLocalProvider) {
+                this.searchSubmitted = false;
+                this.galleries = [];
+                this.resultCount = '';
+                this.nextUrl = '';
+                this.statusText = '';
+                this.saveListCache();
+              }
+            },
+            onSearchFocus: () => {
               if (this.isSearchResultScene || this.useLocalProvider) {
                 this.searchSubmitted = false;
                 this.galleries = [];
@@ -1682,7 +1721,11 @@ export struct GalleryListScene {
               this.onMenu();
             },
             onBack: () => {
-              this.onBack();
+              if (this.useLocalProvider && this.localSearchBarVisible) {
+                this.closeLocalSearchBar();
+              } else {
+                this.onBack();
+              }
             },
             onSearch: () => {
               if (this.isSearchResultScene || this.useLocalProvider) {
@@ -1836,6 +1879,8 @@ export struct GalleryListContent {
   @Prop @Watch('onGalleriesChanged') galleries: GalleryInfo[] = [];
   @Prop @Watch('onScrollReset') scrollResetVersion: number = 0;
   onKeywordChange: (value: string) => void = () => {
+  };
+  onSearchFocus: () => void = () => {
   };
   onSearchModeChange: (mode: ListMode) => void = (_mode: ListMode) => {
   };
@@ -2212,8 +2257,7 @@ export struct GalleryListContent {
 
       Row({ space: 8 }) {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph(this.useLocalSearchBar && !this.isSearchResultScene ? $r('sys.symbol.open_sidebar') :
-            $r('sys.symbol.chevron_left'))
+          SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(22)
             .fontColor([themeOnPrimaryText()])
         }
@@ -2222,11 +2266,7 @@ export struct GalleryListContent {
         .backgroundColor(themeOnPrimaryActionBackground())
         .flexShrink(0)
         .onClick(() => {
-          if (this.useLocalSearchBar && !this.isSearchResultScene) {
-            this.onMenu();
-          } else {
-            this.onBack();
-          }
+          this.onBack();
         })
 
         TextInput({ text: this.keyword, placeholder: uiText('Search galleries') })
@@ -2238,6 +2278,10 @@ export struct GalleryListContent {
           .fontColor(themePrimaryText())
           .caretColor(themePrimaryColor())
           .padding({ left: 16, right: 16 })
+          .onFocus(() => {
+            this.refreshSearchSuggestions();
+            this.onSearchFocus();
+          })
           .onChange((value: string) => {
             this.onKeywordChange(value);
           })

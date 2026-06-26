@@ -991,7 +991,7 @@ export struct SettingsScene {
 
   private runNetworkDiagnostics(): void {
     this.statusText = 'Running network diagnostics...';
-    startEhFrontingBenchmark();
+    startEhFrontingBenchmark(getAbilityContext());
     this.client.runNetworkDiagnostics().then((results: NetworkDiagnosticResult[]) => {
       this.statusText = formatNetworkDiagnostics(results);
     }).catch((error: Error) => {

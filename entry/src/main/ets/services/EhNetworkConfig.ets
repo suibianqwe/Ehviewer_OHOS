@@ -1,8 +1,12 @@
+import { common } from '@kit.AbilityKit';
+import { fileIo as fs } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
 import { connection } from '@kit.NetworkKit';
 import { ehSettingsStore } from './EhSettingsStore';
 
 const DOH_URL: string = 'https://77.88.8.1/dns-query';
+const FRONTING_IP_CACHE_FILE_NAME: string = 'eh_fronting_ip_quality.json';
+const FRONTING_IP_CACHE_VERSION: number = 1;
 const FRONTING_PROBE_CONNECT_TIMEOUT_MS: number = 3000;
 const FRONTING_PROBE_READ_TIMEOUT_MS: number = 3000;
 const FRONTING_PROBE_DEADLINE_MS: number = 4500;
@@ -30,6 +34,8 @@ const HOST_IP_QUALITIES: HostIpQuality[] = [];
 let frontingProbeKey: string = '';
 let frontingProbeGeneration: number = 0;
 let frontingProbePending: Promise<void> | null = null;
+let frontingIpCachePath: string = '';
+let frontingIpCacheLoadedKey: string = '';
 
 interface HostRule {
   host: string;
@@ -52,6 +58,13 @@ interface HostIpQuality {
 interface HostIpProbeTarget {
   host: string;
   ip: string;
+}
+
+interface FrontingIpQualityCache {
+  version?: number;
+  key?: string;
+  updatedAt?: number;
+  qualities?: HostIpQuality[];
 }
 
 export interface EhRequestPlan {
@@ -105,22 +118,29 @@ export function applyEhNetworkOptions(options: http.HttpRequestOptions, plan: Eh
   }
 }
 
-export function startEhFrontingBenchmark(): void {
+export function startEhFrontingBenchmark(context?: common.UIAbilityContext): void {
+  if (context !== undefined) {
+    frontingIpCachePath = context.filesDir + '/' + FRONTING_IP_CACHE_FILE_NAME;
+  }
   const key = frontingBenchmarkKey();
   if (key === 'Off') {
     clearIpQualities();
     frontingProbeKey = key;
+    frontingIpCacheLoadedKey = '';
     return;
   }
   if (key === frontingProbeKey && frontingProbePending !== null) {
     return;
   }
+  loadCachedIpQualities(key);
   frontingProbeKey = key;
   frontingProbeGeneration++;
-  clearIpQualities();
   const generation = frontingProbeGeneration;
-  frontingProbePending = runEhFrontingBenchmark(generation).then(() => {
+  frontingProbePending = runEhFrontingBenchmark(generation).then((results: HostIpQuality[]) => {
     if (generation === frontingProbeGeneration) {
+      if (replaceIpQualities(results)) {
+        saveCachedIpQualities(key);
+      }
       frontingProbePending = null;
     }
   }).catch(() => {
@@ -279,12 +299,13 @@ function rankedIpv4ListForHost(host: string, rules: HostRule[]): string[] {
   return ranked;
 }
 
-async function runEhFrontingBenchmark(generation: number): Promise<void> {
+async function runEhFrontingBenchmark(generation: number): Promise<HostIpQuality[]> {
   const targets = collectFrontingProbeTargets();
   if (targets.length === 0) {
-    return;
+    return [];
   }
   let nextIndex = 0;
+  const results: HostIpQuality[] = [];
   const workers: Promise<void>[] = [];
   const workerCount = Math.min(FRONTING_PROBE_CONCURRENCY, targets.length);
   for (let i = 0; i < workerCount; i++) {
@@ -293,7 +314,7 @@ async function runEhFrontingBenchmark(generation: number): Promise<void> {
         const index = nextIndex;
         nextIndex++;
         return index;
-      }).then(() => {
+      }, results).then(() => {
         resolve();
       }).catch(() => {
         resolve();
@@ -301,10 +322,11 @@ async function runEhFrontingBenchmark(generation: number): Promise<void> {
     }));
   }
   await Promise.all(workers);
+  return results;
 }
 
 async function runFrontingProbeWorker(targets: HostIpProbeTarget[], generation: number,
-  next: () => number): Promise<void> {
+  next: () => number, results: HostIpQuality[]): Promise<void> {
   while (generation === frontingProbeGeneration) {
     const index = next();
     if (index >= targets.length) {
@@ -312,7 +334,7 @@ async function runFrontingProbeWorker(targets: HostIpProbeTarget[], generation: 
     }
     const result = await probeFrontingIp(targets[index]);
     if (generation === frontingProbeGeneration) {
-      recordIpQuality(result);
+      results.push(result);
     }
   }
 }
@@ -441,11 +463,115 @@ function recordIpQuality(result: HostIpQuality): void {
   HOST_IP_QUALITIES.push(result);
 }
 
+function replaceIpQualities(results: HostIpQuality[]): boolean {
+  const validResults: HostIpQuality[] = [];
+  for (let i = 0; i < results.length; i++) {
+    if (results[i].ok && isKnownProbeTarget(results[i].host, results[i].ip)) {
+      validResults.push(results[i]);
+    }
+  }
+  if (validResults.length === 0) {
+    return false;
+  }
+  clearIpQualities();
+  for (let i = 0; i < validResults.length; i++) {
+    recordIpQuality(validResults[i]);
+  }
+  return true;
+}
+
 function clearIpQualities(): void {
   HOST_IP_QUALITIES.splice(0, HOST_IP_QUALITIES.length);
   for (let i = 0; i < HOST_IP_CURSORS.length; i++) {
     HOST_IP_CURSORS[i].next = -1;
   }
+}
+
+function loadCachedIpQualities(key: string): void {
+  if (frontingIpCacheLoadedKey === key) {
+    return;
+  }
+  clearIpQualities();
+  frontingIpCacheLoadedKey = key;
+  if (frontingIpCachePath.length === 0) {
+    return;
+  }
+  try {
+    const parsed = JSON.parse(fs.readTextSync(frontingIpCachePath)) as FrontingIpQualityCache;
+    if (parsed.key !== key || !Array.isArray(parsed.qualities)) {
+      return;
+    }
+    for (let i = 0; i < parsed.qualities.length; i++) {
+      const item = parsed.qualities[i];
+      if (isValidIpQuality(item)) {
+        recordIpQuality({
+          host: item.host,
+          ip: item.ip,
+          ok: item.ok,
+          latencyMs: item.latencyMs,
+          testedAt: item.testedAt
+        });
+      }
+    }
+  } catch (error) {
+  }
+}
+
+function saveCachedIpQualities(key: string): void {
+  if (frontingIpCachePath.length === 0) {
+    return;
+  }
+  const qualities: HostIpQuality[] = [];
+  for (let i = 0; i < HOST_IP_QUALITIES.length; i++) {
+    const item = HOST_IP_QUALITIES[i];
+    if (item.ok && isKnownProbeTarget(item.host, item.ip)) {
+      qualities.push(item);
+    }
+  }
+  let fd = -1;
+  try {
+    const file = fs.openSync(frontingIpCachePath, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
+    fd = file.fd;
+    const payload: FrontingIpQualityCache = {
+      version: FRONTING_IP_CACHE_VERSION,
+      key: key,
+      updatedAt: Date.now(),
+      qualities: qualities
+    };
+    fs.writeSync(fd, JSON.stringify(payload));
+  } catch (error) {
+  } finally {
+    if (fd >= 0) {
+      try {
+        fs.closeSync(fd);
+      } catch (error) {
+      }
+    }
+  }
+}
+
+function isValidIpQuality(item: HostIpQuality): boolean {
+  if (item === undefined || item === null) {
+    return false;
+  }
+  if (typeof item.host !== 'string' || typeof item.ip !== 'string' || typeof item.ok !== 'boolean') {
+    return false;
+  }
+  if (typeof item.latencyMs !== 'number' || typeof item.testedAt !== 'number') {
+    return false;
+  }
+  return item.ok && item.host.length > 0 && isIpv4(item.ip) && item.latencyMs > 0 &&
+    isKnownProbeTarget(item.host, item.ip);
+}
+
+function isKnownProbeTarget(host: string, ip: string): boolean {
+  const targets = collectFrontingProbeTargets();
+  for (let i = 0; i < targets.length; i++) {
+    if (targets[i].host === host && targets[i].ip === ip) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function frontingBenchmarkKey(): string {

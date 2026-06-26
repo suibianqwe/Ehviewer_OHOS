@@ -142,6 +142,7 @@ export struct DownloadScene {
   @State advanceSearch: number = DEFAULT_ADVANCE_SEARCH;
   @State minRating: number = -1;
   @State searchSubmitted: boolean = true;
+  @State searchBarVisible: boolean = false;
   @State advancedPanelVisible: boolean = false;
   @State searchSuggestionItems: SearchSuggestionItem[] = [];
   @State searchSuggestionRevision: number = 0;
@@ -214,6 +215,10 @@ export struct DownloadScene {
   private handleSystemBack(): boolean {
     if (this.downloadSelectionCount() > 0) {
       this.clearDownloadSelection();
+      return true;
+    }
+    if (this.searchBarVisible) {
+      this.closeDownloadSearchBar();
       return true;
     }
     if (this.showTagSearch) {
@@ -363,6 +368,25 @@ export struct DownloadScene {
     recordSearchHistory(this.query);
     this.downloadJumpPageIndex = 0;
     this.downloadScrollOffset = 0;
+    this.refreshDownloadRows();
+  }
+
+  private openDownloadSearchSuggestions(): void {
+    this.searchSubmitted = false;
+    this.downloadJumpPageIndex = 0;
+    this.refreshSearchSuggestions();
+  }
+
+  private openDownloadSearchBar(): void {
+    this.searchBarVisible = true;
+    this.openDownloadSearchSuggestions();
+  }
+
+  private closeDownloadSearchBar(): void {
+    this.searchBarVisible = false;
+    this.searchSubmitted = true;
+    this.advancedPanelVisible = false;
+    this.downloadJumpPageIndex = 0;
     this.refreshDownloadRows();
   }
 
@@ -1858,18 +1882,32 @@ export struct DownloadScene {
           .animation({ duration: 300, curve: Curve.EaseOut }))
     } else {
       FloatingToolbarHost({
-        kind: 'search',
+        kind: this.searchBarVisible ? 'search' : 'title',
         title: 'Downloads',
         keyword: this.query,
+        filterActive: this.advancedPanelVisible || this.advancedSearchEnabled ||
+          this.searchCategory !== GalleryCategory.None || this.minRating > 0,
+        showSearchButton: !this.searchBarVisible,
         showRefreshButton: false,
+        searchShowsAdvancedButton: true,
         toolbarOffsetY: this.toolbarOffsetY,
         toolbarHeight: 56,
             onMenu: this.onMenu,
             onKeywordChange: (value: string) => {
               this.updateDownloadKeyword(value);
             },
+            onSearchFocus: () => {
+              this.openDownloadSearchSuggestions();
+            },
             onSearch: () => {
-              this.applyDownloadSearch();
+              if (this.searchBarVisible) {
+                this.applyDownloadSearch();
+              } else {
+                this.openDownloadSearchBar();
+              }
+            },
+            onAdvanced: () => {
+              this.advancedPanelVisible = !this.advancedPanelVisible;
             }
       }) {
       Stack({ alignContent: Alignment.BottomEnd }) {
@@ -2005,24 +2043,6 @@ export struct DownloadScene {
           if (height > 0 && !Number.isNaN(height)) {
             this.viewportHeight = height;
           }
-        })
-
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.plus'))
-            .fontSize(22)
-            .fontColor([themeOnPrimaryText()])
-        }
-        .width(40)
-        .height(40)
-        .backgroundColor(this.advancedPanelVisible || this.advancedSearchEnabled ||
-          this.searchCategory !== GalleryCategory.None || this.minRating > 0 ? themePrimaryColor() : themeSurface())
-        .position({
-          x: this.downloadContentWidth > 0 ? Math.max(12, this.downloadContentWidth - 56) : 300,
-          y: this.statusBarVp() + 8
-        })
-        .zIndex(14)
-        .onClick(() => {
-          this.advancedPanelVisible = !this.advancedPanelVisible;
         })
 
         if (this.advancedPanelVisible) {

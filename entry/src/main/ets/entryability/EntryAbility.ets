@@ -50,7 +50,7 @@ export default class EntryAbility extends UIAbility {
       });
     }).catch(() => {});
     const settingsReady = ehSettingsStore.load(this.context).then(() => {
-      startEhFrontingBenchmark();
+      startEhFrontingBenchmark(this.context);
     }).catch(() => {});
     Promise.all([windowReady, settingsReady]).then(() => {
       this.loadIndexContent(stage);
