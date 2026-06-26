@@ -1406,7 +1406,10 @@ export function filterDownloadItems(items: DownloadInfo[], query: string, status
   const filtered: DownloadInfo[] = [];
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    if (statusFilter !== 'All' && downloadStateLabel(item.state) !== statusFilter) {
+    const stateLabel = downloadStateLabel(item.state);
+    const statusMatched = statusFilter === 'All' || stateLabel === statusFilter ||
+      (statusFilter === 'Downloading' && stateLabel === 'Waiting');
+    if (!statusMatched) {
       continue;
     }
     if (labelFilter !== 'All' && downloadLabelName(item.label) !== labelFilter) {

@@ -173,6 +173,8 @@ export struct DownloadScene {
   @State selectedDownloadGids: string = '';
   @State toolbarOffsetY: number = 0;
   @State downloadActionsExpanded: boolean = false;
+  @State statusHintText: string = '';
+  @State statusHintVisible: boolean = false;
   @State downloadJumpPanelVisible: boolean = false;
   @State downloadJumpDraft: string = '1';
   @State downloadJumpPageIndex: number = 0;
@@ -389,6 +391,16 @@ export struct DownloadScene {
     this.clearDownloadSearchFilters();
     this.downloadJumpPageIndex = 0;
     this.refreshDownloadRows();
+  }
+
+  private showDownloadStatusHint(): void {
+    this.statusHintText = uiText('Current status filter') + ': ' + uiText(this.statusFilter);
+    this.statusHintVisible = true;
+    setTimeout(() => {
+      this.getUIContext().animateTo({ duration: 160, curve: Curve.EaseOut }, () => {
+        this.statusHintVisible = false;
+      });
+    }, 1500);
   }
 
   private clearDownloadSearchFilters(): void {
@@ -1913,6 +1925,9 @@ export struct DownloadScene {
                 this.onMenu();
               }
             },
+            onBack: () => {
+              this.closeDownloadSearchBar();
+            },
             onKeywordChange: (value: string) => {
               this.updateDownloadKeyword(value);
             },
@@ -2129,7 +2144,6 @@ export struct DownloadScene {
             hasSelection: this.downloadSelectionCount() > 0,
             canOperate: this.items.length > 0,
             canJump: this.downloadJumpTotalPages() > 1,
-            statusFilter: this.statusFilter,
             onToggle: () => {
               this.downloadActionsExpanded = !this.downloadActionsExpanded;
             },
@@ -2137,6 +2151,7 @@ export struct DownloadScene {
               this.statusFilter = nextDownloadStatusFilter(this.statusFilter);
               this.downloadJumpPageIndex = 0;
               this.refreshDownloadRows();
+              this.showDownloadStatusHint();
             },
             onJump: () => {
               this.openDownloadJumpPanel();
@@ -2164,6 +2179,26 @@ export struct DownloadScene {
         .alignItems(HorizontalAlign.End)
         .padding({ right: 16, bottom: 24 })
         .hitTestBehavior(HitTestMode.Transparent)
+
+        if (this.statusHintVisible) {
+          Text(this.statusHintText)
+            .fontSize(12)
+            .fontColor(themePrimaryText())
+            .textAlign(TextAlign.Center)
+            .backgroundColor(themeSurface())
+            .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+            .borderRadius(15)
+            .shadow({ radius: 8, color: themeShadowColor(), offsetX: 0, offsetY: 2 })
+            .maxLines(1)
+            .position({
+              x: this.downloadContentWidth > 0 ? Math.max(16, this.downloadContentWidth / 2 - 96) : 72,
+              y: this.viewportHeight > 0 ? Math.max(180, this.viewportHeight * 0.62) : 420
+            })
+            .transition(TransitionEffect.OPACITY
+              .combine(TransitionEffect.translate({ y: 12 }))
+              .animation({ duration: 140, curve: Curve.EaseOut }))
+            .zIndex(18)
+        }
 
         if (this.downloadJumpPanelVisible) {
           Column()
@@ -2258,10 +2293,7 @@ struct DownloadToolColumn {
   @Prop hasSelection: boolean = false;
   @Prop canOperate: boolean = false;
   @Prop canJump: boolean = false;
-  @Prop statusFilter: string = 'All';
   @State activeActionIndex: number = -1;
-  @State statusHintVisible: boolean = false;
-  private statusHintTimer: number = -1;
   onToggle: () => void = () => {};
   onStatus: () => void = () => {};
   onJump: () => void = () => {};
@@ -2350,7 +2382,6 @@ struct DownloadToolColumn {
       this.onDelete();
     } else if (baseIndex === 0) {
       this.onStatus();
-      this.showStatusHint();
     } else if (baseIndex === 1) {
       this.onJump();
     } else if (baseIndex === 2) {
@@ -2360,23 +2391,6 @@ struct DownloadToolColumn {
     } else if (baseIndex === 4) {
       this.onRestore();
     }
-  }
-
-  private showStatusHint(): void {
-    this.statusHintVisible = true;
-    if (this.statusHintTimer >= 0) {
-      clearTimeout(this.statusHintTimer);
-    }
-    this.statusHintTimer = setTimeout(() => {
-      this.getUIContext().animateTo({ duration: 160, curve: Curve.EaseOut }, () => {
-        this.statusHintVisible = false;
-      });
-      this.statusHintTimer = -1;
-    }, 1500);
-  }
-
-  private statusHintText(): string {
-    return uiText('Current status filter') + ': ' + uiText(this.statusFilter);
   }
 
   private handleToolbarTouch(event: TouchEvent): void {
@@ -2456,22 +2470,6 @@ struct DownloadToolColumn {
         .transition(TransitionEffect.OPACITY
           .combine(TransitionEffect.translate({ y: 12 }))
           .animation({ duration: 180, curve: Curve.EaseOut }))
-      }
-
-      if (this.statusHintVisible) {
-        Text(this.statusHintText())
-          .fontSize(12)
-          .fontColor(themePrimaryText())
-          .textAlign(TextAlign.End)
-          .backgroundColor(themeSurface())
-          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-          .borderRadius(14)
-          .shadow({ radius: 8, color: themeShadowColor(), offsetX: 0, offsetY: 2 })
-          .maxLines(1)
-          .margin({ bottom: 8 })
-          .transition(TransitionEffect.OPACITY
-            .combine(TransitionEffect.translate({ x: 8 }))
-            .animation({ duration: 140, curve: Curve.EaseOut }))
       }
 
       ActionBubble({

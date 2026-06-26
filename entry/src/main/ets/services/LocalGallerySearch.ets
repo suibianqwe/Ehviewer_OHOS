@@ -70,6 +70,9 @@ function matchesPlainText(item: GalleryInfo, query: string): boolean {
   if (arrayContainsText(item.simpleTags, query) || arrayContainsText(item.tagList, query)) {
     return true;
   }
+  if (groupsContainText(item.detailTags, query)) {
+    return true;
+  }
   return item.gid.toString() === query;
 }
 
@@ -120,6 +123,25 @@ function groupsContainTag(groups: GalleryTagGroup[] | undefined, namespace: stri
     }
     for (let j = 0; j < groups[i].tags.length; j++) {
       if (normalizeTagTerm(groups[i].tags[j]).indexOf(tag) >= 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function groupsContainText(groups: GalleryTagGroup[] | undefined, query: string): boolean {
+  if (groups === undefined) {
+    return false;
+  }
+  for (let i = 0; i < groups.length; i++) {
+    const namespace = groups[i].namespace.toLowerCase();
+    if (namespace.indexOf(query) >= 0) {
+      return true;
+    }
+    for (let j = 0; j < groups[i].tags.length; j++) {
+      const tag = normalizeTagTerm(groups[i].tags[j]);
+      if (tag.indexOf(query) >= 0 || (namespace + ':' + tag).indexOf(query) >= 0) {
         return true;
       }
     }

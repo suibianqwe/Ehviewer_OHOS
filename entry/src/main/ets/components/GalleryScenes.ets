@@ -905,6 +905,13 @@ export struct GalleryListScene {
   private closeLocalSearchBar(): void {
     this.localSearchBarVisible = false;
     this.searchSubmitted = true;
+    this.keyword = '';
+    this.searchMode = ListMode.Normal;
+    this.searchCategory = GalleryCategory.None;
+    this.searchAdvancedPanelOpened = false;
+    this.advancedSearchEnabled = false;
+    this.advanceSearch = DEFAULT_ADVANCE_SEARCH;
+    this.minRating = -1;
     this.hasFirstRefresh = false;
     this.saveListCache();
     this.loadListPage(0);

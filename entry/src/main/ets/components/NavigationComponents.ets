@@ -602,6 +602,7 @@ export struct FloatingToolbarHost {
   @BuilderParam content: () => void = this.EmptyContent;
   onKeywordChange: (value: string) => void = () => {};
   onMenu: () => void = () => {};
+  onBack: () => void = () => {};
   onSearch: () => void = () => {};
   onSearchFocus: () => void = () => {};
   onAdvanced: () => void = () => {};
@@ -641,6 +642,7 @@ export struct FloatingToolbarHost {
           onSearchFocus: this.onSearchFocus,
           onAdvanced: this.onAdvanced,
           onMenu: this.onMenu,
+          onBack: this.onBack,
           onSearch: this.onSearch,
           onRefresh: this.onRefresh,
           onClear: this.onClear
