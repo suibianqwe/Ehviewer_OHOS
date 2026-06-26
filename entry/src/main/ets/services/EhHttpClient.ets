@@ -142,9 +142,10 @@ export class EhHttpClient {
   async getText(url: string, referer: string = EhUrl.getReferer(), cacheTtlMs: number = 45000,
     options?: EhTextRequestOptions): Promise<EhHttpResponse> {
     const includeUConfig = options?.includeUConfig !== false;
-    const cookieHeader = includeUConfig ?
-      ehCookieStore.getCookieHeader() :
-      ehCookieStore.getCookieHeaderWithOptions({ includeContentWarning: true, includeUConfig: false });
+    const cookieHeader = ehCookieStore.getCookieHeaderForUrl(url, {
+      includeContentWarning: true,
+      includeUConfig: includeUConfig
+    });
     const cacheKey = buildCacheKey('GET', url, referer, cookieHeader);
     if (cacheTtlMs > 0) {
       const cached = this.getCachedResponse(cacheKey);
@@ -278,7 +279,7 @@ export class EhHttpClient {
 
   async postForm(url: string, body: string, referer: string, origin: string): Promise<EhHttpResponse> {
     return requestTextWithRetry((): Promise<EhHttpResponse> => {
-      return this.postFormOnce(url, body, referer, origin, ehCookieStore.getCookieHeader());
+      return this.postFormOnce(url, body, referer, origin, ehCookieStore.getCookieHeaderForUrl(url));
     }, 2);
   }
 
@@ -329,7 +330,7 @@ export class EhHttpClient {
     const request = http.createHttp();
     await acquireTextSlot();
     try {
-      const cookieHeader = ehCookieStore.getCookieHeader();
+      const cookieHeader = ehCookieStore.getCookieHeaderForUrl(url);
       const header = buildJsonRequestHeader(referer, origin, cookieHeader);
       await ensureEhHostRules();
       const options: http.HttpRequestOptions = {

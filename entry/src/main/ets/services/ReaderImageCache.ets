@@ -151,7 +151,7 @@ export class ReaderImageCache {
     }
     const request = http.createHttp();
     try {
-      const header = buildImageRequestHeader(imageUrl, referer, ehCookieStore.getCookieHeader());
+      const header = buildImageRequestHeader(imageUrl, referer, ehCookieStore.getCookieHeaderForUrl(imageUrl));
       const timeout = imageRequestTimeoutMs();
       await ensureEhHostRules();
       const options: http.HttpRequestOptions = {
@@ -193,7 +193,7 @@ export class ReaderImageCache {
     try {
       const file = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
       fd = file.fd;
-      const header = buildImageRequestHeader(imageUrl, referer, ehCookieStore.getCookieHeader());
+      const header = buildImageRequestHeader(imageUrl, referer, ehCookieStore.getCookieHeaderForUrl(imageUrl));
       const timeout = imageRequestTimeoutMs();
       await ensureEhHostRules();
       const options: http.HttpRequestOptions = {
