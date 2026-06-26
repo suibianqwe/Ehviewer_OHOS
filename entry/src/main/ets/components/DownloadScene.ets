@@ -386,8 +386,20 @@ export struct DownloadScene {
     this.searchBarVisible = false;
     this.searchSubmitted = true;
     this.advancedPanelVisible = false;
+    this.clearDownloadSearchFilters();
     this.downloadJumpPageIndex = 0;
     this.refreshDownloadRows();
+  }
+
+  private clearDownloadSearchFilters(): void {
+    this.query = '';
+    this.searchMode = ListMode.Normal;
+    this.searchCategory = GalleryCategory.None;
+    this.advancedSearchEnabled = false;
+    this.advanceSearch = DEFAULT_ADVANCE_SEARCH;
+    this.minRating = -1;
+    this.selectedTagNamespaces = [];
+    this.refreshSearchSuggestions([]);
   }
 
   private updateDownloadKeyword(value: string): void {
@@ -2104,7 +2116,8 @@ export struct DownloadScene {
               this.applyDownloadSearch();
             }
           })
-            .margin({ top: this.statusBarVp() + 64, left: 10, right: 10 })
+            .margin({ top: this.statusBarVp() + 56 + 8, left: 10, right: 10 })
+            .alignSelf(ItemAlign.Start)
             .transition(TransitionEffect.move(TransitionEdge.TOP)
               .animation({ duration: 180, curve: Curve.EaseOut }))
             .zIndex(16)
