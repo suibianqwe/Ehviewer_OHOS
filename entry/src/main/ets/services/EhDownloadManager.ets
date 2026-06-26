@@ -1,10 +1,11 @@
 import { common, wantAgent, WantAgent } from '@kit.AbilityKit';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { notificationManager } from '@kit.NotificationKit';
-import { readerImageCache } from './ReaderImageCache';
+import { ImageDownloadProgress, readerImageCache } from './ReaderImageCache';
 import { ehDownloadFileStore } from './EhDownloadFileStore';
 import { DownloadInfo, DownloadState, ehDownloadStore } from './EhDownloadStore';
 import { EhHttpClient } from './EhHttpClient';
+import { galleryPageCache } from './GalleryPageCache';
 import { GalleryDetail, GalleryPage, GallerySite } from '../model/GalleryModels';
 import {
   cloneGalleryDetail,
@@ -298,22 +299,45 @@ export class EhDownloadManager {
   private async downloadPageOnce(context: common.UIAbilityContext, item: DownloadInfo, detail: GalleryDetail,
     detailUrl: string, pageIndex: number, total: number, state: DownloadWorkerState): Promise<DownloadedPageResult> {
     const preview = detail.previewSet[pageIndex];
-    const pageResult = await this.client.loadGalleryPage(preview.pageUrl, currentGallerySite(),
-      readerPageReferer(detailUrl, detail.previewSet, pageIndex, currentGallerySite()));
-    if (!pageResult.ok || pageResult.page === null) {
-      throw new Error(pageResult.message);
+    let page = galleryPageCache.get(preview.pageUrl);
+    if (page === null) {
+      const pageResult = await this.client.loadGalleryPage(preview.pageUrl, currentGallerySite(),
+        readerPageReferer(detailUrl, detail.previewSet, pageIndex, currentGallerySite()));
+      if (!pageResult.ok || pageResult.page === null) {
+        throw new Error(pageResult.message);
+      }
+      page = pageResult.page;
+      const cacheUrl = page.pageUrl.length > 0 ? page.pageUrl : preview.pageUrl;
+      galleryPageCache.put(cacheUrl, page);
+      galleryPageCache.put(preview.pageUrl, page);
     }
 
-    const imageUrl = downloadImageUrlForPage(pageResult.page);
+    const imageUrl = downloadImageUrlForPage(page);
     if (imageUrl.length === 0) {
       throw new Error('Image URL missing');
     }
 
     const existingCachedPath = readerImageCache.getCachedPath(context, imageUrl);
     const startedAt = Date.now();
+    let lastProgressBytes = 0;
+    const onProgress = (progress: ImageDownloadProgress): void => {
+      const receivedBytes = Math.max(0, progress.receivedBytes);
+      lastProgressBytes = Math.max(lastProgressBytes, receivedBytes);
+      const elapsedMs = Math.max(1, Date.now() - startedAt);
+      const speed = Math.round(receivedBytes * 1000 / elapsedMs);
+      const pageFraction = progress.totalBytes > 0 ? Math.max(0, Math.min(1, receivedBytes / progress.totalBytes)) : 0;
+      const currentProgress = state.finished * DOWNLOAD_PAGE_PROGRESS_SCALE +
+        Math.max(0, Math.min(DOWNLOAD_PAGE_PROGRESS_SCALE - 1, Math.round(pageFraction * DOWNLOAD_PAGE_PROGRESS_SCALE)));
+      const averageBytes = state.finished > 0 ? Math.max(1, Math.round(state.fileSize / state.finished)) :
+        Math.max(1, progress.totalBytes > 0 ? progress.totalBytes : receivedBytes);
+      const remainingBytes = Math.max(0, total - state.finished - 1) * averageBytes +
+        Math.max(0, (progress.totalBytes > 0 ? progress.totalBytes : averageBytes) - receivedBytes);
+      ehDownloadStore.setProgress(item.gid, state.finished, total, currentProgress);
+      ehDownloadStore.setTransfer(item.gid, speed, speed > 0 ? Math.round(remainingBytes / speed) : 0);
+    };
     const cachedPath = existingCachedPath.length > 0 ? existingCachedPath :
-      await readerImageCache.ensureCached(context, imageUrl, pageResult.page.pageUrl, true);
-    const downloadedBytes = readerImageCache.cachedSize(context, imageUrl);
+      await readerImageCache.ensureCached(context, imageUrl, page.pageUrl, true, onProgress);
+    const downloadedBytes = Math.max(readerImageCache.cachedSize(context, imageUrl), lastProgressBytes);
     const elapsedMs = Math.max(1, Date.now() - startedAt);
     if (downloadedBytes > 0) {
       const speed = Math.round(downloadedBytes * 1000 / elapsedMs);
@@ -325,7 +349,7 @@ export class EhDownloadManager {
       ehDownloadStore.setTransfer(item.gid, speed, speed > 0 ? Math.round(remainingBytes / speed) : 0);
     }
     return {
-      page: pageResult.page,
+      page: page,
       cachedPath: cachedPath
     };
   }

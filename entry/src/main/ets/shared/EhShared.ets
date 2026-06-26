@@ -2240,9 +2240,9 @@ export function readerDisplayImageUrl(page: GalleryPage, preferOriginal: boolean
     return readerLocalImageSource(page.cachedImagePath);
   }
   if (preferOriginal && page.originImageUrl.length > 0) {
-    return page.originImageUrl;
+    return '';
   }
-  return page.imageUrl;
+  return '';
 }
 
 export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: GalleryPage) => void,

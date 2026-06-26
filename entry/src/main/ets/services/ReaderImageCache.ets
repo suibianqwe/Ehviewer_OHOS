@@ -8,6 +8,8 @@ import { ehSettingsStore } from './EhSettingsStore';
 interface PendingImageDownload {
   url: string;
   promise: Promise<string>;
+  listeners: ImageDownloadProgressCallback[];
+  lastProgress: ImageDownloadProgress;
 }
 
 const PENDING_IMAGE_DOWNLOADS: PendingImageDownload[] = [];
@@ -59,11 +61,21 @@ export class ReaderImageCache {
 
     const pending = getPending(imageUrl);
     if (pending !== null) {
-      return pending;
+      if (onProgress !== undefined) {
+        addPendingProgressListener(imageUrl, onProgress);
+      }
+      return pending.promise;
     }
 
-    const promise = this.download(context, imageUrl, referer, path, priority, onProgress);
-    putPending(imageUrl, promise);
+    const listeners: ImageDownloadProgressCallback[] = [];
+    if (onProgress !== undefined) {
+      listeners.push(onProgress);
+    }
+    const progressCallback: ImageDownloadProgressCallback = (progress: ImageDownloadProgress): void => {
+      publishPendingProgress(imageUrl, progress);
+    };
+    const promise = this.download(context, imageUrl, referer, path, priority, progressCallback);
+    putPending(imageUrl, promise, listeners);
     try {
       return await promise;
     } finally {
@@ -447,24 +459,58 @@ function exists(path: string): boolean {
   }
 }
 
-function getPending(url: string): Promise<string> | null {
+function getPending(url: string): PendingImageDownload | null {
   for (let i = 0; i < PENDING_IMAGE_DOWNLOADS.length; i++) {
     if (PENDING_IMAGE_DOWNLOADS[i].url === url) {
-      return PENDING_IMAGE_DOWNLOADS[i].promise;
+      return PENDING_IMAGE_DOWNLOADS[i];
     }
   }
   return null;
 }
 
-function putPending(url: string, promise: Promise<string>): void {
+function putPending(url: string, promise: Promise<string>, listeners: ImageDownloadProgressCallback[]): void {
   removePending(url);
-  PENDING_IMAGE_DOWNLOADS.push({ url: url, promise: promise });
+  PENDING_IMAGE_DOWNLOADS.push({
+    url: url,
+    promise: promise,
+    listeners: listeners,
+    lastProgress: { receivedBytes: 0, totalBytes: 0 }
+  });
 }
 
 function removePending(url: string): void {
   for (let i = PENDING_IMAGE_DOWNLOADS.length - 1; i >= 0; i--) {
     if (PENDING_IMAGE_DOWNLOADS[i].url === url) {
       PENDING_IMAGE_DOWNLOADS.splice(i, 1);
+    }
+  }
+}
+
+function addPendingProgressListener(url: string, listener: ImageDownloadProgressCallback): void {
+  const pending = getPending(url);
+  if (pending === null) {
+    return;
+  }
+  pending.listeners.push(listener);
+  if (pending.lastProgress.receivedBytes > 0 || pending.lastProgress.totalBytes > 0) {
+    listener(pending.lastProgress);
+  }
+}
+
+function publishPendingProgress(url: string, progress: ImageDownloadProgress): void {
+  const pending = getPending(url);
+  if (pending === null) {
+    return;
+  }
+  pending.lastProgress = {
+    receivedBytes: Math.max(0, progress.receivedBytes),
+    totalBytes: Math.max(0, progress.totalBytes)
+  };
+  const listeners = pending.listeners.slice();
+  for (let i = 0; i < listeners.length; i++) {
+    try {
+      listeners[i](pending.lastProgress);
+    } catch (error) {
     }
   }
 }
