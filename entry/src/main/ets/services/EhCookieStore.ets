@@ -60,6 +60,10 @@ export class EhCookieStore {
     return this.buildCookieHeader(options);
   }
 
+  getStoredCookieHeader(): string {
+    return this.buildCookieHeader({ includeContentWarning: false, includeUConfig: true });
+  }
+
   getEditableCookieHeader(): string {
     return this.buildCookieHeader({ includeContentWarning: false, includeUConfig: true });
   }
@@ -138,7 +142,12 @@ export class EhCookieStore {
     if (index <= 0) {
       return;
     }
-    this.upsert(firstPart.substring(0, index), firstPart.substring(index + 1));
+    const name = firstPart.substring(0, index);
+    const value = firstPart.substring(index + 1);
+    if (this.isInvalidNetworkIdentityCookie(name, value)) {
+      return;
+    }
+    this.upsert(name, value);
   }
 
   private upsert(name: string, value: string): void {
@@ -158,6 +167,17 @@ export class EhCookieStore {
       }
     }
     return false;
+  }
+
+  private isInvalidNetworkIdentityCookie(name: string, value: string): boolean {
+    if (name !== KEY_IPB_MEMBER_ID && name !== KEY_IPB_PASS_HASH) {
+      return false;
+    }
+    if (!this.hasCookie(name)) {
+      return false;
+    }
+    const normalized = value.trim().toLowerCase();
+    return normalized.length === 0 || normalized === '0' || normalized === 'deleted';
   }
 }
 

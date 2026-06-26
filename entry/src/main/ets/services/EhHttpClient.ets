@@ -278,15 +278,15 @@ export class EhHttpClient {
 
   async postForm(url: string, body: string, referer: string, origin: string): Promise<EhHttpResponse> {
     return requestTextWithRetry((): Promise<EhHttpResponse> => {
-      return this.postFormOnce(url, body, referer, origin);
+      return this.postFormOnce(url, body, referer, origin, ehCookieStore.getCookieHeader());
     }, 2);
   }
 
-  private async postFormOnce(url: string, body: string, referer: string, origin: string): Promise<EhHttpResponse> {
+  private async postFormOnce(url: string, body: string, referer: string, origin: string,
+    cookieHeader: string): Promise<EhHttpResponse> {
     const request = http.createHttp();
     await acquireTextSlot();
     try {
-      const cookieHeader = ehCookieStore.getCookieHeader();
       const header = buildPostRequestHeader(referer, origin, cookieHeader);
       await ensureEhHostRules();
       const options: http.HttpRequestOptions = {
@@ -412,7 +412,8 @@ export class EhHttpClient {
 
     try {
       ehCookieStore.clear();
-      const response = await this.postForm(EhUrl.API_SIGN_IN, form, EhUrl.SIGN_IN_REFERER, EhUrl.FORUM_ORIGIN);
+      const response = await this.postFormOnce(EhUrl.API_SIGN_IN, form, EhUrl.SIGN_IN_REFERER, EhUrl.FORUM_ORIGIN,
+        ehCookieStore.getStoredCookieHeader());
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return {
           ok: false,
