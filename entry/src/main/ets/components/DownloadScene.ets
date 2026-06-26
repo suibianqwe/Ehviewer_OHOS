@@ -1,5 +1,4 @@
-import { common } from '@kit.AbilityKit';
-import { GalleryCategory, GalleryDetail, GalleryPage, GalleryPreview, GalleryRoute, GallerySite } from '../model/GalleryModels';
+import { GalleryCategory, GalleryDetail, GalleryPage, GalleryPreview, GalleryRoute } from '../model/GalleryModels';
 import { ehDownloadFileStore, RestoredDownloadGallery } from '../services/EhDownloadFileStore';
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { DownloadInfo, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
@@ -8,8 +7,6 @@ import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { DEFAULT_ADVANCE_SEARCH, EhUrl, ListMode } from '../services/EhUrl';
 import { galleryMatchesLocalSearch, LocalGallerySearchOptions } from '../services/LocalGallerySearch';
-import { galleryPageCache } from '../services/GalleryPageCache';
-import { readerImageCache } from '../services/ReaderImageCache';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { ehAppLog } from '../services/EhAppLog';
 import {
@@ -21,16 +18,13 @@ import {
 } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, nextFloatingToolbarOffset, setActiveBackHandler } from '../shared/EhShared';
 import {
-  cloneGalleryPage,
   createEmptyDownloadInfo,
   cloneGalleryDetail,
   createDetailFromGallery,
   createEmptyDetail,
   createEmptyPage,
-  createReaderLoadingPage,
   currentGallerySite,
   downloadButtonText,
-  downloadImageUrlForPage,
   downloadPageIndexes,
   downloadProgressText,
   downloadSizeText,
@@ -41,10 +35,7 @@ import {
   galleryThumbWidth,
   getAbilityContext,
   nextDownloadStatusFilter,
-  readerPageReferer,
-  readerPreloadCount,
   readerStartIndexAsync,
-  saveGalleryReadPosition,
   uiText,
   uiValue
 } from '../shared/EhShared';
@@ -63,8 +54,9 @@ import {
 } from '../shared/EhTheme';
 import { ArrayDataSource } from '../shared/ListDataSource';
 import { FloatingToolbarHost } from './NavigationComponents';
-import { ActionBubble, GalleryListRow, GalleryListScene, GalleryThumbCard, ReaderPageState, ReaderScene } from './GalleryScenes';
+import { ActionBubble, GalleryListRow, GalleryListScene, GalleryThumbCard } from './GalleryScenes';
 import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
+import { ReaderSessionScene } from './ReaderHostScene';
 import {
   applyTagSuggestionToKeyword,
   buildSearchSuggestions,
@@ -134,12 +126,6 @@ export struct DownloadScene {
   @State showReader: boolean = false;
   @State showComments: boolean = false;
   @State restoreDetailWithFade: boolean = false;
-  @State localReaderDetail: GalleryDetail = createEmptyDetail();
-  @State localReaderPage: GalleryPage = createEmptyPage();
-  @State localReaderPages: ReaderPageState[] = [];
-  @State localReaderIndex: number = 0;
-  @State localReaderStatus: string = 'Page loaded from downloads';
-  @State localReaderRenderVersion: number = 0;
   @State showTagSearch: boolean = false;
   @State tagSearchKeyword: string = '';
   @State downloadContentWidth: number = 0;
@@ -158,8 +144,6 @@ export struct DownloadScene {
   private downloadScroller: Scroller = new Scroller();
   private downloadScrollOffset: number = 0;
   private toolbarRestoring: boolean = false;
-  private localReaderPreviewPageSize: number = 0;
-  private localReaderLoadingIndexes: number[] = [];
   private downloadRowsDataSource: ArrayDataSource<DownloadInfo[]> = new ArrayDataSource<DownloadInfo[]>([]);
   private downloadRowStructureKeys: string[] = [];
   private downloadCardStates: Map<number, DownloadCardState> = new Map<number, DownloadCardState>();
@@ -201,7 +185,7 @@ export struct DownloadScene {
       return true;
     }
     if (this.showReader) {
-      this.closeLocalReader();
+      this.closeEmbeddedReader();
       return true;
     }
     if (this.showComments) {
@@ -977,32 +961,14 @@ export struct DownloadScene {
       this.statusText = 'Reader launch failed: Ability context is not ready';
       return;
     }
-    const total = Math.max(item.total, item.pages, item.finished);
-    const images = ehDownloadFileStore.listPageImageSlots(context, item, total);
-    if (!this.hasAnyImage(images)) {
-      this.statusText = item.state === DownloadState.Finish ? 'Downloaded files are missing: ' + item.title :
-        'Download is not ready: ' + item.title;
-      return;
-    }
 
-    const session = await this.createLocalReaderSession(context, item, images, requestedIndex);
+    const session = await this.createReaderSessionForDownload(item, requestedIndex);
     readerSessionStore.setSession(createReaderSessionState(session.detail, session.page, session.status,
       session.detailRequestUrl, '', currentGallerySite(), session.index));
 
     if (ehSettingsStore.getValue('reader_standalone', 'On') !== 'On') {
-      this.localReaderDetail = session.detail;
-      this.localReaderPage = session.page;
-      this.localReaderPages = session.pages;
-      this.localReaderIndex = session.index;
-      this.localReaderStatus = session.status;
-      this.localReaderRenderVersion++;
       enterEmbeddedReaderFullscreen();
       this.showReader = true;
-      if (!this.pageHasLocalImage(this.localReaderPage)) {
-        this.loadMissingLocalReaderPage(session.index);
-      } else {
-        this.preloadLocalReaderPages(session.index);
-      }
       return;
     }
 
@@ -1015,17 +981,14 @@ export struct DownloadScene {
     });
   }
 
-  private async createLocalReaderSession(context: common.UIAbilityContext, item: DownloadInfo, images: string[],
-    requestedIndex: number): Promise<LocalReaderSession> {
+  private async createReaderSessionForDownload(item: DownloadInfo, requestedIndex: number): Promise<DownloadReaderSession> {
     let detail = createDetailFromGallery(item);
     let detailRequestUrl = '';
-    this.localReaderPreviewPageSize = 0;
     try {
       const result = await this.client.loadGalleryDetail(item.gid, item.token, 0, currentGallerySite(),
         EhUrl.getReferer(currentGallerySite()));
       if (result.ok && result.detail !== null) {
         detail = mergeDownloadDetailTitles(result.detail, item);
-        this.localReaderPreviewPageSize = detail.previewSet.length;
         detailRequestUrl = result.url;
         ehDownloadStore.updateGallery(detail);
         this.persistDownloads();
@@ -1033,13 +996,11 @@ export struct DownloadScene {
     } catch (error) {
     }
 
-    const total = Math.max(detail.pages, item.total, item.pages, images.length);
+    const total = Math.max(detail.pages, item.total, item.pages, item.finished, 1);
     const previews: GalleryPreview[] = [];
-    const pages: ReaderPageState[] = [];
-    const slots = images.length >= total ? images : ehDownloadFileStore.listPageImageSlots(context, item, total);
     for (let i = 0; i < total; i++) {
       const preview = this.previewForIndex(detail, i);
-      const pageUrl = preview.pageUrl.length > 0 ? preview.pageUrl : this.localPageUrl(item.gid, i);
+      const pageUrl = preview.pageUrl;
       previews.push({
         index: i,
         pageUrl: pageUrl,
@@ -1049,13 +1010,6 @@ export struct DownloadScene {
         xOffset: preview.xOffset,
         yOffset: preview.yOffset
       });
-      const path = i < slots.length ? slots[i] : '';
-      const page = path.length > 0 ? this.createLocalReaderPage(pageUrl, preview.imageUrl, path) :
-        createReaderLoadingPage(pageUrl);
-      if (pageUrl.length > 0) {
-        galleryPageCache.put(pageUrl, page);
-      }
-      pages.push({ index: i, page: cloneGalleryPage(page) });
     }
     detail.pages = total;
     detail.previewPages = Math.max(detail.previewPages, 1);
@@ -1063,26 +1017,11 @@ export struct DownloadScene {
     const index = requestedIndex >= 0 && requestedIndex < total ? requestedIndex : 0;
     return {
       detail: detail,
-      page: cloneGalleryPage(pages[index].page),
-      pages: pages,
+      page: createEmptyPage(),
       index: index,
-      status: this.pageHasLocalImage(pages[index].page) ?
-        'Page loaded from downloads' : 'Page is not downloaded yet',
+      status: 'Reader is ready',
       detailRequestUrl: detailRequestUrl
     };
-  }
-
-  private pageHasLocalImage(page: GalleryPage): boolean {
-    return page.cachedImagePath !== undefined && page.cachedImagePath.length > 0;
-  }
-
-  private hasAnyImage(images: string[]): boolean {
-    for (let i = 0; i < images.length; i++) {
-      if (images[i].length > 0) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private previewForIndex(detail: GalleryDetail, index: number): GalleryPreview {
@@ -1102,21 +1041,9 @@ export struct DownloadScene {
     };
   }
 
-  private createLocalReaderPage(pageUrl: string, imageUrl: string, path: string): GalleryPage {
-    return {
-      pageUrl: pageUrl,
-      imageUrl: imageUrl,
-      skipHathKey: '',
-      originImageUrl: '',
-      showKey: '',
-      cachedImagePath: path
-    };
-  }
-
-  private closeLocalReader(): void {
+  private closeEmbeddedReader(): void {
     this.restoreDetailWithFade = this.showDetail;
     this.showReader = false;
-    this.localReaderStatus = 'Page loaded from downloads';
     leaveEmbeddedReaderFullscreen();
     this.restoreBackHandler();
     this.clearRestoreDetailFadeLater();
@@ -1134,325 +1061,6 @@ export struct DownloadScene {
     setTimeout(() => {
       setActiveBackHandler(() => this.handleSystemBack());
     }, 0);
-  }
-
-  private jumpLocalReader(index: number): void {
-    if (index < 0 || index >= this.localReaderPages.length) {
-      return;
-    }
-    this.localReaderIndex = index;
-    this.localReaderPage = cloneGalleryPage(this.localReaderPages[index].page);
-    this.localReaderStatus = this.pageHasLocalImage(this.localReaderPage) ? 'Page loaded from downloads' :
-      'Page is not downloaded yet';
-    saveGalleryReadPosition(this.localReaderDetail.gid, index, this.localReaderDetail);
-    this.localReaderRenderVersion++;
-    readerSessionStore.updateSession(createReaderSessionState(this.localReaderDetail, this.localReaderPage,
-      this.localReaderStatus, '', '', GallerySite.E, this.localReaderIndex));
-    if (this.pageHasLocalImage(this.localReaderPage)) {
-      this.preloadLocalReaderPages(index);
-      return;
-    }
-    this.loadMissingLocalReaderPage(index);
-  }
-
-  private loadMissingLocalReaderPage(index: number): void {
-    this.loadMissingLocalReaderPageAsync(index).catch((error: Error) => {
-      if (this.localReaderIndex === index) {
-        this.localReaderStatus = 'Page load failed: ' + error.message;
-        this.localReaderRenderVersion++;
-      }
-    });
-  }
-
-  private async loadMissingLocalReaderPageAsync(index: number): Promise<void> {
-    await this.loadAndSaveLocalReaderPage(index, false, true);
-    this.preloadLocalReaderPages(index);
-  }
-
-  private refreshLocalReaderPage(index: number): void {
-    this.refreshLocalReaderPageAsync(index).catch((error: Error) => {
-      if (this.localReaderIndex === index) {
-        this.localReaderStatus = 'Page refresh failed: ' + error.message;
-        this.localReaderRenderVersion++;
-      }
-    });
-  }
-
-  private async refreshLocalReaderPageAsync(index: number): Promise<void> {
-    const context = getAbilityContext();
-    if (context === undefined || index < 0 || index >= this.localReaderPages.length) {
-      return;
-    }
-    const current = this.localReaderPages[index].page;
-    const loadingUrl = current.pageUrl.length > 0 ? current.pageUrl : this.previewForIndex(this.localReaderDetail, index).pageUrl;
-    this.setLocalReaderPage(index, createReaderLoadingPage(loadingUrl), 'Refreshing page ' +
-      (index + 1).toString() + '...');
-    ehDownloadFileStore.removePageImage(context, this.localReaderDetail, index);
-    if (current.pageUrl.length > 0) {
-      galleryPageCache.remove(current.pageUrl);
-    }
-    await this.loadAndSaveLocalReaderPage(index, true, true);
-    this.preloadLocalReaderPages(index);
-  }
-
-  private preloadLocalReaderPages(index: number): void {
-    this.preloadLocalReaderPagesAsync(index).catch(() => {});
-  }
-
-  private async preloadLocalReaderPagesAsync(index: number): Promise<void> {
-    const count = Math.max(2, readerPreloadCount());
-    if (count <= 0) {
-      return;
-    }
-    for (let offset = 1; offset <= count; offset++) {
-      const targets: number[] = [index - offset, index + offset];
-      for (let i = 0; i < targets.length; i++) {
-        const nextIndex = targets[i];
-        if (nextIndex < 0 || nextIndex >= this.localReaderPages.length) {
-          continue;
-        }
-        if (this.pageHasLocalImage(this.localReaderPages[nextIndex].page) ||
-          this.isLocalReaderPageLoading(nextIndex)) {
-          continue;
-        }
-        try {
-          await this.loadAndSaveLocalReaderPage(nextIndex, false, false);
-        } catch (error) {
-        }
-      }
-    }
-  }
-
-  private async loadAndSaveLocalReaderPage(index: number, forceRefresh: boolean,
-    updateVisibleStatus: boolean): Promise<void> {
-    const context = getAbilityContext();
-    if (context === undefined || index < 0 || index >= this.localReaderPages.length) {
-      return;
-    }
-    if (!forceRefresh && this.isLocalReaderPageLoading(index)) {
-      return;
-    }
-    this.markLocalReaderPageLoading(index);
-    try {
-      if (!forceRefresh) {
-        const downloadedPath = ehDownloadFileStore.findPageImage(context, this.localReaderDetail, index);
-        if (downloadedPath.length > 0) {
-          const existing = this.localReaderPages[index].page;
-          this.setLocalReaderPage(index, this.createLocalReaderPage(existing.pageUrl, existing.imageUrl, downloadedPath),
-            'Page loaded from downloads');
-          return;
-        }
-      }
-
-      const preview = forceRefresh ? await this.refreshLocalReaderPreview(index) :
-        await this.resolveLocalReaderPreview(index);
-      if (preview.pageUrl.length === 0) {
-        throw new Error('Page URL is unavailable');
-      }
-
-      if (updateVisibleStatus && this.localReaderIndex === index) {
-        this.localReaderStatus = (forceRefresh ? 'Refreshing page ' : 'Loading page ') +
-          (index + 1).toString() + '...';
-        this.localReaderRenderVersion++;
-      }
-
-      const result = await this.client.loadGalleryPage(preview.pageUrl, currentGallerySite(),
-        readerPageReferer('', this.localReaderDetail.previewSet, index, currentGallerySite()));
-      if (!result.ok || result.page === null) {
-        throw new Error(result.message);
-      }
-
-      const imageUrl = downloadImageUrlForPage(result.page);
-      if (imageUrl.length === 0) {
-        throw new Error('Image URL missing');
-      }
-
-      const cachedPath = forceRefresh ? '' : readerImageCache.getCachedPath(context, imageUrl);
-      const readyPath = cachedPath.length > 0 ? cachedPath :
-        await readerImageCache.ensureCached(context, imageUrl, result.page.pageUrl, false);
-      const savedPath = ehDownloadFileStore.savePageImage(context, this.localReaderDetail, result.page, index, readyPath);
-      const pageUrl = result.page.pageUrl.length > 0 ? result.page.pageUrl : preview.pageUrl;
-      const page = this.createLocalReaderPage(pageUrl, result.page.imageUrl, savedPath);
-      galleryPageCache.put(page.pageUrl, page);
-      galleryPageCache.put(preview.pageUrl, page);
-      this.updateLocalReaderPreview(index, pageUrl, preview.imageUrl);
-      ehDownloadFileStore.rewriteGalleryMetadata(context, this.localReaderDetail);
-      this.refreshDownloadProgressAfterRead(context, this.localReaderDetail);
-      this.setLocalReaderPage(index, page, 'Page loaded from downloads');
-    } finally {
-      this.unmarkLocalReaderPageLoading(index);
-    }
-  }
-
-  private isLocalReaderPageLoading(index: number): boolean {
-    for (let i = 0; i < this.localReaderLoadingIndexes.length; i++) {
-      if (this.localReaderLoadingIndexes[i] === index) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private markLocalReaderPageLoading(index: number): void {
-    if (!this.isLocalReaderPageLoading(index)) {
-      this.localReaderLoadingIndexes.push(index);
-    }
-  }
-
-  private unmarkLocalReaderPageLoading(index: number): void {
-    const next: number[] = [];
-    for (let i = 0; i < this.localReaderLoadingIndexes.length; i++) {
-      if (this.localReaderLoadingIndexes[i] !== index) {
-        next.push(this.localReaderLoadingIndexes[i]);
-      }
-    }
-    this.localReaderLoadingIndexes = next;
-  }
-
-  private setLocalReaderPage(index: number, page: GalleryPage, status: string): void {
-    const next: ReaderPageState[] = [];
-    for (let i = 0; i < this.localReaderPages.length; i++) {
-      if (this.localReaderPages[i].index === index) {
-        next.push({ index: index, page: cloneGalleryPage(page) });
-      } else {
-        next.push({ index: this.localReaderPages[i].index, page: cloneGalleryPage(this.localReaderPages[i].page) });
-      }
-    }
-    this.localReaderPages = next;
-    if (this.localReaderIndex === index) {
-      this.localReaderPage = cloneGalleryPage(page);
-      this.localReaderStatus = status;
-      this.localReaderRenderVersion++;
-      readerSessionStore.updateSession(createReaderSessionState(this.localReaderDetail, this.localReaderPage,
-        this.localReaderStatus, '', '', GallerySite.E, this.localReaderIndex));
-    }
-  }
-
-  private refreshDownloadProgressAfterRead(context: common.UIAbilityContext, detail: GalleryDetail): void {
-    const total = Math.max(detail.pages, 0);
-    const images = ehDownloadFileStore.listPageImageSlots(context, detail, total);
-    let finished = 0;
-    for (let i = 0; i < images.length; i++) {
-      if (images[i].length > 0) {
-        finished++;
-      }
-    }
-    ehDownloadStore.setProgress(detail.gid, finished, total, finished * DOWNLOAD_PAGE_PROGRESS_SCALE);
-    ehDownloadStore.setStorage(detail.gid, ehDownloadFileStore.galleryDirectory(context, detail),
-      ehDownloadFileStore.directorySize(context, detail));
-    this.persistDownloads();
-  }
-
-  private async resolveLocalReaderPreview(index: number): Promise<GalleryPreview> {
-    let preview = this.previewForIndex(this.localReaderDetail, index);
-    if (preview.pageUrl.length > 0 || this.localReaderDetail.gid <= 0 || this.localReaderDetail.token.length === 0) {
-      return preview;
-    }
-
-    const pageSize = this.localReaderPreviewPageSizeForRefresh();
-    const previewPageIndex = Math.floor(index / pageSize);
-    const result = await this.client.loadGalleryDetail(this.localReaderDetail.gid, this.localReaderDetail.token,
-      previewPageIndex, currentGallerySite(), EhUrl.getReferer(currentGallerySite()));
-    if (result.ok && result.detail !== null) {
-      this.mergeLocalReaderPreviews(result.detail);
-      preview = this.previewForIndex(this.localReaderDetail, index);
-      if (preview.pageUrl.length > 0) {
-        const current = this.localReaderPages[index].page;
-        const cachedPath = current.cachedImagePath === undefined ? '' : current.cachedImagePath;
-        const page = this.pageHasLocalImage(current) ?
-          this.createLocalReaderPage(preview.pageUrl, preview.imageUrl, cachedPath) :
-          createReaderLoadingPage(preview.pageUrl);
-        this.setLocalReaderPage(index, page, this.pageHasLocalImage(page) ? 'Page loaded from downloads' :
-          'Page is not downloaded yet');
-      }
-    }
-    return preview;
-  }
-
-  private async refreshLocalReaderPreview(index: number): Promise<GalleryPreview> {
-    if (this.localReaderDetail.gid <= 0 || this.localReaderDetail.token.length === 0) {
-      return this.previewForIndex(this.localReaderDetail, index);
-    }
-    const pageSize = this.localReaderPreviewPageSizeForRefresh();
-    const previewPageIndex = Math.floor(index / pageSize);
-    const result = await this.client.loadGalleryDetail(this.localReaderDetail.gid, this.localReaderDetail.token,
-      previewPageIndex, currentGallerySite(), EhUrl.getReferer(currentGallerySite()));
-    if (!result.ok || result.detail === null) {
-      throw new Error(result.message);
-    }
-    this.mergeLocalReaderPreviews(result.detail);
-    return this.previewForIndex(this.localReaderDetail, index);
-  }
-
-  private localReaderPreviewPageSizeForRefresh(): number {
-    if (this.localReaderPreviewPageSize > 0) {
-      return this.localReaderPreviewPageSize;
-    }
-    if (this.localReaderDetail.previewPages > 1 && this.localReaderDetail.pages > 0) {
-      return Math.max(1, Math.ceil(this.localReaderDetail.pages / this.localReaderDetail.previewPages));
-    }
-    return Math.max(1, this.localReaderDetail.previewSet.length);
-  }
-
-  private updateLocalReaderPreview(index: number, pageUrl: string, imageUrl: string): void {
-    const nextDetail = cloneGalleryDetail(this.localReaderDetail);
-    let replaced = false;
-    const previews: GalleryPreview[] = [];
-    for (let i = 0; i < nextDetail.previewSet.length; i++) {
-      if (nextDetail.previewSet[i].index === index) {
-        previews.push({
-          index: index,
-          pageUrl: pageUrl,
-          imageUrl: imageUrl,
-          width: nextDetail.previewSet[i].width,
-          height: nextDetail.previewSet[i].height,
-          xOffset: nextDetail.previewSet[i].xOffset,
-          yOffset: nextDetail.previewSet[i].yOffset
-        });
-        replaced = true;
-      } else {
-        previews.push(nextDetail.previewSet[i]);
-      }
-    }
-    if (!replaced) {
-      previews.push({ index: index, pageUrl: pageUrl, imageUrl: imageUrl, width: 0, height: 0, xOffset: 0, yOffset: 0 });
-    }
-    previews.sort((left: GalleryPreview, right: GalleryPreview) => left.index - right.index);
-    nextDetail.previewSet = previews;
-    this.localReaderDetail = nextDetail;
-  }
-
-  private mergeLocalReaderPreviews(loaded: GalleryDetail): void {
-    if (this.localReaderPreviewPageSize <= 0 && loaded.previewSet.length > 0) {
-      this.localReaderPreviewPageSize = loaded.previewSet.length;
-    }
-    const merged: GalleryPreview[] = [];
-    for (let i = 0; i < this.localReaderDetail.previewSet.length; i++) {
-      merged.push(this.localReaderDetail.previewSet[i]);
-    }
-    for (let i = 0; i < loaded.previewSet.length; i++) {
-      let replaced = false;
-      for (let j = 0; j < merged.length; j++) {
-        if (merged[j].index === loaded.previewSet[i].index) {
-          merged[j] = loaded.previewSet[i];
-          replaced = true;
-          break;
-        }
-      }
-      if (!replaced) {
-        merged.push(loaded.previewSet[i]);
-      }
-    }
-    merged.sort((left: GalleryPreview, right: GalleryPreview) => left.index - right.index);
-    const nextDetail = cloneGalleryDetail(this.localReaderDetail);
-    nextDetail.previewSet = merged;
-    nextDetail.previewPages = Math.max(nextDetail.previewPages, loaded.previewPages);
-    nextDetail.pages = Math.max(nextDetail.pages, loaded.pages);
-    this.localReaderDetail = nextDetail;
-  }
-
-  private localPageUrl(gid: number, index: number): string {
-    return 'ehviewer://download/' + gid.toString() + '/' + index.toString();
   }
 
   @Builder
@@ -1520,31 +1128,10 @@ export struct DownloadScene {
           TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
           TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }))
     } else if (this.showReader) {
-      ReaderScene({
-        renderVersion: this.localReaderRenderVersion,
-        page: this.localReaderPage,
-        readerPages: this.localReaderPages,
-        statusText: this.localReaderStatus,
-        pageIndex: this.localReaderIndex,
-        totalPages: this.localReaderPages.length,
+      ReaderSessionScene({
         restoreAppChromeOnExit: true,
         onBack: () => {
-          this.closeLocalReader();
-        },
-        onPrev: () => {
-          this.jumpLocalReader(this.localReaderIndex - 1);
-        },
-        onNext: () => {
-          this.jumpLocalReader(this.localReaderIndex + 1);
-        },
-        onJump: (index: number) => {
-          this.jumpLocalReader(index);
-        },
-        onRetry: () => {
-          this.refreshLocalReaderPage(this.localReaderIndex);
-        },
-        onRefreshPage: (index: number) => {
-          this.refreshLocalReaderPage(index);
+          this.closeEmbeddedReader();
         }
       })
         .transition(TransitionEffect.move(TransitionEdge.BOTTOM)
@@ -1967,10 +1554,9 @@ export struct DownloadScene {
 
 }
 
-interface LocalReaderSession {
+interface DownloadReaderSession {
   detail: GalleryDetail;
   page: GalleryPage;
-  pages: ReaderPageState[];
   index: number;
   status: string;
   detailRequestUrl: string;

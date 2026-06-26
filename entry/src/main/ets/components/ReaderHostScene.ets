@@ -2,6 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { GalleryDetail, GalleryPage, GalleryPreview, GallerySite } from '../model/GalleryModels';
 import { READER_ABILITY_CONTEXT_KEY } from '../entryability/ReaderAbility';
 import { EhHttpClient, GalleryDetailLoadResult, GalleryPageLoadResult } from '../services/EhHttpClient';
+import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { createReaderSessionState, readerSessionStore, READER_SESSION_REVISION_KEY } from '../services/ReaderSessionStore';
 import {
@@ -12,6 +13,7 @@ import {
   createEmptyDetail,
   createEmptyPage,
   createReaderLoadingPage,
+  getAbilityContext,
   readerPageReferer,
   readerPreloadCount,
   readerStartIndex,
@@ -22,8 +24,10 @@ import {
 import { ReaderPageState, ReaderScene } from './ReaderScenes';
 
 @Component
-export struct ReaderHostScene {
+export struct ReaderSessionScene {
   private client: EhHttpClient = new EhHttpClient();
+  restoreAppChromeOnExit: boolean = false;
+  onBack: () => void = () => {};
 
   @State detail: GalleryDetail = createEmptyDetail();
   @State page: GalleryPage = createEmptyPage();
@@ -41,7 +45,9 @@ export struct ReaderHostScene {
   private readerPreviewPageSize: number = 0;
 
   aboutToAppear(): void {
-    setReaderActiveBackHandler(() => this.handleSystemBack());
+    if (!this.restoreAppChromeOnExit) {
+      setReaderActiveBackHandler(() => this.handleSystemBack());
+    }
     this.loadCurrentSession();
   }
 
@@ -102,7 +108,9 @@ export struct ReaderHostScene {
 
   aboutToDisappear(): void {
     this.persistSession();
-    setReaderActiveBackHandler(null);
+    if (!this.restoreAppChromeOnExit) {
+      setReaderActiveBackHandler(null);
+    }
   }
 
   private handleSystemBack(): boolean {
@@ -116,19 +124,25 @@ export struct ReaderHostScene {
   }
 
   private closeReader(): void {
+    if (this.restoreAppChromeOnExit) {
+      this.onBack();
+      return;
+    }
     const context = AppStorage.get<common.UIAbilityContext>(READER_ABILITY_CONTEXT_KEY);
     if (context !== undefined) {
       context.terminateSelf().catch(() => {});
     }
   }
 
-  private loadReaderPage(preview: GalleryPreview): void {
-    if (preview.pageUrl.length === 0) {
-      this.statusText = 'Preview has no page URL';
-      this.renderVersion++;
-      return;
+  private readerContext(): common.UIAbilityContext | undefined {
+    const readerContext = AppStorage.get<common.UIAbilityContext>(READER_ABILITY_CONTEXT_KEY);
+    if (readerContext !== undefined) {
+      return readerContext;
     }
+    return getAbilityContext();
+  }
 
+  private loadReaderPage(preview: GalleryPreview): void {
     this.readerPreviewMap.set(preview.index, preview);
     this.pageIndex = preview.index;
     saveGalleryReadPosition(this.detail.gid, preview.index, this.detail);
@@ -136,6 +150,19 @@ export struct ReaderHostScene {
     this.page = createReaderLoadingPage(preview.pageUrl);
     this.setReaderPage(preview.index, this.page);
     this.renderVersion++;
+
+    if (this.tryUseDownloadedPage(preview.index, preview)) {
+      this.preloadReaderPages(preview.index);
+      this.persistSession();
+      return;
+    }
+
+    if (preview.pageUrl.length === 0 || preview.pageUrl.indexOf('ehviewer://') === 0) {
+      this.statusText = 'Preview has no page URL';
+      this.renderVersion++;
+      this.persistSession();
+      return;
+    }
 
     const cached = galleryPageCache.get(preview.pageUrl);
     if (cached !== null) {
@@ -193,6 +220,33 @@ export struct ReaderHostScene {
     }, this.detail, index);
   }
 
+  private tryUseDownloadedPage(index: number, preview: GalleryPreview): boolean {
+    const context = this.readerContext();
+    if (context === undefined) {
+      return false;
+    }
+    const path = ehDownloadFileStore.findPageImage(context, this.detail, index);
+    if (path.length <= 0) {
+      return false;
+    }
+    const page: GalleryPage = {
+      pageUrl: preview.pageUrl,
+      imageUrl: preview.imageUrl,
+      skipHathKey: '',
+      originImageUrl: '',
+      showKey: '',
+      cachedImagePath: path
+    };
+    galleryPageCache.put(preview.pageUrl, page);
+    this.setReaderPage(index, page);
+    if (this.pageIndex === index) {
+      this.statusText = 'Page loaded from downloads';
+      this.page = cloneGalleryPage(page);
+      this.renderVersion++;
+    }
+    return true;
+  }
+
   private async preloadReaderPages(index: number): Promise<void> {
     const count = Math.max(2, readerPreloadCount());
     if (count <= 0) {
@@ -207,6 +261,9 @@ export struct ReaderHostScene {
         }
         const preview = await this.ensureReaderPreview(nextIndex, true);
         if (preview === null || preview.pageUrl.length === 0) {
+          continue;
+        }
+        if (this.tryUseDownloadedPage(nextIndex, preview)) {
           continue;
         }
         const cached = galleryPageCache.get(preview.pageUrl);
@@ -398,7 +455,7 @@ export struct ReaderHostScene {
       statusText: this.statusText,
       pageIndex: this.pageIndex,
       totalPages: this.readerTotalPages(),
-      restoreAppChromeOnExit: false,
+      restoreAppChromeOnExit: this.restoreAppChromeOnExit,
       onBack: () => {
         this.closeReader();
       },
@@ -418,5 +475,12 @@ export struct ReaderHostScene {
         this.loadReaderPageByIndex(index);
       }
     })
+  }
+}
+
+@Component
+export struct ReaderHostScene {
+  build() {
+    ReaderSessionScene({ restoreAppChromeOnExit: false })
   }
 }
