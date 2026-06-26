@@ -381,6 +381,15 @@ export function uiStatusText(text: string): string {
   if (text.indexOf('Saved: ') === 0) {
     return '已保存：' + text.substring('Saved: '.length);
   }
+  if (text === 'Restarting app...') {
+    return '正在重启应用...';
+  }
+  if (text === 'Theme saved; restart the app to apply it') {
+    return '主题已保存，重启应用后生效';
+  }
+  if (text.indexOf('Restart failed: ') === 0) {
+    return '重启失败：' + text.substring('Restart failed: '.length);
+  }
   if (text.indexOf('Network diagnostics: ') === 0) {
     return '网络诊断：' + text.substring('Network diagnostics: '.length);
   }
@@ -434,6 +443,7 @@ export function zhText(text: string): string {
     case 'Filter On': return '过滤已开';
     case 'Filter mode': return '过滤模式';
     case 'Jump': return '跳转';
+    case 'Seek date': return '按日期查找';
     case 'Random': return '随机';
     case 'Search': return '搜索';
     case 'Search current text': return '搜索当前文本';

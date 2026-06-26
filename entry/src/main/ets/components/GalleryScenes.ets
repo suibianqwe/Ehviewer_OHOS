@@ -18,7 +18,7 @@ import {
   RateGalleryResult,
   ToggleFavoriteResult
 } from '../services/EhHttpClient';
-import { DEFAULT_ADVANCE_SEARCH, EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder } from '../services/EhUrl';
+import { DEFAULT_ADVANCE_SEARCH, EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder, buildJumpSeekUrl } from '../services/EhUrl';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { ehFilterStore } from '../services/EhFilterStore';
 import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
@@ -553,6 +553,52 @@ export struct GalleryListScene {
     });
   }
 
+  private loadRemoteUrl(url: string, preserveExisting: boolean = false, onDone?: () => void): void {
+    const absoluteUrl = this.absoluteListUrl(url);
+    if (absoluteUrl.length === 0) {
+      this.statusText = 'No other page to jump to';
+      if (onDone !== undefined) {
+        onDone();
+      }
+      return;
+    }
+    this.pageIndex = 0;
+    this.statusText = 'Loading...';
+    if (!preserveExisting) {
+      this.resultCount = '';
+      this.galleries = [];
+    }
+    this.nextUrl = '';
+    this.isLoadingMore = false;
+    this.resetListScroll();
+    this.scrollResetVersion++;
+    this.renderVersion++;
+    this.closeDetail();
+    this.saveListCache();
+
+    this.client.loadGalleryListUrl(absoluteUrl, this.activeSite, this.includeAccountUConfig()).then((result: GalleryListLoadResult) => {
+      this.requestUrl = result.url;
+      this.galleries = this.visibleRemoteGalleries(result.galleries);
+      this.statusText = result.ok ? result.message : galleryListFailureMessage(result, this.activeSite);
+      this.totalPages = result.pages;
+      this.nextUrl = result.nextUrl;
+      this.resultCount = result.resultCount;
+      this.renderVersion++;
+      this.saveListCache();
+      if (onDone !== undefined) {
+        onDone();
+      }
+    }).catch((error: Error) => {
+      this.statusText = 'Load failed: ' + error.message;
+      this.galleries = [];
+      this.renderVersion++;
+      this.saveListCache();
+      if (onDone !== undefined) {
+        onDone();
+      }
+    });
+  }
+
   private loadLocal(pageIndex: number, preserveExisting: boolean = false, onDone?: () => void): void {
     this.activeSite = effectiveListSite(this.sourceRoute);
     this.pageIndex = pageIndex;
@@ -881,12 +927,6 @@ export struct GalleryListScene {
 
   private jumpGalleryPage(): void {
     this.fabExpanded = false;
-    if (this.totalPages <= 1) {
-      this.statusText = 'No other page to jump to';
-      return;
-    }
-    const nextPage = this.pageIndex + 1 < this.totalPages ? this.pageIndex + 1 : 0;
-    this.loadListPage(nextPage);
   }
 
   private openRandomGallery(): void {
@@ -1547,7 +1587,8 @@ export struct GalleryListScene {
             minRating: this.minRating,
             pageIndex: this.pageIndex,
             totalPages: this.totalPages,
-            canJump: this.totalPages > 1,
+            resultCount: this.resultCount,
+            canJump: this.totalPages > 1 || this.totalPages < 0 || this.nextUrl.length > 0,
             canRandom: this.galleries.length > 0,
             statusText: this.statusText,
             requestUrl: this.requestUrl,
@@ -1600,6 +1641,16 @@ export struct GalleryListScene {
             },
             onPageJump: (page: number) => {
               this.loadListPage(Math.max(0, page - 1));
+            },
+            onSeekJump: (appendParam: string) => {
+              const targetUrl = buildJumpSeekUrl(this.nextUrl.length > 0 ? this.absoluteListUrl(this.nextUrl) :
+                this.requestUrl, appendParam);
+              if (targetUrl.length === 0) {
+                this.statusText = 'No other page to jump to';
+                return;
+              }
+              this.fabExpanded = false;
+              this.loadRemoteUrl(targetUrl);
             },
             onMenu: () => {
               this.onMenu();
@@ -1749,6 +1800,7 @@ export struct GalleryListContent {
   @Prop minRating: number = -1;
   @Prop @Watch('onPageChanged') pageIndex: number = 0;
   @Prop totalPages: number = 0;
+  @Prop resultCount: string = '';
   @Prop canJump: boolean = false;
   @Prop canRandom: boolean = false;
   @Prop statusText: string = '';
@@ -1769,6 +1821,8 @@ export struct GalleryListContent {
   onMinRatingChange: (rating: number) => void = (_rating: number) => {
   };
   onPageJump: (page: number) => void = (_page: number) => {
+  };
+  onSeekJump: (appendParam: string) => void = (_appendParam: string) => {
   };
   onMenu: () => void = () => {
   };
@@ -1799,6 +1853,9 @@ export struct GalleryListContent {
   @State refreshing: boolean = false;
   @State advancedPanelVisible: boolean = false;
   @State pageJumpDraft: string = '';
+  @State seekYearDraft: string = '';
+  @State seekMonthDraft: string = '';
+  @State seekDayDraft: string = '';
   @State jumpPanelVisible: boolean = false;
   @State selectedTagNamespaces: string[] = [];
   @State searchSuggestionItems: SearchSuggestionItem[] = [];
@@ -1866,7 +1923,17 @@ export struct GalleryListContent {
     this.pageJumpDraft = (this.pageIndex + 1).toString();
   }
 
+  private syncSeekDateDraft(): void {
+    const now = new Date();
+    this.seekYearDraft = now.getFullYear().toString();
+    this.seekMonthDraft = (now.getMonth() + 1).toString();
+    this.seekDayDraft = now.getDate().toString();
+  }
+
   private submitPageJump(): void {
+    if (this.totalPages < 0) {
+      return;
+    }
     const parsed = Number.parseInt(this.pageJumpDraft);
     if (Number.isNaN(parsed) || parsed <= 0) {
       this.syncPageJumpDraft();
@@ -1874,6 +1941,26 @@ export struct GalleryListContent {
     }
     const maxPage = this.totalPages > 0 ? this.totalPages : parsed;
     this.onPageJump(Math.max(1, Math.min(parsed, maxPage)));
+  }
+
+  private submitSeekDate(): void {
+    const year = Number.parseInt(this.seekYearDraft);
+    const month = Number.parseInt(this.seekMonthDraft);
+    const day = Number.parseInt(this.seekDayDraft);
+    if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day) ||
+      year < 2000 || month < 1 || month > 12 || day < 1 || day > 31) {
+      this.syncSeekDateDraft();
+      return;
+    }
+    this.onSeekJump('seek=' + year.toString() + '-' + month.toString() + '-' + day.toString());
+  }
+
+  private useSeekJumpPanel(): boolean {
+    return this.totalPages < 0;
+  }
+
+  private jumpSeekPresets(): string[] {
+    return ['1d', '3d', '1w', '2w', '1m', '6m', '1y', '2y'];
   }
 
   private toggleAdvancedPanel(): void {
@@ -1892,6 +1979,10 @@ export struct GalleryListContent {
       return;
     }
     this.syncPageJumpDraft();
+    if (this.useSeekJumpPanel() &&
+      (this.seekYearDraft.length === 0 || this.seekMonthDraft.length === 0 || this.seekDayDraft.length === 0)) {
+      this.syncSeekDateDraft();
+    }
     this.jumpPanelVisible = true;
   }
 
@@ -2445,45 +2536,128 @@ export struct GalleryListContent {
           .zIndex(13)
 
         Column({ space: 10 }) {
-          Text(uiText('Jump'))
-            .fontSize(15)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(themePrimaryText())
-            .width('100%')
-          Row({ space: 8 }) {
-            TextInput({ text: this.pageJumpDraft, placeholder: (this.pageIndex + 1).toString() })
-              .height(38)
-              .layoutWeight(1)
-              .type(InputType.Number)
+          if (this.useSeekJumpPanel()) {
+            Text('Jump/Seek')
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
               .fontColor(themePrimaryText())
-              .backgroundColor(themeFieldBackground())
+              .width('100%')
+            if (this.resultCount.length > 0) {
+              Text(this.resultCount)
+                .fontSize(12)
+                .fontColor(themeSecondaryText())
+                .width('100%')
+            }
+            Grid() {
+              ForEach(this.jumpSeekPresets(), (preset: string) => {
+                GridItem() {
+                  Button(preset)
+                    .height(34)
+                    .width('100%')
+                    .fontSize(12)
+                    .fontColor(themePrimaryColor())
+                    .backgroundColor(themeFieldBackground())
+                    .borderRadius(4)
+                    .onClick(() => {
+                      this.onSeekJump('jump=' + preset);
+                      this.closeJumpPanel();
+                    })
+                }
+              }, (preset: string) => preset)
+            }
+            .columnsTemplate('1fr 1fr 1fr 1fr')
+            .rowsGap(6)
+            .columnsGap(6)
+            .height(74)
+
+            Row({ space: 6 }) {
+              TextInput({ text: this.seekYearDraft, placeholder: '2026' })
+                .height(36)
+                .layoutWeight(1.4)
+                .type(InputType.Number)
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
+                .borderRadius(4)
+                .padding({ left: 8, right: 8 })
+                .onChange((value: string) => {
+                  this.seekYearDraft = value;
+                })
+              TextInput({ text: this.seekMonthDraft, placeholder: '6' })
+                .height(36)
+                .layoutWeight(1)
+                .type(InputType.Number)
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
+                .borderRadius(4)
+                .padding({ left: 8, right: 8 })
+                .onChange((value: string) => {
+                  this.seekMonthDraft = value;
+                })
+              TextInput({ text: this.seekDayDraft, placeholder: '26' })
+                .height(36)
+                .layoutWeight(1)
+                .type(InputType.Number)
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
+                .borderRadius(4)
+                .padding({ left: 8, right: 8 })
+                .onChange((value: string) => {
+                  this.seekDayDraft = value;
+                })
+            }
+
+            Button(uiText('Seek date'))
+              .height(36)
+              .width('100%')
+              .fontSize(13)
+              .fontColor(themeOnPrimaryText())
+              .backgroundColor(themePrimaryColor())
               .borderRadius(4)
-              .padding({ left: 10, right: 10 })
-              .onChange((value: string) => {
-                this.pageJumpDraft = value;
+              .onClick(() => {
+                this.submitSeekDate();
+                this.closeJumpPanel();
               })
-              .onSubmit(() => {
+          } else {
+            Text(uiText('Jump'))
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(themePrimaryText())
+              .width('100%')
+            Row({ space: 8 }) {
+              TextInput({ text: this.pageJumpDraft, placeholder: (this.pageIndex + 1).toString() })
+                .height(38)
+                .layoutWeight(1)
+                .type(InputType.Number)
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
+                .borderRadius(4)
+                .padding({ left: 10, right: 10 })
+                .onChange((value: string) => {
+                  this.pageJumpDraft = value;
+                })
+                .onSubmit(() => {
+                  this.submitPageJump();
+                  this.closeJumpPanel();
+                })
+              Text('/ ' + (this.totalPages > 0 ? this.totalPages.toString() : '-'))
+                .fontSize(13)
+                .fontColor(themeSecondaryText())
+            }
+
+            Button(uiText('Jump'))
+              .height(36)
+              .width('100%')
+              .fontSize(13)
+              .fontColor(themeOnPrimaryText())
+              .backgroundColor(themePrimaryColor())
+              .borderRadius(4)
+              .onClick(() => {
                 this.submitPageJump();
                 this.closeJumpPanel();
               })
-            Text('/ ' + (this.totalPages > 0 ? this.totalPages.toString() : '-'))
-              .fontSize(13)
-              .fontColor(themeSecondaryText())
           }
-
-          Button(uiText('Jump'))
-            .height(36)
-            .width('100%')
-            .fontSize(13)
-            .fontColor(themeOnPrimaryText())
-            .backgroundColor(themePrimaryColor())
-            .borderRadius(4)
-            .onClick(() => {
-              this.submitPageJump();
-              this.closeJumpPanel();
-            })
         }
-        .width(220)
+        .width(this.useSeekJumpPanel() ? 280 : 220)
         .padding(12)
         .backgroundColor(themeSurface())
         .borderRadius(8)
@@ -2494,8 +2668,8 @@ export struct GalleryListContent {
           offsetY: 4
         })
         .position({
-          x: this.contentWidth > 0 ? Math.max(12, this.contentWidth - 244) : 100,
-          y: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - 210) : 360
+          x: this.contentWidth > 0 ? Math.max(12, this.contentWidth - (this.useSeekJumpPanel() ? 304 : 244)) : 100,
+          y: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - (this.useSeekJumpPanel() ? 310 : 210)) : 360
         })
         .zIndex(14)
       }

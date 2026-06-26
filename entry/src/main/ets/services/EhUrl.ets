@@ -258,6 +258,21 @@ export function buildUrl(base: string, params: QueryParam[]): string {
   return base + separator + queryParts.join('&');
 }
 
+export function buildJumpSeekUrl(url: string, appendParam: string): string {
+  if (url.length === 0 || appendParam.length === 0) {
+    return url;
+  }
+  const seekPattern = /([?&])seek=\d+-\d+-\d+/;
+  const jumpPattern = /([?&])jump=\d[ymwd]/;
+  if (seekPattern.test(url)) {
+    return url.replace(seekPattern, (_match: string, prefix: string): string => prefix + appendParam);
+  }
+  if (jumpPattern.test(url)) {
+    return url.replace(jumpPattern, (_match: string, prefix: string): string => prefix + appendParam);
+  }
+  return url + (url.indexOf('?') >= 0 ? '&' : '?') + appendParam;
+}
+
 function buildPathUrl(host: string, segment: string, value: string, pageIndex: number): string {
   let url = host + segment + '/' + encodeURIComponent(value);
   if (pageIndex !== 0) {

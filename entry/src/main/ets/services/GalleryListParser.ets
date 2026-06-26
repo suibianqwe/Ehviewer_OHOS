@@ -616,7 +616,13 @@ function isVoidTag(tag: string): boolean {
 function parsePages(body: string): number {
   const pager = /class=["']ptt["'][\s\S]*?<\/table>/i.exec(body);
   if (pager === null) {
-    return body.indexOf('No hits found') >= 0 ? 0 : 1;
+    if (body.indexOf('No hits found') >= 0) {
+      return 0;
+    }
+    if (body.indexOf('Jump/Seek') >= 0 || parseNextUrl(body).length > 0) {
+      return -1;
+    }
+    return 1;
   }
 
   const numbers: number[] = [];

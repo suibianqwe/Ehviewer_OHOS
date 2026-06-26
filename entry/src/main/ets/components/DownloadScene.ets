@@ -53,10 +53,14 @@ import {
 } from '../shared/EhShared';
 import {
   themeDividerColor,
+  themeFieldBackground,
   themeOnPrimaryText,
   themePageBackground,
+  themePrimaryColor,
   themePrimaryText,
+  themeScrimColor,
   themeSecondaryText,
+  themeShadowColor,
   themeSurface,
   themeTertiaryText
 } from '../shared/EhTheme';
@@ -79,6 +83,7 @@ const ACTION_BUBBLE_SIZE: number = 44;
 const ACTION_BUBBLE_GAP: number = 8;
 const ACTION_BUBBLE_PRIMARY_SIZE: number = 54;
 const ACTION_BUBBLE_PRIMARY_GAP: number = 10;
+const DOWNLOAD_JUMP_PAGE_SIZE: number = 25;
 
 function mergeDownloadDetailTitles(detail: GalleryDetail, item: DownloadInfo): GalleryDetail {
   const next = cloneGalleryDetail(detail);
@@ -149,6 +154,9 @@ export struct DownloadScene {
   @State selectedDownloadGids: string = '';
   @State toolbarOffsetY: number = 0;
   @State downloadActionsExpanded: boolean = false;
+  @State downloadJumpPanelVisible: boolean = false;
+  @State downloadJumpDraft: string = '1';
+  @State downloadJumpPageIndex: number = 0;
   @State viewportHeight: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
@@ -309,6 +317,54 @@ export struct DownloadScene {
 
   private visibleDownloadItems(): DownloadInfo[] {
     return filterDownloadItems(this.items, this.query, this.statusFilter, 'All', this.sortMode, this.categoryFilter);
+  }
+
+  private downloadJumpTotalPages(): number {
+    const count = this.visibleDownloadItems().length;
+    return count <= 0 ? 0 : Math.ceil(count / DOWNLOAD_JUMP_PAGE_SIZE);
+  }
+
+  private syncDownloadJumpDraft(): void {
+    const total = this.downloadJumpTotalPages();
+    const safeIndex = total > 0 ? Math.max(0, Math.min(this.downloadJumpPageIndex, total - 1)) : 0;
+    this.downloadJumpPageIndex = safeIndex;
+    this.downloadJumpDraft = (safeIndex + 1).toString();
+  }
+
+  private openDownloadJumpPanel(): void {
+    if (this.downloadJumpTotalPages() <= 1) {
+      this.statusText = 'No other page to jump to';
+      return;
+    }
+    this.downloadActionsExpanded = false;
+    this.syncDownloadJumpDraft();
+    this.downloadJumpPanelVisible = true;
+  }
+
+  private closeDownloadJumpPanel(): void {
+    this.downloadJumpPanelVisible = false;
+  }
+
+  private submitDownloadJump(): void {
+    const parsed = Number.parseInt(this.downloadJumpDraft);
+    const total = this.downloadJumpTotalPages();
+    if (Number.isNaN(parsed) || parsed <= 0 || total <= 0) {
+      this.syncDownloadJumpDraft();
+      return;
+    }
+    const targetPage = Math.max(1, Math.min(parsed, total));
+    const targetItemIndex = (targetPage - 1) * DOWNLOAD_JUMP_PAGE_SIZE;
+    const rowIndex = Math.floor(targetItemIndex / Math.max(1, this.downloadColumnCount()));
+    this.downloadJumpPageIndex = targetPage - 1;
+    this.downloadJumpDraft = targetPage.toString();
+    this.downloadScrollOffset = 0;
+    this.toolbarOffsetY = 0;
+    try {
+      this.downloadScroller.scrollToIndex(rowIndex + 1);
+      this.statusText = 'Page ' + targetPage.toString() + '/' + total.toString();
+    } catch (error) {
+      this.statusText = 'Jump failed: ' + String(error);
+    }
   }
 
   private selectedKey(gid: number): string {
@@ -1680,11 +1736,12 @@ export struct DownloadScene {
         toolbarOffsetY: this.toolbarOffsetY,
         toolbarHeight: 56,
         onMenu: this.onMenu,
-        onKeywordChange: (value: string) => {
-          this.query = value;
-          this.refreshDownloadRows();
-        },
-        onSearch: () => {}
+            onKeywordChange: (value: string) => {
+              this.query = value;
+              this.downloadJumpPageIndex = 0;
+              this.refreshDownloadRows();
+            },
+            onSearch: () => {}
       }) {
       Stack({ alignContent: Alignment.BottomEnd }) {
         Column() {
@@ -1813,20 +1870,27 @@ export struct DownloadScene {
             expanded: this.downloadActionsExpanded,
             hasSelection: this.downloadSelectionCount() > 0,
             canOperate: this.items.length > 0,
+            canJump: this.downloadJumpTotalPages() > 1,
             onToggle: () => {
               this.downloadActionsExpanded = !this.downloadActionsExpanded;
             },
             onStatus: () => {
               this.statusFilter = nextDownloadStatusFilter(this.statusFilter);
+              this.downloadJumpPageIndex = 0;
               this.refreshDownloadRows();
             },
             onCategory: () => {
               this.categoryFilter = nextDownloadCategoryFilter(this.categoryFilter);
+              this.downloadJumpPageIndex = 0;
               this.refreshDownloadRows();
             },
             onSort: () => {
               this.sortMode = nextDownloadSortMode(this.sortMode);
+              this.downloadJumpPageIndex = 0;
               this.refreshDownloadRows();
+            },
+            onJump: () => {
+              this.openDownloadJumpPanel();
             },
             onStart: () => {
               this.startSelectedOrAll();
@@ -1854,6 +1918,72 @@ export struct DownloadScene {
         .alignItems(HorizontalAlign.End)
         .padding({ right: 16, bottom: 24 })
         .hitTestBehavior(HitTestMode.Transparent)
+
+        if (this.downloadJumpPanelVisible) {
+          Column()
+            .width('100%')
+            .height('100%')
+            .backgroundColor(themeScrimColor())
+            .onClick(() => {
+              this.closeDownloadJumpPanel();
+            })
+            .zIndex(20)
+
+          Column({ space: 10 }) {
+            Text(uiText('Jump'))
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(themePrimaryText())
+              .width('100%')
+            Row({ space: 8 }) {
+              TextInput({ text: this.downloadJumpDraft, placeholder: (this.downloadJumpPageIndex + 1).toString() })
+                .height(38)
+                .layoutWeight(1)
+                .type(InputType.Number)
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
+                .borderRadius(4)
+                .padding({ left: 10, right: 10 })
+                .onChange((value: string) => {
+                  this.downloadJumpDraft = value;
+                })
+                .onSubmit(() => {
+                  this.submitDownloadJump();
+                  this.closeDownloadJumpPanel();
+                })
+              Text('/ ' + this.downloadJumpTotalPages().toString())
+                .fontSize(13)
+                .fontColor(themeSecondaryText())
+            }
+
+            Button(uiText('Jump'))
+              .height(36)
+              .width('100%')
+              .fontSize(13)
+              .fontColor(themeOnPrimaryText())
+              .backgroundColor(themePrimaryColor())
+              .borderRadius(4)
+              .onClick(() => {
+                this.submitDownloadJump();
+                this.closeDownloadJumpPanel();
+              })
+          }
+          .width(220)
+          .padding(12)
+          .backgroundColor(themeSurface())
+          .borderRadius(8)
+          .shadow({
+            radius: 12,
+            color: themeShadowColor(),
+            offsetX: 0,
+            offsetY: 4
+          })
+          .position({
+            x: this.downloadContentWidth > 0 ? Math.max(12, this.downloadContentWidth - 244) : 100,
+            y: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - 210) : 360
+          })
+          .zIndex(21)
+        }
       }
       .width('100%')
       .height('100%')
@@ -1881,11 +2011,13 @@ struct DownloadToolColumn {
   @Prop expanded: boolean = false;
   @Prop hasSelection: boolean = false;
   @Prop canOperate: boolean = false;
+  @Prop canJump: boolean = false;
   @State activeActionIndex: number = -1;
   onToggle: () => void = () => {};
   onStatus: () => void = () => {};
   onCategory: () => void = () => {};
   onSort: () => void = () => {};
+  onJump: () => void = () => {};
   onStart: () => void = () => {};
   onStop: () => void = () => {};
   onRestore: () => void = () => {};
@@ -1903,7 +2035,7 @@ struct DownloadToolColumn {
     if (!this.expanded) {
       return 0;
     }
-    return this.hasSelection ? 9 : 7;
+    return this.hasSelection ? 10 : 8;
   }
 
   private primaryIndex(): number {
@@ -1976,13 +2108,15 @@ struct DownloadToolColumn {
       this.onCategory();
     } else if (baseIndex === 2) {
       this.onSort();
-    } else if (baseIndex === 3) {
+    } else if (baseIndex === 3 && this.canJump) {
+      this.onJump();
+    } else if (baseIndex === 4) {
       this.onStart();
-    } else if (baseIndex === 4 && this.canOperate) {
+    } else if (baseIndex === 5 && this.canOperate) {
       this.onStop();
-    } else if (baseIndex === 5) {
+    } else if (baseIndex === 6) {
       this.onRestore();
-    } else if (baseIndex === 6 && this.canOperate) {
+    } else if (baseIndex === 7 && this.canOperate) {
       this.onClearDone();
     }
   }
@@ -2045,31 +2179,38 @@ struct DownloadToolColumn {
             directTap: false
           })
           ActionBubble({
+            label: uiText('Jump'),
+            symbolIcon: $r('sys.symbol.list_number'),
+            isEnabled: this.canJump,
+            active: this.activeActionIndex === this.baseActionIndex(3),
+            directTap: false
+          })
+          ActionBubble({
             label: uiText('Start all'),
             symbolIcon: $r('sys.symbol.play_fill'),
             isEnabled: true,
-            active: this.activeActionIndex === this.baseActionIndex(3),
+            active: this.activeActionIndex === this.baseActionIndex(4),
             directTap: false
           })
           ActionBubble({
             label: uiText('Stop all'),
             symbolIcon: $r('sys.symbol.pause_fill'),
             isEnabled: this.canOperate,
-            active: this.activeActionIndex === this.baseActionIndex(4),
+            active: this.activeActionIndex === this.baseActionIndex(5),
             directTap: false
           })
           ActionBubble({
             label: uiText('Scan'),
             symbolIcon: $r('sys.symbol.play_arrow_triangle_2_circlepath'),
             isEnabled: true,
-            active: this.activeActionIndex === this.baseActionIndex(5),
+            active: this.activeActionIndex === this.baseActionIndex(6),
             directTap: false
           })
           ActionBubble({
             label: uiText('Clear done'),
             symbolIcon: $r('sys.symbol.checkmark_circle'),
             isEnabled: this.canOperate,
-            active: this.activeActionIndex === this.baseActionIndex(6),
+            active: this.activeActionIndex === this.baseActionIndex(7),
             directTap: false
           })
         }
