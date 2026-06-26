@@ -29,6 +29,7 @@ export interface EhRequestPlan {
   host: string;
   fronted: boolean;
   sniHost: string;
+  tlsFrontHost: string;
 }
 
 export function createEhRequestPlan(url: string): EhRequestPlan {
@@ -40,7 +41,8 @@ export function createEhRequestPlan(url: string): EhRequestPlan {
       url: replaceUrlHost(url, exFrontingIp),
       host: hostHeader,
       fronted: true,
-      sniHost: ''
+      sniHost: '',
+      tlsFrontHost: ''
     };
   }
   const eFrontingIp = eFrontingIpForUrl(url, host);
@@ -49,14 +51,16 @@ export function createEhRequestPlan(url: string): EhRequestPlan {
       url: url,
       host: hostHeader,
       fronted: false,
-      sniHost: ''
+      sniHost: '',
+      tlsFrontHost: ''
     };
   }
   return {
     url: url,
     host: hostHeader,
     fronted: true,
-    sniHost: eFrontingIp
+    sniHost: '',
+    tlsFrontHost: eFrontingIp
   };
 }
 
@@ -72,6 +76,11 @@ export function applyEhNetworkOptions(options: http.HttpRequestOptions, plan: Eh
   if (plan.sniHost.length > 0) {
     options.sniHostName = plan.sniHost;
   }
+}
+
+export function canUseRawTlsFronting(): boolean {
+  const proxyType = ehSettingsStore.getValue('proxy', 'System');
+  return proxyType === 'Off' || proxyType === 'System';
 }
 
 export async function ensureEhHostRules(): Promise<void> {

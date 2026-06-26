@@ -10,7 +10,14 @@ import { GalleryPageApiParseResult, parseGalleryPageApi } from './GalleryPageApi
 import { GalleryPageParseResult, parseGalleryPage } from './GalleryPageParser';
 import { GalleryPageUrlInfo, parseGalleryPageUrl } from './GalleryPageUrlParser';
 import { ehSpiderInfoStore } from './EhSpiderInfoStore';
-import { applyEhNetworkOptions, createEhRequestPlan, EhRequestPlan, ensureEhHostRules } from './EhNetworkConfig';
+import {
+  applyEhNetworkOptions,
+  canUseRawTlsFronting,
+  createEhRequestPlan,
+  EhRequestPlan,
+  ensureEhHostRules
+} from './EhNetworkConfig';
+import { requestRawTlsText, RawHttpHeaderEntry, RawTlsHttpResponse } from './EhRawTlsHttpClient';
 import { TopListParseResult, parseTopList } from './TopListParser';
 
 export interface EhHttpResponse {
@@ -193,6 +200,16 @@ export class EhHttpClient {
       const plan = createEhRequestPlan(url);
       const header = buildRequestHeader(plan, referer, cookieHeader, cacheTtlMs);
       await ensureEhHostRules();
+      if (shouldUseRawTlsFronting(plan)) {
+        const response = await requestRawTlsText({
+          method: 'GET',
+          url: url,
+          plan: plan,
+          header: toRawHeader(header),
+          timeoutMs: TEXT_DEADLINE_TIMEOUT_MS
+        });
+        return absorbRawTlsResponse(url, response);
+      }
       const options: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: header,
@@ -292,6 +309,17 @@ export class EhHttpClient {
       const plan = createEhRequestPlan(url);
       const header = buildPostRequestHeader(plan, referer, origin, cookieHeader);
       await ensureEhHostRules();
+      if (shouldUseRawTlsFronting(plan)) {
+        const response = await requestRawTlsText({
+          method: 'POST',
+          url: url,
+          plan: plan,
+          header: toRawHeader(header),
+          body: body,
+          timeoutMs: TEXT_DEADLINE_TIMEOUT_MS
+        });
+        return absorbRawTlsResponse(url, response);
+      }
       const options: http.HttpRequestOptions = {
         method: http.RequestMethod.POST,
         header: header,
@@ -336,6 +364,17 @@ export class EhHttpClient {
       const plan = createEhRequestPlan(url);
       const header = buildJsonRequestHeader(plan, referer, origin, cookieHeader);
       await ensureEhHostRules();
+      if (shouldUseRawTlsFronting(plan)) {
+        const response = await requestRawTlsText({
+          method: 'POST',
+          url: url,
+          plan: plan,
+          header: toRawHeader(header),
+          body: body,
+          timeoutMs: API_DEADLINE_TIMEOUT_MS
+        });
+        return absorbRawTlsResponse(url, response);
+      }
       const options: http.HttpRequestOptions = {
         method: http.RequestMethod.POST,
         header: header,
@@ -827,6 +866,14 @@ interface RequestHeader {
   'Content-Type'?: string;
   'Origin'?: string;
   'Cookie'?: string;
+  userAgent: string;
+  accept: string;
+  acceptLanguage: string;
+  cacheControl?: string;
+  contentType?: string;
+  pragma?: string;
+  origin?: string;
+  cookie?: string;
 }
 
 interface FormField {
@@ -927,6 +974,47 @@ function requestWithDeadline(request: http.HttpRequest, url: string, options: ht
       reject(error);
     });
   });
+}
+
+function shouldUseRawTlsFronting(plan: EhRequestPlan): boolean {
+  return plan.tlsFrontHost.length > 0 && canUseRawTlsFronting();
+}
+
+function toRawHeader(header: RequestHeader): RawHttpHeaderEntry[] {
+  const raw: RawHttpHeaderEntry[] = [
+    { name: 'Host', value: header.Host ?? '' },
+    { name: 'User-Agent', value: header.userAgent },
+    { name: 'Accept', value: header.accept },
+    { name: 'Accept-Language', value: header.acceptLanguage },
+    { name: 'Referer', value: header.Referer },
+    { name: 'Connection', value: header.Connection }
+  ];
+  if (header.cacheControl !== undefined) {
+    raw.push({ name: 'Cache-Control', value: header.cacheControl });
+  }
+  if (header.pragma !== undefined) {
+    raw.push({ name: 'Pragma', value: header.pragma });
+  }
+  if (header.contentType !== undefined) {
+    raw.push({ name: 'Content-Type', value: header.contentType });
+  }
+  if (header.origin !== undefined) {
+    raw.push({ name: 'Origin', value: header.origin });
+  }
+  if (header.cookie !== undefined) {
+    raw.push({ name: 'Cookie', value: header.cookie });
+  }
+  return raw;
+}
+
+function absorbRawTlsResponse(url: string, response: RawTlsHttpResponse): EhHttpResponse {
+  ehCookieStore.absorbSetCookieHeader(response.cookies);
+  syncSetCookiesToWebView(url, response.cookies);
+  return {
+    statusCode: response.statusCode,
+    body: response.body,
+    cookies: response.cookies
+  };
 }
 
 function syncSetCookiesToWebView(url: string, setCookieHeader: string): void {
@@ -1055,10 +1143,15 @@ function buildRequestHeader(plan: EhRequestPlan, referer: string, cookieHeader: 
     'Accept-Language': CHROME_ACCEPT_LANGUAGE,
     'Referer': referer,
     'Cache-Control': maxAge > 0 ? 'max-age=' + maxAge.toString() : 'no-cache',
-    'Connection': 'keep-alive'
+    'Connection': 'keep-alive',
+    userAgent: CHROME_USER_AGENT,
+    accept: CHROME_ACCEPT,
+    acceptLanguage: CHROME_ACCEPT_LANGUAGE,
+    cacheControl: maxAge > 0 ? 'max-age=' + maxAge.toString() : 'no-cache'
   };
   if (cookieHeader.length > 0) {
     header.Cookie = cookieHeader;
+    header.cookie = cookieHeader;
   }
   return header;
 }
@@ -1075,10 +1168,18 @@ function buildPostRequestHeader(plan: EhRequestPlan, referer: string, origin: st
     'Pragma': 'no-cache',
     'Connection': 'keep-alive',
     'Content-Type': 'application/x-www-form-urlencoded',
-    'Origin': origin
+    'Origin': origin,
+    userAgent: CHROME_USER_AGENT,
+    accept: CHROME_ACCEPT,
+    acceptLanguage: CHROME_ACCEPT_LANGUAGE,
+    cacheControl: 'no-cache',
+    pragma: 'no-cache',
+    contentType: 'application/x-www-form-urlencoded',
+    origin: origin
   };
   if (cookieHeader.length > 0) {
     header.Cookie = cookieHeader;
+    header.cookie = cookieHeader;
   }
   return header;
 }
@@ -1095,10 +1196,18 @@ function buildJsonRequestHeader(plan: EhRequestPlan, referer: string, origin: st
     'Pragma': 'no-cache',
     'Connection': 'keep-alive',
     'Content-Type': 'application/json',
-    'Origin': origin
+    'Origin': origin,
+    userAgent: CHROME_USER_AGENT,
+    accept: 'application/json,text/plain,*/*;q=0.8',
+    acceptLanguage: CHROME_ACCEPT_LANGUAGE,
+    cacheControl: 'no-cache',
+    pragma: 'no-cache',
+    contentType: 'application/json',
+    origin: origin
   };
   if (cookieHeader.length > 0) {
     header.Cookie = cookieHeader;
+    header.cookie = cookieHeader;
   }
   return header;
 }
