@@ -16,6 +16,7 @@ import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSettingsStore, SettingEntry, defaultSettingEntries } from '../services/EhSettingsStore';
 import { EhHttpClient, NetworkDiagnosticResult } from '../services/EhHttpClient';
+import { startEhFrontingBenchmark } from '../services/EhNetworkConfig';
 import { EhUrl } from '../services/EhUrl';
 import { ehUpdateChecker, ReleaseInfo, UpdateCheckResult } from '../services/EhUpdateChecker';
 import { galleryPageCache } from '../services/GalleryPageCache';
@@ -990,6 +991,7 @@ export struct SettingsScene {
 
   private runNetworkDiagnostics(): void {
     this.statusText = 'Running network diagnostics...';
+    startEhFrontingBenchmark();
     this.client.runNetworkDiagnostics().then((results: NetworkDiagnosticResult[]) => {
       this.statusText = formatNetworkDiagnostics(results);
     }).catch((error: Error) => {

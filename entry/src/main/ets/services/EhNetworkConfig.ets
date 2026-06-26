@@ -3,6 +3,13 @@ import { connection } from '@kit.NetworkKit';
 import { ehSettingsStore } from './EhSettingsStore';
 
 const DOH_URL: string = 'https://77.88.8.1/dns-query';
+const FRONTING_PROBE_CONNECT_TIMEOUT_MS: number = 3000;
+const FRONTING_PROBE_READ_TIMEOUT_MS: number = 3000;
+const FRONTING_PROBE_DEADLINE_MS: number = 4500;
+const FRONTING_PROBE_CONCURRENCY: number = 4;
+const FRONTING_FAST_IP_LIMIT: number = 3;
+const FRONTING_PROBE_USER_AGENT: string =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36';
 const BUILT_IN_RULES: HostRule[] = [
   { host: 'e-hentai.org', ips: ['104.20.18.168', '104.20.19.168', '172.66.132.196', '172.66.140.62', '172.67.2.238'] },
   { host: 'repo.e-hentai.org', ips: ['104.20.18.168', '104.20.19.168', '172.67.2.238'] },
@@ -19,6 +26,10 @@ const BUILT_EX_RULES: HostRule[] = [
 let appliedHostRulesKey: string = '';
 let pendingHostRules: Promise<void> | null = null;
 const HOST_IP_CURSORS: HostIpCursor[] = [];
+const HOST_IP_QUALITIES: HostIpQuality[] = [];
+let frontingProbeKey: string = '';
+let frontingProbeGeneration: number = 0;
+let frontingProbePending: Promise<void> | null = null;
 
 interface HostRule {
   host: string;
@@ -28,6 +39,19 @@ interface HostRule {
 interface HostIpCursor {
   host: string;
   next: number;
+}
+
+interface HostIpQuality {
+  host: string;
+  ip: string;
+  ok: boolean;
+  latencyMs: number;
+  testedAt: number;
+}
+
+interface HostIpProbeTarget {
+  host: string;
+  ip: string;
 }
 
 export interface EhRequestPlan {
@@ -74,10 +98,36 @@ export function applyEhNetworkOptions(options: http.HttpRequestOptions, plan: Eh
   }
   if (plan.fronted) {
     options.remoteValidation = 'skip';
+    options.usingProtocol = http.HttpProtocol.HTTP1_1;
   }
   if (plan.sniHost.length > 0) {
     options.sniHostName = plan.sniHost;
   }
+}
+
+export function startEhFrontingBenchmark(): void {
+  const key = frontingBenchmarkKey();
+  if (key === 'Off') {
+    clearIpQualities();
+    frontingProbeKey = key;
+    return;
+  }
+  if (key === frontingProbeKey && frontingProbePending !== null) {
+    return;
+  }
+  frontingProbeKey = key;
+  frontingProbeGeneration++;
+  clearIpQualities();
+  const generation = frontingProbeGeneration;
+  frontingProbePending = runEhFrontingBenchmark(generation).then(() => {
+    if (generation === frontingProbeGeneration) {
+      frontingProbePending = null;
+    }
+  }).catch(() => {
+    if (generation === frontingProbeGeneration) {
+      frontingProbePending = null;
+    }
+  });
 }
 
 export async function ensureEhHostRules(): Promise<void> {
@@ -154,7 +204,8 @@ function exFrontingIpForUrl(url: string, host: string): string {
 }
 
 function rotatingIpv4ForHost(host: string, rules: HostRule[]): string {
-  const ips = ipv4ListForHost(host, rules);
+  const rankedIps = rankedIpv4ListForHost(host, rules);
+  const ips = rankedIps.length > 0 ? rankedIps : ipv4ListForHost(host, rules);
   if (ips.length === 0) {
     return '';
   }
@@ -195,6 +246,226 @@ function ipv4ListForHost(host: string, rules: HostRule[]): string[] {
     return ips;
   }
   return [];
+}
+
+function rankedIpv4ListForHost(host: string, rules: HostRule[]): string[] {
+  const candidates = ipv4ListForHost(host, rules);
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  const results: HostIpQuality[] = [];
+  for (let i = 0; i < HOST_IP_QUALITIES.length; i++) {
+    const item = HOST_IP_QUALITIES[i];
+    if (item.host === host && item.ok && containsString(candidates, item.ip)) {
+      results.push(item);
+    }
+  }
+  if (results.length === 0) {
+    return [];
+  }
+
+  results.sort((left: HostIpQuality, right: HostIpQuality) => {
+    if (left.latencyMs !== right.latencyMs) {
+      return left.latencyMs - right.latencyMs;
+    }
+    return left.ip.localeCompare(right.ip);
+  });
+  const ranked: string[] = [];
+  const limit = Math.min(FRONTING_FAST_IP_LIMIT, results.length);
+  for (let i = 0; i < limit; i++) {
+    ranked.push(results[i].ip);
+  }
+  return ranked;
+}
+
+async function runEhFrontingBenchmark(generation: number): Promise<void> {
+  const targets = collectFrontingProbeTargets();
+  if (targets.length === 0) {
+    return;
+  }
+  let nextIndex = 0;
+  const workers: Promise<void>[] = [];
+  const workerCount = Math.min(FRONTING_PROBE_CONCURRENCY, targets.length);
+  for (let i = 0; i < workerCount; i++) {
+    workers.push(new Promise<void>((resolve: (value: void | PromiseLike<void>) => void) => {
+      runFrontingProbeWorker(targets, generation, () => {
+        const index = nextIndex;
+        nextIndex++;
+        return index;
+      }).then(() => {
+        resolve();
+      }).catch(() => {
+        resolve();
+      });
+    }));
+  }
+  await Promise.all(workers);
+}
+
+async function runFrontingProbeWorker(targets: HostIpProbeTarget[], generation: number,
+  next: () => number): Promise<void> {
+  while (generation === frontingProbeGeneration) {
+    const index = next();
+    if (index >= targets.length) {
+      return;
+    }
+    const result = await probeFrontingIp(targets[index]);
+    if (generation === frontingProbeGeneration) {
+      recordIpQuality(result);
+    }
+  }
+}
+
+async function probeFrontingIp(target: HostIpProbeTarget): Promise<HostIpQuality> {
+  const request = http.createHttp();
+  const startedAt = Date.now();
+  try {
+    const options: http.HttpRequestOptions = {
+      method: http.RequestMethod.HEAD,
+      header: {
+        'Host': target.host,
+        'User-Agent': FRONTING_PROBE_USER_AGENT,
+        'Accept': '*/*',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Cache-Control': 'no-cache',
+        'Connection': 'close'
+      },
+      expectDataType: http.HttpDataType.STRING,
+      usingCache: false,
+      usingProxy: proxyOption(),
+      usingProtocol: http.HttpProtocol.HTTP1_1,
+      remoteValidation: 'skip',
+      connectTimeout: FRONTING_PROBE_CONNECT_TIMEOUT_MS,
+      readTimeout: FRONTING_PROBE_READ_TIMEOUT_MS
+    };
+    await requestWithProbeDeadline(request, 'https://' + target.ip + '/', options, FRONTING_PROBE_DEADLINE_MS);
+    return {
+      host: target.host,
+      ip: target.ip,
+      ok: true,
+      latencyMs: Math.max(1, Date.now() - startedAt),
+      testedAt: Date.now()
+    };
+  } catch (error) {
+    return {
+      host: target.host,
+      ip: target.ip,
+      ok: false,
+      latencyMs: FRONTING_PROBE_DEADLINE_MS,
+      testedAt: Date.now()
+    };
+  } finally {
+    try {
+      request.destroy();
+    } catch (error) {
+    }
+  }
+}
+
+function requestWithProbeDeadline(request: http.HttpRequest, url: string, options: http.HttpRequestOptions,
+  timeoutMs: number): Promise<http.HttpResponse> {
+  return new Promise<http.HttpResponse>((resolve: (value: http.HttpResponse) => void, reject: (reason: Error) => void) => {
+    let finished = false;
+    const timer = setTimeout(() => {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      try {
+        request.destroy();
+      } catch (error) {
+      }
+      reject(new Error('Probe timed out'));
+    }, timeoutMs);
+
+    request.request(url, options).then((response: http.HttpResponse) => {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      clearTimeout(timer);
+      resolve(response);
+    }).catch((error: Error) => {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+  });
+}
+
+function collectFrontingProbeTargets(): HostIpProbeTarget[] {
+  const targets: HostIpProbeTarget[] = [];
+  if (ehSettingsStore.getValue('domain_fronting', 'On') !== 'On') {
+    return targets;
+  }
+  if (ehSettingsStore.getValue('built_in_hosts', 'Off') === 'On') {
+    pushProbeTargets(targets, BUILT_IN_RULES);
+  }
+  if (ehSettingsStore.getValue('built_ex_hosts', 'Off') === 'On') {
+    pushProbeTargets(targets, BUILT_EX_RULES);
+  }
+  return targets;
+}
+
+function pushProbeTargets(targets: HostIpProbeTarget[], rules: HostRule[]): void {
+  for (let i = 0; i < rules.length; i++) {
+    const ips = ipv4ListForHost(rules[i].host, rules);
+    for (let j = 0; j < ips.length; j++) {
+      if (!containsProbeTarget(targets, rules[i].host, ips[j])) {
+        targets.push({ host: rules[i].host, ip: ips[j] });
+      }
+    }
+  }
+}
+
+function containsProbeTarget(targets: HostIpProbeTarget[], host: string, ip: string): boolean {
+  for (let i = 0; i < targets.length; i++) {
+    if (targets[i].host === host && targets[i].ip === ip) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function recordIpQuality(result: HostIpQuality): void {
+  for (let i = 0; i < HOST_IP_QUALITIES.length; i++) {
+    if (HOST_IP_QUALITIES[i].host === result.host && HOST_IP_QUALITIES[i].ip === result.ip) {
+      HOST_IP_QUALITIES[i] = result;
+      return;
+    }
+  }
+  HOST_IP_QUALITIES.push(result);
+}
+
+function clearIpQualities(): void {
+  HOST_IP_QUALITIES.splice(0, HOST_IP_QUALITIES.length);
+  for (let i = 0; i < HOST_IP_CURSORS.length; i++) {
+    HOST_IP_CURSORS[i].next = -1;
+  }
+}
+
+function frontingBenchmarkKey(): string {
+  if (ehSettingsStore.getValue('domain_fronting', 'On') !== 'On') {
+    return 'Off';
+  }
+  return ehSettingsStore.getValue('built_in_hosts', 'Off') + ':' +
+    ehSettingsStore.getValue('built_ex_hosts', 'Off') + ':' +
+    ehSettingsStore.getValue('proxy', 'System') + ':' +
+    ehSettingsStore.getValue('proxy_host', '') + ':' +
+    ehSettingsStore.getValue('proxy_port', '');
+}
+
+function containsString(values: string[], value: string): boolean {
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] === value) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function requestHost(url: string): string {

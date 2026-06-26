@@ -6,6 +6,7 @@ import { MAIN_WINDOW_KEY, prepareAppChromeBeforeContent, rememberMainWindow } fr
 import { applyWindowPrivacyMode, WINDOW_PRIVACY_STATUS_KEY } from '../services/EhWindowPrivacy';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehAppLog } from '../services/EhAppLog';
+import { startEhFrontingBenchmark } from '../services/EhNetworkConfig';
 
 const SETTINGS_PREF_NAME: string = 'ehviewer_settings';
 const SETTINGS_VALUES_KEY: string = 'values';
@@ -48,7 +49,9 @@ export default class EntryAbility extends UIAbility {
         this.applyPersistedSecureScreen();
       });
     }).catch(() => {});
-    const settingsReady = ehSettingsStore.load(this.context).catch(() => {});
+    const settingsReady = ehSettingsStore.load(this.context).then(() => {
+      startEhFrontingBenchmark();
+    }).catch(() => {});
     Promise.all([windowReady, settingsReady]).then(() => {
       this.loadIndexContent(stage);
     }).catch(() => {
