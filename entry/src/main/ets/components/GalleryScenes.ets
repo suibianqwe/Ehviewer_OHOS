@@ -1004,7 +1004,9 @@ export struct GalleryListScene {
     this.restoreDetailWithFade = false;
     this.showDetail = true;
     this.detailPreviewPager.start();
-    this.detail = createDetailFromGallery(gallery);
+    const loadingDetail = createDetailFromGallery(gallery);
+    const requestGid = gallery.gid;
+    this.detail = loadingDetail;
     this.resetReaderPreviewCache();
     this.detailStatus = 'Loading detail for gid ' + gallery.gid.toString() + '...';
     this.detailRequestUrl = '';
@@ -1016,29 +1018,40 @@ export struct GalleryListScene {
 
     this.client.loadGalleryDetail(gallery.gid, gallery.token, 0, this.activeSite, this.requestUrl)
       .then((result: GalleryDetailLoadResult) => {
-        this.detailRequestUrl = result.url;
         if (!result.ok || result.detail === null) {
-          this.detailStatus = 'Detail load failed: ' + result.message;
-          ehAppLog.warn(getAbilityContext(), 'GalleryDetail', this.detailStatus);
-          this.renderVersion++;
+          const message = 'Detail load failed: ' + result.message;
+          if (this.showDetail && this.detail.gid === requestGid) {
+            this.detailRequestUrl = result.url;
+            this.detailStatus = message;
+            this.renderVersion++;
+          }
+          ehAppLog.warn(getAbilityContext(), 'GalleryDetail', message);
           return;
         }
 
+        const loadedDetail = mergeLoadedGalleryDetail(result.detail, loadingDetail);
+        saveGalleryToHistory(loadedDetail);
+        if (!this.showDetail || this.detail.gid !== requestGid) {
+          return;
+        }
+        this.detailRequestUrl = result.url;
         this.detailStatus = 'Detail loaded';
-        this.detail = mergeLoadedGalleryDetail(result.detail, this.detail);
+        this.detail = loadedDetail;
         this.seedReaderPreviewCache(this.detail.previewSet);
         this.detailDownloadText = downloadButtonText(result.detail.gid);
         this.detailLoaded = true;
         this.optimisticFavorite = this.detail.isFavorited;
         this.favoriteBusy = false;
         this.renderVersion++;
-        saveGalleryToHistory(this.detail);
         this.prewarmReader();
       })
       .catch((error: Error) => {
-        this.detailStatus = 'Detail load failed: ' + error.message;
-        ehAppLog.error(getAbilityContext(), 'GalleryDetail', this.detailStatus);
-        this.renderVersion++;
+        const message = 'Detail load failed: ' + error.message;
+        if (this.showDetail && this.detail.gid === requestGid) {
+          this.detailStatus = message;
+          this.renderVersion++;
+        }
+        ehAppLog.error(getAbilityContext(), 'GalleryDetail', message);
       });
   }
 

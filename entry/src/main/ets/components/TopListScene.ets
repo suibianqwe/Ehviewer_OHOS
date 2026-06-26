@@ -208,6 +208,7 @@ export struct TopListScene {
     loadingDetail.gid = gid;
     loadingDetail.token = item.token;
     loadingDetail.title = item.value;
+    const requestGid = gid;
     this.detail = loadingDetail;
     this.resetReaderPreviewCache();
     this.detailStatus = 'Loading detail for gid ' + item.gid + '...';
@@ -220,27 +221,38 @@ export struct TopListScene {
 
     const site = this.gallerySite();
     this.client.loadGalleryDetail(gid, item.token, 0, site, this.requestUrl).then((result: GalleryDetailLoadResult) => {
-      this.detailRequestUrl = result.url;
       if (!result.ok || result.detail === null) {
-        this.detailStatus = 'Detail load failed: ' + result.message;
-        ehAppLog.warn(getAbilityContext(), 'TopListDetail', this.detailStatus);
-        this.renderVersion++;
+        const message = 'Detail load failed: ' + result.message;
+        if (this.showDetail && this.detail.gid === requestGid) {
+          this.detailRequestUrl = result.url;
+          this.detailStatus = message;
+          this.renderVersion++;
+        }
+        ehAppLog.warn(getAbilityContext(), 'TopListDetail', message);
         return;
       }
+      const loadedDetail = mergeLoadedSceneDetail(result.detail, loadingDetail);
+      saveGalleryToHistory(loadedDetail);
+      if (!this.showDetail || this.detail.gid !== requestGid) {
+        return;
+      }
+      this.detailRequestUrl = result.url;
       this.detailStatus = 'Detail loaded';
-      this.detail = mergeLoadedSceneDetail(result.detail, this.detail);
+      this.detail = loadedDetail;
       this.seedReaderPreviewCache(this.detail.previewSet);
       this.detailDownloadText = downloadButtonText(result.detail.gid);
       this.detailLoaded = true;
       this.optimisticFavorite = this.detail.isFavorited;
       this.favoriteBusy = false;
       this.renderVersion++;
-      saveGalleryToHistory(result.detail);
       this.prewarmReader();
     }).catch((error: Error) => {
-      this.detailStatus = 'Detail load failed: ' + error.message;
-      ehAppLog.error(getAbilityContext(), 'TopListDetail', this.detailStatus);
-      this.renderVersion++;
+      const message = 'Detail load failed: ' + error.message;
+      if (this.showDetail && this.detail.gid === requestGid) {
+        this.detailStatus = message;
+        this.renderVersion++;
+      }
+      ehAppLog.error(getAbilityContext(), 'TopListDetail', message);
     });
   }
 
