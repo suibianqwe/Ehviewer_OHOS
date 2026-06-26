@@ -9,7 +9,6 @@ import { ehSettingsStore } from '../services/EhSettingsStore';
 import { DEFAULT_ADVANCE_SEARCH, EhUrl, ListMode } from '../services/EhUrl';
 import { galleryMatchesLocalSearch, LocalGallerySearchOptions } from '../services/LocalGallerySearch';
 import { galleryPageCache } from '../services/GalleryPageCache';
-import { mergeGalleryPreviewSets } from '../services/GalleryPreviewLoader';
 import { readerImageCache } from '../services/ReaderImageCache';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { ehAppLog } from '../services/EhAppLog';
@@ -37,7 +36,6 @@ import {
   downloadSizeText,
   downloadStateColor,
   downloadStateLabel,
-  downloadThreadLimit,
   filterDownloadItems,
   galleryListMode,
   galleryThumbWidth,
@@ -85,7 +83,6 @@ function normalizeSceneScrollOffset(offset: number): number {
 }
 
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
-const DOWNLOAD_PAGE_RETRY_LIMIT: number = 3;
 const ACTION_BUBBLE_SIZE: number = 44;
 const ACTION_BUBBLE_GAP: number = 8;
 const ACTION_BUBBLE_PRIMARY_SIZE: number = 54;
@@ -104,31 +101,9 @@ function mergeDownloadDetailTitles(detail: GalleryDetail, item: DownloadInfo): G
   return next;
 }
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve: () => void) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-interface DownloadWorkerState {
-  cursor: number;
-  finished: number;
-  fileSize: number;
-  lastBytes: number;
-  lastTime: number;
-  failedMessage: string;
-}
-
-interface DownloadedPageResult {
-  page: GalleryPage;
-  cachedPath: string;
-}
-
 @Component
 export struct DownloadScene {
   private client: EhHttpClient = new EhHttpClient();
-  private shouldStop: boolean = false;
-  private stoppedGids: number[] = [];
   private unsubscribeStore: () => void = () => {};
   private unsubscribeDownloadManager: () => void = () => {};
   onMenu: () => void = () => {};
@@ -150,7 +125,6 @@ export struct DownloadScene {
   @State sortMode: string = 'Default';
   @State categoryFilter: string = 'All';
   @State statusText: string = 'Downloads: idle';
-  @State isProcessing: boolean = false;
   @State showDetail: boolean = false;
   @State detail: GalleryDetail = createEmptyDetail();
   @State detailStatus: string = '';
@@ -742,8 +716,6 @@ export struct DownloadScene {
   }
 
   private startAll(): void {
-    this.shouldStop = false;
-    this.stoppedGids = [];
     ehDownloadStore.startAll();
     this.statusText = 'Queued idle and failed downloads';
     this.persistDownloads();
@@ -756,9 +728,7 @@ export struct DownloadScene {
       this.startAll();
       return;
     }
-    this.shouldStop = false;
     for (let i = 0; i < selected.length; i++) {
-      this.removeStoppedGid(selected[i].gid);
       ehDownloadStore.startGallery(selected[i].gid);
     }
     this.statusText = 'Queued ' + selected.length.toString() + ' selected downloads';
@@ -768,8 +738,6 @@ export struct DownloadScene {
   }
 
   private stopAll(): void {
-    this.shouldStop = true;
-    this.stoppedGids = [];
     ehDownloadManager.stopAll();
     this.statusText = 'Stopped waiting downloads';
     this.persistDownloads();
@@ -782,7 +750,6 @@ export struct DownloadScene {
       return;
     }
     for (let i = 0; i < selected.length; i++) {
-      this.addStoppedGid(selected[i].gid);
       ehDownloadManager.stopGallery(selected[i].gid);
     }
     this.statusText = 'Stopped ' + selected.length.toString() + ' selected downloads';
@@ -837,8 +804,6 @@ export struct DownloadScene {
   }
 
   private startItem(item: DownloadInfo): void {
-    this.shouldStop = false;
-    this.removeStoppedGid(item.gid);
     ehDownloadManager.resumeGallery(item.gid);
     this.statusText = 'Queued: ' + item.title;
     this.persistDownloads();
@@ -846,7 +811,6 @@ export struct DownloadScene {
   }
 
   private stopItem(item: DownloadInfo): void {
-    this.addStoppedGid(item.gid);
     ehDownloadManager.stopGallery(item.gid);
     this.statusText = 'Stopped: ' + item.title;
     this.persistDownloads();
@@ -995,238 +959,6 @@ export struct DownloadScene {
         }
       });
     }
-  }
-
-  private async runDownloadQueue(): Promise<void> {
-    if (this.isProcessing) {
-      return;
-    }
-
-    const context = getAbilityContext();
-    if (context === undefined) {
-      this.statusText = 'Download needs app context';
-      return;
-    }
-
-    this.isProcessing = true;
-    try {
-      const workerCount = downloadThreadLimit();
-      this.statusText = 'Download workers: ' + workerCount.toString();
-      while (!this.shouldStop) {
-        const queue = ehDownloadStore.getItems();
-        let nextItem: DownloadInfo | null = null;
-        for (let i = 0; i < queue.length; i++) {
-          if (queue[i].state === DownloadState.Wait) {
-            nextItem = queue[i];
-            break;
-          }
-        }
-        if (nextItem === null) {
-          break;
-        }
-
-        await this.downloadOne(context, nextItem);
-      }
-    } finally {
-      this.isProcessing = false;
-      this.persistDownloads();
-    }
-  }
-
-  private async downloadOne(context: common.UIAbilityContext, item: DownloadInfo): Promise<void> {
-    ehDownloadStore.setState(item.gid, DownloadState.Downloading);
-    ehDownloadStore.setTransfer(item.gid, 0, 0);
-    this.statusText = 'Downloading: ' + item.title;
-    this.persistDownloads();
-
-    try {
-      const detailResult = await this.client.loadGalleryDetail(item.gid, item.token, 0, currentGallerySite(),
-        EhUrl.getReferer(currentGallerySite()));
-      if (!detailResult.ok || detailResult.detail === null) {
-        throw new Error(detailResult.message);
-      }
-
-      const detail = mergeDownloadDetailTitles(await this.loadCompleteDownloadDetail(detailResult.detail, detailResult.url), item);
-      ehDownloadStore.updateGallery(detail);
-      const total = Math.max(detail.pages, detail.previewSet.length);
-      const downloadDirectory = ehDownloadFileStore.prepareGallery(context, detail);
-      ehDownloadStore.setProgress(item.gid, 0, total, 0);
-      ehDownloadStore.setStorage(item.gid, downloadDirectory, 0);
-
-      let finished = 0;
-      let fileSize = ehDownloadFileStore.directorySize(context, detail);
-      for (let i = 0; i < detail.previewSet.length; i++) {
-        if (ehDownloadFileStore.findPageImage(context, detail, i).length > 0) {
-          finished++;
-        }
-      }
-      if (finished > 0) {
-        ehDownloadStore.setProgress(item.gid, finished, total, finished * DOWNLOAD_PAGE_PROGRESS_SCALE);
-        ehDownloadStore.setStorage(item.gid, downloadDirectory, fileSize);
-        this.statusText = 'Resumed ' + finished.toString() + '/' + total.toString() + ': ' + item.title;
-        this.persistDownloads();
-      }
-
-      const pageIndexes = downloadPageIndexes(detail.previewSet.length);
-      const workerState: DownloadWorkerState = {
-        cursor: 0,
-        finished: finished,
-        fileSize: fileSize,
-        lastBytes: fileSize,
-        lastTime: Date.now(),
-        failedMessage: ''
-      };
-      const workerCount = Math.max(1, Math.min(downloadThreadLimit(), Math.max(1, pageIndexes.length)));
-      const tasks: Promise<void>[] = [];
-      for (let i = 0; i < workerCount; i++) {
-        tasks.push(this.downloadPageWorker(context, item, detail, detailResult.url, pageIndexes, total,
-          downloadDirectory, workerState));
-      }
-      await Promise.all(tasks);
-
-      if (this.shouldStop || this.isStopped(item.gid)) {
-        ehDownloadStore.setState(item.gid, DownloadState.None);
-        ehDownloadStore.setTransfer(item.gid, 0, 0);
-        this.statusText = 'Stopped: ' + item.title;
-        return;
-      }
-
-      if (workerState.failedMessage.length > 0) {
-        throw new Error(workerState.failedMessage);
-      }
-
-      ehDownloadStore.setState(item.gid, DownloadState.Finish);
-      ehDownloadStore.setProgress(item.gid, total, total, total * DOWNLOAD_PAGE_PROGRESS_SCALE);
-      ehDownloadStore.setStorage(item.gid, downloadDirectory, workerState.fileSize);
-      ehDownloadStore.setTransfer(item.gid, 0, 0);
-      this.statusText = 'Download finished: ' + item.title;
-      this.persistDownloads();
-    } catch (error) {
-      ehDownloadStore.setState(item.gid, DownloadState.Failed);
-      ehDownloadStore.setTransfer(item.gid, 0, 0);
-      this.statusText = 'Download failed: ' + String(error);
-      ehAppLog.error(getAbilityContext(), 'Download', this.statusText);
-      this.persistDownloads();
-    }
-  }
-
-  private async downloadPageWorker(context: common.UIAbilityContext, item: DownloadInfo, detail: GalleryDetail,
-    detailUrl: string, pageIndexes: number[], total: number, downloadDirectory: string,
-    state: DownloadWorkerState): Promise<void> {
-    while (!this.shouldStop && !this.isStopped(item.gid) && state.failedMessage.length === 0) {
-      const orderIndex = state.cursor;
-      state.cursor++;
-      if (orderIndex >= pageIndexes.length) {
-        return;
-      }
-
-      const pageIndex = pageIndexes[orderIndex];
-      const preview = detail.previewSet[pageIndex];
-      if (preview.pageUrl.length === 0 || ehDownloadFileStore.findPageImage(context, detail, pageIndex).length > 0) {
-        continue;
-      }
-
-      try {
-        const downloaded = await this.downloadPageWithRetry(context, item, detail, detailUrl, pageIndex, total, state);
-
-        const savedPath = ehDownloadFileStore.savePageImage(context, detail, downloaded.page, pageIndex,
-          downloaded.cachedPath);
-        state.fileSize += ehDownloadFileStore.statFileSize(savedPath);
-        state.finished++;
-
-        const now = Date.now();
-        const speed = Math.round(Math.max(0, state.fileSize - state.lastBytes) * 1000 /
-          Math.max(1, now - state.lastTime));
-        state.lastBytes = state.fileSize;
-        state.lastTime = now;
-        const averageBytes = state.finished > 0 ? Math.round(state.fileSize / state.finished) : 0;
-        const remaining = speed > 0 ? Math.round(Math.max(0, total - state.finished) * averageBytes / speed) : 0;
-
-        ehDownloadStore.setProgress(item.gid, state.finished, total, state.finished * DOWNLOAD_PAGE_PROGRESS_SCALE);
-        ehDownloadStore.setStorage(item.gid, downloadDirectory, state.fileSize);
-        ehDownloadStore.setTransfer(item.gid, speed, remaining);
-        this.statusText = 'Downloaded ' + state.finished.toString() + '/' + total.toString() + ': ' + item.title;
-        this.persistDownloads();
-      } catch (error) {
-        state.failedMessage = String(error);
-      }
-    }
-  }
-
-  private async downloadPageWithRetry(context: common.UIAbilityContext, item: DownloadInfo, detail: GalleryDetail,
-    detailUrl: string, pageIndex: number, total: number, state: DownloadWorkerState): Promise<DownloadedPageResult> {
-    let lastError = '';
-    for (let attempt = 0; attempt <= DOWNLOAD_PAGE_RETRY_LIMIT; attempt++) {
-      if (this.shouldStop || this.isStopped(item.gid)) {
-        throw new Error('Download stopped');
-      }
-      try {
-        return await this.downloadPageOnce(context, item, detail, detailUrl, pageIndex, total, state);
-      } catch (error) {
-        lastError = String(error);
-        if (attempt >= DOWNLOAD_PAGE_RETRY_LIMIT) {
-          break;
-        }
-        this.statusText = 'Retry ' + (attempt + 1).toString() + '/' + DOWNLOAD_PAGE_RETRY_LIMIT.toString() +
-          ' page ' + (pageIndex + 1).toString() + ': ' + item.title;
-        await wait(500 * (attempt + 1));
-      }
-    }
-    throw new Error('Page ' + (pageIndex + 1).toString() + ' failed after ' +
-      (DOWNLOAD_PAGE_RETRY_LIMIT + 1).toString() + ' attempts: ' + lastError);
-  }
-
-  private async downloadPageOnce(context: common.UIAbilityContext, item: DownloadInfo, detail: GalleryDetail,
-    detailUrl: string, pageIndex: number, total: number, state: DownloadWorkerState): Promise<DownloadedPageResult> {
-    const preview = detail.previewSet[pageIndex];
-    const pageResult = await this.client.loadGalleryPage(preview.pageUrl, currentGallerySite(),
-      readerPageReferer(detailUrl, detail.previewSet, pageIndex, currentGallerySite()));
-    if (!pageResult.ok || pageResult.page === null) {
-      throw new Error(pageResult.message);
-    }
-
-    const imageUrl = downloadImageUrlForPage(pageResult.page);
-    if (imageUrl.length === 0) {
-      throw new Error('Image URL missing');
-    }
-
-    const existingCachedPath = readerImageCache.getCachedPath(context, imageUrl);
-    const startedAt = Date.now();
-    const cachedPath = existingCachedPath.length > 0 ? existingCachedPath :
-      await readerImageCache.ensureCached(context, imageUrl, pageResult.page.pageUrl, true);
-    const downloadedBytes = readerImageCache.cachedSize(context, imageUrl);
-    const elapsedMs = Math.max(1, Date.now() - startedAt);
-    if (downloadedBytes > 0) {
-      const speed = Math.round(downloadedBytes * 1000 / elapsedMs);
-      const currentProgress = state.finished * DOWNLOAD_PAGE_PROGRESS_SCALE + DOWNLOAD_PAGE_PROGRESS_SCALE - 1;
-      const averageBytes = state.finished > 0 ? Math.max(1, Math.round(state.fileSize / state.finished)) :
-        Math.max(1, downloadedBytes);
-      const remainingBytes = Math.max(0, total - state.finished - 1) * averageBytes;
-      ehDownloadStore.setProgress(item.gid, state.finished, total, currentProgress);
-      ehDownloadStore.setTransfer(item.gid, speed, speed > 0 ? Math.round(remainingBytes / speed) : 0);
-    }
-    return {
-      page: pageResult.page,
-      cachedPath: cachedPath
-    };
-  }
-
-  private async loadCompleteDownloadDetail(initial: GalleryDetail, referer: string): Promise<GalleryDetail> {
-    let detail = cloneGalleryDetail(initial);
-    if (detail.previewPages <= 1 || detail.gid <= 0 || detail.token.length === 0) {
-      return detail;
-    }
-    for (let pageIndex = 1; pageIndex < detail.previewPages; pageIndex++) {
-      const result = await this.client.loadGalleryDetail(detail.gid, detail.token, pageIndex, currentGallerySite(),
-        referer);
-      if (!result.ok || result.detail === null) {
-        throw new Error('Preview page ' + (pageIndex + 1).toString() + ' load failed: ' + result.message);
-      }
-      detail = mergeGalleryPreviewSets(detail, result.detail).detail;
-      this.statusText = 'Loaded preview page ' + (pageIndex + 1).toString() + '/' + detail.previewPages.toString() +
-        ': ' + detail.title;
-    }
-    return detail;
   }
 
   private openDownloadedItem(item: DownloadInfo): void {
@@ -1723,15 +1455,6 @@ export struct DownloadScene {
     return 'ehviewer://download/' + gid.toString() + '/' + index.toString();
   }
 
-  private isStopped(gid: number): boolean {
-    for (let i = 0; i < this.stoppedGids.length; i++) {
-      if (this.stoppedGids[i] === gid) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   @Builder
   private downloadSearchSuggestionPlaceholder() {
     Column({ space: 4 }) {
@@ -1774,22 +1497,6 @@ export struct DownloadScene {
     }
     .width('100%')
     .padding({ left: 8, right: 8, top: 4 })
-  }
-
-  private addStoppedGid(gid: number): void {
-    if (!this.isStopped(gid)) {
-      this.stoppedGids.push(gid);
-    }
-  }
-
-  private removeStoppedGid(gid: number): void {
-    const next: number[] = [];
-    for (let i = 0; i < this.stoppedGids.length; i++) {
-      if (this.stoppedGids[i] !== gid) {
-        next.push(this.stoppedGids[i]);
-      }
-    }
-    this.stoppedGids = next;
   }
 
   build() {
