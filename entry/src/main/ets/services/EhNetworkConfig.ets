@@ -30,7 +30,7 @@ export function applyEhNetworkOptions(options: http.HttpRequestOptions, url: str
   if (ehSettingsStore.getValue('dns_over_https', 'Off') === 'On') {
     options.dnsOverHttps = DOH_URL;
   }
-  const sniHost = domainFrontingSniHost(url);
+  const sniHost = sniHostForUrl(url);
   if (sniHost.length > 0) {
     options.sniHostName = sniHost;
   }
@@ -81,51 +81,16 @@ function proxyOption(): boolean | http.HttpProxy {
   return proxyType === 'System';
 }
 
-function domainFrontingSniHost(url: string): string {
+function sniHostForUrl(url: string): string {
   if (ehSettingsStore.getValue('domain_fronting', 'On') !== 'On' || !isHttpsUrl(url)) {
     return '';
   }
-  return frontingIpForHost(requestHost(url));
-}
-
-function frontingIpForHost(host: string): string {
-  const normalizedHost = host.toLowerCase();
-  if (ehSettingsStore.getValue('built_in_hosts', 'Off') === 'On') {
-    const ip = firstIpv4ForHost(normalizedHost, BUILT_IN_RULES);
-    if (ip.length > 0) {
-      return ip;
-    }
-  }
-  if (ehSettingsStore.getValue('built_ex_hosts', 'Off') === 'On') {
-    const ip = firstIpv4ForHost(normalizedHost, BUILT_EX_RULES);
-    if (ip.length > 0) {
-      return ip;
-    }
-  }
-  return '';
-}
-
-function firstIpv4ForHost(host: string, rules: HostRule[]): string {
-  for (let i = 0; i < rules.length; i++) {
-    if (rules[i].host !== host) {
-      continue;
-    }
-    for (let j = 0; j < rules[i].ips.length; j++) {
-      if (isIpv4(rules[i].ips[j])) {
-        return rules[i].ips[j];
-      }
-    }
-  }
-  return '';
+  return requestHost(url);
 }
 
 function requestHost(url: string): string {
   const match = /^https?:\/\/([^\/?#:]+)/i.exec(url);
   return match === null ? '' : match[1];
-}
-
-function isIpv4(value: string): boolean {
-  return /^\d{1,3}(\.\d{1,3}){3}$/.test(value);
 }
 
 function isHttpsUrl(url: string): boolean {
