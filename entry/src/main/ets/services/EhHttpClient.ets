@@ -966,6 +966,9 @@ function isTransientError(message: string): boolean {
   return lower.indexOf('timeout') >= 0 || lower.indexOf('timed out') >= 0 || lower.indexOf('reset') >= 0 ||
     lower.indexOf('refused') >= 0 || lower.indexOf('unreachable') >= 0 || lower.indexOf('unknownhost') >= 0 ||
     lower.indexOf('dns') >= 0 || lower.indexOf('network') >= 0 || lower.indexOf('socket') >= 0 ||
+    lower.indexOf('ssl') >= 0 || lower.indexOf('tls') >= 0 || lower.indexOf('certificate') >= 0 ||
+    lower.indexOf('http2') >= 0 || lower.indexOf('2300016') >= 0 ||
+    lower.indexOf('2300007') >= 0 || lower.indexOf('230350') >= 0 ||
     lower.indexOf('temporary') >= 0 || lower.indexOf('503') >= 0 || lower.indexOf('504') >= 0;
 }
 
@@ -1055,7 +1058,7 @@ function buildRequestHeader(plan: EhRequestPlan, referer: string, cookieHeader: 
     'Accept-Language': CHROME_ACCEPT_LANGUAGE,
     'Referer': referer,
     'Cache-Control': maxAge > 0 ? 'max-age=' + maxAge.toString() : 'no-cache',
-    'Connection': 'keep-alive'
+    'Connection': plan.fronted ? 'close' : 'keep-alive'
   };
   if (cookieHeader.length > 0) {
     header.Cookie = cookieHeader;
@@ -1073,7 +1076,7 @@ function buildPostRequestHeader(plan: EhRequestPlan, referer: string, origin: st
     'Referer': referer,
     'Cache-Control': 'no-cache',
     'Pragma': 'no-cache',
-    'Connection': 'keep-alive',
+    'Connection': plan.fronted ? 'close' : 'keep-alive',
     'Content-Type': 'application/x-www-form-urlencoded',
     'Origin': origin
   };
@@ -1093,7 +1096,7 @@ function buildJsonRequestHeader(plan: EhRequestPlan, referer: string, origin: st
     'Referer': referer,
     'Cache-Control': 'no-cache',
     'Pragma': 'no-cache',
-    'Connection': 'keep-alive',
+    'Connection': plan.fronted ? 'close' : 'keep-alive',
     'Content-Type': 'application/json',
     'Origin': origin
   };

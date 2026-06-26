@@ -264,7 +264,7 @@ function buildImageRequestHeader(plan: EhRequestPlan, referer: string, cookieHea
     'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
     'Referer': referer,
-    'Connection': 'keep-alive'
+    'Connection': plan.fronted ? 'close' : 'keep-alive'
   };
   if (cookieHeader.length > 0) {
     header.Cookie = cookieHeader;
@@ -300,7 +300,10 @@ function isTransientImageError(message: string): boolean {
   const lower = message.toLowerCase();
   return lower.indexOf('timeout') >= 0 || lower.indexOf('temporary') >= 0 || lower.indexOf('reset') >= 0 ||
     lower.indexOf('socket') >= 0 || lower.indexOf('network') >= 0 || lower.indexOf('503') >= 0 ||
-    lower.indexOf('504') >= 0 || lower.indexOf('522') >= 0 || lower.indexOf('524') >= 0;
+    lower.indexOf('504') >= 0 || lower.indexOf('522') >= 0 || lower.indexOf('524') >= 0 ||
+    lower.indexOf('ssl') >= 0 || lower.indexOf('tls') >= 0 || lower.indexOf('certificate') >= 0 ||
+    lower.indexOf('http2') >= 0 || lower.indexOf('2300016') >= 0 ||
+    lower.indexOf('2300007') >= 0 || lower.indexOf('230350') >= 0;
 }
 
 function imageStatusMessage(statusCode: number): string {

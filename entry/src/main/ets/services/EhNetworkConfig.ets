@@ -18,10 +18,16 @@ const BUILT_EX_RULES: HostRule[] = [
 ];
 let appliedHostRulesKey: string = '';
 let pendingHostRules: Promise<void> | null = null;
+const HOST_IP_CURSORS: HostIpCursor[] = [];
 
 interface HostRule {
   host: string;
   ips: string[];
+}
+
+interface HostIpCursor {
+  host: string;
+  next: number;
 }
 
 export interface EhRequestPlan {
@@ -125,7 +131,7 @@ function eFrontingIpForUrl(url: string, host: string): string {
   }
   const normalizedHost = host.toLowerCase();
   if (ehSettingsStore.getValue('built_in_hosts', 'Off') === 'On') {
-    const ip = firstIpv4ForHost(normalizedHost, BUILT_IN_RULES);
+    const ip = rotatingIpv4ForHost(normalizedHost, BUILT_IN_RULES);
     if (ip.length > 0) {
       return ip;
     }
@@ -139,7 +145,7 @@ function exFrontingIpForUrl(url: string, host: string): string {
   }
   const normalizedHost = host.toLowerCase();
   if (ehSettingsStore.getValue('built_ex_hosts', 'Off') === 'On') {
-    const ip = firstIpv4ForHost(normalizedHost, BUILT_EX_RULES);
+    const ip = rotatingIpv4ForHost(normalizedHost, BUILT_EX_RULES);
     if (ip.length > 0) {
       return ip;
     }
@@ -147,18 +153,48 @@ function exFrontingIpForUrl(url: string, host: string): string {
   return '';
 }
 
-function firstIpv4ForHost(host: string, rules: HostRule[]): string {
+function rotatingIpv4ForHost(host: string, rules: HostRule[]): string {
+  const ips = ipv4ListForHost(host, rules);
+  if (ips.length === 0) {
+    return '';
+  }
+  let cursor = cursorForHost(host);
+  if (cursor.next < 0 || cursor.next >= ips.length) {
+    cursor.next = Math.floor(Math.random() * ips.length);
+  }
+  const ip = ips[cursor.next];
+  cursor.next = (cursor.next + 1) % ips.length;
+  return ip;
+}
+
+function cursorForHost(host: string): HostIpCursor {
+  for (let i = 0; i < HOST_IP_CURSORS.length; i++) {
+    if (HOST_IP_CURSORS[i].host === host) {
+      return HOST_IP_CURSORS[i];
+    }
+  }
+  const cursor: HostIpCursor = {
+    host: host,
+    next: -1
+  };
+  HOST_IP_CURSORS.push(cursor);
+  return cursor;
+}
+
+function ipv4ListForHost(host: string, rules: HostRule[]): string[] {
   for (let i = 0; i < rules.length; i++) {
     if (rules[i].host !== host) {
       continue;
     }
+    const ips: string[] = [];
     for (let j = 0; j < rules[i].ips.length; j++) {
       if (isIpv4(rules[i].ips[j])) {
-        return rules[i].ips[j];
+        ips.push(rules[i].ips[j]);
       }
     }
+    return ips;
   }
-  return '';
+  return [];
 }
 
 function requestHost(url: string): string {
