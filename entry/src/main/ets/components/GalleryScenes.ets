@@ -26,6 +26,7 @@ import { createReaderSessionState, readerSessionStore } from '../services/Reader
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { ehAppLog } from '../services/EhAppLog';
+import { LocalGallerySearchOptions } from '../services/LocalGallerySearch';
 import {
   applyAppChromeImmersiveMode,
   enterEmbeddedReaderFullscreen,
@@ -246,8 +247,10 @@ export struct GalleryListScene {
   forcedMode: ListMode = ListMode.Normal;
   useLocalProvider: boolean = false;
   localPageSize: number = 25;
-  localProvider: (keyword: string, pageIndex: number, pageSize: number) => Promise<GalleryListLoadResult> =
-    (_keyword: string, _pageIndex: number, _pageSize: number): Promise<GalleryListLoadResult> => {
+  localProvider: (keyword: string, pageIndex: number, pageSize: number,
+    options: LocalGallerySearchOptions) => Promise<GalleryListLoadResult> =
+    (_keyword: string, _pageIndex: number, _pageSize: number,
+      _options: LocalGallerySearchOptions): Promise<GalleryListLoadResult> => {
       const result: GalleryListLoadResult = {
         ok: true,
         url: '',
@@ -623,7 +626,8 @@ export struct GalleryListScene {
     this.closeDetail();
     this.saveListCache();
 
-    this.localProvider(this.keyword.trim(), pageIndex, this.localPageSize).then((result: GalleryListLoadResult) => {
+    this.localProvider(this.keyword.trim(), pageIndex, this.localPageSize, this.localSearchOptions())
+      .then((result: GalleryListLoadResult) => {
       this.requestUrl = result.url;
       this.galleries = this.visibleRemoteGalleries(result.galleries);
       this.statusText = result.ok ? result.message : result.message;
@@ -699,6 +703,17 @@ export struct GalleryListScene {
     });
   }
 
+  private localSearchOptions(): LocalGallerySearchOptions {
+    return {
+      mode: this.searchMode,
+      category: this.searchCategory,
+      advancedEnabled: this.advancedSearchEnabled,
+      advancedPanelOpened: this.searchAdvancedPanelOpened,
+      advanceSearch: this.advanceSearch,
+      minRating: this.minRating
+    };
+  }
+
   private loadAppendLocalPage(): void {
     if (this.nextUrl.length === 0 && this.totalPages > 0 && this.pageIndex >= this.totalPages - 1) {
       this.statusText = uiText('All pages loaded');
@@ -706,7 +721,8 @@ export struct GalleryListScene {
     }
     const nextPage = this.pageIndex + 1;
     this.isLoadingMore = true;
-    this.localProvider(this.keyword.trim(), nextPage, this.localPageSize).then((result: GalleryListLoadResult) => {
+    this.localProvider(this.keyword.trim(), nextPage, this.localPageSize, this.localSearchOptions())
+      .then((result: GalleryListLoadResult) => {
       this.requestUrl = result.url;
       const newGalleries = this.visibleRemoteGalleries(result.galleries);
       if (newGalleries.length === 0) {
@@ -1588,6 +1604,7 @@ export struct GalleryListScene {
             showSearchButton: (routeUsesKeyword(this.sourceRoute) || this.useLocalProvider) && !this.isSearchResultScene,
             showBackButton: this.isSearchResultScene,
             isSearchResultScene: this.isSearchResultScene,
+            useLocalSearchBar: this.useLocalProvider,
             searchSubmitted: this.searchSubmitted,
             searchModeValue: this.searchMode,
             searchCategory: this.searchCategory,
@@ -1605,7 +1622,7 @@ export struct GalleryListScene {
             galleries: this.galleries,
             onKeywordChange: (value: string) => {
               this.keyword = value;
-              if (this.isSearchResultScene) {
+              if (this.isSearchResultScene || this.useLocalProvider) {
                 this.searchSubmitted = false;
                 this.galleries = [];
                 this.resultCount = '';
@@ -1616,35 +1633,35 @@ export struct GalleryListScene {
             },
             onSearchModeChange: (mode: ListMode) => {
               this.searchMode = mode;
-              if (this.isSearchResultScene) {
+              if (this.isSearchResultScene || this.useLocalProvider) {
                 this.searchSubmitted = false;
               }
             },
             onSearchCategoryChange: (category: number) => {
               this.searchAdvancedPanelOpened = true;
               this.searchCategory = category;
-              if (this.isSearchResultScene) {
+              if (this.isSearchResultScene || this.useLocalProvider) {
                 this.searchSubmitted = false;
               }
             },
             onAdvancedEnabledChange: (enabled: boolean) => {
               this.searchAdvancedPanelOpened = true;
               this.advancedSearchEnabled = enabled;
-              if (this.isSearchResultScene) {
+              if (this.isSearchResultScene || this.useLocalProvider) {
                 this.searchSubmitted = false;
               }
             },
             onAdvanceSearchChange: (flags: number) => {
               this.searchAdvancedPanelOpened = true;
               this.advanceSearch = flags;
-              if (this.isSearchResultScene) {
+              if (this.isSearchResultScene || this.useLocalProvider) {
                 this.searchSubmitted = false;
               }
             },
             onMinRatingChange: (rating: number) => {
               this.searchAdvancedPanelOpened = true;
               this.minRating = rating;
-              if (this.isSearchResultScene) {
+              if (this.isSearchResultScene || this.useLocalProvider) {
                 this.searchSubmitted = false;
               }
             },
@@ -1675,14 +1692,14 @@ export struct GalleryListScene {
               }
             },
             onRefresh: () => {
-              if (this.isSearchResultScene && !this.searchSubmitted) {
+              if ((this.isSearchResultScene || this.useLocalProvider) && !this.searchSubmitted) {
                 this.applySearch();
                 return;
               }
               this.loadListPage(0, this.galleries.length > 0);
             },
             onRefreshPull: (done: () => void) => {
-              if (this.isSearchResultScene && !this.searchSubmitted) {
+              if ((this.isSearchResultScene || this.useLocalProvider) && !this.searchSubmitted) {
                 this.applySearch();
                 done();
                 return;
@@ -1801,6 +1818,7 @@ export struct GalleryListContent {
   @Prop showSearchButton: boolean = false;
   @Prop showBackButton: boolean = false;
   @Prop isSearchResultScene: boolean = false;
+  @Prop useLocalSearchBar: boolean = false;
   @Prop searchSubmitted: boolean = true;
   @Prop searchModeValue: ListMode = ListMode.Normal;
   @Prop searchCategory: number = GalleryCategory.None;
@@ -2194,7 +2212,8 @@ export struct GalleryListContent {
 
       Row({ space: 8 }) {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.chevron_left'))
+          SymbolGlyph(this.useLocalSearchBar && !this.isSearchResultScene ? $r('sys.symbol.open_sidebar') :
+            $r('sys.symbol.chevron_left'))
             .fontSize(22)
             .fontColor([themeOnPrimaryText()])
         }
@@ -2203,7 +2222,11 @@ export struct GalleryListContent {
         .backgroundColor(themeOnPrimaryActionBackground())
         .flexShrink(0)
         .onClick(() => {
-          this.onBack();
+          if (this.useLocalSearchBar && !this.isSearchResultScene) {
+            this.onMenu();
+          } else {
+            this.onBack();
+          }
         })
 
         TextInput({ text: this.keyword, placeholder: uiText('Search galleries') })
@@ -2253,7 +2276,7 @@ export struct GalleryListContent {
   }
 
   private shouldShowSearchSuggestions(): boolean {
-    return this.isSearchResultScene && !this.searchSubmitted;
+    return (this.isSearchResultScene || this.useLocalSearchBar) && !this.searchSubmitted;
   }
 
   private refreshSearchSuggestions(namespaces: string[] = this.selectedTagNamespaces): void {
@@ -2335,12 +2358,6 @@ export struct GalleryListContent {
       Column() {
         Refresh({ refreshing: $$this.refreshing }) {
           List({ space: 0, scroller: this.listScroller }) {
-            ListItem() {
-              Column()
-                .height(this.galleryCardGap())
-                .width('100%')
-                .backgroundColor(Color.Transparent)
-            }
             if (this.shouldShowSearchSuggestions()) {
               ListItem() {
                 this.searchSuggestionPlaceholder()
@@ -2685,7 +2702,7 @@ export struct GalleryListContent {
 
       // 浮动导航栏
       Column() {
-        if (this.isSearchResultScene) {
+        if (this.isSearchResultScene || this.useLocalSearchBar) {
           this.searchResultNavBar()
         } else {
           EhNavBar({

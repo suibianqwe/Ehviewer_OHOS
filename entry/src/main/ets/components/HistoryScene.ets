@@ -2,6 +2,7 @@ import { GalleryCategory, GalleryInfo, GalleryRoute } from '../model/GalleryMode
 import { GalleryListLoadResult } from '../services/EhHttpClient';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
 import { ehHistoryStore } from '../services/EhHistoryStore';
+import { galleryMatchesLocalSearch, LocalGallerySearchOptions } from '../services/LocalGallerySearch';
 import { cloneGalleryInfos, getAbilityContext } from '../shared/EhShared';
 import { GalleryListScene } from './GalleryScenes';
 
@@ -13,14 +14,14 @@ export struct HistoryScene {
   };
 
   private async loadHistoryPage(keyword: string, pageIndex: number,
-    pageSize: number): Promise<GalleryListLoadResult> {
+    pageSize: number, options: LocalGallerySearchOptions): Promise<GalleryListLoadResult> {
     const context = getAbilityContext();
     if (context !== undefined) {
       await ehHistoryStore.load(context);
     }
 
     const allItems = cloneGalleryInfos(ehHistoryStore.getItems());
-    const filtered = this.filterHistoryItems(allItems, keyword);
+    const filtered = this.filterHistoryItems(allItems, keyword, options);
     const safePageSize = Math.max(1, pageSize);
     const safePageIndex = Math.max(0, pageIndex);
     const start = safePageIndex * safePageSize;
@@ -50,49 +51,14 @@ export struct HistoryScene {
       'ehviewer://history?page=' + pageIndex.toString();
   }
 
-  private filterHistoryItems(items: GalleryInfo[], keyword: string): GalleryInfo[] {
-    const query = keyword.trim().toLowerCase();
-    if (query.length === 0) {
-      return items;
-    }
-
+  private filterHistoryItems(items: GalleryInfo[], keyword: string, options: LocalGallerySearchOptions): GalleryInfo[] {
     const filtered: GalleryInfo[] = [];
     for (let i = 0; i < items.length; i++) {
-      if (this.matchesHistoryKeyword(items[i], query)) {
+      if (galleryMatchesLocalSearch(items[i], keyword, options)) {
         filtered.push(items[i]);
       }
     }
     return filtered;
-  }
-
-  private matchesHistoryKeyword(item: GalleryInfo, query: string): boolean {
-    if (this.matchesText(item.title, query) || this.matchesText(item.titleJpn, query) ||
-      this.matchesText(item.uploader, query) || this.matchesText(item.simpleLanguage, query)) {
-      return true;
-    }
-    if (this.matchesStringArray(item.simpleTags, query) || this.matchesStringArray(item.tagList, query)) {
-      return true;
-    }
-    return item.gid.toString() === query;
-  }
-
-  private matchesStringArray(values: string[] | undefined, query: string): boolean {
-    if (values === undefined) {
-      return false;
-    }
-    for (let i = 0; i < values.length; i++) {
-      if (this.matchesText(values[i], query)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private matchesText(value: string | undefined, query: string): boolean {
-    if (value === undefined) {
-      return false;
-    }
-    return value.toLowerCase().indexOf(query) >= 0;
   }
 
   build() {
@@ -114,8 +80,9 @@ export struct HistoryScene {
       forcedMode: ListMode.Normal,
       useLocalProvider: true,
       localPageSize: HISTORY_PAGE_SIZE,
-      localProvider: (keyword: string, pageIndex: number, pageSize: number): Promise<GalleryListLoadResult> => {
-        return this.loadHistoryPage(keyword, pageIndex, pageSize);
+      localProvider: (keyword: string, pageIndex: number, pageSize: number,
+        options: LocalGallerySearchOptions): Promise<GalleryListLoadResult> => {
+        return this.loadHistoryPage(keyword, pageIndex, pageSize, options);
       },
       onMenu: () => {
         this.onMenu();

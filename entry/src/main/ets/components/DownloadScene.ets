@@ -7,6 +7,7 @@ import { EhHttpClient } from '../services/EhHttpClient';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { DEFAULT_ADVANCE_SEARCH, EhUrl, ListMode } from '../services/EhUrl';
+import { galleryMatchesLocalSearch, LocalGallerySearchOptions } from '../services/LocalGallerySearch';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { mergeGalleryPreviewSets } from '../services/GalleryPreviewLoader';
 import { ImageDownloadProgress, readerImageCache } from '../services/ReaderImageCache';
@@ -41,8 +42,6 @@ import {
   galleryListMode,
   galleryThumbWidth,
   getAbilityContext,
-  nextDownloadCategoryFilter,
-  nextDownloadSortMode,
   nextDownloadStatusFilter,
   readerPageReferer,
   readerPreloadCount,
@@ -68,6 +67,15 @@ import { ArrayDataSource } from '../shared/ListDataSource';
 import { FloatingToolbarHost } from './NavigationComponents';
 import { ActionBubble, GalleryListRow, GalleryListScene, GalleryThumbCard, ReaderPageState, ReaderScene } from './GalleryScenes';
 import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
+import {
+  applyTagSuggestionToKeyword,
+  buildSearchSuggestions,
+  recordSearchHistory,
+  SearchAdvancedPanel,
+  SearchSuggestionItem,
+  SearchSuggestionList,
+  SearchSummaryStrip
+} from './GallerySearchScenes';
 
 function normalizeSceneScrollOffset(offset: number): number {
   if (offset <= 1 || Number.isNaN(offset)) {
@@ -128,6 +136,16 @@ export struct DownloadScene {
 
   @State items: DownloadInfo[] = [];
   @State query: string = '';
+  @State searchMode: ListMode = ListMode.Normal;
+  @State searchCategory: number = GalleryCategory.None;
+  @State advancedSearchEnabled: boolean = false;
+  @State advanceSearch: number = DEFAULT_ADVANCE_SEARCH;
+  @State minRating: number = -1;
+  @State searchSubmitted: boolean = true;
+  @State advancedPanelVisible: boolean = false;
+  @State searchSuggestionItems: SearchSuggestionItem[] = [];
+  @State searchSuggestionRevision: number = 0;
+  @State selectedTagNamespaces: string[] = [];
   @State statusFilter: string = 'All';
   @State sortMode: string = 'Default';
   @State categoryFilter: string = 'All';
@@ -181,6 +199,7 @@ export struct DownloadScene {
     this.unsubscribeDownloadManager = ehDownloadManager.subscribe((status: string) => {
       this.statusText = status;
     });
+    this.refreshSearchSuggestions();
     this.loadDownloads();
     setTimeout(() => {
       this.syncDownloadContentWidthFromWindow();
@@ -316,7 +335,73 @@ export struct DownloadScene {
   }
 
   private visibleDownloadItems(): DownloadInfo[] {
-    return filterDownloadItems(this.items, this.query, this.statusFilter, 'All', this.sortMode, this.categoryFilter);
+    const visible = filterDownloadItems(this.items, '', this.statusFilter, 'All', this.sortMode, this.categoryFilter);
+    const filtered: DownloadInfo[] = [];
+    const options = this.downloadSearchOptions();
+    for (let i = 0; i < visible.length; i++) {
+      if (galleryMatchesLocalSearch(visible[i], this.query, options)) {
+        filtered.push(visible[i]);
+      }
+    }
+    return filtered;
+  }
+
+  private downloadSearchOptions(): LocalGallerySearchOptions {
+    return {
+      mode: this.searchMode,
+      category: this.searchCategory,
+      advancedEnabled: this.advancedSearchEnabled,
+      advancedPanelOpened: this.advancedPanelVisible || this.advancedSearchEnabled || this.searchCategory !== GalleryCategory.None ||
+        this.minRating > 0,
+      advanceSearch: this.advanceSearch,
+      minRating: this.minRating
+    };
+  }
+
+  private applyDownloadSearch(): void {
+    this.searchSubmitted = true;
+    recordSearchHistory(this.query);
+    this.downloadJumpPageIndex = 0;
+    this.downloadScrollOffset = 0;
+    this.refreshDownloadRows();
+  }
+
+  private updateDownloadKeyword(value: string): void {
+    this.query = value;
+    this.searchSubmitted = false;
+    this.downloadJumpPageIndex = 0;
+    this.refreshSearchSuggestions();
+    this.refreshDownloadRows();
+  }
+
+  private refreshSearchSuggestions(namespaces: string[] = this.selectedTagNamespaces): void {
+    this.searchSuggestionItems = buildSearchSuggestions(this.query, 0, namespaces);
+    this.searchSuggestionRevision++;
+  }
+
+  private selectedTagNamespaceKey(): string {
+    return this.selectedTagNamespaces.slice().sort().join('|');
+  }
+
+  private toggleTagNamespace(namespace: string): void {
+    const next = this.selectedTagNamespaces.slice();
+    const index = next.indexOf(namespace);
+    if (index >= 0) {
+      next.splice(index, 1);
+    } else {
+      next.push(namespace);
+    }
+    this.selectedTagNamespaces = next;
+    this.refreshSearchSuggestions(next);
+  }
+
+  private applySearchSuggestion(suggestion: SearchSuggestionItem): void {
+    if (suggestion.kind === 'tag') {
+      this.updateDownloadKeyword(applyTagSuggestionToKeyword(this.query, suggestion.query));
+      this.searchMode = ListMode.Tag;
+      return;
+    }
+    this.updateDownloadKeyword(suggestion.query);
   }
 
   private downloadJumpTotalPages(): number {
@@ -1617,6 +1702,50 @@ export struct DownloadScene {
     return false;
   }
 
+  @Builder
+  private downloadSearchSuggestionPlaceholder() {
+    Column({ space: 4 }) {
+      SearchSummaryStrip({
+        selectedTagNamespaces: this.selectedTagNamespaces,
+        selectedTagNamespaceKey: this.selectedTagNamespaceKey(),
+        revision: this.searchSuggestionRevision,
+        onToggleTagNamespace: (namespace: string) => {
+          this.toggleTagNamespace(namespace);
+        }
+      })
+      if (this.searchSuggestionItems.length > 0) {
+        SearchSuggestionList({
+          suggestions: this.searchSuggestionItems,
+          revision: this.searchSuggestionRevision,
+          onSelect: (suggestion: SearchSuggestionItem) => {
+            this.applySearchSuggestion(suggestion);
+          }
+        })
+          .height(Math.max(240, this.downloadListViewportHeight() - 58))
+      } else {
+        Column({ space: 8 }) {
+          SymbolGlyph($r('sys.symbol.clock'))
+            .fontSize(28)
+            .fontColor([themeTertiaryText()])
+          Text(uiText('Search history'))
+            .fontSize(15)
+            .fontColor(themeSecondaryText())
+          Text(uiText('Search history appears before typing; tag tips appear while typing'))
+            .fontSize(12)
+            .fontColor(themeTertiaryText())
+        }
+        .width('100%')
+        .height(180)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
+        .backgroundColor(themeSurface())
+        .borderRadius(6)
+      }
+    }
+    .width('100%')
+    .padding({ left: 8, right: 8, top: 4 })
+  }
+
   private addStoppedGid(gid: number): void {
     if (!this.isStopped(gid)) {
       this.stoppedGids.push(gid);
@@ -1735,17 +1864,30 @@ export struct DownloadScene {
         showRefreshButton: false,
         toolbarOffsetY: this.toolbarOffsetY,
         toolbarHeight: 56,
-        onMenu: this.onMenu,
+            onMenu: this.onMenu,
             onKeywordChange: (value: string) => {
-              this.query = value;
-              this.downloadJumpPageIndex = 0;
-              this.refreshDownloadRows();
+              this.updateDownloadKeyword(value);
             },
-            onSearch: () => {}
+            onSearch: () => {
+              this.applyDownloadSearch();
+            }
       }) {
       Stack({ alignContent: Alignment.BottomEnd }) {
         Column() {
-          if (this.visibleDownloadItems().length === 0) {
+          if (!this.searchSubmitted) {
+            List({ space: 0 }) {
+              ListItem() {
+                this.downloadSearchSuggestionPlaceholder()
+              }
+            }
+            .width('100%')
+            .height(this.downloadListViewportHeight())
+            .padding({
+              left: this.downloadContentPadding(),
+              right: this.downloadContentPadding()
+            })
+            .translate({ y: this.downloadContentStartOffset() })
+          } else if (this.visibleDownloadItems().length === 0) {
             Column() {
               Text(uiText('Downloads'))
                 .fontSize(22)
@@ -1865,6 +2007,81 @@ export struct DownloadScene {
           }
         })
 
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r('sys.symbol.plus'))
+            .fontSize(22)
+            .fontColor([themeOnPrimaryText()])
+        }
+        .width(40)
+        .height(40)
+        .backgroundColor(this.advancedPanelVisible || this.advancedSearchEnabled ||
+          this.searchCategory !== GalleryCategory.None || this.minRating > 0 ? themePrimaryColor() : themeSurface())
+        .position({
+          x: this.downloadContentWidth > 0 ? Math.max(12, this.downloadContentWidth - 56) : 300,
+          y: this.statusBarVp() + 8
+        })
+        .zIndex(14)
+        .onClick(() => {
+          this.advancedPanelVisible = !this.advancedPanelVisible;
+        })
+
+        if (this.advancedPanelVisible) {
+          Column()
+            .width('100%')
+            .height('100%')
+            .backgroundColor(themeScrimColor())
+            .onClick(() => {
+              this.advancedPanelVisible = false;
+            })
+            .zIndex(15)
+
+          SearchAdvancedPanel({
+            searchModeValue: this.searchMode,
+            searchCategory: this.searchCategory,
+            advancedSearchEnabled: this.advancedSearchEnabled,
+            advanceSearch: this.advanceSearch,
+            searchFilterEnabled: true,
+            minRating: this.minRating,
+            pageFrom: -1,
+            pageTo: -1,
+            onSearchModeChange: (mode: ListMode) => {
+              this.searchMode = mode;
+              this.searchSubmitted = false;
+              this.refreshDownloadRows();
+            },
+            onSearchCategoryChange: (category: number) => {
+              this.searchCategory = category;
+              this.searchSubmitted = false;
+              this.refreshDownloadRows();
+            },
+            onAdvancedEnabledChange: (enabled: boolean) => {
+              this.advancedSearchEnabled = enabled;
+              this.searchSubmitted = false;
+              this.refreshDownloadRows();
+            },
+            onAdvanceSearchChange: (flags: number) => {
+              this.advanceSearch = flags;
+              this.searchSubmitted = false;
+            },
+            onMinRatingChange: (rating: number) => {
+              this.minRating = rating;
+              this.searchSubmitted = false;
+              this.refreshDownloadRows();
+            },
+            onClose: () => {
+              this.advancedPanelVisible = false;
+            },
+            onSearch: () => {
+              this.advancedPanelVisible = false;
+              this.applyDownloadSearch();
+            }
+          })
+            .margin({ top: this.statusBarVp() + 64, left: 10, right: 10 })
+            .transition(TransitionEffect.move(TransitionEdge.TOP)
+              .animation({ duration: 180, curve: Curve.EaseOut }))
+            .zIndex(16)
+        }
+
         Column() {
           DownloadToolColumn({
             expanded: this.downloadActionsExpanded,
@@ -1879,16 +2096,6 @@ export struct DownloadScene {
               this.downloadJumpPageIndex = 0;
               this.refreshDownloadRows();
             },
-            onCategory: () => {
-              this.categoryFilter = nextDownloadCategoryFilter(this.categoryFilter);
-              this.downloadJumpPageIndex = 0;
-              this.refreshDownloadRows();
-            },
-            onSort: () => {
-              this.sortMode = nextDownloadSortMode(this.sortMode);
-              this.downloadJumpPageIndex = 0;
-              this.refreshDownloadRows();
-            },
             onJump: () => {
               this.openDownloadJumpPanel();
             },
@@ -1900,9 +2107,6 @@ export struct DownloadScene {
             },
             onRestore: () => {
               this.restoreDownloadedItems();
-            },
-            onClearDone: () => {
-              this.clearFinished();
             },
             onDelete: () => {
               this.deleteSelectedDownloads();
@@ -2015,13 +2219,10 @@ struct DownloadToolColumn {
   @State activeActionIndex: number = -1;
   onToggle: () => void = () => {};
   onStatus: () => void = () => {};
-  onCategory: () => void = () => {};
-  onSort: () => void = () => {};
   onJump: () => void = () => {};
   onStart: () => void = () => {};
   onStop: () => void = () => {};
   onRestore: () => void = () => {};
-  onClearDone: () => void = () => {};
   onDelete: () => void = () => {};
   onExportZip: () => void = () => {};
 
@@ -2035,7 +2236,7 @@ struct DownloadToolColumn {
     if (!this.expanded) {
       return 0;
     }
-    return this.hasSelection ? 10 : 8;
+    return this.hasSelection ? 7 : 5;
   }
 
   private primaryIndex(): number {
@@ -2105,19 +2306,13 @@ struct DownloadToolColumn {
     } else if (baseIndex === 0) {
       this.onStatus();
     } else if (baseIndex === 1) {
-      this.onCategory();
-    } else if (baseIndex === 2) {
-      this.onSort();
-    } else if (baseIndex === 3 && this.canJump) {
       this.onJump();
-    } else if (baseIndex === 4) {
+    } else if (baseIndex === 2) {
       this.onStart();
-    } else if (baseIndex === 5 && this.canOperate) {
+    } else if (baseIndex === 3 && this.canOperate) {
       this.onStop();
-    } else if (baseIndex === 6) {
+    } else if (baseIndex === 4) {
       this.onRestore();
-    } else if (baseIndex === 7 && this.canOperate) {
-      this.onClearDone();
     }
   }
 
@@ -2165,52 +2360,31 @@ struct DownloadToolColumn {
             directTap: false
           })
           ActionBubble({
-            label: uiText('Label'),
-            symbolIcon: $r('sys.symbol.list_number'),
-            isEnabled: true,
-            active: this.activeActionIndex === this.baseActionIndex(1),
-            directTap: false
-          })
-          ActionBubble({
-            label: uiText('Sort'),
-            symbolIcon: $r('sys.symbol.chevron_forward'),
-            isEnabled: true,
-            active: this.activeActionIndex === this.baseActionIndex(2),
-            directTap: false
-          })
-          ActionBubble({
             label: uiText('Jump'),
-            symbolIcon: $r('sys.symbol.list_number'),
+            symbolIcon: $r('sys.symbol.chevron_forward'),
             isEnabled: this.canJump,
-            active: this.activeActionIndex === this.baseActionIndex(3),
+            active: this.activeActionIndex === this.baseActionIndex(1),
             directTap: false
           })
           ActionBubble({
             label: uiText('Start all'),
             symbolIcon: $r('sys.symbol.play_fill'),
             isEnabled: true,
-            active: this.activeActionIndex === this.baseActionIndex(4),
+            active: this.activeActionIndex === this.baseActionIndex(2),
             directTap: false
           })
           ActionBubble({
             label: uiText('Stop all'),
             symbolIcon: $r('sys.symbol.pause_fill'),
             isEnabled: this.canOperate,
-            active: this.activeActionIndex === this.baseActionIndex(5),
+            active: this.activeActionIndex === this.baseActionIndex(3),
             directTap: false
           })
           ActionBubble({
             label: uiText('Scan'),
             symbolIcon: $r('sys.symbol.play_arrow_triangle_2_circlepath'),
             isEnabled: true,
-            active: this.activeActionIndex === this.baseActionIndex(6),
-            directTap: false
-          })
-          ActionBubble({
-            label: uiText('Clear done'),
-            symbolIcon: $r('sys.symbol.checkmark_circle'),
-            isEnabled: this.canOperate,
-            active: this.activeActionIndex === this.baseActionIndex(7),
+            active: this.activeActionIndex === this.baseActionIndex(4),
             directTap: false
           })
         }
