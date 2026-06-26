@@ -56,7 +56,7 @@ export function createEhRequestPlan(url: string): EhRequestPlan {
     url: replaceUrlHost(url, eFrontingIp),
     host: hostHeader,
     fronted: true,
-    sniHost: host
+    sniHost: ''
   };
 }
 
