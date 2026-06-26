@@ -217,7 +217,13 @@ export struct ReaderSessionScene {
         this.renderVersion++;
         this.persistSession();
       }
-    }, this.detail, index);
+    }, this.detail, index, this.readerContext(), (message: string) => {
+      if (this.pageIndex === index) {
+        this.statusText = 'Page load failed: ' + message;
+        this.renderVersion++;
+        this.persistSession();
+      }
+    });
   }
 
   private tryUseDownloadedPage(index: number, preview: GalleryPreview): boolean {

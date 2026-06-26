@@ -222,7 +222,7 @@ export class EhDownloadFileStore {
   }
 
   findPageImage(context: common.UIAbilityContext, gallery: GalleryInfo, index: number): string {
-    const directory = this.galleryDirectory(context, gallery);
+    const directory = this.downloadedGalleryDirectory(context, gallery);
     for (let i = 0; i < SUPPORTED_IMAGE_EXTENSIONS.length; i++) {
       const path = directory + '/' + pageFileName(index, SUPPORTED_IMAGE_EXTENSIONS[i]);
       if (exists(path)) {
@@ -241,7 +241,7 @@ export class EhDownloadFileStore {
   }
 
   listPageImages(context: common.UIAbilityContext, gallery: GalleryInfo): string[] {
-    const directory = this.galleryDirectory(context, gallery);
+    const directory = this.downloadedGalleryDirectory(context, gallery);
     const images: string[] = [];
     try {
       const names = fs.listFileSync(directory);
@@ -266,7 +266,7 @@ export class EhDownloadFileStore {
   }
 
   directorySize(context: common.UIAbilityContext, gallery: GalleryInfo): number {
-    const directory = this.galleryDirectory(context, gallery);
+    const directory = this.downloadedGalleryDirectory(context, gallery);
     return this.directorySizeByPath(directory);
   }
 
@@ -295,7 +295,7 @@ export class EhDownloadFileStore {
   }
 
   removeGalleryDirectory(context: common.UIAbilityContext, gallery: GalleryInfo): DownloadDirectoryScanResult {
-    return removeDirectoryTree(this.galleryDirectory(context, gallery));
+    return removeDirectoryTree(this.downloadedGalleryDirectory(context, gallery));
   }
 
   cleanRedundantDirectories(context: common.UIAbilityContext, keepGids: number[]): DownloadDirectoryScanResult {

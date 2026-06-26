@@ -1,5 +1,6 @@
 ﻿import { common } from '@kit.AbilityKit';
 import { i18n } from '@kit.LocalizationKit';
+import { fileIo as fs } from '@kit.CoreFileKit';
 import { GalleryCategory, GalleryComment, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite, GalleryTagGroup, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
 import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
@@ -2233,10 +2234,12 @@ export function readerPageReferer(detailUrl: string, previews: GalleryPreview[],
 }
 
 export function readerDisplayImageUrl(page: GalleryPage, preferOriginal: boolean): string {
-  if (preferOriginal && page.cachedOriginImagePath !== undefined && page.cachedOriginImagePath.length > 0) {
+  if (preferOriginal && page.cachedOriginImagePath !== undefined && page.cachedOriginImagePath.length > 0 &&
+    localImagePathExists(page.cachedOriginImagePath)) {
     return readerLocalImageSource(page.cachedOriginImagePath);
   }
-  if (!preferOriginal && page.cachedImagePath !== undefined && page.cachedImagePath.length > 0) {
+  if (!preferOriginal && page.cachedImagePath !== undefined && page.cachedImagePath.length > 0 &&
+    localImagePathExists(page.cachedImagePath)) {
     return readerLocalImageSource(page.cachedImagePath);
   }
   if (preferOriginal && page.originImageUrl.length > 0) {
@@ -2246,9 +2249,12 @@ export function readerDisplayImageUrl(page: GalleryPage, preferOriginal: boolean
 }
 
 export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: GalleryPage) => void,
-  gallery?: GalleryInfo, index?: number): void {
-  const context = getAbilityContext();
+  gallery?: GalleryInfo, index?: number, abilityContext?: common.UIAbilityContext, onError?: (message: string) => void): void {
+  const context = abilityContext !== undefined ? abilityContext : getAbilityContext();
   if (context === undefined) {
+    if (onError !== undefined) {
+      onError('Ability context is not ready');
+    }
     return;
   }
 
@@ -2261,6 +2267,9 @@ export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: Galle
   }
 
   if (page.imageUrl.length === 0) {
+    if (onError !== undefined) {
+      onError('Image URL missing');
+    }
     return;
   }
 
@@ -2273,8 +2282,14 @@ export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: Galle
   readerImageCache.ensureCached(context, page.imageUrl, page.pageUrl, true).then((path: string) => {
     if (path.length > 0) {
       onReady(cloneGalleryPageWithCache(page, path));
+    } else if (onError !== undefined) {
+      onError('Image cache path is empty');
     }
-  }).catch(() => {});
+  }).catch((error: Error) => {
+    if (onError !== undefined) {
+      onError(error.message);
+    }
+  });
 }
 
 export function cacheThumbnailImage(url: string, onReady: (path: string) => void, onError?: () => void): void {
@@ -2348,6 +2363,15 @@ function cloneGalleryPageWithCache(page: GalleryPage, cachedPath: string): Galle
 
 export function readerLocalImageSource(path: string): string {
   return path.startsWith('file://') ? path : 'file://' + path;
+}
+
+function localImagePathExists(path: string): boolean {
+  const localPath = path.startsWith('file://') ? path.substring('file://'.length) : path;
+  try {
+    return fs.accessSync(localPath);
+  } catch (error) {
+    return false;
+  }
 }
 
 export function readerZoomSize(zoomPercent: number): string {
