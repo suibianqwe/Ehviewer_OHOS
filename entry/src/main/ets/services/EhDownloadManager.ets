@@ -1,7 +1,7 @@
 import { common, wantAgent, WantAgent } from '@kit.AbilityKit';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { notificationManager } from '@kit.NotificationKit';
-import { ImageDownloadProgress, readerImageCache } from './ReaderImageCache';
+import { readerImageCache } from './ReaderImageCache';
 import { ehDownloadFileStore } from './EhDownloadFileStore';
 import { DownloadInfo, DownloadState, ehDownloadStore } from './EhDownloadStore';
 import { EhHttpClient } from './EhHttpClient';
@@ -19,7 +19,6 @@ import { mergeGalleryPreviewSets } from './GalleryPreviewLoader';
 import { ehAppLog } from './EhAppLog';
 
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
-const DOWNLOAD_PROGRESS_UPDATE_INTERVAL_MS: number = 250;
 const DOWNLOAD_PAGE_RETRY_LIMIT: number = 3;
 const DOWNLOAD_NOTIFICATION_ID: number = 8001;
 const DOWNLOAD_NOTIFICATION_TEMPLATE: string = 'downloadTemplate';
@@ -310,38 +309,21 @@ export class EhDownloadManager {
       throw new Error('Image URL missing');
     }
 
-    let progressBytes = 0;
-    let progressTime = Date.now();
-    let progressUiTime = 0;
     const existingCachedPath = readerImageCache.getCachedPath(context, imageUrl);
+    const startedAt = Date.now();
     const cachedPath = existingCachedPath.length > 0 ? existingCachedPath :
-      await readerImageCache.ensureCached(context, imageUrl, pageResult.page.pageUrl, false,
-        (progress: ImageDownloadProgress) => {
-          const now = Date.now();
-          const receivedBytes = Math.max(0, progress.receivedBytes);
-          const totalBytes = Math.max(0, progress.totalBytes);
-          const isCompleteProgress = totalBytes > 0 && receivedBytes >= totalBytes;
-          if (now - progressUiTime < DOWNLOAD_PROGRESS_UPDATE_INTERVAL_MS && !isCompleteProgress) {
-            return;
-          }
-          const deltaBytes = Math.max(0, receivedBytes - progressBytes);
-          const deltaMs = Math.max(1, now - progressTime);
-          const speed = Math.round(deltaBytes * 1000 / deltaMs);
-          progressBytes = receivedBytes;
-          progressTime = now;
-          progressUiTime = now;
-
-          const pageUnits = totalBytes > 0 ?
-            Math.min(DOWNLOAD_PAGE_PROGRESS_SCALE - 1,
-              Math.floor(receivedBytes * DOWNLOAD_PAGE_PROGRESS_SCALE / totalBytes)) : 0;
-          const currentProgress = state.finished * DOWNLOAD_PAGE_PROGRESS_SCALE + pageUnits;
-          const averageBytes = state.finished > 0 ? Math.max(1, Math.round(state.fileSize / state.finished)) :
-            Math.max(1, totalBytes);
-          const currentRemainingBytes = totalBytes > receivedBytes ? totalBytes - receivedBytes : 0;
-          const remainingBytes = currentRemainingBytes + Math.max(0, total - state.finished - 1) * averageBytes;
-          ehDownloadStore.setProgress(item.gid, state.finished, total, currentProgress);
-          ehDownloadStore.setTransfer(item.gid, speed, speed > 0 ? Math.round(remainingBytes / speed) : 0);
-        });
+      await readerImageCache.ensureCached(context, imageUrl, pageResult.page.pageUrl, true);
+    const downloadedBytes = readerImageCache.cachedSize(context, imageUrl);
+    const elapsedMs = Math.max(1, Date.now() - startedAt);
+    if (downloadedBytes > 0) {
+      const speed = Math.round(downloadedBytes * 1000 / elapsedMs);
+      const currentProgress = state.finished * DOWNLOAD_PAGE_PROGRESS_SCALE + DOWNLOAD_PAGE_PROGRESS_SCALE - 1;
+      const averageBytes = state.finished > 0 ? Math.max(1, Math.round(state.fileSize / state.finished)) :
+        Math.max(1, downloadedBytes);
+      const remainingBytes = Math.max(0, total - state.finished - 1) * averageBytes;
+      ehDownloadStore.setProgress(item.gid, state.finished, total, currentProgress);
+      ehDownloadStore.setTransfer(item.gid, speed, speed > 0 ? Math.round(remainingBytes / speed) : 0);
+    }
     return {
       page: pageResult.page,
       cachedPath: cachedPath

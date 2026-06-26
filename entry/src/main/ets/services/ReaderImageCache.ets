@@ -80,6 +80,11 @@ export class ReaderImageCache {
     return exists(path) ? path : '';
   }
 
+  cachedSize(context: common.UIAbilityContext, imageUrl: string): number {
+    const path = this.getCachedPath(context, imageUrl);
+    return path.length > 0 ? statFileSize(path) : 0;
+  }
+
   removeCached(context: common.UIAbilityContext, imageUrl: string): string {
     if (imageUrl.length === 0) {
       return '';
