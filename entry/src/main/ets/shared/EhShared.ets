@@ -576,6 +576,7 @@ export function zhText(text: string): string {
     case 'Updating': return '更新中';
     case 'Invalid': return '无效';
     case 'Status': return '状态';
+    case 'Current status filter': return '当前状态筛选';
     case 'Sort': return '排序';
     case 'Selected': return '已选择';
     case 'Sign in': return '登录';

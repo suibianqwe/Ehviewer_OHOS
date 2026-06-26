@@ -2129,6 +2129,7 @@ export struct DownloadScene {
             hasSelection: this.downloadSelectionCount() > 0,
             canOperate: this.items.length > 0,
             canJump: this.downloadJumpTotalPages() > 1,
+            statusFilter: this.statusFilter,
             onToggle: () => {
               this.downloadActionsExpanded = !this.downloadActionsExpanded;
             },
@@ -2257,7 +2258,10 @@ struct DownloadToolColumn {
   @Prop hasSelection: boolean = false;
   @Prop canOperate: boolean = false;
   @Prop canJump: boolean = false;
+  @Prop statusFilter: string = 'All';
   @State activeActionIndex: number = -1;
+  @State statusHintVisible: boolean = false;
+  private statusHintTimer: number = -1;
   onToggle: () => void = () => {};
   onStatus: () => void = () => {};
   onJump: () => void = () => {};
@@ -2346,6 +2350,7 @@ struct DownloadToolColumn {
       this.onDelete();
     } else if (baseIndex === 0) {
       this.onStatus();
+      this.showStatusHint();
     } else if (baseIndex === 1) {
       this.onJump();
     } else if (baseIndex === 2) {
@@ -2355,6 +2360,23 @@ struct DownloadToolColumn {
     } else if (baseIndex === 4) {
       this.onRestore();
     }
+  }
+
+  private showStatusHint(): void {
+    this.statusHintVisible = true;
+    if (this.statusHintTimer >= 0) {
+      clearTimeout(this.statusHintTimer);
+    }
+    this.statusHintTimer = setTimeout(() => {
+      this.getUIContext().animateTo({ duration: 160, curve: Curve.EaseOut }, () => {
+        this.statusHintVisible = false;
+      });
+      this.statusHintTimer = -1;
+    }, 1500);
+  }
+
+  private statusHintText(): string {
+    return uiText('Current status filter') + ': ' + uiText(this.statusFilter);
   }
 
   private handleToolbarTouch(event: TouchEvent): void {
@@ -2395,7 +2417,7 @@ struct DownloadToolColumn {
           }
           ActionBubble({
             label: uiText('Status'),
-            symbolIcon: $r('sys.symbol.magnifyingglass'),
+            symbolIcon: $r('sys.symbol.funnel'),
             isEnabled: true,
             active: this.activeActionIndex === this.baseActionIndex(0),
             directTap: false
@@ -2434,6 +2456,22 @@ struct DownloadToolColumn {
         .transition(TransitionEffect.OPACITY
           .combine(TransitionEffect.translate({ y: 12 }))
           .animation({ duration: 180, curve: Curve.EaseOut }))
+      }
+
+      if (this.statusHintVisible) {
+        Text(this.statusHintText())
+          .fontSize(12)
+          .fontColor(themePrimaryText())
+          .textAlign(TextAlign.End)
+          .backgroundColor(themeSurface())
+          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+          .borderRadius(14)
+          .shadow({ radius: 8, color: themeShadowColor(), offsetX: 0, offsetY: 2 })
+          .maxLines(1)
+          .margin({ bottom: 8 })
+          .transition(TransitionEffect.OPACITY
+            .combine(TransitionEffect.translate({ x: 8 }))
+            .animation({ duration: 140, curve: Curve.EaseOut }))
       }
 
       ActionBubble({
