@@ -510,7 +510,7 @@ function trimLogUrl(url: string): string {
 }
 
 function imageNetworkErrorMessage(error: Object): string {
-  let message = String(error);
+  let message = readableImageErrorMessage(error);
   if (message.indexOf('Error: ') === 0) {
     message = message.substring(7);
   }
@@ -525,6 +525,29 @@ function imageNetworkErrorMessage(error: Object): string {
     return 'Image DNS lookup failed';
   }
   return message.length > 0 ? message : 'Image download failed';
+}
+
+function readableImageErrorMessage(error: Object): string {
+  if (error instanceof Error && error.message.length > 0) {
+    return error.message;
+  }
+  const record = error as Record<string, Object>;
+  const message = record['message'];
+  const code = record['code'];
+  if (typeof message === 'string' && message.length > 0) {
+    if (typeof code === 'number' || typeof code === 'string') {
+      return 'code ' + String(code) + ': ' + message;
+    }
+    return message;
+  }
+  try {
+    const json = JSON.stringify(error);
+    if (json.length > 0 && json !== '{}') {
+      return json;
+    }
+  } catch (jsonError) {
+  }
+  return String(error);
 }
 
 function removeFileQuietly(path: string): void {

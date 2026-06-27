@@ -303,7 +303,7 @@ export class EhDownloadManager {
         throw new Error('Download stopped');
       }
       try {
-        return await this.downloadPageOnce(context, item, detail, detailUrl, pageIndex, total, state);
+        return await this.downloadPageOnce(context, item, detail, detailUrl, pageIndex, total, state, attempt > 0);
       } catch (error) {
         lastError = String(error);
         ehAppLog.warn(context, 'DownloadManager', 'Page attempt failed gid=' + item.gid.toString() +
@@ -322,9 +322,13 @@ export class EhDownloadManager {
   }
 
   private async downloadPageOnce(context: common.UIAbilityContext, item: DownloadInfo, detail: GalleryDetail,
-    detailUrl: string, pageIndex: number, total: number, state: DownloadWorkerState): Promise<DownloadedPageResult> {
+    detailUrl: string, pageIndex: number, total: number, state: DownloadWorkerState,
+    forceReloadPage: boolean = false): Promise<DownloadedPageResult> {
     const preview = detail.previewSet[pageIndex];
-    let page = galleryPageCache.get(preview.pageUrl);
+    if (forceReloadPage) {
+      galleryPageCache.remove(preview.pageUrl);
+    }
+    let page = forceReloadPage ? null : galleryPageCache.get(preview.pageUrl);
     if (page === null) {
       const pageResult = await this.client.loadGalleryPage(preview.pageUrl, currentGallerySite(),
         readerPageReferer(detailUrl, detail.previewSet, pageIndex, currentGallerySite()));
@@ -335,6 +339,8 @@ export class EhDownloadManager {
       const cacheUrl = page.pageUrl.length > 0 ? page.pageUrl : preview.pageUrl;
       galleryPageCache.put(cacheUrl, page);
       galleryPageCache.put(preview.pageUrl, page);
+      ehAppLog.info(context, 'DownloadManager', (forceReloadPage ? 'Reloaded' : 'Loaded') + ' page gid=' +
+        item.gid.toString() + ', page=' + (pageIndex + 1).toString() + '/' + total.toString());
     }
 
     const imageUrl = downloadImageUrlForPage(page);
