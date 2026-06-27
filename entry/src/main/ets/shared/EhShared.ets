@@ -1355,15 +1355,9 @@ export function readerStartIndex(detail: GalleryDetail): number {
   if (total <= 0) {
     return 0;
   }
-  const startPosition = ehSettingsStore.getValue('start_position', 'Beginning');
-  if (startPosition === 'End') {
-    return total - 1;
-  }
-  if (startPosition === 'Last read') {
-    const saved = ehHistoryStore.getReadPage(detail.gid);
-    if (saved >= 0 && saved < total) {
-      return saved;
-    }
+  const saved = ehHistoryStore.getReadPage(detail.gid);
+  if (saved >= 0 && saved < total) {
+    return saved;
   }
   return 0;
 }
