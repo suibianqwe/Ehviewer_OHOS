@@ -187,26 +187,25 @@ export class ReaderImageCache {
         readTimeout: timeout
       };
       applyEhNetworkOptions(options, plan);
-      const response = await requestWithImageDeadline(request, plan.url, options, imageRequestDeadlineMs(plan, attempt));
+      const statusCode = await streamImageToFile(request, plan.url, options, path,
+        imageRequestDeadlineMs(plan, attempt), onProgress);
 
-      const statusCode = Number(response.responseCode);
       if (statusCode < 200 || statusCode >= 300) {
         recordEhRequestOutcome(plan, false, Date.now() - startedAt);
         outcomeRecorded = true;
         throw new Error(imageStatusMessage(statusCode));
       }
 
-      const data = response.result as ArrayBuffer;
-      if (data.byteLength <= 0) {
+      const size = statFileSize(path);
+      if (size <= 0) {
         recordEhRequestOutcome(plan, false, Date.now() - startedAt);
         outcomeRecorded = true;
         throw new Error('Empty image response');
       }
-      writeArrayBuffer(path, data);
       recordEhRequestOutcome(plan, true, Date.now() - startedAt);
       outcomeRecorded = true;
       if (onProgress !== undefined) {
-        onProgress({ receivedBytes: data.byteLength, totalBytes: data.byteLength });
+        onProgress({ receivedBytes: size, totalBytes: size });
       }
     } catch (error) {
       if (plan !== null && !outcomeRecorded) {
@@ -263,35 +262,120 @@ function imageRequestDeadlineMs(plan: EhRequestPlan, attempt: number): number {
   return Math.min(timeout, 15000);
 }
 
-function requestWithImageDeadline(request: http.HttpRequest, url: string, options: http.HttpRequestOptions,
-  timeoutMs: number): Promise<http.HttpResponse> {
-  return new Promise<http.HttpResponse>((resolve: (value: http.HttpResponse) => void, reject: (reason: Error) => void) => {
+function streamImageToFile(request: http.HttpRequest, url: string, options: http.HttpRequestOptions, path: string,
+  timeoutMs: number, onProgress?: ImageDownloadProgressCallback): Promise<number> {
+  return new Promise<number>((resolve: (value: number) => void, reject: (reason: Error) => void) => {
     let finished = false;
+    let fd = -1;
+    let receivedBytes = 0;
+    let totalBytes = 0;
+    const tempPath = path + '.part';
+    removeFileQuietly(tempPath);
+    try {
+      const file = fs.openSync(tempPath, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
+      fd = file.fd;
+    } catch (error) {
+      reject(new Error(String(error)));
+      return;
+    }
+
+    const cleanup = (): void => {
+      try {
+        request.off('dataReceive');
+      } catch (error) {
+      }
+      try {
+        request.off('dataReceiveProgress');
+      } catch (error) {
+      }
+      try {
+        request.off('dataEnd');
+      } catch (error) {
+      }
+      if (fd >= 0) {
+        try {
+          fs.closeSync(fd);
+        } catch (error) {
+        }
+        fd = -1;
+      }
+    };
+
     const timer = setTimeout(() => {
       if (finished) {
         return;
       }
       finished = true;
+      cleanup();
       try {
         request.destroy();
       } catch (error) {
       }
+      removeFileQuietly(tempPath);
       reject(new Error('Image request timed out after ' + Math.floor(timeoutMs / 1000).toString() + 's'));
     }, timeoutMs);
 
-    request.request(url, options).then((response: http.HttpResponse) => {
+    request.on('dataReceive', (data: ArrayBuffer) => {
+      if (finished) {
+        return;
+      }
+      try {
+        fs.writeSync(fd, data);
+        receivedBytes += data.byteLength;
+        if (onProgress !== undefined) {
+          onProgress({ receivedBytes: receivedBytes, totalBytes: totalBytes });
+        }
+      } catch (error) {
+        finished = true;
+        clearTimeout(timer);
+        cleanup();
+        try {
+          request.destroy();
+        } catch (destroyError) {
+        }
+        removeFileQuietly(tempPath);
+        reject(new Error(String(error)));
+      }
+    });
+    request.on('dataReceiveProgress', (progress: http.DataReceiveProgressInfo) => {
+      if (finished) {
+        return;
+      }
+      totalBytes = Math.max(0, progress.totalSize);
+      receivedBytes = Math.max(receivedBytes, progress.receiveSize);
+      if (onProgress !== undefined) {
+        onProgress({ receivedBytes: receivedBytes, totalBytes: totalBytes });
+      }
+    });
+
+    request.requestInStream(url, options).then((statusCode: number) => {
       if (finished) {
         return;
       }
       finished = true;
       clearTimeout(timer);
-      resolve(response);
+      cleanup();
+      if (statusCode >= 200 && statusCode < 300 && receivedBytes > 0) {
+        try {
+          removeFileQuietly(path);
+          fs.moveFileSync(tempPath, path);
+        } catch (error) {
+          removeFileQuietly(tempPath);
+          reject(new Error(String(error)));
+          return;
+        }
+      } else {
+        removeFileQuietly(tempPath);
+      }
+      resolve(Number(statusCode));
     }).catch((error: Error) => {
       if (finished) {
         return;
       }
       finished = true;
       clearTimeout(timer);
+      cleanup();
+      removeFileQuietly(tempPath);
       reject(error);
     });
   });
@@ -356,25 +440,6 @@ function imageNetworkErrorMessage(error: Object): string {
     return 'Image DNS lookup failed';
   }
   return message.length > 0 ? message : 'Image download failed';
-}
-
-function writeArrayBuffer(path: string, data: ArrayBuffer): void {
-  let fd = -1;
-  try {
-    const file = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
-    fd = file.fd;
-    fs.writeSync(fd, data);
-  } catch (error) {
-    removeFileQuietly(path);
-    throw new Error(String(error));
-  } finally {
-    if (fd >= 0) {
-      try {
-        fs.closeSync(fd);
-      } catch (error) {
-      }
-    }
-  }
 }
 
 function removeFileQuietly(path: string): void {

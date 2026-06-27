@@ -30,6 +30,11 @@ interface DownloadWorkerState {
   fileSize: number;
   lastBytes: number;
   lastTime: number;
+  speedWindowBytes: number;
+  speedWindowStartedAt: number;
+  currentSpeed: number;
+  averagePageBytes: number;
+  speedTimer: number;
   failedMessage: string;
 }
 
@@ -193,15 +198,30 @@ export class EhDownloadManager {
         fileSize: fileSize,
         lastBytes: fileSize,
         lastTime: Date.now(),
+        speedWindowBytes: 0,
+        speedWindowStartedAt: Date.now(),
+        currentSpeed: 0,
+        averagePageBytes: finished > 0 ? Math.max(1, Math.round(fileSize / finished)) : 0,
+        speedTimer: -1,
         failedMessage: ''
       };
       const workerCount = Math.max(1, Math.min(downloadThreadLimitSafe(), Math.max(1, pageIndexes.length)));
       const tasks: Promise<void>[] = [];
+      workerState.speedTimer = setInterval(() => {
+        this.recordDownloadSpeed(item, workerState, total, 0, true);
+      }, 1000);
       for (let i = 0; i < workerCount; i++) {
         tasks.push(this.downloadPageWorker(context, item, detail, detailResult.url, pageIndexes, total,
           downloadDirectory, workerState));
       }
-      await Promise.all(tasks);
+      try {
+        await Promise.all(tasks);
+      } finally {
+        if (workerState.speedTimer >= 0) {
+          clearInterval(workerState.speedTimer);
+          workerState.speedTimer = -1;
+        }
+      }
 
       if (this.shouldStop || this.isStopped(item.gid)) {
         ehDownloadStore.setState(item.gid, DownloadState.None);
@@ -252,18 +272,15 @@ export class EhDownloadManager {
           downloaded.cachedPath);
         state.fileSize += ehDownloadFileStore.statFileSize(savedPath);
         state.finished++;
+        state.averagePageBytes = state.finished > 0 ? Math.max(1, Math.round(state.fileSize / state.finished)) :
+          state.averagePageBytes;
 
-        const now = Date.now();
-        const speed = Math.round(Math.max(0, state.fileSize - state.lastBytes) * 1000 /
-          Math.max(1, now - state.lastTime));
-        state.lastBytes = state.fileSize;
-        state.lastTime = now;
-        const averageBytes = state.finished > 0 ? Math.round(state.fileSize / state.finished) : 0;
-        const remaining = speed > 0 ? Math.round(Math.max(0, total - state.finished) * averageBytes / speed) : 0;
+        const remaining = state.currentSpeed > 0 ?
+          Math.round(Math.max(0, total - state.finished) * state.averagePageBytes / state.currentSpeed) : 0;
 
         ehDownloadStore.setProgress(item.gid, state.finished, total, state.finished * DOWNLOAD_PAGE_PROGRESS_SCALE);
         ehDownloadStore.setStorage(item.gid, downloadDirectory, state.fileSize);
-        ehDownloadStore.setTransfer(item.gid, speed, remaining);
+        ehDownloadStore.setTransfer(item.gid, state.currentSpeed, remaining);
         this.publishStatus('Downloaded ' + state.finished.toString() + '/' + total.toString() + ': ' + item.title);
         await this.publishProgress(item, state.finished, total);
         this.saveDownloads(context);
@@ -318,40 +335,43 @@ export class EhDownloadManager {
     }
 
     const existingCachedPath = readerImageCache.getCachedPath(context, imageUrl);
-    const startedAt = Date.now();
     let lastProgressBytes = 0;
     const onProgress = (progress: ImageDownloadProgress): void => {
       const receivedBytes = Math.max(0, progress.receivedBytes);
+      const deltaBytes = Math.max(0, receivedBytes - lastProgressBytes);
       lastProgressBytes = Math.max(lastProgressBytes, receivedBytes);
-      const elapsedMs = Math.max(1, Date.now() - startedAt);
-      const speed = Math.round(receivedBytes * 1000 / elapsedMs);
-      const pageFraction = progress.totalBytes > 0 ? Math.max(0, Math.min(1, receivedBytes / progress.totalBytes)) : 0;
-      const currentProgress = state.finished * DOWNLOAD_PAGE_PROGRESS_SCALE +
-        Math.max(0, Math.min(DOWNLOAD_PAGE_PROGRESS_SCALE - 1, Math.round(pageFraction * DOWNLOAD_PAGE_PROGRESS_SCALE)));
-      const averageBytes = state.finished > 0 ? Math.max(1, Math.round(state.fileSize / state.finished)) :
-        Math.max(1, progress.totalBytes > 0 ? progress.totalBytes : receivedBytes);
-      const remainingBytes = Math.max(0, total - state.finished - 1) * averageBytes +
-        Math.max(0, (progress.totalBytes > 0 ? progress.totalBytes : averageBytes) - receivedBytes);
-      ehDownloadStore.setProgress(item.gid, state.finished, total, currentProgress);
-      ehDownloadStore.setTransfer(item.gid, speed, speed > 0 ? Math.round(remainingBytes / speed) : 0);
+      this.recordDownloadSpeed(item, state, total, deltaBytes);
     };
     const cachedPath = existingCachedPath.length > 0 ? existingCachedPath :
       await readerImageCache.ensureCached(context, imageUrl, page.pageUrl, true, onProgress);
     const downloadedBytes = Math.max(readerImageCache.cachedSize(context, imageUrl), lastProgressBytes);
-    const elapsedMs = Math.max(1, Date.now() - startedAt);
-    if (downloadedBytes > 0) {
-      const speed = Math.round(downloadedBytes * 1000 / elapsedMs);
-      const currentProgress = state.finished * DOWNLOAD_PAGE_PROGRESS_SCALE + DOWNLOAD_PAGE_PROGRESS_SCALE - 1;
-      const averageBytes = state.finished > 0 ? Math.max(1, Math.round(state.fileSize / state.finished)) :
-        Math.max(1, downloadedBytes);
-      const remainingBytes = Math.max(0, total - state.finished - 1) * averageBytes;
-      ehDownloadStore.setProgress(item.gid, state.finished, total, currentProgress);
-      ehDownloadStore.setTransfer(item.gid, speed, speed > 0 ? Math.round(remainingBytes / speed) : 0);
+    if (downloadedBytes > lastProgressBytes) {
+      this.recordDownloadSpeed(item, state, total, downloadedBytes - lastProgressBytes, true);
     }
     return {
       page: page,
       cachedPath: cachedPath
     };
+  }
+
+  private recordDownloadSpeed(item: DownloadInfo, state: DownloadWorkerState, total: number, deltaBytes: number,
+    force: boolean = false): void {
+    if (deltaBytes > 0) {
+      state.speedWindowBytes += deltaBytes;
+    }
+    const now = Date.now();
+    const elapsedMs = Math.max(1, now - state.speedWindowStartedAt);
+    if (!force && elapsedMs < 1000) {
+      return;
+    }
+    state.currentSpeed = Math.round(state.speedWindowBytes * 1000 / elapsedMs);
+    state.speedWindowBytes = 0;
+    state.speedWindowStartedAt = now;
+    const averageBytes = state.averagePageBytes > 0 ? state.averagePageBytes : Math.max(1, deltaBytes);
+    const remaining = state.currentSpeed > 0 ?
+      Math.round(Math.max(0, total - state.finished) * averageBytes / state.currentSpeed) : 0;
+    ehDownloadStore.setProgress(item.gid, state.finished, total, state.finished * DOWNLOAD_PAGE_PROGRESS_SCALE);
+    ehDownloadStore.setTransfer(item.gid, state.currentSpeed, remaining);
   }
 
   private async loadCompleteDownloadDetail(initial: GalleryDetail, referer: string): Promise<GalleryDetail> {

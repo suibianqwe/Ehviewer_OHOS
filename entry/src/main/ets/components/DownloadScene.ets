@@ -685,11 +685,7 @@ export struct DownloadScene {
   }
 
   private downloadProgressUnits(item: DownloadInfo): number {
-    const finishedUnits = Math.max(0, item.finished) * DOWNLOAD_PAGE_PROGRESS_SCALE;
-    if (item.downloaded > item.total && item.downloaded >= finishedUnits) {
-      return item.downloaded;
-    }
-    return finishedUnits;
+    return Math.max(0, item.finished) * DOWNLOAD_PAGE_PROGRESS_SCALE;
   }
 
   private downloadSpeedLabel(item: DownloadInfo): string {
