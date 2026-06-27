@@ -2442,6 +2442,8 @@ export struct GalleryListContent {
               }
               .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
             } else {
+              ListItem()
+                .margin({ bottom: this.galleryCardGap() })
               // 画廊卡片按行分组，每行 galleryColumnCount() 张
               LazyForEach(this.galleryRowsSource(), (row: GalleryInfo[]) => {
                 ListItem() {
