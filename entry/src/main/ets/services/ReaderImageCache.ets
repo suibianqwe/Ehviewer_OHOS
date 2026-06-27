@@ -2,6 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
 import { ehCookieStore } from './EhCookieStore';
+import { ehAppLog } from './EhAppLog';
 import {
   applyEhNetworkOptions,
   createEhRequestPlan,
@@ -149,7 +150,7 @@ export class ReaderImageCache {
     ensureDirectory(readerImageCacheDirectory(context));
     await acquireImageSlot(priority);
     try {
-      await this.downloadWithRetry(imageUrl, referer, path, onProgress);
+      await this.downloadWithRetry(context, imageUrl, referer, path, onProgress);
       pruneImageCache(readerImageCacheDirectory(context));
       return path;
     } finally {
@@ -157,7 +158,7 @@ export class ReaderImageCache {
     }
   }
 
-  private async downloadWithRetry(imageUrl: string, referer: string, path: string,
+  private async downloadWithRetry(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
     onProgress?: ImageDownloadProgressCallback): Promise<void> {
     let lastError = '';
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -167,6 +168,8 @@ export class ReaderImageCache {
       } catch (error) {
         removeFileQuietly(path);
         lastError = imageNetworkErrorMessage(error);
+        ehAppLog.warn(context, 'ReaderImageCache', 'Image attempt failed attempt=' + (attempt + 1).toString() +
+          '/5, url=' + trimLogUrl(imageUrl) + ': ' + lastError);
         if (attempt >= 4 || !isTransientImageError(lastError)) {
           throw new Error(lastError);
         }
@@ -497,6 +500,13 @@ function imageStatusMessage(statusCode: number): string {
     return 'Temporary image network error: HTTP ' + statusCode.toString();
   }
   return 'HTTP ' + statusCode.toString();
+}
+
+function trimLogUrl(url: string): string {
+  if (url.length <= 180) {
+    return url;
+  }
+  return url.substring(0, 177) + '...';
 }
 
 function imageNetworkErrorMessage(error: Object): string {

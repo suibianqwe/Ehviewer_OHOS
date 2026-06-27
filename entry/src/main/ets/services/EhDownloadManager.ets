@@ -211,6 +211,8 @@ export class EhDownloadManager {
       workerState.speedTimer = setInterval(() => {
         this.recordDownloadSpeed(item, workerState, total, 0, true);
       }, 1000);
+      ehAppLog.info(context, 'DownloadManager', 'Start gallery download gid=' + item.gid.toString() +
+        ', pages=' + total.toString() + ', workers=' + workerCount.toString());
       for (let i = 0; i < workerCount; i++) {
         tasks.push(this.downloadPageWorker(context, item, detail, detailResult.url, pageIndexes, total,
           downloadDirectory, workerState));
@@ -287,6 +289,8 @@ export class EhDownloadManager {
         this.saveDownloads(context);
       } catch (error) {
         state.failedMessage = String(error);
+        ehAppLog.error(context, 'DownloadManager', 'Page worker failed gid=' + item.gid.toString() +
+          ', page=' + (pageIndex + 1).toString() + '/' + total.toString() + ': ' + state.failedMessage);
       }
     }
   }
@@ -302,6 +306,9 @@ export class EhDownloadManager {
         return await this.downloadPageOnce(context, item, detail, detailUrl, pageIndex, total, state);
       } catch (error) {
         lastError = String(error);
+        ehAppLog.warn(context, 'DownloadManager', 'Page attempt failed gid=' + item.gid.toString() +
+          ', page=' + (pageIndex + 1).toString() + '/' + total.toString() + ', attempt=' +
+          (attempt + 1).toString() + '/' + (DOWNLOAD_PAGE_RETRY_LIMIT + 1).toString() + ': ' + lastError);
         if (attempt >= DOWNLOAD_PAGE_RETRY_LIMIT) {
           break;
         }
