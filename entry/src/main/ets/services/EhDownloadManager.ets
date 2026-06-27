@@ -298,14 +298,19 @@ export class EhDownloadManager {
   private async downloadPageWithRetry(context: common.UIAbilityContext, item: DownloadInfo, detail: GalleryDetail,
     detailUrl: string, pageIndex: number, total: number, state: DownloadWorkerState): Promise<DownloadedPageResult> {
     let lastError = '';
+    let previousPage: GalleryPage | null = null;
+    const preview = detail.previewSet[pageIndex];
     for (let attempt = 0; attempt <= DOWNLOAD_PAGE_RETRY_LIMIT; attempt++) {
       if (this.shouldStop || this.isStopped(item.gid)) {
         throw new Error('Download stopped');
       }
       try {
-        return await this.downloadPageOnce(context, item, detail, detailUrl, pageIndex, total, state, attempt > 0);
+        const downloaded = await this.downloadPageOnce(context, item, detail, detailUrl, pageIndex, total, state,
+          attempt > 0, previousPage);
+        return downloaded;
       } catch (error) {
         lastError = String(error);
+        previousPage = galleryPageCache.get(preview.pageUrl);
         ehAppLog.warn(context, 'DownloadManager', 'Page attempt failed gid=' + item.gid.toString() +
           ', page=' + (pageIndex + 1).toString() + '/' + total.toString() + ', attempt=' +
           (attempt + 1).toString() + '/' + (DOWNLOAD_PAGE_RETRY_LIMIT + 1).toString() + ': ' + lastError);
@@ -323,15 +328,18 @@ export class EhDownloadManager {
 
   private async downloadPageOnce(context: common.UIAbilityContext, item: DownloadInfo, detail: GalleryDetail,
     detailUrl: string, pageIndex: number, total: number, state: DownloadWorkerState,
-    forceReloadPage: boolean = false): Promise<DownloadedPageResult> {
+    forceReloadPage: boolean = false, previousPage: GalleryPage | null = null): Promise<DownloadedPageResult> {
     const preview = detail.previewSet[pageIndex];
     if (forceReloadPage) {
       galleryPageCache.remove(preview.pageUrl);
     }
     let page = forceReloadPage ? null : galleryPageCache.get(preview.pageUrl);
     if (page === null) {
-      const pageResult = await this.client.loadGalleryPage(preview.pageUrl, currentGallerySite(),
-        readerPageReferer(detailUrl, detail.previewSet, pageIndex, currentGallerySite()));
+      const referer = readerPageReferer(detailUrl, detail.previewSet, pageIndex, currentGallerySite());
+      const pageResult = previousPage !== null && previousPage.skipHathKey.length > 0 ?
+        await this.client.skipHathAndReloadPage(previousPage.pageUrl.length > 0 ? previousPage.pageUrl : preview.pageUrl,
+          previousPage.skipHathKey, currentGallerySite(), referer) :
+        await this.client.loadGalleryPage(preview.pageUrl, currentGallerySite(), referer);
       if (!pageResult.ok || pageResult.page === null) {
         throw new Error(pageResult.message);
       }

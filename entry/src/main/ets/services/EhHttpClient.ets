@@ -688,6 +688,14 @@ export class EhHttpClient {
     return this.loadGalleryPageFast(pageUrl, site, referer, true);
   }
 
+  async skipHathAndReloadPage(pageUrl: string, skipHathKey: string, site: GallerySite = GallerySite.E,
+    referer: string = EhUrl.getReferer(site)): Promise<GalleryPageLoadResult> {
+    if (skipHathKey.length === 0) {
+      return this.loadGalleryPage(pageUrl, site, referer);
+    }
+    return this.loadGalleryPageHtml(appendQueryParam(pageUrl, 'nl', skipHathKey), site, referer);
+  }
+
   async loadGalleryPageFast(pageUrl: string, site: GallerySite = GallerySite.E,
     referer: string = EhUrl.getReferer(site), allowApi: boolean = true): Promise<GalleryPageLoadResult> {
     const pendingKey = buildGalleryPagePendingKey(pageUrl, site, referer, allowApi);
@@ -1059,6 +1067,14 @@ function countPattern(text: string, pattern: RegExp): number {
 function parseHtmlTitle(body: string): string {
   const match = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(body);
   return match === null ? '' : cleanHtml(match[1]);
+}
+
+function appendQueryParam(url: string, key: string, value: string): string {
+  const hashIndex = url.indexOf('#');
+  const base = hashIndex >= 0 ? url.substring(0, hashIndex) : url;
+  const hash = hashIndex >= 0 ? url.substring(hashIndex) : '';
+  const separator = base.indexOf('?') >= 0 ? '&' : '?';
+  return base + separator + encodeURIComponent(key) + '=' + encodeURIComponent(value) + hash;
 }
 
 function networkErrorMessage(error: Object): string {
