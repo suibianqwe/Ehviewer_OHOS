@@ -83,10 +83,9 @@ export class ReaderImageCache {
     if (onProgress !== undefined) {
       listeners.push(onProgress);
     }
-    const progressCallback: ImageDownloadProgressCallback | undefined = onProgress !== undefined ?
-      (progress: ImageDownloadProgress): void => {
-        publishPendingProgress(pendingKey, progress);
-      } : undefined;
+    const progressCallback: ImageDownloadProgressCallback = (progress: ImageDownloadProgress): void => {
+      publishPendingProgress(pendingKey, progress);
+    };
     const promise = this.download(context, imageUrl, referer, path, priority, progressCallback);
     putPending(pendingKey, promise, listeners);
     try {
@@ -323,6 +322,10 @@ function streamImageToFile(request: http.HttpRequest, url: string, options: http
       } catch (error) {
       }
       try {
+        request.off('headersReceive');
+      } catch (error) {
+      }
+      try {
         request.off('dataEnd');
       } catch (error) {
       }
@@ -371,11 +374,23 @@ function streamImageToFile(request: http.HttpRequest, url: string, options: http
         reject(new Error(String(error)));
       }
     });
+    request.on('headersReceive', (header: Object) => {
+      if (finished) {
+        return;
+      }
+      const contentLength = headerContentLength(header);
+      if (contentLength > 0) {
+        totalBytes = contentLength;
+        if (onProgress !== undefined) {
+          onProgress({ receivedBytes: receivedBytes, totalBytes: totalBytes });
+        }
+      }
+    });
     request.on('dataReceiveProgress', (progress: http.DataReceiveProgressInfo) => {
       if (finished) {
         return;
       }
-      totalBytes = Math.max(0, progress.totalSize);
+      totalBytes = Math.max(totalBytes, progress.totalSize);
       receivedBytes = Math.max(receivedBytes, progress.receiveSize);
       if (onProgress !== undefined) {
         onProgress({ receivedBytes: receivedBytes, totalBytes: totalBytes });
@@ -413,6 +428,32 @@ function streamImageToFile(request: http.HttpRequest, url: string, options: http
       reject(error);
     });
   });
+}
+
+function headerContentLength(header: Object): number {
+  const headers = header as Record<string, Object>;
+  const keys = Object.keys(headers);
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i].toLowerCase() !== 'content-length') {
+      continue;
+    }
+    const value = headers[keys[i]];
+    if (typeof value === 'number') {
+      return value > 0 ? value : 0;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    }
+    if (Array.isArray(value) && value.length > 0) {
+      const first = value[0] as Object;
+      if (typeof first === 'string') {
+        const parsed = Number.parseInt(first, 10);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+      }
+    }
+  }
+  return 0;
 }
 
 function sleepImageRetry(attempt: number): Promise<void> {

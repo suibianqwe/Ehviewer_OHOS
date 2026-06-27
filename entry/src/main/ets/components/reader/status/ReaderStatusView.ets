@@ -5,18 +5,8 @@ import { themeOnPrimarySecondaryText, themeScrimColor } from '../../../shared/Eh
 export struct ReaderStatusView {
   failed: boolean = false;
   compact: boolean = false;
-  @Prop @Watch('onProgressChange') progress: number = -1;
+  @Prop progress: number = -1;
   onRetry: () => void = () => {};
-  @State loadingProgress: number = 8;
-  private loadingTimer: number = -1;
-
-  aboutToAppear(): void {
-    this.startLoadingProgress();
-  }
-
-  aboutToDisappear(): void {
-    this.stopLoadingProgress();
-  }
 
   private iconSize(): number {
     return this.compact ? 32 : 44;
@@ -26,36 +16,15 @@ export struct ReaderStatusView {
     return this.compact ? 3 : 4;
   }
 
-  onProgressChange(): void {
-    if (this.failed || this.progress >= 0) {
-      this.stopLoadingProgress();
-      return;
-    }
-    this.startLoadingProgress();
-  }
-
   private progressValue(): number {
     if (this.progress >= 0) {
       return Math.max(0, Math.min(100, this.progress));
     }
-    return this.loadingProgress;
+    return 0;
   }
 
-  private startLoadingProgress(): void {
-    this.stopLoadingProgress();
-    if (this.failed || this.progress >= 0) {
-      return;
-    }
-    this.loadingTimer = setInterval(() => {
-      this.loadingProgress = this.loadingProgress >= 92 ? 8 : this.loadingProgress + 7;
-    }, 120);
-  }
-
-  private stopLoadingProgress(): void {
-    if (this.loadingTimer >= 0) {
-      clearInterval(this.loadingTimer);
-      this.loadingTimer = -1;
-    }
+  private trackColor(): string {
+    return '#5F6875';
   }
 
   build() {
@@ -65,11 +34,20 @@ export struct ReaderStatusView {
           .fontSize(32)
           .fontColor(['#98A2B3'])
       } else {
-        Progress({ value: this.progressValue(), total: 100, type: ProgressType.Ring })
+        Stack({ alignContent: Alignment.Center }) {
+          Progress({ value: 100, total: 100, type: ProgressType.Ring })
+            .width(this.iconSize())
+            .height(this.iconSize())
+            .color(this.trackColor())
+            .style({ strokeWidth: this.ringStrokeWidth(), enableSmoothEffect: false })
+          Progress({ value: this.progressValue(), total: 100, type: ProgressType.Ring })
+            .width(this.iconSize())
+            .height(this.iconSize())
+            .color(themeOnPrimarySecondaryText())
+            .style({ strokeWidth: this.ringStrokeWidth(), enableSmoothEffect: false })
+        }
           .width(this.iconSize())
           .height(this.iconSize())
-          .color(themeOnPrimarySecondaryText())
-          .style({ strokeWidth: this.ringStrokeWidth(), enableSmoothEffect: true })
           .padding(8)
           .backgroundColor(themeScrimColor())
           .borderRadius(this.iconSize() / 2)
