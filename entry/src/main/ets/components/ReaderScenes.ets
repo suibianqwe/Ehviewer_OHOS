@@ -29,6 +29,7 @@ import {
   createEmptyPage,
   getAbilityContext,
   readerDisplayImageUrl,
+  readerPageImageCacheKey,
   readerClockText,
   normalizePageScalingOption,
   normalizeReadingDirectionOption,
@@ -850,8 +851,8 @@ export struct ReaderScene {
     addUniquePath(paths, page.cachedImagePath);
     addUniquePath(paths, page.cachedOriginImagePath);
     if (context !== undefined) {
-      addUniquePath(paths, readerImageCache.removeCached(context, page.imageUrl));
-      addUniquePath(paths, readerImageCache.removeCached(context, page.originImageUrl));
+      addUniquePath(paths, readerImageCache.removeCached(context, page.imageUrl, readerPageImageCacheKey(page, false)));
+      addUniquePath(paths, readerImageCache.removeCached(context, page.originImageUrl, readerPageImageCacheKey(page, true)));
     }
     for (let i = 0; i < paths.length; i++) {
       removeFileIfExists(paths[i]);
@@ -965,7 +966,8 @@ export struct ReaderScene {
       if (imageUrl.length === 0) {
         return '';
       }
-      sourcePath = await readerImageCache.ensureCached(context, imageUrl, page.pageUrl, true);
+      sourcePath = await readerImageCache.ensureCached(context, imageUrl, page.pageUrl, true, undefined,
+        readerPageImageCacheKey(page, this.preferOriginal && page.originImageUrl.length > 0));
     }
     return sourcePath;
   }

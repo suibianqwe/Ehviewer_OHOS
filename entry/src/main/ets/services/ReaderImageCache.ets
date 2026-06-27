@@ -56,20 +56,25 @@ interface ImageRequestHeader {
 
 export class ReaderImageCache {
   async ensureCached(context: common.UIAbilityContext, imageUrl: string, referer: string,
-    priority: boolean = false, onProgress?: ImageDownloadProgressCallback): Promise<string> {
+    priority: boolean = false, onProgress?: ImageDownloadProgressCallback, cacheKey: string = ''): Promise<string> {
     if (imageUrl.length === 0) {
       return '';
     }
 
-    const path = this.pathFor(context, imageUrl);
+    const path = this.pathFor(context, imageUrl, cacheKey);
     if (exists(path)) {
       return path;
     }
+    const cached = this.migrateExistingCache(context, imageUrl, path);
+    if (cached.length > 0) {
+      return cached;
+    }
 
-    const pending = getPending(imageUrl);
+    const pendingKey = imageDownloadPendingKey(imageUrl, cacheKey);
+    const pending = getPending(pendingKey);
     if (pending !== null) {
       if (onProgress !== undefined) {
-        addPendingProgressListener(imageUrl, onProgress);
+        addPendingProgressListener(pendingKey, onProgress);
       }
       return pending.promise;
     }
@@ -80,69 +85,73 @@ export class ReaderImageCache {
     }
     const progressCallback: ImageDownloadProgressCallback | undefined = onProgress !== undefined ?
       (progress: ImageDownloadProgress): void => {
-        publishPendingProgress(imageUrl, progress);
+        publishPendingProgress(pendingKey, progress);
       } : undefined;
     const promise = this.download(context, imageUrl, referer, path, priority, progressCallback);
-    putPending(imageUrl, promise, listeners);
+    putPending(pendingKey, promise, listeners);
     try {
       return await promise;
     } finally {
-      removePending(imageUrl);
+      removePending(pendingKey);
     }
   }
 
-  getCachedPath(context: common.UIAbilityContext, imageUrl: string): string {
+  getCachedPath(context: common.UIAbilityContext, imageUrl: string, cacheKey: string = ''): string {
     if (imageUrl.length === 0) {
       return '';
     }
 
-    const path = this.pathFor(context, imageUrl);
-    return exists(path) ? path : '';
+    const path = this.pathFor(context, imageUrl, cacheKey);
+    if (exists(path)) {
+      return path;
+    }
+    return this.migrateExistingCache(context, imageUrl, path);
   }
 
-  cachedSize(context: common.UIAbilityContext, imageUrl: string): number {
-    const path = this.getCachedPath(context, imageUrl);
+  cachedSize(context: common.UIAbilityContext, imageUrl: string, cacheKey: string = ''): number {
+    const path = this.getCachedPath(context, imageUrl, cacheKey);
     return path.length > 0 ? statFileSize(path) : 0;
   }
 
-  removeCached(context: common.UIAbilityContext, imageUrl: string): string {
+  removeCached(context: common.UIAbilityContext, imageUrl: string, cacheKey: string = ''): string {
     if (imageUrl.length === 0) {
       return '';
     }
 
-    const path = this.pathFor(context, imageUrl);
-    if (!exists(path)) {
-      return '';
+    const path = this.pathFor(context, imageUrl, cacheKey);
+    const legacyPath = this.legacyPathFor(context, imageUrl, cacheKey);
+    const aliasPath = this.pathFor(context, imageUrl);
+    const legacyAliasPath = this.legacyPathFor(context, imageUrl);
+    let removed = '';
+    if (exists(path) && removeFile(path)) {
+      removed = path;
     }
-    return removeFile(path) ? path : '';
+    if (exists(legacyPath) && removeFile(legacyPath) && removed.length === 0) {
+      removed = legacyPath;
+    }
+    if (aliasPath !== path && exists(aliasPath) && removeFile(aliasPath) && removed.length === 0) {
+      removed = aliasPath;
+    }
+    if (legacyAliasPath !== legacyPath && exists(legacyAliasPath) && removeFile(legacyAliasPath) &&
+      removed.length === 0) {
+      removed = legacyAliasPath;
+    }
+    return removed;
   }
 
   clear(context: common.UIAbilityContext): CacheClearResult {
-    const directory = context.cacheDir + '/reader_images';
-    let files = 0;
-    let bytes = 0;
-    try {
-      const names = fs.listFileSync(directory);
-      for (let i = 0; i < names.length; i++) {
-        const path = directory + '/' + names[i];
-        const size = statFileSize(path);
-        if (removeFile(path)) {
-          files++;
-          bytes += size;
-        }
-      }
-    } catch (error) {
-    }
-    return { files: files, bytes: bytes };
+    const result = clearImageCacheDirectory(readerImageCacheDirectory(context));
+    const legacy = clearImageCacheDirectory(legacyReaderImageCacheDirectory(context));
+    return { files: result.files + legacy.files, bytes: result.bytes + legacy.bytes };
   }
 
   private async download(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
     priority: boolean, onProgress?: ImageDownloadProgressCallback): Promise<string> {
-    ensureDirectory(context.cacheDir + '/reader_images');
+    ensureDirectory(readerImageCacheDirectory(context));
     await acquireImageSlot(priority);
     try {
       await this.downloadWithRetry(imageUrl, referer, path, onProgress);
-      pruneImageCache(context.cacheDir + '/reader_images');
+      pruneImageCache(readerImageCacheDirectory(context));
       return path;
     } finally {
       releaseImageSlot();
@@ -220,8 +229,33 @@ export class ReaderImageCache {
     }
   }
 
-  private pathFor(context: common.UIAbilityContext, imageUrl: string): string {
-    return context.cacheDir + '/reader_images/' + stableImageKey(imageUrl) + imageExtension(imageUrl);
+  private pathFor(context: common.UIAbilityContext, imageUrl: string, cacheKey: string = ''): string {
+    return readerImageCacheDirectory(context) + '/' + stableImageKey(normalizeImageCacheKey(imageUrl, cacheKey)) +
+      imageExtension(imageUrl);
+  }
+
+  private legacyPathFor(context: common.UIAbilityContext, imageUrl: string, cacheKey: string = ''): string {
+    return legacyReaderImageCacheDirectory(context) + '/' + stableImageKey(normalizeImageCacheKey(imageUrl, cacheKey)) +
+      imageExtension(imageUrl);
+  }
+
+  private migrateExistingCache(context: common.UIAbilityContext, imageUrl: string, path: string): string {
+    const candidates: string[] = [
+      this.legacyPathFor(context, imageUrl),
+      this.pathFor(context, imageUrl),
+      this.legacyPathFor(context, imageUrl, '')
+    ];
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i];
+      if (candidate === path || !exists(candidate)) {
+        continue;
+      }
+      if (migrateLegacyImageCacheFile(candidate, path)) {
+        return path;
+      }
+      return candidate;
+    }
+    return '';
   }
 }
 
@@ -462,12 +496,60 @@ function removeFile(path: string): boolean {
   return false;
 }
 
+function clearImageCacheDirectory(directory: string): CacheClearResult {
+  let files = 0;
+  let bytes = 0;
+  try {
+    const names = fs.listFileSync(directory);
+    for (let i = 0; i < names.length; i++) {
+      const path = directory + '/' + names[i];
+      const size = statFileSize(path);
+      if (removeFile(path)) {
+        files++;
+        bytes += size;
+      }
+    }
+  } catch (error) {
+  }
+  return { files: files, bytes: bytes };
+}
+
 function statFileSize(path: string): number {
   try {
     return fs.statSync(path).size;
   } catch (error) {
     return 0;
   }
+}
+
+function migrateLegacyImageCacheFile(legacyPath: string, path: string): boolean {
+  ensureDirectory(parentDirectory(path));
+  try {
+    fs.moveFileSync(legacyPath, path);
+    return true;
+  } catch (error) {
+  }
+  try {
+    fs.copyFileSync(legacyPath, path);
+    removeFileQuietly(legacyPath);
+    return exists(path);
+  } catch (error) {
+    removeFileQuietly(path);
+  }
+  return false;
+}
+
+function parentDirectory(path: string): string {
+  const index = path.lastIndexOf('/');
+  return index > 0 ? path.substring(0, index) : path;
+}
+
+export function readerImageCacheDirectory(context: common.UIAbilityContext): string {
+  return context.filesDir + '/reader_images';
+}
+
+function legacyReaderImageCacheDirectory(context: common.UIAbilityContext): string {
+  return context.cacheDir + '/reader_images';
 }
 
 function ensureDirectory(path: string): void {
@@ -611,6 +693,14 @@ function stableImageKey(value: string): string {
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0).toString(16);
+}
+
+function normalizeImageCacheKey(imageUrl: string, cacheKey: string): string {
+  return cacheKey.length > 0 ? cacheKey : imageUrl;
+}
+
+function imageDownloadPendingKey(imageUrl: string, cacheKey: string): string {
+  return normalizeImageCacheKey(imageUrl, cacheKey) + '|' + imageUrl;
 }
 
 function imageExtension(url: string): string {

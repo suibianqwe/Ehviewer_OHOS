@@ -2276,13 +2276,14 @@ export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: Galle
     return;
   }
 
-  const existing = readerImageCache.getCachedPath(context, page.imageUrl);
+  const existing = readerImageCache.getCachedPath(context, page.imageUrl, readerPageImageCacheKey(page, false));
   if (existing.length > 0) {
     onReady(cloneGalleryPageWithCache(page, existing));
     return;
   }
 
-  readerImageCache.ensureCached(context, page.imageUrl, page.pageUrl, true).then((path: string) => {
+  readerImageCache.ensureCached(context, page.imageUrl, page.pageUrl, true, undefined,
+    readerPageImageCacheKey(page, false)).then((path: string) => {
     if (path.length > 0) {
       onReady(cloneGalleryPageWithCache(page, path));
     } else if (onError !== undefined) {
@@ -2293,6 +2294,13 @@ export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: Galle
       onError(error.message);
     }
   });
+}
+
+export function readerPageImageCacheKey(page: GalleryPage, original: boolean = false): string {
+  if (page.pageUrl.length <= 0) {
+    return '';
+  }
+  return page.pageUrl + (original ? '#origin' : '#image');
 }
 
 export function cacheThumbnailImage(url: string, onReady: (path: string) => void, onError?: () => void): void {

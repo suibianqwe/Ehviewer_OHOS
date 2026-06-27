@@ -13,6 +13,7 @@ import {
   downloadImageUrlForPage,
   downloadPageIndexes,
   downloadThreadLimit,
+  readerPageImageCacheKey,
   readerPageReferer
 } from '../shared/EhShared';
 import { EhUrl } from './EhUrl';
@@ -334,7 +335,8 @@ export class EhDownloadManager {
       throw new Error('Image URL missing');
     }
 
-    const existingCachedPath = readerImageCache.getCachedPath(context, imageUrl);
+    const cacheKey = readerPageImageCacheKey(page, page.originImageUrl.length > 0 && imageUrl === page.originImageUrl);
+    const existingCachedPath = readerImageCache.getCachedPath(context, imageUrl, cacheKey);
     let lastProgressBytes = 0;
     const onProgress = (progress: ImageDownloadProgress): void => {
       const receivedBytes = Math.max(0, progress.receivedBytes);
@@ -343,8 +345,8 @@ export class EhDownloadManager {
       this.recordDownloadSpeed(item, state, total, deltaBytes);
     };
     const cachedPath = existingCachedPath.length > 0 ? existingCachedPath :
-      await readerImageCache.ensureCached(context, imageUrl, page.pageUrl, true, onProgress);
-    const downloadedBytes = Math.max(readerImageCache.cachedSize(context, imageUrl), lastProgressBytes);
+      await readerImageCache.ensureCached(context, imageUrl, page.pageUrl, true, onProgress, cacheKey);
+    const downloadedBytes = Math.max(readerImageCache.cachedSize(context, imageUrl, cacheKey), lastProgressBytes);
     if (downloadedBytes > lastProgressBytes) {
       this.recordDownloadSpeed(item, state, total, downloadedBytes - lastProgressBytes, true);
     }

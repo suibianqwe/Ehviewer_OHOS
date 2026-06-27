@@ -2,7 +2,7 @@ import { image } from '@kit.ImageKit';
 import { GalleryPage } from '../../../model/GalleryModels';
 import { ehSettingsStore } from '../../../services/EhSettingsStore';
 import { readerImageCache } from '../../../services/ReaderImageCache';
-import { getAbilityContext, readerDisplayImageUrl } from '../../../shared/EhShared';
+import { getAbilityContext, readerDisplayImageUrl, readerPageImageCacheKey } from '../../../shared/EhShared';
 
 export const READER_MIN_SCALE: number = 0.25;
 export const READER_BASE_SCALE: number = 1;
@@ -81,7 +81,8 @@ export function readerLocalSourceImagePath(page: GalleryPage, preferOriginal: bo
     return '';
   }
   const sourceUrl = preferOriginal && page.originImageUrl.length > 0 ? page.originImageUrl : page.imageUrl;
-  return readerImageCache.getCachedPath(context, sourceUrl);
+  return readerImageCache.getCachedPath(context, sourceUrl,
+    readerPageImageCacheKey(page, preferOriginal && page.originImageUrl.length > 0));
 }
 
 export async function readReaderSourceImageSize(path: string): Promise<ReaderSourceImageSize> {

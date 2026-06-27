@@ -2,7 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { image } from '@kit.ImageKit';
 import { GalleryPreview } from '../model/GalleryModels';
-import { readerImageCache } from './ReaderImageCache';
+import { readerImageCache, readerImageCacheDirectory } from './ReaderImageCache';
 
 interface PendingPreviewCrop {
   key: string;
@@ -58,7 +58,7 @@ export class PreviewThumbnailCache {
       return '';
     }
 
-    ensureDirectory(context.cacheDir + '/reader_images');
+    ensureDirectory(readerImageCacheDirectory(context));
     await acquirePreviewCropSlot();
     let imageSource: image.ImageSource | undefined = undefined;
     let pixelMap: image.PixelMap | undefined = undefined;
@@ -113,7 +113,7 @@ export class PreviewThumbnailCache {
   private pathFor(context: common.UIAbilityContext, preview: GalleryPreview): string {
     const key = preview.imageUrl + '#' + preview.xOffset.toString() + ',' + preview.yOffset.toString() + ',' +
       preview.width.toString() + 'x' + preview.height.toString();
-    return context.cacheDir + '/reader_images/preview_' + stablePreviewKey(key) + '.jpg';
+    return readerImageCacheDirectory(context) + '/preview_' + stablePreviewKey(key) + '.jpg';
   }
 }
 
