@@ -5,6 +5,7 @@ import { themeOnPrimarySecondaryText, themeScrimColor } from '../../../shared/Eh
 export struct ReaderStatusView {
   failed: boolean = false;
   compact: boolean = false;
+  @Prop @Watch('onProgressChange') progress: number = -1;
   onRetry: () => void = () => {};
   @State loadingProgress: number = 8;
   private loadingTimer: number = -1;
@@ -25,9 +26,24 @@ export struct ReaderStatusView {
     return this.compact ? 3 : 4;
   }
 
+  onProgressChange(): void {
+    if (this.failed || this.progress >= 0) {
+      this.stopLoadingProgress();
+      return;
+    }
+    this.startLoadingProgress();
+  }
+
+  private progressValue(): number {
+    if (this.progress >= 0) {
+      return Math.max(0, Math.min(100, this.progress));
+    }
+    return this.loadingProgress;
+  }
+
   private startLoadingProgress(): void {
     this.stopLoadingProgress();
-    if (this.failed) {
+    if (this.failed || this.progress >= 0) {
       return;
     }
     this.loadingTimer = setInterval(() => {
@@ -49,7 +65,7 @@ export struct ReaderStatusView {
           .fontSize(32)
           .fontColor(['#98A2B3'])
       } else {
-        Progress({ value: this.loadingProgress, total: 100, type: ProgressType.Ring })
+        Progress({ value: this.progressValue(), total: 100, type: ProgressType.Ring })
           .width(this.iconSize())
           .height(this.iconSize())
           .color(themeOnPrimarySecondaryText())

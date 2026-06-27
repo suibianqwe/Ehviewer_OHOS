@@ -1,9 +1,12 @@
 import { GalleryPage } from '../../../model/GalleryModels';
+import { ImageDownloadProgress, readerImageCache } from '../../../services/ReaderImageCache';
 import {
   createEmptyPage,
+  getAbilityContext,
   normalizePageScalingOption,
   normalizeStartPositionOption,
-  readerDisplayImageUrl
+  readerDisplayImageUrl,
+  readerPageImageCacheKey
 } from '../../../shared/EhShared';
 import {
   READER_BASE_SCALE,
@@ -46,8 +49,10 @@ export struct ReaderImageViewport {
   @State sourceImageHeight: number = 0;
   @State displayImageWidth: number = 1;
   @State displayImageHeight: number = 1;
+  @State downloadProgress: number = -1;
   private lastCommandVersion: number = -1;
   private sourceSizeRequestId: number = 0;
+  private downloadProgressRequestId: number = 0;
 
   aboutToAppear(): void {
     this.onImageSourceChange();
@@ -126,6 +131,7 @@ export struct ReaderImageViewport {
     this.updateDisplayImageSize();
     this.reportImageSize();
     this.loadCachedSourceImageSize(requestId, url).catch(() => {});
+    this.startDownloadProgressMonitor();
     this.syncFixedScale();
   }
 
@@ -183,6 +189,38 @@ export struct ReaderImageViewport {
 
   private localSourceImagePath(): string {
     return readerLocalSourceImagePath(this.page, this.preferOriginal);
+  }
+
+  private sourceImageUrl(): string {
+    return this.preferOriginal && this.page.originImageUrl.length > 0 ? this.page.originImageUrl : this.page.imageUrl;
+  }
+
+  private sourceImageCacheKey(): string {
+    return readerPageImageCacheKey(this.page, this.preferOriginal && this.page.originImageUrl.length > 0);
+  }
+
+  private startDownloadProgressMonitor(): void {
+    const requestId = this.downloadProgressRequestId + 1;
+    this.downloadProgressRequestId = requestId;
+    this.downloadProgress = -1;
+    if (this.localSourceImagePath().length > 0) {
+      return;
+    }
+    const context = getAbilityContext();
+    const sourceUrl = this.sourceImageUrl();
+    if (context === undefined || sourceUrl.length === 0) {
+      return;
+    }
+    readerImageCache.ensureCached(context, sourceUrl, this.page.pageUrl, true, (progress: ImageDownloadProgress) => {
+      if (requestId !== this.downloadProgressRequestId) {
+        return;
+      }
+      this.downloadProgress = readerDownloadProgressPercent(progress);
+    }, this.sourceImageCacheKey()).then(() => {
+      if (requestId === this.downloadProgressRequestId) {
+        this.downloadProgress = 100;
+      }
+    }).catch(() => {});
   }
 
   private imageDisplayWidth(): number | string {
@@ -353,7 +391,7 @@ export struct ReaderImageViewport {
           .scale({ x: this.imageModel.currentScale, y: this.imageModel.currentScale, centerX: '50%', centerY: '50%' })
           .translate({ x: this.imageModel.currentOffsetX, y: this.imageModel.currentOffsetY })
         if (this.isImageLoading()) {
-          ReaderStatusView({ failed: false, compact: false })
+          ReaderStatusView({ failed: false, compact: false, progress: this.downloadProgress })
             .zIndex(2)
         } else if (this.isFailed()) {
           ReaderStatusView({
@@ -371,6 +409,7 @@ export struct ReaderImageViewport {
         ReaderStatusView({
           failed: this.isFailed(),
           compact: false,
+          progress: this.downloadProgress,
           onRetry: () => {
             this.onRetry();
           }
@@ -468,4 +507,11 @@ export struct ReaderImageViewport {
     })
     .draggable(false)
   }
+}
+
+function readerDownloadProgressPercent(progress: ImageDownloadProgress): number {
+  if (progress.totalBytes <= 0) {
+    return -1;
+  }
+  return Math.max(0, Math.min(100, Math.floor(progress.receivedBytes * 100 / progress.totalBytes)));
 }

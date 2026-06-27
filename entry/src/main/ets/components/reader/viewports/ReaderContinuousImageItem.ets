@@ -1,5 +1,12 @@
 import { GalleryPage } from '../../../model/GalleryModels';
-import { createEmptyPage, normalizePageScalingOption, readerDisplayImageUrl } from '../../../shared/EhShared';
+import { ImageDownloadProgress, readerImageCache } from '../../../services/ReaderImageCache';
+import {
+  createEmptyPage,
+  getAbilityContext,
+  normalizePageScalingOption,
+  readerDisplayImageUrl,
+  readerPageImageCacheKey
+} from '../../../shared/EhShared';
 import {
   READER_BASE_SCALE,
   ReaderImageCompleteEvent,
@@ -40,9 +47,11 @@ export struct ReaderContinuousImageItem {
   @State componentWidth: number = 1;
   @State displayImageWidth: number = 1;
   @State displayImageHeight: number = 120;
+  @State downloadProgress: number = -1;
   private isPinching: boolean = false;
   private pinchStartScale: number = READER_BASE_SCALE;
   private sourceSizeRequestId: number = 0;
+  private downloadProgressRequestId: number = 0;
 
   aboutToAppear(): void {
     this.onImageSourceChange();
@@ -68,6 +77,7 @@ export struct ReaderContinuousImageItem {
     this.sourceImageHeight = cachedSize.height;
     this.updateDisplayImageSize();
     this.loadCachedSourceImageSize(requestId, url).catch(() => {});
+    this.startDownloadProgressMonitor();
   }
 
   private async loadCachedSourceImageSize(requestId: number, imageUrl: string): Promise<void> {
@@ -90,6 +100,38 @@ export struct ReaderContinuousImageItem {
 
   private localSourceImagePath(): string {
     return readerLocalSourceImagePath(this.page, this.preferOriginal);
+  }
+
+  private sourceImageUrl(): string {
+    return this.preferOriginal && this.page.originImageUrl.length > 0 ? this.page.originImageUrl : this.page.imageUrl;
+  }
+
+  private sourceImageCacheKey(): string {
+    return readerPageImageCacheKey(this.page, this.preferOriginal && this.page.originImageUrl.length > 0);
+  }
+
+  private startDownloadProgressMonitor(): void {
+    const requestId = this.downloadProgressRequestId + 1;
+    this.downloadProgressRequestId = requestId;
+    this.downloadProgress = -1;
+    if (this.localSourceImagePath().length > 0) {
+      return;
+    }
+    const context = getAbilityContext();
+    const sourceUrl = this.sourceImageUrl();
+    if (context === undefined || sourceUrl.length === 0) {
+      return;
+    }
+    readerImageCache.ensureCached(context, sourceUrl, this.page.pageUrl, true, (progress: ImageDownloadProgress) => {
+      if (requestId !== this.downloadProgressRequestId) {
+        return;
+      }
+      this.downloadProgress = readerDownloadProgressPercent(progress);
+    }, this.sourceImageCacheKey()).then(() => {
+      if (requestId === this.downloadProgressRequestId) {
+        this.downloadProgress = 100;
+      }
+    }).catch(() => {});
   }
 
   private onFitModeChange(): void {
@@ -235,7 +277,7 @@ export struct ReaderContinuousImageItem {
           .translate({ x: this.sharedOffsetX, y: 0 })
       }
       if (this.imageUrl().length === 0 || this.isImageLoading()) {
-        ReaderStatusView({ failed: false, compact: true })
+        ReaderStatusView({ failed: false, compact: true, progress: this.downloadProgress })
       } else if (this.isFailed()) {
         ReaderStatusView({
           failed: true,
@@ -329,4 +371,11 @@ export struct ReaderContinuousImageItem {
       return GestureJudgeResult.CONTINUE;
     })
   }
+}
+
+function readerDownloadProgressPercent(progress: ImageDownloadProgress): number {
+  if (progress.totalBytes <= 0) {
+    return -1;
+  }
+  return Math.max(0, Math.min(100, Math.floor(progress.receivedBytes * 100 / progress.totalBytes)));
 }
