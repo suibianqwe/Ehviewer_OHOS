@@ -163,10 +163,6 @@ export class ReaderImageCache {
 
   private async downloadOnce(imageUrl: string, referer: string, path: string,
     onProgress?: ImageDownloadProgressCallback): Promise<void> {
-    if (onProgress !== undefined) {
-      await this.downloadOnceInStream(imageUrl, referer, path, onProgress);
-      return;
-    }
     const request = http.createHttp();
     try {
       const plan = createEhRequestPlan(imageUrl);
@@ -193,77 +189,13 @@ export class ReaderImageCache {
         throw new Error('Empty image response');
       }
       writeArrayBuffer(path, data);
+      if (onProgress !== undefined) {
+        onProgress({ receivedBytes: data.byteLength, totalBytes: data.byteLength });
+      }
     } catch (error) {
       throw new Error(imageNetworkErrorMessage(error));
     } finally {
       try {
-        request.destroy();
-      } catch (error) {
-      }
-    }
-  }
-
-  private async downloadOnceInStream(imageUrl: string, referer: string, path: string,
-    onProgress: ImageDownloadProgressCallback): Promise<void> {
-    const request = http.createHttp();
-    let fd = -1;
-    let receivedBytes = 0;
-    let totalBytes = 0;
-    try {
-      const file = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
-      fd = file.fd;
-      const plan = createEhRequestPlan(imageUrl);
-      const header = buildImageRequestHeader(plan, referer, ehCookieStore.getCookieHeaderForUrl(imageUrl));
-      const timeout = imageRequestTimeoutMs();
-      await ensureEhHostRules();
-      const options: http.HttpRequestOptions = {
-        method: http.RequestMethod.GET,
-        header: header,
-        expectDataType: http.HttpDataType.ARRAY_BUFFER,
-        connectTimeout: timeout,
-        readTimeout: timeout
-      };
-      applyEhNetworkOptions(options, plan);
-      request.on('dataReceive', (data: ArrayBuffer) => {
-        if (data.byteLength > 0 && fd >= 0) {
-          fs.writeSync(fd, data);
-          receivedBytes += data.byteLength;
-          onProgress({
-            receivedBytes: receivedBytes,
-            totalBytes: totalBytes
-          });
-        }
-      });
-      request.on('dataReceiveProgress', (data: http.DataReceiveProgressInfo) => {
-        receivedBytes = Math.max(receivedBytes, data.receiveSize);
-        totalBytes = Math.max(totalBytes, data.totalSize);
-        onProgress({
-          receivedBytes: receivedBytes,
-          totalBytes: totalBytes
-        });
-      });
-      const statusCode = Number(await request.requestInStream(plan.url, options));
-      if (statusCode < 200 || statusCode >= 300) {
-        throw new Error(imageStatusMessage(statusCode));
-      }
-      const size = statFileSize(path);
-      if (size <= 0) {
-        throw new Error('Empty image response');
-      }
-      onProgress({ receivedBytes: size, totalBytes: size });
-    } catch (error) {
-      throw new Error(imageNetworkErrorMessage(error));
-    } finally {
-      if (fd >= 0) {
-        try {
-          fs.closeSync(fd);
-        } catch (error) {
-        }
-      }
-      try {
-        request.off('dataReceive');
-        request.off('dataReceiveProgress');
-        request.off('dataEnd');
         request.destroy();
       } catch (error) {
       }
