@@ -15,6 +15,7 @@ const FRONTING_FAST_IP_LIMIT: number = 3;
 const DIRECT_PROBE_TIMEOUT_MS: number = 1000;
 const IP_FAILURE_LATENCY_PENALTY_MS: number = 2500;
 const IP_SUCCESS_LATENCY_BONUS_MS: number = 120;
+const IP_RETRY_DEMOTE_THRESHOLD: number = 2;
 const IP_QUALITY_SAVE_THROTTLE_MS: number = 30000;
 const FRONTING_PROBE_USER_AGENT: string =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36';
@@ -206,11 +207,16 @@ export function recordEhRequestOutcome(plan: EhRequestPlan, ok: boolean, elapsed
     current.failureCount = failureCount + 1;
     current.latencyMs = Math.max(current.latencyMs, Math.max(1, elapsedMs)) +
       IP_FAILURE_LATENCY_PENALTY_MS * Math.min(4, current.failureCount);
-    current.ok = current.successCount !== undefined && current.successCount > current.failureCount;
+    current.ok = current.failureCount < IP_RETRY_DEMOTE_THRESHOLD ||
+      (current.successCount !== undefined && current.successCount > current.failureCount);
   }
   current.testedAt = now;
   current.lastResultAt = now;
-  saveCachedIpQualitiesThrottled(frontingBenchmarkKey());
+  if (ok) {
+    saveCachedIpQualitiesThrottled(frontingBenchmarkKey());
+  } else {
+    saveCachedIpQualities(frontingBenchmarkKey());
+  }
 }
 
 export function startEhFrontingBenchmark(context?: common.UIAbilityContext): void {
@@ -331,18 +337,21 @@ function exFrontingIpForUrl(url: string, host: string): string {
 }
 
 function rotatingIpv4ForHost(host: string, rules: HostRule[]): string {
-  const rankedIps = rankedIpv4ListForHost(host, rules);
-  const ips = rankedIps.length > 0 ? rankedIps : ipv4ListForHost(host, rules);
-  if (ips.length === 0) {
+  const ip = weightedIpv4ForHost(host, rules);
+  if (ip.length > 0) {
+    return ip;
+  }
+  const fallbackIps = ipv4ListForHost(host, rules);
+  if (fallbackIps.length === 0) {
     return '';
   }
   let cursor = cursorForHost(host);
-  if (cursor.next < 0 || cursor.next >= ips.length) {
-    cursor.next = Math.floor(Math.random() * ips.length);
+  if (cursor.next < 0 || cursor.next >= fallbackIps.length) {
+    cursor.next = Math.floor(Math.random() * fallbackIps.length);
   }
-  const ip = ips[cursor.next];
-  cursor.next = (cursor.next + 1) % ips.length;
-  return ip;
+  const fallbackIp = fallbackIps[cursor.next];
+  cursor.next = (cursor.next + 1) % fallbackIps.length;
+  return fallbackIp;
 }
 
 function cursorForHost(host: string): HostIpCursor {
@@ -375,21 +384,18 @@ function ipv4ListForHost(host: string, rules: HostRule[]): string[] {
   return [];
 }
 
-function rankedIpv4ListForHost(host: string, rules: HostRule[]): string[] {
+function weightedIpv4ForHost(host: string, rules: HostRule[]): string {
   const candidates = ipv4ListForHost(host, rules);
   if (candidates.length === 0) {
-    return [];
+    return '';
   }
 
   const results: HostIpQuality[] = [];
-  for (let i = 0; i < HOST_IP_QUALITIES.length; i++) {
-    const item = HOST_IP_QUALITIES[i];
-    if (item.host === host && item.ok && containsString(candidates, item.ip)) {
-      results.push(item);
-    }
+  for (let i = 0; i < candidates.length; i++) {
+    results.push(qualityForHostIp(host, candidates[i]));
   }
   if (results.length === 0) {
-    return [];
+    return '';
   }
 
   results.sort((left: HostIpQuality, right: HostIpQuality) => {
@@ -400,12 +406,22 @@ function rankedIpv4ListForHost(host: string, rules: HostRule[]): string[] {
     }
     return left.ip.localeCompare(right.ip);
   });
-  const ranked: string[] = [];
   const limit = Math.min(FRONTING_FAST_IP_LIMIT, results.length);
+  let totalWeight = 0;
   for (let i = 0; i < limit; i++) {
-    ranked.push(results[i].ip);
+    totalWeight += ipQualityWeight(results[i]);
   }
-  return ranked;
+  if (totalWeight <= 0) {
+    return results[0].ip;
+  }
+  let ticket = Math.random() * totalWeight;
+  for (let i = 0; i < limit; i++) {
+    ticket -= ipQualityWeight(results[i]);
+    if (ticket <= 0) {
+      return results[i].ip;
+    }
+  }
+  return results[0].ip;
 }
 
 async function runEhFrontingBenchmark(generation: number): Promise<HostIpQuality[]> {
@@ -608,10 +624,15 @@ function ipQualityScore(item: HostIpQuality): number {
     Math.min(600, successCount * IP_SUCCESS_LATENCY_BONUS_MS);
 }
 
+function ipQualityWeight(item: HostIpQuality): number {
+  const score = Math.max(100, ipQualityScore(item));
+  return Math.max(1, Math.round(100000 / score));
+}
+
 function replaceIpQualities(results: HostIpQuality[]): boolean {
   const validResults: HostIpQuality[] = [];
   for (let i = 0; i < results.length; i++) {
-    if (results[i].ok && isKnownProbeTarget(results[i].host, results[i].ip)) {
+    if (isKnownProbeTarget(results[i].host, results[i].ip)) {
       validResults.push(results[i]);
     }
   }
@@ -671,6 +692,7 @@ function saveCachedIpQualities(key: string): void {
   if (frontingIpCachePath.length === 0) {
     return;
   }
+  ensureKnownIpQualities();
   const qualities: HostIpQuality[] = [];
   for (let i = 0; i < HOST_IP_QUALITIES.length; i++) {
     const item = HOST_IP_QUALITIES[i];
@@ -697,6 +719,13 @@ function saveCachedIpQualities(key: string): void {
       } catch (error) {
       }
     }
+  }
+}
+
+function ensureKnownIpQualities(): void {
+  const targets = collectFrontingProbeTargets();
+  for (let i = 0; i < targets.length; i++) {
+    qualityForHostIp(targets[i].host, targets[i].ip);
   }
 }
 

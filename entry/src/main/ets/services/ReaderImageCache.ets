@@ -22,7 +22,7 @@ const PENDING_IMAGE_DOWNLOADS: PendingImageDownload[] = [];
 const WAITING_IMAGE_SLOTS: (() => void)[] = [];
 const MAX_ACTIVE_IMAGE_DOWNLOADS: number = 6;
 const MAX_IMAGE_CACHE_BYTES: number = 320 * 1024 * 1024;
-const IMAGE_RETRY_DELAYS_MS: number[] = [300, 900];
+const IMAGE_RETRY_DELAYS_MS: number[] = [300, 900, 1800, 3200];
 let activeImageDownloads: number = 0;
 
 interface CachedImageFile {
@@ -151,14 +151,14 @@ export class ReaderImageCache {
   private async downloadWithRetry(imageUrl: string, referer: string, path: string,
     onProgress?: ImageDownloadProgressCallback): Promise<void> {
     let lastError = '';
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 5; attempt++) {
       try {
         await this.downloadOnce(imageUrl, referer, path, onProgress);
         return;
       } catch (error) {
         removeFileQuietly(path);
         lastError = imageNetworkErrorMessage(error);
-        if (attempt >= 2 || !isTransientImageError(lastError)) {
+        if (attempt >= 4 || !isTransientImageError(lastError)) {
           throw new Error(lastError);
         }
         await sleepImageRetry(attempt);
@@ -251,7 +251,7 @@ function imageRequestTimeoutMs(): number {
   if (value === '60s') {
     return 60000;
   }
-  return 12000;
+  return 30000;
 }
 
 function sleepImageRetry(attempt: number): Promise<void> {
@@ -269,6 +269,9 @@ function isTransientImageError(message: string): boolean {
   return lower.indexOf('timeout') >= 0 || lower.indexOf('temporary') >= 0 || lower.indexOf('reset') >= 0 ||
     lower.indexOf('socket') >= 0 || lower.indexOf('network') >= 0 || lower.indexOf('503') >= 0 ||
     lower.indexOf('504') >= 0 || lower.indexOf('522') >= 0 || lower.indexOf('524') >= 0 ||
+    lower.indexOf('500') >= 0 || lower.indexOf('502') >= 0 || lower.indexOf('520') >= 0 ||
+    lower.indexOf('521') >= 0 || lower.indexOf('523') >= 0 || lower.indexOf('525') >= 0 ||
+    lower.indexOf('526') >= 0 ||
     lower.indexOf('ssl') >= 0 || lower.indexOf('tls') >= 0 || lower.indexOf('certificate') >= 0 ||
     lower.indexOf('http2') >= 0 || lower.indexOf('2300016') >= 0 ||
     lower.indexOf('2300007') >= 0 || lower.indexOf('230350') >= 0;
