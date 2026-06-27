@@ -15,6 +15,7 @@ import {
   getMainWindow,
   getReaderWindow,
   rememberMainWindow,
+  rememberReaderWindow,
   readerOrientationFromImageMatch,
   readerOrientationFromSetting,
   readerScreenRotationSetting,
@@ -234,21 +235,29 @@ export struct ReaderScene {
   }
 
   private async obtainReaderWindow(): Promise<window.Window | undefined> {
-    if (!this.restoreAppChromeOnExit) {
-      return getReaderWindow();
-    }
     if (this.hostReaderWindow !== undefined) {
       return this.hostReaderWindow;
     }
     try {
       const hostContext = this.getUIContext().getHostContext() as common.UIAbilityContext | undefined;
       if (hostContext !== undefined) {
-        const win = await window.getLastWindow(hostContext);
+        const win = hostContext.windowStage.getMainWindowSync();
         this.hostReaderWindow = win;
-        rememberMainWindow(win);
+        if (this.restoreAppChromeOnExit) {
+          rememberMainWindow(win);
+        } else {
+          rememberReaderWindow(win);
+        }
         return win;
       }
     } catch (error) {
+    }
+    const readerWin = getReaderWindow();
+    if (readerWin !== undefined) {
+      return readerWin;
+    }
+    if (!this.restoreAppChromeOnExit) {
+      return undefined;
     }
     return getMainWindow();
   }

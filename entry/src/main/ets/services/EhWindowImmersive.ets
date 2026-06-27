@@ -101,7 +101,7 @@ export async function prepareAppChromeBeforeContent(win: window.Window): Promise
 
 // Reader page only: full-screen layout with both status bar and navigation indicator hidden.
 export function applyReaderFullscreenImmersiveMode(win?: window.Window): void {
-  const target = win === undefined ? getMainWindow() : win;
+  const target = win === undefined ? (getReaderWindow() ?? getMainWindow()) : win;
   if (target === undefined) {
     return;
   }

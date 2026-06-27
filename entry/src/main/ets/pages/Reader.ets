@@ -2,6 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { ReaderHostScene } from '../components/ReaderHostScene';
 import {
+  applyReaderBrightnessFromSettings,
   applyReaderFullscreenImmersiveMode,
   getReaderWindow,
   rememberReaderWindow,
@@ -40,12 +41,9 @@ struct ReaderPage {
     try {
       const hostContext = this.getUIContext().getHostContext() as common.UIAbilityContext | undefined;
       if (hostContext !== undefined) {
-        const win = await window.getLastWindow(hostContext);
+        const win = hostContext.windowStage.getMainWindowSync();
         rememberReaderWindow(win);
-        await applyReaderWindowStateFromSettings(win);
-        scheduleReaderFullscreenImmersiveMode(win, 16);
-        scheduleReaderFullscreenImmersiveMode(win, 80);
-        scheduleReaderFullscreenImmersiveMode(win, 240);
+        await this.applyReaderWindowChrome(win);
         return;
       }
     } catch (error) {
@@ -55,10 +53,24 @@ struct ReaderPage {
       applyReaderFullscreenImmersiveMode();
       return;
     }
-    applyReaderFullscreenImmersiveMode(win);
+    await this.applyReaderWindowChrome(win);
+  }
+
+  private async applyReaderWindowChrome(win: window.Window): Promise<void> {
+    await applyReaderWindowStateFromSettings(win);
+    await applyReaderBrightnessFromSettings(win);
     scheduleReaderFullscreenImmersiveMode(win, 16);
+    this.scheduleReaderBrightness(win, 16);
     scheduleReaderFullscreenImmersiveMode(win, 80);
+    this.scheduleReaderBrightness(win, 80);
     scheduleReaderFullscreenImmersiveMode(win, 240);
+    this.scheduleReaderBrightness(win, 240);
+  }
+
+  private scheduleReaderBrightness(win: window.Window, delayMs: number): void {
+    setTimeout(() => {
+      applyReaderBrightnessFromSettings(win).catch(() => {});
+    }, delayMs);
   }
 
   build() {
