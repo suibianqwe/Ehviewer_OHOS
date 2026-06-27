@@ -69,6 +69,7 @@ import { collectWebCookies, hasLoginCookie, SessionScene, syncCookieHeaderToWebV
 import { UpdatePromptOverlay } from './UpdatePromptOverlay';
 
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
+const DIAGNOSTIC_LOG_TAG: string = 'SettingsScene';
 
 @Component
 export struct SettingsScene {
@@ -739,7 +740,7 @@ export struct SettingsScene {
   private exportAppLog(): void {
     const context = getAbilityContext();
     if (context === undefined) {
-      this.statusText = 'Export log needs an ability context';
+      this.showFloatingStatus('Export log needs an ability context');
       return;
     }
     const now = new Date();
@@ -749,30 +750,43 @@ export struct SettingsScene {
     const fileName = 'ehviewer_log_' + stamp + '.txt';
     const content = ehAppLog.read(context);
     if (content.length === 0) {
-      this.statusText = 'No saved log yet';
+      this.showFloatingStatus('No saved log yet');
       return;
     }
-
-    const saveOptions = new picker.DocumentSaveOptions();
-    saveOptions.newFileNames = [fileName];
-    saveOptions.fileSuffixChoices = ['Text file|.txt'];
-    const documentPicker = new picker.DocumentViewPicker(context);
-    documentPicker.save(saveOptions).then((uris: string[]) => {
-      if (uris.length === 0) {
-        this.statusText = 'Log export cancelled';
-        return;
-      }
-      try {
-        const file = fs.openSync(uris[0], fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
-        fs.writeSync(file.fd, content);
-        fs.closeSync(file.fd);
-        this.statusText = 'Log exported: ' + uris[0];
-      } catch (error) {
-        this.statusText = 'Log export failed: ' + String(error);
-      }
+    this.writeTextToDownloads(context, fileName, content).then((path: string) => {
+      this.showFloatingStatus('Log exported: ' + path);
     }).catch((error: Error) => {
-      this.statusText = 'Log picker failed: ' + error.message;
+      this.showFloatingStatus('Log export failed: ' + error.message);
+      ehAppLog.error(context, DIAGNOSTIC_LOG_TAG, 'Log export failed: ' + error.message);
     });
+  }
+
+  private async writeTextToDownloads(context: common.UIAbilityContext, fileName: string, content: string): Promise<string> {
+    const ready = await this.ensureDownloadLocationAccess(context, DOWNLOAD_LOCATION_DOWNLOADS);
+    if (!ready) {
+      throw new Error('Downloads access was not granted');
+    }
+    const root = ehDownloadFileStore.publicDownloadRoot(context);
+    const path = uniqueDiagnosticLogPath(root, fileName);
+    let fd = -1;
+    try {
+      const file = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
+      fd = file.fd;
+      fs.writeSync(fd, content);
+      return path;
+    } finally {
+      if (fd >= 0) {
+        try {
+          fs.closeSync(fd);
+        } catch (error) {
+        }
+      }
+    }
+  }
+
+  private showFloatingStatus(message: string): void {
+    this.statusText = message;
+    this.getUIContext().getPromptAction().showToast({ message: message });
   }
 
   private clearAppLog(): void {
@@ -993,13 +1007,59 @@ export struct SettingsScene {
   }
 
   private runNetworkDiagnostics(): void {
-    this.statusText = 'Running network diagnostics...';
+    this.showFloatingStatus('Running network diagnostics...');
+    const context = getAbilityContext();
     this.refreshNetworkRuntime();
     this.client.runNetworkDiagnostics().then((results: NetworkDiagnosticResult[]) => {
-      this.statusText = formatNetworkDiagnostics(results);
+      const summary = formatNetworkDiagnostics(results);
+      this.statusText = summary;
+      if (context === undefined) {
+        this.showFloatingStatus('Network diagnostics finished');
+        return;
+      }
+      const content = this.createNetworkDiagnosticLog(results, summary);
+      const fileName = 'ehviewer_network_' + diagnosticTimestamp(new Date()) + '.txt';
+      this.writeTextToDownloads(context, fileName, content).then((path: string) => {
+        this.showFloatingStatus('Network diagnostics exported: ' + path);
+      }).catch((error: Error) => {
+        this.showFloatingStatus('Network diagnostics export failed: ' + error.message);
+        ehAppLog.error(context, DIAGNOSTIC_LOG_TAG, 'Network diagnostics export failed: ' + error.message);
+      });
     }).catch((error: Error) => {
-      this.statusText = 'Network diagnostics failed: ' + error.message;
+      this.showFloatingStatus('Network diagnostics failed: ' + error.message);
+      if (context !== undefined) {
+        ehAppLog.error(context, DIAGNOSTIC_LOG_TAG, 'Network diagnostics failed: ' + error.message);
+      }
     });
+  }
+
+  private createNetworkDiagnosticLog(results: NetworkDiagnosticResult[], summary: string): string {
+    const lines: string[] = [];
+    lines.push('EhViewer OHOS Network Diagnostics');
+    lines.push('Time: ' + new Date().toISOString());
+    lines.push('Version: ' + EH_APP_VERSION_NAME + ' (' + EH_APP_VERSION_CODE.toString() + ')');
+    lines.push('Target: ' + EH_TARGET_PLATFORM);
+    lines.push('Gallery site: ' + ehSettingsStore.getValue('gallery_site', 'E-Hentai'));
+    lines.push('Proxy: ' + ehSettingsStore.getValue('proxy', 'System') + ' ' +
+      ehSettingsStore.getValue('proxy_host', '') + ':' + ehSettingsStore.getValue('proxy_port', ''));
+    lines.push('Built-in hosts: ' + ehSettingsStore.getValue('built_in_hosts', 'Off'));
+    lines.push('Built EX hosts: ' + ehSettingsStore.getValue('built_ex_hosts', 'Off'));
+    lines.push('Domain fronting: ' + ehSettingsStore.getValue('domain_fronting', 'On'));
+    lines.push('DNS over HTTPS: ' + ehSettingsStore.getValue('dns_over_https', 'Off'));
+    lines.push('Direct connection check: ' + ehSettingsStore.getValue('auto_direct_connection', 'On'));
+    lines.push('');
+    lines.push(summary);
+    lines.push('');
+    for (let i = 0; i < results.length; i++) {
+      const item = results[i];
+      lines.push(item.label + ':');
+      lines.push('  URL: ' + item.url);
+      lines.push('  OK: ' + (item.ok ? 'true' : 'false'));
+      lines.push('  Status: ' + (item.statusCode > 0 ? item.statusCode.toString() : 'ERR'));
+      lines.push('  Elapsed: ' + item.elapsedMs.toString() + 'ms');
+      lines.push('  Message: ' + item.message);
+    }
+    return lines.join('\n') + '\n';
   }
 
   private refreshNetworkRuntime(): void {
@@ -1894,6 +1954,33 @@ function buildSelectOptions(options: string[]): SelectOption[] {
 
 function normalizeSettingsDownloadLocation(value: string): string {
   return value === DOWNLOAD_LOCATION_DOWNLOADS ? DOWNLOAD_LOCATION_DOWNLOADS : DOWNLOAD_LOCATION_APP_FILES;
+}
+
+function diagnosticTimestamp(now: Date): string {
+  return now.getFullYear().toString() + padTwo(now.getMonth() + 1) + padTwo(now.getDate()) + '_' +
+    padTwo(now.getHours()) + padTwo(now.getMinutes()) + padTwo(now.getSeconds());
+}
+
+function uniqueDiagnosticLogPath(root: string, fileName: string): string {
+  const dot = fileName.lastIndexOf('.');
+  const base = dot > 0 ? fileName.substring(0, dot) : fileName;
+  const extension = dot > 0 ? fileName.substring(dot) : '';
+  let path = root + '/' + fileName;
+  let index = 1;
+  while (pathExists(path)) {
+    path = root + '/' + base + '_' + index.toString() + extension;
+    index++;
+  }
+  return path;
+}
+
+function pathExists(path: string): boolean {
+  try {
+    fs.accessSync(path);
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
 
 function optionIndex(options: string[], value: string): number {
