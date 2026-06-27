@@ -233,7 +233,7 @@ function imageRequestTimeoutMs(): number {
   if (value === '60s') {
     return 60000;
   }
-  return 20000;
+  return 12000;
 }
 
 function sleepImageRetry(attempt: number): Promise<void> {

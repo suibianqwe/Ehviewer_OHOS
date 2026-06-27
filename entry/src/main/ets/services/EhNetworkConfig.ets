@@ -12,6 +12,7 @@ const FRONTING_PROBE_READ_TIMEOUT_MS: number = 3000;
 const FRONTING_PROBE_DEADLINE_MS: number = 4500;
 const FRONTING_PROBE_CONCURRENCY: number = 4;
 const FRONTING_FAST_IP_LIMIT: number = 3;
+const FRONTING_PROBE_REFRESH_MS: number = 30 * 60 * 1000;
 const FRONTING_PROBE_USER_AGENT: string =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36';
 const BUILT_IN_RULES: HostRule[] = [
@@ -34,6 +35,7 @@ const HOST_IP_QUALITIES: HostIpQuality[] = [];
 let frontingProbeKey: string = '';
 let frontingProbeGeneration: number = 0;
 let frontingProbePending: Promise<void> | null = null;
+let frontingProbeStartedAt: number = 0;
 let frontingIpCachePath: string = '';
 let frontingIpCacheLoadedKey: string = '';
 
@@ -75,6 +77,7 @@ export interface EhRequestPlan {
 }
 
 export function createEhRequestPlan(url: string): EhRequestPlan {
+  ensureFrontingQualityCacheLoaded();
   const host = requestHost(url);
   const hostHeader = requestHostHeader(url);
   const exFrontingIp = exFrontingIpForUrl(url, host);
@@ -103,6 +106,14 @@ export function createEhRequestPlan(url: string): EhRequestPlan {
   };
 }
 
+function ensureFrontingQualityCacheLoaded(): void {
+  const key = frontingBenchmarkKey();
+  if (key === 'Off') {
+    return;
+  }
+  loadCachedIpQualities(key);
+}
+
 export function applyEhNetworkOptions(options: http.HttpRequestOptions, plan: EhRequestPlan): void {
   options.usingCache = false;
   options.usingProxy = proxyOption();
@@ -127,14 +138,20 @@ export function startEhFrontingBenchmark(context?: common.UIAbilityContext): voi
     clearIpQualities();
     frontingProbeKey = key;
     frontingIpCacheLoadedKey = '';
-    return;
-  }
-  if (key === frontingProbeKey && frontingProbePending !== null) {
+    frontingProbeStartedAt = 0;
     return;
   }
   loadCachedIpQualities(key);
+  if (key === frontingProbeKey && frontingProbePending !== null) {
+    return;
+  }
+  if (key === frontingProbeKey && frontingProbeStartedAt > 0 &&
+    Date.now() - frontingProbeStartedAt < FRONTING_PROBE_REFRESH_MS) {
+    return;
+  }
   frontingProbeKey = key;
   frontingProbeGeneration++;
+  frontingProbeStartedAt = Date.now();
   const generation = frontingProbeGeneration;
   frontingProbePending = runEhFrontingBenchmark(generation).then((results: HostIpQuality[]) => {
     if (generation === frontingProbeGeneration) {
