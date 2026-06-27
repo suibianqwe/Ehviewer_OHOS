@@ -6,6 +6,37 @@
 
 这是 [Ehviewer_CN_SXJ](https://github.com/xiaojieonly/Ehviewer_CN_SXJ) 的 HarmonyOS 移植版本，目标是在鸿蒙设备上使用接近原应用的浏览、搜索、阅读、下载和设置体验。目前版本仍在快速迭代中（烧token如流水），请各位多多反馈意见和建议，多提bug，我会尽快完善（token没烧完的话）。
 
+## 界面预览
+
+<table>
+  <tr>
+    <td><img src="docs/images/home-black.jpg" alt="黑色主题主页" width="220" /></td>
+    <td><img src="docs/images/home-dark.jpg" alt="深色主题主页" width="220" /></td>
+    <td><img src="docs/images/gallery-list.jpg" alt="画廊列表" width="220" /></td>
+  </tr>
+  <tr>
+    <td align="center">黑色主题主页</td>
+    <td align="center">深色主题主页</td>
+    <td align="center">画廊列表</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/gallery-detail.jpg" alt="画廊详情" width="220" /></td>
+    <td><img src="docs/images/tag-search.jpg" alt="标签搜索" width="220" /></td>
+    <td><img src="docs/images/advanced-search.jpg" alt="高级搜索" width="220" /></td>
+  </tr>
+  <tr>
+    <td align="center">画廊详情</td>
+    <td align="center">标签搜索</td>
+    <td align="center">高级搜索</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/reader-settings.jpg" alt="阅读器设置" width="220" /></td>
+  </tr>
+  <tr>
+    <td align="center">阅读器设置</td>
+  </tr>
+</table>
+
 ## 下载及安装
 
 请在 [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases) 中下载最新的 `.hap` 安装包。  
