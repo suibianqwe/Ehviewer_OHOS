@@ -42,7 +42,7 @@
 请在 [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases) 中下载最新的 `.hap` 安装包。  
 推荐使用 [小白调试助手](https://github.com/likuai2010/auto-installer) 安装。
 
-当前版本：`0.3.60`  
+当前版本：`0.3.61`  
 目标API：`6.1.1(24)`  
 兼容API：`6.1.0.31(23)`  
 **因为绕过sni功能仅能在API23实现，因此暂不支持更低API版本**（由于技术原因，仅支持里站直连）
