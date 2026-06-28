@@ -47,6 +47,15 @@ interface DownloadedPageResult {
 
 type DownloadStatusListener = (status: string) => void;
 
+class DownloadImageError extends Error {
+  readonly page: GalleryPage;
+
+  constructor(message: string, page: GalleryPage) {
+    super(message);
+    this.page = page;
+  }
+}
+
 function wait(ms: number): Promise<void> {
   return new Promise((resolve: () => void) => {
     setTimeout(resolve, ms);
@@ -319,7 +328,7 @@ export class EhDownloadManager {
         return downloaded;
       } catch (error) {
         lastError = String(error);
-        previousPage = galleryPageCache.get(preview.pageUrl);
+        previousPage = error instanceof DownloadImageError ? error.page : null;
         ehAppLog.warn(context, 'DownloadManager', 'Page attempt failed gid=' + item.gid.toString() +
           ', page=' + (pageIndex + 1).toString() + '/' + total.toString() + ', attempt=' +
           (attempt + 1).toString() + '/' + (DOWNLOAD_PAGE_RETRY_LIMIT + 1).toString() + ': ' + lastError);
@@ -375,9 +384,15 @@ export class EhDownloadManager {
       lastProgressBytes = Math.max(lastProgressBytes, receivedBytes);
       this.recordDownloadSpeed(item, state, total, deltaBytes);
     };
-    const cachedPath = existingCachedPath.length > 0 ? existingCachedPath :
-      await readerImageCache.ensureCached(context, imageUrl, page.pageUrl, true, onProgress, cacheKey,
-        { retryLimit: DOWNLOAD_IMAGE_RETRY_LIMIT });
+    let cachedPath = existingCachedPath;
+    if (cachedPath.length === 0) {
+      try {
+        cachedPath = await readerImageCache.ensureCached(context, imageUrl, page.pageUrl, true, onProgress, cacheKey,
+          { retryLimit: DOWNLOAD_IMAGE_RETRY_LIMIT });
+      } catch (error) {
+        throw new DownloadImageError(String(error), page);
+      }
+    }
     const downloadedBytes = Math.max(readerImageCache.cachedSize(context, imageUrl, cacheKey), lastProgressBytes);
     if (downloadedBytes > lastProgressBytes) {
       this.recordDownloadSpeed(item, state, total, downloadedBytes - lastProgressBytes, true);
