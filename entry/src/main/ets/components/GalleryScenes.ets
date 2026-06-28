@@ -25,6 +25,11 @@ import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehDownloadManager } from '../services/EhDownloadManager';
+import { common } from '@kit.AbilityKit';
+import {
+  confirmCellularNetworkWarningForSession,
+  shouldConfirmCellularNetworkOperation
+} from '../services/EhCellularNetworkGuard';
 import { ehAppLog } from '../services/EhAppLog';
 import { LocalGallerySearchOptions } from '../services/LocalGallerySearch';
 import {
@@ -319,6 +324,7 @@ export struct GalleryListScene {
   private readerPreviewPageRequests: Map<number, Promise<GalleryPreview | null>> = new Map();
   private readerPreviewPageSize: number = 0;
   private detailPreviewPager: DetailPreviewPager = new DetailPreviewPager();
+  private cellularWarningDialogOpen: boolean = false;
 
   private cacheKey(): string {
     const mode = this.useForcedMode ? this.forcedMode.toString() : listModeForRoute(this.sourceRoute).toString();
@@ -1467,12 +1473,56 @@ export struct GalleryListScene {
     if (queued) {
       const context = getAbilityContext();
       if (context !== undefined) {
-        ehDownloadManager.startQueue(context);
+        this.startDownloadQueueWithCellularGuard(context);
       }
     }
     this.detailDownloadText = queued ? 'Queued' : 'Download';
     this.detailStatus = queued ? 'Added to download queue and started' : 'Removed from download queue';
     this.renderVersion++;
+  }
+
+  private startDownloadQueueWithCellularGuard(context: common.UIAbilityContext): void {
+    if (shouldConfirmCellularNetworkOperation()) {
+      this.confirmMobileDataDownload(() => {
+        ehDownloadManager.startQueue(context);
+      });
+      return;
+    }
+    ehDownloadManager.startQueue(context);
+  }
+
+  private confirmMobileDataDownload(onContinue: () => void): void {
+    if (this.cellularWarningDialogOpen) {
+      return;
+    }
+    this.cellularWarningDialogOpen = true;
+    this.getUIContext().getPromptAction().showDialog({
+      title: uiText('Mobile data warning'),
+      message: uiText('You are using mobile data. Continue downloading?'),
+      buttons: [
+        {
+          text: uiText('Cancel'),
+          color: themeSecondaryText()
+        },
+        {
+          text: uiText('Continue'),
+          color: themePrimaryColor()
+        }
+      ]
+    }).then((data) => {
+      this.cellularWarningDialogOpen = false;
+      if (data.index === 1) {
+        confirmCellularNetworkWarningForSession();
+        onContinue();
+      } else {
+        this.detailStatus = 'Download waits for Wi-Fi or confirmation';
+        this.renderVersion++;
+      }
+    }).catch(() => {
+      this.cellularWarningDialogOpen = false;
+      this.detailStatus = 'Download waits for Wi-Fi or confirmation';
+      this.renderVersion++;
+    });
   }
 
   private toggleFavoriteDetail(): void {

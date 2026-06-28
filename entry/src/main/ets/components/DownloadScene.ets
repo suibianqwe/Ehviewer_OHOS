@@ -4,6 +4,10 @@ import { GalleryCategory, GalleryDetail, GalleryPage, GalleryPreview, GalleryRou
 import { ehDownloadFileStore, RestoredDownloadGallery } from '../services/EhDownloadFileStore';
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { DownloadInfo, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
+import {
+  confirmCellularNetworkWarningForSession,
+  shouldConfirmCellularNetworkOperation
+} from '../services/EhCellularNetworkGuard';
 import { EhHttpClient } from '../services/EhHttpClient';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
@@ -171,6 +175,7 @@ export struct DownloadScene {
   private downloadScroller: Scroller = new Scroller();
   private downloadScrollOffset: number = 0;
   private toolbarRestoring: boolean = false;
+  private cellularWarningDialogOpen: boolean = false;
   private downloadRowsDataSource: ArrayDataSource<DownloadInfo[]> = new ArrayDataSource<DownloadInfo[]>([]);
   private downloadRowStructureKeys: string[] = [];
   private downloadCardStates: Map<number, DownloadCardState> = new Map<number, DownloadCardState>();
@@ -297,7 +302,7 @@ export struct DownloadScene {
     ehDownloadStore.load(context).then(() => {
       this.statusText = this.items.length.toString() + ' download items';
       if (ehDownloadManager.hasWaitingDownloads()) {
-        ehDownloadManager.startQueue(context);
+        this.startGlobalDownloadQueue();
       }
     }).catch((error: Error) => {
       this.statusText = 'Download load failed: ' + error.message;
@@ -829,7 +834,45 @@ export struct DownloadScene {
       this.statusText = 'Download needs app context';
       return;
     }
+    if (shouldConfirmCellularNetworkOperation()) {
+      this.confirmMobileDataDownload(() => {
+        ehDownloadManager.startQueue(context);
+      });
+      return;
+    }
     ehDownloadManager.startQueue(context);
+  }
+
+  private confirmMobileDataDownload(onContinue: () => void): void {
+    if (this.cellularWarningDialogOpen) {
+      return;
+    }
+    this.cellularWarningDialogOpen = true;
+    this.getUIContext().getPromptAction().showDialog({
+      title: uiText('Mobile data warning'),
+      message: uiText('You are using mobile data. Continue downloading?'),
+      buttons: [
+        {
+          text: uiText('Cancel'),
+          color: themeSecondaryText()
+        },
+        {
+          text: uiText('Continue'),
+          color: themePrimaryColor()
+        }
+      ]
+    }).then((data) => {
+      this.cellularWarningDialogOpen = false;
+      if (data.index === 1) {
+        confirmCellularNetworkWarningForSession();
+        onContinue();
+      } else {
+        this.statusText = 'Download waits for Wi-Fi or confirmation';
+      }
+    }).catch(() => {
+      this.cellularWarningDialogOpen = false;
+      this.statusText = 'Download waits for Wi-Fi or confirmation';
+    });
   }
 
   private removeItem(item: DownloadInfo): void {

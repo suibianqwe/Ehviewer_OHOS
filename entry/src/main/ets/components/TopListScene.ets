@@ -1,4 +1,5 @@
 ﻿import { pasteboard } from '@kit.BasicServicesKit';
+import { common } from '@kit.AbilityKit';
 import { GalleryCategory, GalleryDetail, GalleryPage, GalleryPreview, GalleryRoute, GallerySite, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { EhHttpClient, GalleryDetailLoadResult, GalleryPageLoadResult, RateGalleryResult, ToggleFavoriteResult, TopListLoadResult } from '../services/EhHttpClient';
@@ -7,6 +8,10 @@ import { galleryPageCache } from '../services/GalleryPageCache';
 import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { ehDownloadManager } from '../services/EhDownloadManager';
+import {
+  confirmCellularNetworkWarningForSession,
+  shouldConfirmCellularNetworkOperation
+} from '../services/EhCellularNetworkGuard';
 import { ehAppLog } from '../services/EhAppLog';
 import { applyAppChromeImmersiveMode, enterEmbeddedReaderFullscreen, leaveEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, nextFloatingToolbarOffset } from '../shared/EhShared';
@@ -20,7 +25,7 @@ import {
   themeTransparentColor
 } from '../shared/EhTheme';
 import { ArrayDataSource } from '../shared/ListDataSource';
-import { STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, createEmptyDetail, createEmptyPage, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, cloneTopListDetail, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, readerStartIndexAsync, downloadButtonText, toggleGalleryDownload, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, topListChipColor, currentGallerySite } from '../shared/EhShared';
+import { STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, createEmptyDetail, createEmptyPage, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, cloneTopListDetail, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, readerStartIndexAsync, downloadButtonText, toggleGalleryDownload, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, topListChipColor, currentGallerySite, uiText } from '../shared/EhShared';
 import { GalleryDetailOverlayScene, GalleryListScene, GalleryListStateView, ReaderPageState, ReaderScene } from './GalleryScenes';
 import { FloatingToolbarHost } from './NavigationComponents';
 
@@ -87,6 +92,7 @@ export struct TopListScene {
   private readerPreviewPageRequests: Map<number, Promise<GalleryPreview | null>> = new Map();
   private readerPreviewPageSize: number = 0;
   private detailPreviewPager: DetailPreviewPager = new DetailPreviewPager();
+  private cellularWarningDialogOpen: boolean = false;
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
@@ -642,12 +648,56 @@ export struct TopListScene {
     if (queued) {
       const context = getAbilityContext();
       if (context !== undefined) {
-        ehDownloadManager.startQueue(context);
+        this.startDownloadQueueWithCellularGuard(context);
       }
     }
     this.detailDownloadText = queued ? 'Queued' : 'Download';
     this.detailStatus = queued ? 'Added to download queue and started' : 'Removed from download queue';
     this.renderVersion++;
+  }
+
+  private startDownloadQueueWithCellularGuard(context: common.UIAbilityContext): void {
+    if (shouldConfirmCellularNetworkOperation()) {
+      this.confirmMobileDataDownload(() => {
+        ehDownloadManager.startQueue(context);
+      });
+      return;
+    }
+    ehDownloadManager.startQueue(context);
+  }
+
+  private confirmMobileDataDownload(onContinue: () => void): void {
+    if (this.cellularWarningDialogOpen) {
+      return;
+    }
+    this.cellularWarningDialogOpen = true;
+    this.getUIContext().getPromptAction().showDialog({
+      title: uiText('Mobile data warning'),
+      message: uiText('You are using mobile data. Continue downloading?'),
+      buttons: [
+        {
+          text: uiText('Cancel'),
+          color: themeSecondaryText()
+        },
+        {
+          text: uiText('Continue'),
+          color: themePrimaryColor()
+        }
+      ]
+    }).then((data) => {
+      this.cellularWarningDialogOpen = false;
+      if (data.index === 1) {
+        confirmCellularNetworkWarningForSession();
+        onContinue();
+      } else {
+        this.detailStatus = 'Download waits for Wi-Fi or confirmation';
+        this.renderVersion++;
+      }
+    }).catch(() => {
+      this.cellularWarningDialogOpen = false;
+      this.detailStatus = 'Download waits for Wi-Fi or confirmation';
+      this.renderVersion++;
+    });
   }
 
   private toggleFavoriteDetail(): void {

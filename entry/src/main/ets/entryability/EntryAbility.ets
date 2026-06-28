@@ -13,6 +13,10 @@ import {
   startEhFrontingBenchmark
 } from '../services/EhNetworkConfig';
 import {
+  resetCellularNetworkWarningConfirmation,
+  shouldWarnForCellularNetwork
+} from '../services/EhCellularNetworkGuard';
+import {
   IDENTITY_AUTH_FACE_FIRST,
   IDENTITY_AUTH_FINGERPRINT_FIRST,
   IDENTITY_AUTH_LOCKED_KEY,
@@ -108,9 +112,26 @@ export default class EntryAbility extends UIAbility {
         ehAppLog.error(this.context, 'EntryAbility', 'Failed to load main page: ' + error.message);
         return;
       }
+      resetCellularNetworkWarningConfirmation();
       this.checkAndPromptBiometricLock();
+      this.showStartupCellularNetworkWarning();
       this.showStartupDirectProbeToast();
     });
+  }
+
+  private showStartupCellularNetworkWarning(): void {
+    if (!shouldWarnForCellularNetwork() || this.windowStage === undefined) {
+      return;
+    }
+    try {
+      this.windowStage.getMainWindow().then((win) => {
+        try {
+          win.getUIContext().getPromptAction().showToast({ message: uiText('Connected to cellular networks') });
+        } catch (error) {
+        }
+      }).catch(() => {});
+    } catch (error) {
+    }
   }
 
   private showStartupDirectProbeToast(): void {

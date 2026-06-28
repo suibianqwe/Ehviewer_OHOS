@@ -713,6 +713,10 @@ export function zhText(text: string): string {
     case 'Display account and image limits in the drawer': return '在抽屉中显示账号和图片限制';
     case 'Cellular network warning': return '移动网络警告';
     case 'Warn before network-heavy operations on mobile data': return '使用移动数据进行大量网络操作前提示';
+    case 'Connected to cellular networks': return '正在使用移动网络';
+    case 'Mobile data warning': return '移动网络警告';
+    case 'You are using mobile data. Continue downloading?': return '当前正在使用移动网络，是否继续下载？';
+    case 'Continue': return '继续';
     case 'Screen rotation': return '屏幕旋转';
     case 'Reader orientation policy': return '阅读器方向策略';
     case 'Reading direction': return '阅读方向';
