@@ -391,14 +391,8 @@ export function uiStatusText(text: string): string {
   if (text.indexOf('Saved: ') === 0) {
     return '已保存：' + text.substring('Saved: '.length);
   }
-  if (text === 'Restarting app...') {
-    return '正在重启应用...';
-  }
-  if (text === 'Theme saved; restart the app to apply it') {
-    return '主题已保存，重启应用后生效';
-  }
-  if (text.indexOf('Restart failed: ') === 0) {
-    return '重启失败：' + text.substring('Restart failed: '.length);
+  if (text === 'Theme refreshed') {
+    return '主题已刷新';
   }
   if (text.indexOf('Network diagnostics: ') === 0) {
     return '网络诊断：' + text.substring('Network diagnostics: '.length);

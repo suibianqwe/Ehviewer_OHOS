@@ -275,32 +275,11 @@ export struct SettingsScene {
       this.statusText = isNetworkSettingKey(key) ? 'Saved network setting: ' + key + ' = ' + normalizedValue +
         '. Refresh Homepage or run Network diagnostics.' : 'Saved: ' + key + ' = ' + normalizedValue;
       if (key === 'theme' || key === 'follow_system_dark_mode') {
-        this.restartEntryAbility();
+        this.statusText = 'Theme refreshed';
       }
     }).catch((error: Error) => {
       this.statusText = 'Save failed: ' + error.message;
     });
-  }
-
-  private restartEntryAbility(): void {
-    const context = getAbilityContext();
-    if (context === undefined) {
-      this.statusText = 'Theme saved; restart the app to apply it';
-      return;
-    }
-    this.statusText = 'Restarting app...';
-    setTimeout(() => {
-      context.startAbility({
-        bundleName: 'yt.ehviewer.huawei',
-        abilityName: 'EntryAbility'
-      }).then(() => {
-        context.terminateSelf().catch((error: Error) => {
-          this.statusText = 'Restart failed: ' + error.message;
-        });
-      }).catch((error: Error) => {
-        this.statusText = 'Restart failed: ' + error.message;
-      });
-    }, 160);
   }
 
   private normalizedSettingValue(key: string, value: string): string {
