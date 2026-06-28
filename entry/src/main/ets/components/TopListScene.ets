@@ -25,6 +25,12 @@ import {
   refreshDetailDownloadItem,
   toggleDetailDownloadTask
 } from '../services/GalleryDetailDownloadSupport';
+import {
+  createGalleryDetailLink,
+  GalleryDetailModuleLoadResult,
+  initialDetailForLink,
+  loadGalleryDetailModule
+} from '../services/GalleryDetailModule';
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { DownloadInfo, ehDownloadStore } from '../services/EhDownloadStore';
 import {
@@ -53,17 +59,6 @@ function normalizeSceneScrollOffset(offset: number): number {
     return 0;
   }
   return offset;
-}
-
-function mergeLoadedSceneDetail(loaded: GalleryDetail, previous: GalleryDetail): GalleryDetail {
-  const next = cloneGalleryDetail(loaded);
-  if ((next.thumb === undefined || next.thumb.length === 0) && previous.thumb !== undefined && previous.thumb.length > 0) {
-    next.thumb = previous.thumb;
-  }
-  if ((next.thumb === undefined || next.thumb.length === 0) && next.previewSet.length > 0) {
-    next.thumb = next.previewSet[0].imageUrl;
-  }
-  return next;
 }
 
 @Component
@@ -269,44 +264,40 @@ export struct TopListScene {
     this.restoreDetailWithFade = false;
     this.showDetail = true;
     this.detailPreviewPager.start();
-    const loadingDetail = createEmptyDetail();
-    loadingDetail.gid = gid;
-    loadingDetail.token = item.token;
-    loadingDetail.title = item.value;
-    const requestGid = gid;
+    const site = this.gallerySite();
+    const detailLink = createGalleryDetailLink(gid, item.token, item.value, site, this.requestUrl);
+    const loadingDetail = initialDetailForLink(detailLink);
+    const requestGid = detailLink.gid;
     this.detail = loadingDetail;
     this.resetReaderPreviewCache();
-    this.detailStatus = 'Loading detail for gid ' + item.gid + '...';
-    this.detailRequestUrl = '';
-    this.detailDownloadText = detailDownloadButtonText(gid);
+    this.detailStatus = 'Loading detail for gid ' + detailLink.gid.toString() + '...';
+    this.detailRequestUrl = detailLink.url;
+    this.detailDownloadText = detailDownloadButtonText(detailLink.gid);
     this.detailLoaded = false;
     this.optimisticFavorite = false;
     this.favoriteBusy = false;
     this.renderVersion++;
 
-    const site = this.gallerySite();
-    this.client.loadGalleryDetail(gid, item.token, 0, site, this.requestUrl).then((result: GalleryDetailLoadResult) => {
-      if (!result.ok || result.detail === null) {
-        const message = 'Detail load failed: ' + result.message;
+    loadGalleryDetailModule(this.client, detailLink).then((result: GalleryDetailModuleLoadResult) => {
+      if (!result.ok) {
         if (this.showDetail && this.detail.gid === requestGid) {
           this.detailRequestUrl = result.url;
-          this.detailStatus = message;
+          this.detailStatus = result.statusText;
           this.renderVersion++;
         }
-        ehAppLog.warn(getAbilityContext(), 'TopListDetail', message);
+        ehAppLog.warn(getAbilityContext(), 'TopListDetail', result.statusText);
         return;
       }
-      const loadedDetail = mergeLoadedSceneDetail(result.detail, loadingDetail);
-      saveGalleryToHistory(loadedDetail);
+      saveGalleryToHistory(result.detail);
       if (!this.showDetail || this.detail.gid !== requestGid) {
         return;
       }
       this.detailRequestUrl = result.url;
-      this.detailStatus = 'Detail loaded';
-      this.detail = loadedDetail;
+      this.detailStatus = result.statusText;
+      this.detail = result.detail;
       this.seedReaderPreviewCache(this.detail.previewSet);
       refreshDetailDownloadItem(this.detail);
-      this.detailDownloadText = detailDownloadButtonText(result.detail.gid);
+      this.detailDownloadText = detailDownloadButtonText(this.detail.gid);
       this.detailLoaded = true;
       this.optimisticFavorite = this.detail.isFavorited;
       this.favoriteBusy = false;

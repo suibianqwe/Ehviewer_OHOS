@@ -47,6 +47,12 @@ import {
   findDetailDownloadItem,
   toggleDetailDownloadTask
 } from '../services/GalleryDetailDownloadSupport';
+import {
+  createGalleryDetailLinkFromGallery,
+  GalleryDetailModuleLoadResult,
+  initialDetailForLink,
+  loadGalleryDetailModule
+} from '../services/GalleryDetailModule';
 import { ehAppLog } from '../services/EhAppLog';
 import {
   applyAppChromeImmersiveMode,
@@ -58,8 +64,6 @@ import {
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, nextFloatingToolbarOffset, setActiveBackHandler } from '../shared/EhShared';
 import {
   createEmptyDownloadInfo,
-  cloneGalleryDetail,
-  createDetailFromGallery,
   createEmptyDetail,
   currentGallerySite,
   downloadPageIndexes,
@@ -142,18 +146,6 @@ const ACTION_BUBBLE_GAP: number = 8;
 const ACTION_BUBBLE_PRIMARY_SIZE: number = 54;
 const ACTION_BUBBLE_PRIMARY_GAP: number = 10;
 const DOWNLOAD_JUMP_PAGE_SIZE: number = 25;
-
-function mergeDownloadDetailTitles(detail: GalleryDetail, item: DownloadInfo): GalleryDetail {
-  const next = cloneGalleryDetail(detail);
-  if (next.title.length === 0 && item.title.length > 0) {
-    next.title = item.title;
-  }
-  if ((next.titleJpn === undefined || next.titleJpn.length === 0) && item.titleJpn !== undefined &&
-    item.titleJpn.length > 0) {
-    next.titleJpn = item.titleJpn;
-  }
-  return next;
-}
 
 @Component
 export struct DownloadScene {
@@ -977,22 +969,24 @@ export struct DownloadScene {
     this.detailItem = item;
     this.restoreDetailWithFade = false;
     this.showDetail = true;
-    this.detail = createDetailFromGallery(item);
+    const detailLink = createGalleryDetailLinkFromGallery(item, currentGallerySite(),
+      EhUrl.getReferer(currentGallerySite()));
+    this.detail = initialDetailForLink(detailLink);
     this.detailStatus = 'Loading gallery detail...';
-    this.detailRequestUrl = '';
+    this.detailRequestUrl = detailLink.url;
     this.detailLoaded = false;
     this.detailRenderVersion++;
-    this.client.loadGalleryDetail(item.gid, item.token, 0, currentGallerySite(), EhUrl.getReferer(currentGallerySite()))
-      .then((result) => {
-        if (!result.ok || result.detail === null) {
-          this.detailStatus = 'Detail load failed: ' + result.message;
+    loadGalleryDetailModule(this.client, detailLink)
+      .then((result: GalleryDetailModuleLoadResult) => {
+        if (!result.ok) {
+          this.detailStatus = result.statusText;
           ehAppLog.warn(getAbilityContext(), 'DownloadDetail', this.detailStatus);
           this.detailRenderVersion++;
           return;
         }
-        this.detail = mergeDownloadDetailTitles(result.detail, item);
+        this.detail = result.detail;
         this.detailRequestUrl = result.url;
-        this.detailStatus = 'Gallery detail loaded';
+        this.detailStatus = result.statusText;
         this.detailLoaded = true;
         ehDownloadStore.updateGallery(this.detail);
         this.persistDownloads();

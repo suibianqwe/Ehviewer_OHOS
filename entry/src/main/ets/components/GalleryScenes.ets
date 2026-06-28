@@ -52,6 +52,12 @@ import {
   refreshDetailDownloadItem,
   toggleDetailDownloadTask
 } from '../services/GalleryDetailDownloadSupport';
+import {
+  createGalleryDetailLinkFromGallery,
+  GalleryDetailModuleLoadResult,
+  initialDetailForLink,
+  loadGalleryDetailModule
+} from '../services/GalleryDetailModule';
 import { common } from '@kit.AbilityKit';
 import {
   confirmCellularNetworkWarningForSession,
@@ -104,7 +110,6 @@ import {
   uiStatusText,
   setActiveBackHandler,
   createEmptyGallery,
-  createDetailFromGallery,
   createEmptyDetail,
   createEmptyPage,
   cloneGalleryInfos,
@@ -236,25 +241,6 @@ function normalizeGalleryListScrollOffset(offset: number): number {
     return 0;
   }
   return offset;
-}
-
-function mergeLoadedGalleryDetail(loaded: GalleryDetail, previous: GalleryDetail): GalleryDetail {
-  const next = cloneGalleryDetail(loaded);
-  if (next.title.length === 0 && previous.title.length > 0) {
-    next.title = previous.title;
-  }
-  if ((next.titleJpn === undefined || next.titleJpn.length === 0) && previous.titleJpn !== undefined &&
-    previous.titleJpn.length > 0) {
-    next.titleJpn = previous.titleJpn;
-  }
-  if ((next.thumb === undefined || next.thumb.length === 0) && previous.thumb !== undefined &&
-    previous.thumb.length > 0) {
-    next.thumb = previous.thumb;
-  }
-  if ((next.thumb === undefined || next.thumb.length === 0) && next.previewSet.length > 0) {
-    next.thumb = next.previewSet[0].imageUrl;
-  }
-  return next;
 }
 
 export { HomeGalleryScene } from './HomeGalleryScene';
@@ -1075,42 +1061,40 @@ export struct GalleryListScene {
     this.restoreDetailWithFade = false;
     this.showDetail = true;
     this.detailPreviewPager.start();
-    const loadingDetail = createDetailFromGallery(gallery);
-    const requestGid = gallery.gid;
+    const detailLink = createGalleryDetailLinkFromGallery(gallery, this.activeSite, this.requestUrl);
+    const loadingDetail = initialDetailForLink(detailLink);
+    const requestGid = detailLink.gid;
     this.detail = loadingDetail;
     this.resetReaderPreviewCache();
-    this.detailStatus = 'Loading detail for gid ' + gallery.gid.toString() + '...';
-    this.detailRequestUrl = '';
-    this.detailDownloadText = detailDownloadButtonText(gallery.gid);
+    this.detailStatus = 'Loading detail for gid ' + detailLink.gid.toString() + '...';
+    this.detailRequestUrl = detailLink.url;
+    this.detailDownloadText = detailDownloadButtonText(detailLink.gid);
     this.detailLoaded = false;
     this.optimisticFavorite = gallery.favoriteSlot >= 0;
     this.favoriteBusy = false;
     this.renderVersion++;
 
-    this.client.loadGalleryDetail(gallery.gid, gallery.token, 0, this.activeSite, this.requestUrl)
-      .then((result: GalleryDetailLoadResult) => {
-        if (!result.ok || result.detail === null) {
-          const message = 'Detail load failed: ' + result.message;
+    loadGalleryDetailModule(this.client, detailLink)
+      .then((result: GalleryDetailModuleLoadResult) => {
+        if (!result.ok) {
           if (this.showDetail && this.detail.gid === requestGid) {
             this.detailRequestUrl = result.url;
-            this.detailStatus = message;
+            this.detailStatus = result.statusText;
             this.renderVersion++;
           }
-          ehAppLog.warn(getAbilityContext(), 'GalleryDetail', message);
+          ehAppLog.warn(getAbilityContext(), 'GalleryDetail', result.statusText);
           return;
         }
-
-        const loadedDetail = mergeLoadedGalleryDetail(result.detail, loadingDetail);
-        saveGalleryToHistory(loadedDetail);
+        saveGalleryToHistory(result.detail);
         if (!this.showDetail || this.detail.gid !== requestGid) {
           return;
         }
         this.detailRequestUrl = result.url;
-        this.detailStatus = 'Detail loaded';
-        this.detail = loadedDetail;
+        this.detailStatus = result.statusText;
+        this.detail = result.detail;
         this.seedReaderPreviewCache(this.detail.previewSet);
         refreshDetailDownloadItem(this.detail);
-        this.detailDownloadText = detailDownloadButtonText(result.detail.gid);
+        this.detailDownloadText = detailDownloadButtonText(this.detail.gid);
         this.detailLoaded = true;
         this.optimisticFavorite = this.detail.isFavorited;
         this.favoriteBusy = false;
