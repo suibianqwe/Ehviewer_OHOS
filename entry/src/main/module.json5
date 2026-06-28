@@ -63,16 +63,6 @@
       },
       {
         "name": "ohos.permission.PRIVACY_WINDOW"
-      },
-      {
-        "name": "ohos.permission.READ_PASTEBOARD",
-        "reason": "$string:read_pasteboard_reason",
-        "usedScene": {
-          "abilities": [
-            "EntryAbility"
-          ],
-          "when": "inuse"
-        }
       }
     ]
   }

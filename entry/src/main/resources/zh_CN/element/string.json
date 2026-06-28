@@ -11,10 +11,6 @@
     {
       "name": "EntryAbility_label",
       "value": "EhViewer"
-    },
-    {
-      "name": "read_pasteboard_reason",
-      "value": "仅在开启剪贴板画廊链接检测时读取剪贴板文本，用于在应用内打开画廊链接。"
     }
   ]
 }

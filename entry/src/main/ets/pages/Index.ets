@@ -1,4 +1,4 @@
-import { abilityAccessCtrl, common, Permissions } from '@kit.AbilityKit';
+import { common } from '@kit.AbilityKit';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { GalleryRoute, GallerySite } from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
@@ -36,8 +36,6 @@ import {
 // ----------------------------------------------------------------
 // Root page: full-screen immersive shell with slide-in side drawer
 // ----------------------------------------------------------------
-const READ_PASTEBOARD_PERMISSION: Permissions = 'ohos.permission.READ_PASTEBOARD';
-
 @Entry
 @Component
 struct Index {
@@ -50,6 +48,7 @@ struct Index {
   @State updateDialogVisible: boolean = false;
   @State updateCurrentVersion: string = '';
   @State updateRelease: ReleaseInfo | null = null;
+  @State clipboardPasteVisible: boolean = false;
   @State clipboardPromptVisible: boolean = false;
   @State clipboardPromptUrl: string = '';
   @State clipboardPromptGid: number = 0;
@@ -160,38 +159,59 @@ struct Index {
     });
   }
 
-  private checkClipboardGalleryUrl(context: common.UIAbilityContext): void {
+  private checkClipboardGalleryUrl(_context: common.UIAbilityContext): void {
     if (ehSettingsStore.getValue('clipboard_gallery_url_scan', 'Off') !== 'On') {
       return;
     }
-    requestClipboardPermission(context).then((granted: boolean) => {
-      if (!granted) {
-        return;
-      }
-      setTimeout(() => {
-        pasteboard.getSystemPasteboard().getData().then((data: pasteboard.PasteData) => {
-        const text = data.getPrimaryText();
-        if (text === undefined || text.length === 0) {
-          this.rememberClipboardTextHash(context, 0);
-          return;
-        }
-        const hash = textHashCode(text);
-        if (hash === Number.parseInt(ehSettingsStore.getValue('clipboard_text_hash', '0'))) {
-          return;
-        }
-        this.rememberClipboardTextHash(context, hash);
-        const parsed = parseClipboardGalleryUrl(text);
-        if (parsed === null) {
-          return;
-        }
-        this.clipboardPromptUrl = parsed.url;
-        this.clipboardPromptGid = parsed.gid;
-        this.clipboardPromptToken = parsed.token;
-        this.clipboardPromptSite = parsed.site;
-        this.clipboardPromptVisible = true;
-        }).catch(() => {});
-      }, 300);
-    }).catch(() => {});
+    this.clipboardPasteVisible = true;
+  }
+
+  private pasteClipboardGalleryUrl(): void {
+    const context = getAbilityContext();
+    if (context === undefined) {
+      this.showToast('Clipboard scan failed');
+      return;
+    }
+    pasteboard.getSystemPasteboard().getData().then((data: pasteboard.PasteData) => {
+      this.handleClipboardText(context, data.getPrimaryText());
+    }).catch(() => {
+      this.showToast('Clipboard scan failed');
+    });
+  }
+
+  private handleClipboardText(context: common.UIAbilityContext, text: string): void {
+    if (text === undefined || text.length === 0) {
+      this.rememberClipboardTextHash(context, 0);
+      this.clipboardPasteVisible = false;
+      this.showToast('No gallery URL in clipboard');
+      return;
+    }
+    const hash = textHashCode(text);
+    if (hash === Number.parseInt(ehSettingsStore.getValue('clipboard_text_hash', '0'))) {
+      this.clipboardPasteVisible = false;
+      this.showToast('Clipboard content already checked');
+      return;
+    }
+    this.rememberClipboardTextHash(context, hash);
+    const parsed = parseClipboardGalleryUrl(text);
+    if (parsed === null) {
+      this.clipboardPasteVisible = false;
+      this.showToast('No gallery URL in clipboard');
+      return;
+    }
+    this.clipboardPromptUrl = parsed.url;
+    this.clipboardPromptGid = parsed.gid;
+    this.clipboardPromptToken = parsed.token;
+    this.clipboardPromptSite = parsed.site;
+    this.clipboardPasteVisible = false;
+    this.clipboardPromptVisible = true;
+  }
+
+  private showToast(message: string): void {
+    try {
+      this.getUIContext().getPromptAction().showToast({ message: uiText(message) });
+    } catch (error) {
+    }
   }
 
   private rememberClipboardTextHash(context: common.UIAbilityContext, hash: number): void {
@@ -323,6 +343,48 @@ struct Index {
         })
           .zIndex(30)
           .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
+      }
+
+      if (this.clipboardPasteVisible && !this.clipboardPromptVisible) {
+        Column() {
+          Text(uiText('Paste clipboard to scan gallery URL'))
+            .fontSize(15)
+            .fontColor(themePrimaryText())
+            .fontWeight(FontWeight.Medium)
+            .width('100%')
+          Text(uiText('Tap the system Paste button to grant one-time clipboard access'))
+            .fontSize(12)
+            .fontColor(themeSecondaryText())
+            .width('100%')
+            .margin({ top: 4, bottom: 12 })
+          Row() {
+            Button(uiText('Ignore'), { type: ButtonType.Normal, stateEffect: true })
+              .height(40)
+              .fontSize(13)
+              .fontColor(themeSecondaryText())
+              .backgroundColor(Color.Transparent)
+              .onClick(() => {
+                this.clipboardPasteVisible = false;
+              })
+            PasteButton()
+              .height(40)
+              .onClick((_event: ClickEvent, result: PasteButtonOnClickResult) => {
+                if (result === PasteButtonOnClickResult.SUCCESS) {
+                  this.pasteClipboardGalleryUrl();
+                }
+              })
+          }
+          .justifyContent(FlexAlign.End)
+          .width('100%')
+        }
+        .width('92%')
+        .padding(14)
+        .backgroundColor(themeSurface())
+        .borderRadius(8)
+        .align(Alignment.Bottom)
+        .margin({ bottom: 32 })
+        .zIndex(31)
+        .shadow({ radius: 18, color: themeShadowColor(), offsetX: 0, offsetY: 6 })
       }
 
       if (this.clipboardPromptVisible) {
@@ -460,14 +522,4 @@ function textHashCode(text: string): number {
     hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
   }
   return hash;
-}
-
-async function requestClipboardPermission(context: common.UIAbilityContext): Promise<boolean> {
-  try {
-    const atManager = abilityAccessCtrl.createAtManager();
-    const result = await atManager.requestPermissionsFromUser(context, [READ_PASTEBOARD_PERMISSION]);
-    return result.authResults.length > 0 && result.authResults[0] === 0;
-  } catch (error) {
-    return false;
-  }
 }

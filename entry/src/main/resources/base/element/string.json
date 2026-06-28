@@ -11,10 +11,6 @@
     {
       "name": "EntryAbility_label",
       "value": "EhViewer"
-    },
-    {
-      "name": "read_pasteboard_reason",
-      "value": "Read clipboard text only when clipboard gallery URL scan is enabled, so gallery links can be opened in the app."
     }
   ]
 }

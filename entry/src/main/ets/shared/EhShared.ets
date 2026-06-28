@@ -768,8 +768,14 @@ export function zhText(text: string): string {
     case 'Secure screen': return '安全屏幕';
     case 'Prevent screenshots and insecure previews': return '禁止截图和不安全预览';
     case 'Clipboard gallery URL scan': return '剪贴板画廊链接检测';
+    case 'Use the system Paste button to scan gallery links from clipboard': return '使用系统粘贴按钮检测剪贴板中的画廊链接';
     case 'Read clipboard on startup/resume and offer to open gallery links': return '启动或恢复时读取剪贴板并提示打开画廊链接';
     case 'There is a gallery url in the clipboard': return '剪贴板里有画廊链接';
+    case 'Paste clipboard to scan gallery URL': return '粘贴剪贴板以检测画廊链接';
+    case 'Tap the system Paste button to grant one-time clipboard access': return '点击系统粘贴按钮授权单次读取剪贴板';
+    case 'Clipboard scan failed': return '剪贴板检测失败';
+    case 'No gallery URL in clipboard': return '剪贴板中没有画廊链接';
+    case 'Clipboard content already checked': return '剪贴板内容已检测过';
     case 'Clipboard gallery URL scan enabled': return '剪贴板画廊链接检测已开启';
     case 'Clipboard gallery URL scan disabled': return '剪贴板画廊链接检测已关闭';
     case 'Analytics': return '数据统计';
@@ -1873,7 +1879,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('pattern_protection', 'Pattern protection', 'Verify identity when the app returns from background', entries, ON_OFF_OPTIONS),
       optionSettingsRow('enable_secure', 'Secure screen', 'Prevent screenshots and insecure previews', entries, ON_OFF_OPTIONS),
       optionSettingsRow('clipboard_gallery_url_scan', 'Clipboard gallery URL scan',
-        'Read clipboard on startup/resume and offer to open gallery links', entries, ON_OFF_OPTIONS),
+        'Use the system Paste button to scan gallery links from clipboard', entries, ON_OFF_OPTIONS),
       optionSettingsRow('enable_analytics', 'Analytics', 'Allow privacy-preserving analytics prompt equivalent', entries, ON_OFF_OPTIONS),
       staticSettingsRow('about_analytics', 'About analytics', 'Explanation dialog from the original privacy settings', 'Info', 'message'),
       optionSettingsRow('save_parse_error_body', 'Save parse error body', 'Persist parser failures for debugging', entries, ON_OFF_OPTIONS),
