@@ -38,6 +38,7 @@ interface SettingEntry {
 export default class EntryAbility extends UIAbility {
   private windowStage: window.WindowStage | undefined = undefined;
   private authPending: boolean = false;
+  private identityAuthGraceUntilMs: number = 0;
   private startupDirectProbeToast: string = '';
   // Largest bottom avoid (nav bar / gesture indicator) height observed this session, in px.
   // The reader hides system bars (setWindowSystemBarEnable([])), which makes the live avoid
@@ -188,6 +189,9 @@ export default class EntryAbility extends UIAbility {
     if (this.authPending) {
       return;
     }
+    if (Date.now() < this.identityAuthGraceUntilMs) {
+      return;
+    }
     if (this.identityAuthEnabledInMemory()) {
       this.setIdentityAuthLocked(true);
     }
@@ -195,6 +199,9 @@ export default class EntryAbility extends UIAbility {
   }
 
   onBackground(): void {
+    if (this.authPending) {
+      return;
+    }
     if (this.identityAuthEnabledInMemory()) {
       this.setIdentityAuthLocked(true);
     }
@@ -294,6 +301,7 @@ export default class EntryAbility extends UIAbility {
         onResult: (result: userAuth.UserAuthResult) => {
           this.authPending = false;
           if (result.result === userAuth.UserAuthResultCode.SUCCESS) {
+            this.identityAuthGraceUntilMs = Date.now() + 5000;
             this.setIdentityAuthLocked(false);
           } else if (this.shouldTryNextIdentityAuthType(result.result)) {
             this.authPending = true;

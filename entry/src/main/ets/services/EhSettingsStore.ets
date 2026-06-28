@@ -57,7 +57,6 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'download_order_asc', value: 'On' },
     { key: 'pattern_protection', value: 'Off' },
     { key: 'enable_secure', value: 'Off' },
-    { key: 'enable_analytics', value: 'Off' },
     { key: 'save_parse_error_body', value: 'Off' },
     { key: 'save_crash_log', value: 'Off' },
     { key: 'read_cache_size', value: '160 MB' },

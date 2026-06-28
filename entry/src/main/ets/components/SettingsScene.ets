@@ -557,10 +557,6 @@ export struct SettingsScene {
       this.clearAppLog();
       return true;
     }
-    if (key === 'about_analytics') {
-      this.statusText = 'Analytics is only recorded when enabled. The HarmonyOS port currently keeps this as a local preference.';
-      return true;
-    }
     if (key === 'declaration') {
       this.openExternalUrl(EH_REPOSITORY_URL, 'repository');
       return true;

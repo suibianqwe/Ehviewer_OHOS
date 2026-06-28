@@ -791,10 +791,6 @@ export function zhText(text: string): string {
     case 'Unlock to continue using EhViewer': return '解锁后继续使用 EhViewer';
     case 'Privacy mode': return '隐私模式';
     case 'Prevent screenshots and insecure previews': return '禁止截图、录屏和不安全预览';
-    case 'Analytics': return '数据统计';
-    case 'Allow privacy-preserving analytics prompt equivalent': return '允许隐私提示对应的数据统计设置';
-    case 'About analytics': return '关于数据统计';
-    case 'Explanation dialog from the original privacy settings': return '原隐私设置中的说明对话框';
     case 'Save parse error body': return '保存解析错误正文';
     case 'Persist parser failures for debugging': return '保存解析失败内容用于调试';
     case 'Save crash log': return '保存日志';
@@ -1902,8 +1898,6 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('pattern_protection', 'Identity authentication', 'Verify identity when the app returns from background',
         entries, identityAuthenticationOptions()),
       optionSettingsRow('enable_secure', 'Privacy mode', 'Prevent screenshots and insecure previews', entries, ON_OFF_OPTIONS),
-      optionSettingsRow('enable_analytics', 'Analytics', 'Allow privacy-preserving analytics prompt equivalent', entries, ON_OFF_OPTIONS),
-      staticSettingsRow('about_analytics', 'About analytics', 'Explanation dialog from the original privacy settings', 'Info', 'message'),
       optionSettingsRow('save_parse_error_body', 'Save parse error body', 'Persist parser failures for debugging', entries, ON_OFF_OPTIONS),
       optionSettingsRow('save_crash_log', 'Save crash log', 'Persist app errors and debug messages locally', entries, ON_OFF_OPTIONS),
       staticSettingsRow('clear_app_log', 'Clear saved log', 'Delete the local app log file', 'Clear', 'action')
