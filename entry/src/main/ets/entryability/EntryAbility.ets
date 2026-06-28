@@ -221,9 +221,9 @@ export default class EntryAbility extends UIAbility {
           enabled = false;
         }
       }
-      applyWindowPrivacyMode(enabled);
+      applyWindowPrivacyMode(enabled, undefined, this.context);
     }).catch(() => {
-      applyWindowPrivacyMode(false);
+      applyWindowPrivacyMode(false, undefined, this.context);
     });
   }
 
@@ -261,23 +261,43 @@ export default class EntryAbility extends UIAbility {
     if (this.authPending) {
       return;
     }
+    this.authPending = true;
+    this.startNextIdentityAuth(this.identityAuthTypeSequenceForMode(mode), 0);
+  }
+
+  private startNextIdentityAuth(types: userAuth.UserAuthType[], index: number): void {
+    if (index >= types.length) {
+      this.authPending = false;
+      this.setIdentityAuthLocked(true);
+      this.minimizeApp();
+      return;
+    }
+    const authType = types[index];
+    if (!this.identityAuthTypeAvailable(authType)) {
+      this.startNextIdentityAuth(types, index + 1);
+      return;
+    }
     try {
       const challenge = generateChallenge();
       const authParam: userAuth.AuthParam = {
         challenge: challenge,
-        authType: this.identityAuthTypesForMode(mode),
-        authTrustLevel: userAuth.AuthTrustLevel.ATL1
+        authType: [authType],
+        authTrustLevel: this.identityAuthTrustLevel(authType),
+        skipLockedBiometricAuth: true
       };
       const widgetParam: userAuth.WidgetParam = {
-        title: 'EhViewer ' + uiText('Identity authentication')
+        title: this.identityAuthTitle(authType),
+        navigationButtonText: uiText('Cancel')
       };
       const authInstance = userAuth.getUserAuthInstance(authParam, widgetParam);
-      this.authPending = true;
       authInstance.on('result', {
         onResult: (result: userAuth.UserAuthResult) => {
           this.authPending = false;
           if (result.result === userAuth.UserAuthResultCode.SUCCESS) {
             this.setIdentityAuthLocked(false);
+          } else if (this.shouldTryNextIdentityAuthType(result.result)) {
+            this.authPending = true;
+            this.startNextIdentityAuth(types, index + 1);
           } else {
             this.setIdentityAuthLocked(true);
             this.minimizeApp();
@@ -286,8 +306,13 @@ export default class EntryAbility extends UIAbility {
       });
       authInstance.start();
     } catch (error) {
+      if (this.shouldTryNextIdentityAuthType(this.errorCode(error))) {
+        this.startNextIdentityAuth(types, index + 1);
+        return;
+      }
       this.authPending = false;
       this.setIdentityAuthLocked(true);
+      this.minimizeApp();
     }
   }
 
@@ -299,7 +324,7 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate<boolean>(IDENTITY_AUTH_LOCKED_KEY, locked);
   }
 
-  private identityAuthTypesForMode(mode: string): userAuth.UserAuthType[] {
+  private identityAuthTypeSequenceForMode(mode: string): userAuth.UserAuthType[] {
     const normalizedMode = normalizeIdentityAuthenticationOption(mode);
     if (normalizedMode === IDENTITY_AUTH_FACE_FIRST) {
       return [userAuth.UserAuthType.FACE, userAuth.UserAuthType.FINGERPRINT, userAuth.UserAuthType.PIN];
@@ -311,6 +336,48 @@ export default class EntryAbility extends UIAbility {
       return [userAuth.UserAuthType.FINGERPRINT, userAuth.UserAuthType.FACE, userAuth.UserAuthType.PIN];
     }
     return [userAuth.UserAuthType.FINGERPRINT, userAuth.UserAuthType.FACE, userAuth.UserAuthType.PIN];
+  }
+
+  private identityAuthTypeAvailable(authType: userAuth.UserAuthType): boolean {
+    try {
+      userAuth.getAvailableStatus(authType, this.identityAuthTrustLevel(authType));
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  private identityAuthTrustLevel(authType: userAuth.UserAuthType): userAuth.AuthTrustLevel {
+    return authType === userAuth.UserAuthType.PIN ? userAuth.AuthTrustLevel.ATL3 : userAuth.AuthTrustLevel.ATL1;
+  }
+
+  private identityAuthTitle(authType: userAuth.UserAuthType): string {
+    if (authType === userAuth.UserAuthType.PIN) {
+      return 'EhViewer ' + uiText('Password first');
+    }
+    if (authType === userAuth.UserAuthType.FACE) {
+      return 'EhViewer ' + uiText('Face first');
+    }
+    return 'EhViewer ' + uiText('Fingerprint first');
+  }
+
+  private shouldTryNextIdentityAuthType(resultCode: number): boolean {
+    return resultCode === userAuth.UserAuthResultCode.TYPE_NOT_SUPPORT ||
+      resultCode === userAuth.UserAuthResultCode.TRUST_LEVEL_NOT_SUPPORT ||
+      resultCode === userAuth.UserAuthResultCode.NOT_ENROLLED ||
+      resultCode === userAuth.UserAuthResultCode.LOCKED ||
+      resultCode === userAuth.UserAuthResultCode.BUSY;
+  }
+
+  private errorCode(error: Error | Object | string): number {
+    if (typeof error !== 'object' || error === null) {
+      return 0;
+    }
+    const candidate = error as Record<string, Object>;
+    if (typeof candidate.code === 'number') {
+      return candidate.code;
+    }
+    return 0;
   }
 
   private minimizeApp(): void {

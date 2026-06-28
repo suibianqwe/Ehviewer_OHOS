@@ -260,7 +260,7 @@ export struct SettingsScene {
     if (key === 'enable_secure') {
       applyWindowPrivacyMode(value === 'On', (status: string) => {
         this.statusText = status;
-      });
+      }, getAbilityContext());
     }
     if (isNetworkSettingKey(key)) {
       this.refreshNetworkRuntime();

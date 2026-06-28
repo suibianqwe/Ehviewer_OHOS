@@ -789,8 +789,8 @@ export function zhText(text: string): string {
     case 'Identity authentication requires an ability context': return '身份验证需要 Ability 上下文';
     case 'Identity authentication required': return '需要身份验证';
     case 'Unlock to continue using EhViewer': return '解锁后继续使用 EhViewer';
-    case 'Secure screen': return '安全屏幕';
-    case 'Prevent screenshots and insecure previews': return '禁止截图和不安全预览';
+    case 'Privacy mode': return '隐私模式';
+    case 'Prevent screenshots and insecure previews': return '禁止截图、录屏和不安全预览';
     case 'Analytics': return '数据统计';
     case 'Allow privacy-preserving analytics prompt equivalent': return '允许隐私提示对应的数据统计设置';
     case 'About analytics': return '关于数据统计';
@@ -1901,7 +1901,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     return [
       optionSettingsRow('pattern_protection', 'Identity authentication', 'Verify identity when the app returns from background',
         entries, identityAuthenticationOptions()),
-      optionSettingsRow('enable_secure', 'Secure screen', 'Prevent screenshots and insecure previews', entries, ON_OFF_OPTIONS),
+      optionSettingsRow('enable_secure', 'Privacy mode', 'Prevent screenshots and insecure previews', entries, ON_OFF_OPTIONS),
       optionSettingsRow('enable_analytics', 'Analytics', 'Allow privacy-preserving analytics prompt equivalent', entries, ON_OFF_OPTIONS),
       staticSettingsRow('about_analytics', 'About analytics', 'Explanation dialog from the original privacy settings', 'Info', 'message'),
       optionSettingsRow('save_parse_error_body', 'Save parse error body', 'Persist parser failures for debugging', entries, ON_OFF_OPTIONS),

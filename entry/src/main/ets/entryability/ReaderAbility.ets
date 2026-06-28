@@ -62,7 +62,7 @@ export default class ReaderAbility extends UIAbility {
   private loadSettingsAndApplyReaderChrome(win: window.Window): void {
     ehSettingsStore.load(this.context).finally(() => {
       this.applyReaderChrome(win);
-      applyWindowPrivacyMode(ehSettingsStore.getValue('enable_secure', 'Off') === 'On');
+      applyWindowPrivacyMode(ehSettingsStore.getValue('enable_secure', 'Off') === 'On', undefined, this.context);
       this.scheduleReaderChrome(win, 80);
       this.scheduleReaderChrome(win, 260);
     });
