@@ -53,6 +53,7 @@ import {
   toggleDetailDownloadTask
 } from '../services/GalleryDetailDownloadSupport';
 import {
+  createGalleryDetailLink,
   createGalleryDetailLinkFromGallery,
   createEmptyGalleryDetailLink,
   GalleryDetailLink,
@@ -94,6 +95,7 @@ import { EhNavBar } from '../components/NavigationComponents';
 import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard } from './GalleryCards';
 import { GalleryDetailOverlayScene, GalleryDetailScene } from './GalleryDetailScenes';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
+import { ReaderSessionScene } from './ReaderHostScene';
 import {
   applyTagSuggestionToKeyword,
   buildSearchSuggestions,
@@ -328,37 +330,16 @@ export struct GalleryListScene {
   @State searchSubmitted: boolean = false;
   @State showDetail: boolean = false;
   @State showReader: boolean = false;
-  @State showComments: boolean = false;
   @State restoreDetailWithFade: boolean = false;
   @State detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();
   @State detail: GalleryDetail = createEmptyDetail();
   @State detailStatus: string = 'Tap a gallery row to load detail';
   @State detailRequestUrl: string = '';
-  @State detailDownloadText: string = 'Download';
-  @State detailLoaded: boolean = false;
-  @State optimisticFavorite: boolean = false;
-  @State favoriteBusy: boolean = false;
-  @State archivePanelVisible: boolean = false;
-  @State archivePanelMode: string = '';
-  @State archivePanelStatus: string = '';
-  @State archiveBusy: boolean = false;
-  @State archiverInfo: ArchiverInfo = { funds: '', options: [] };
-  @State hathArchiveList: HathArchiveList = { formParamOr: '', options: [] };
-  @State readerStatus: string = 'Reader is ready';
-  @State readerPage: GalleryPage = createEmptyPage();
-  @State readerPages: ReaderPageState[] = [];
-  @State readerPreviewIndex: number = 0;
   @State renderVersion: number = 0;
   @State isLoadingMore: boolean = false;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   private listScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
-  private readerPreviewMap: Map<number, GalleryPreview> = new Map();
-  private readerPreviewPageRequests: Map<number, Promise<GalleryPreview | null>> = new Map();
-  private readerPreviewPageSize: number = 0;
-  private detailPreviewPager: DetailPreviewPager = new DetailPreviewPager();
-  private cellularWarningDialogOpen: boolean = false;
-  private unsubscribeDownloadStore: () => void = () => {};
 
   private cacheKey(): string {
     const mode = this.useForcedMode ? this.forcedMode.toString() : listModeForRoute(this.sourceRoute).toString();
@@ -504,23 +485,15 @@ export struct GalleryListScene {
       }
     }
     setActiveBackHandler(() => this.handleSystemBack());
-    this.unsubscribeDownloadStore = ehDownloadStore.subscribe((_items: DownloadInfo[]) => {
-      this.refreshDetailDownloadText();
-    });
   }
 
   aboutToDisappear(): void {
     this.saveListCache();
-    this.unsubscribeDownloadStore();
   }
 
   private handleSystemBack(): boolean {
     if (this.showReader) {
       this.closeReader();
-      return true;
-    }
-    if (this.showComments) {
-      this.closeComments();
       return true;
     }
     if (this.showDetail) {
@@ -543,7 +516,7 @@ export struct GalleryListScene {
   }
 
   private firstRefresh(): void {
-    if (this.useLocalProvider && (this.showDetail || this.showReader || this.showComments)) {
+    if (this.useLocalProvider && (this.showDetail || this.showReader)) {
       return;
     }
     if (this.hasFirstRefresh && !this.useLocalProvider) {
@@ -907,7 +880,7 @@ export struct GalleryListScene {
       this.searchSubmitted = true;
       this.hasFirstRefresh = true;
       this.resetListScroll();
-      this.loadDetailByToken(directGallery.gid, directGallery.token);
+      this.openDetailByToken(directGallery.gid, directGallery.token);
       return;
     }
     this.searchSubmitted = true;
@@ -985,7 +958,6 @@ export struct GalleryListScene {
     if (request === null) {
       return;
     }
-    this.showComments = false;
     this.showReader = false;
     this.showSearchResultScene = false;
     this.searchResultDraft = {
@@ -1070,47 +1042,32 @@ export struct GalleryListScene {
     this.renderVersion++;
   }
 
+  private openDetailByToken(gid: number, token: string): void {
+    this.restoreDetailWithFade = false;
+    this.showDetail = true;
+    const detailLink = createGalleryDetailLink(gid, token, 'Gallery ' + gid.toString(), this.activeSite, this.requestUrl);
+    this.detailLink = detailLink;
+    this.detail = initialDetailForLink(detailLink);
+    this.detailStatus = '';
+    this.detailRequestUrl = detailLink.url;
+    this.renderVersion++;
+  }
+
   private closeDetail(): void {
     this.restoreDetailWithFade = false;
     this.showDetail = false;
     this.showReader = false;
-    this.showComments = false;
     this.detailLink = createEmptyGalleryDetailLink();
     this.detail = createEmptyDetail();
-    this.resetReaderPreviewCache();
     this.detailStatus = 'Tap a gallery row to load detail';
     this.detailRequestUrl = '';
-    this.detailDownloadText = 'Download';
-    this.detailLoaded = false;
-    this.optimisticFavorite = false;
-    this.favoriteBusy = false;
-    this.closeArchivePanel();
-    this.detailPreviewPager.reset();
-    this.readerStatus = 'Reader is ready';
-    this.readerPage = createEmptyPage();
-    this.readerPages = [];
-    this.readerPreviewIndex = 0;
     this.detailScrollOffset = 0;
-    this.renderVersion++;
-  }
-
-  private openComments(): void {
-    this.showComments = true;
-    this.renderVersion++;
-  }
-
-  private closeComments(): void {
-    this.showComments = false;
     this.renderVersion++;
   }
 
   private closeReader(): void {
     this.restoreDetailWithFade = this.showDetail;
     this.showReader = false;
-    this.readerStatus = 'Reader is ready';
-    this.readerPage = createEmptyPage();
-    this.readerPages = [];
-    this.readerPreviewIndex = 0;
     leaveEmbeddedReaderFullscreen();
     this.restoreBackHandler();
     this.renderVersion++;
@@ -1131,710 +1088,7 @@ export struct GalleryListScene {
     }, 0);
   }
 
-  private loadReaderPage(preview: GalleryPreview): void {
-    if (preview.pageUrl.length === 0) {
-      this.readerStatus = 'Preview has no page URL';
-      return;
-    }
-
-    this.readerPreviewMap.set(preview.index, preview);
-    this.readerPreviewIndex = preview.index;
-    saveGalleryReadPosition(this.detail.gid, preview.index, this.detail);
-    this.readerStatus = 'Loading page ' + (preview.index + 1).toString() + '...';
-    this.readerPage = createReaderLoadingPage(preview.pageUrl);
-    this.setReaderPage(preview.index, this.readerPage);
-    this.renderVersion++;
-    this.openReaderAbility();
-
-    const cached = galleryPageCache.get(preview.pageUrl);
-    if (cached !== null) {
-      this.readerStatus = 'Page loaded from cache';
-      this.readerPage = cloneGalleryPage(cached);
-      this.setReaderPage(preview.index, cached);
-      this.renderVersion++;
-      this.cacheReaderImage(preview.index, cached);
-      this.preloadReaderPages(preview.index);
-      this.persistReaderSession();
-      return;
-    }
-
-    this.client.loadGalleryPage(preview.pageUrl, this.activeSite,
-      readerPageReferer(this.detailRequestUrl, this.detail.previewSet, preview.index, this.activeSite))
-      .then((result: GalleryPageLoadResult) => {
-        if (!result.ok || result.page === null) {
-          this.readerStatus = 'Page load failed: ' + result.message;
-          return;
-        }
-        const cacheUrl = result.page.pageUrl.length > 0 ? result.page.pageUrl : preview.pageUrl;
-        galleryPageCache.put(cacheUrl, result.page);
-        galleryPageCache.put(preview.pageUrl, result.page);
-        if (this.readerPreviewIndex !== preview.index) {
-          this.setReaderPage(preview.index, result.page);
-          this.cacheReaderImage(preview.index, result.page);
-          return;
-        }
-        this.readerStatus = 'Page loaded';
-        this.readerPage = cloneGalleryPage(result.page);
-        this.setReaderPage(preview.index, result.page);
-        this.renderVersion++;
-        this.cacheReaderImage(preview.index, result.page);
-        this.preloadReaderPages(preview.index);
-        this.persistReaderSession();
-      })
-      .catch((error: Error) => {
-        this.readerStatus = 'Page load failed: ' + error.message;
-        this.renderVersion++;
-        this.persistReaderSession();
-      });
-  }
-
-  private cacheReaderImage(index: number, page: GalleryPage): void {
-    cacheReaderImageForPage(page, (cachedPage: GalleryPage) => {
-      galleryPageCache.put(cachedPage.pageUrl.length > 0 ? cachedPage.pageUrl : page.pageUrl, cachedPage);
-      this.setReaderPage(index, cachedPage);
-      if (this.showReader && this.readerPreviewIndex === index) {
-        this.readerPage = cloneGalleryPage(cachedPage);
-        this.readerStatus = 'Page loaded from local cache';
-        this.renderVersion++;
-      }
-    }, this.detail, index);
-  }
-
-  private async preloadReaderPages(index: number): Promise<void> {
-    const count = Math.max(2, readerPreloadCount());
-    if (count <= 0) {
-      return;
-    }
-
-    for (let offset = 1; offset <= count; offset++) {
-      const targets: number[] = [index - offset, index + offset];
-      for (let i = 0; i < targets.length; i++) {
-        const nextIndex = targets[i];
-        if (nextIndex < 0 || nextIndex >= this.readerTotalPages()) {
-          continue;
-        }
-
-        const preview = await this.ensureReaderPreview(nextIndex, true);
-        if (preview === null || preview.pageUrl.length === 0) {
-          continue;
-        }
-        const cached = galleryPageCache.get(preview.pageUrl);
-        if (cached !== null) {
-          this.setReaderPage(nextIndex, cached);
-          this.cacheReaderImage(nextIndex, cached);
-          continue;
-        }
-
-        try {
-          const result = await this.client.loadGalleryPage(preview.pageUrl, this.activeSite,
-            readerPageReferer(this.detailRequestUrl, this.detail.previewSet, nextIndex, this.activeSite));
-          if (result.ok && result.page !== null) {
-            const cacheUrl = result.page.pageUrl.length > 0 ? result.page.pageUrl : preview.pageUrl;
-            galleryPageCache.put(cacheUrl, result.page);
-            galleryPageCache.put(preview.pageUrl, result.page);
-            this.setReaderPage(nextIndex, result.page);
-            this.cacheReaderImage(nextIndex, result.page);
-          }
-        } catch (error) {
-        }
-      }
-    }
-  }
-
-  private async prewarmReader(): Promise<void> {
-    if (this.readerTotalPages() <= 0) {
-      return;
-    }
-
-    const preview = await this.ensureReaderPreview(0, true);
-    if (preview === null) {
-      return;
-    }
-    if (preview.pageUrl.length === 0 || galleryPageCache.has(preview.pageUrl)) {
-      return;
-    }
-
-    try {
-      const result = await this.client.loadGalleryPage(preview.pageUrl, this.activeSite,
-        readerPageReferer(this.detailRequestUrl, this.detail.previewSet, 0, this.activeSite));
-      if (result.ok && result.page !== null) {
-        const cacheUrl = result.page.pageUrl.length > 0 ? result.page.pageUrl : preview.pageUrl;
-        galleryPageCache.put(cacheUrl, result.page);
-        galleryPageCache.put(preview.pageUrl, result.page);
-        this.setReaderPage(0, result.page);
-        this.cacheReaderImage(0, result.page);
-        this.preloadReaderPages(0);
-      }
-    } catch (error) {
-    }
-  }
-
-  private loadReaderPageByIndex(index: number): void {
-    if (index < 0 || index >= this.readerTotalPages()) {
-      return;
-    }
-    const preview = this.readerPreviewForIndex(index);
-    if (preview !== null) {
-      this.loadReaderPage(preview);
-      return;
-    }
-
-    this.readerPreviewIndex = index;
-    saveGalleryReadPosition(this.detail.gid, index, this.detail);
-    this.readerStatus = 'Resolving page ' + (index + 1).toString() + '...';
-    this.readerPage = createReaderLoadingPage('');
-    this.setReaderPage(index, this.readerPage);
-    this.renderVersion++;
-    this.openReaderAbility();
-    this.ensureReaderPreview(index, false).then((resolved: GalleryPreview | null) => {
-      if (resolved === null) {
-        if (this.readerPreviewIndex === index) {
-          this.readerStatus = 'Page URL is unavailable';
-          this.renderVersion++;
-          this.persistReaderSession();
-        }
-        return;
-      }
-      if (this.readerPreviewIndex === index) {
-        this.loadReaderPage(resolved);
-      }
-    }).catch((error: Error) => {
-      if (this.readerPreviewIndex === index) {
-        this.readerStatus = 'Page URL load failed: ' + error.message;
-        this.renderVersion++;
-        this.persistReaderSession();
-      }
-    });
-  }
-
-  private readDetail(): void {
-    const downloadItem = findDetailDownloadItem(this.detail.gid);
-    if (downloadItem !== null) {
-      readerStartIndexAsync(this.detail).then((index: number) => {
-        this.openDownloadedReaderAt(downloadItem, index);
-      }).catch(() => {
-        this.openDownloadedReaderAt(downloadItem, readerStartIndex(this.detail));
-      });
-      return;
-    }
-    if (this.readerTotalPages() <= 0) {
-      this.detailStatus = 'Read is waiting for preview pages';
-      return;
-    }
-    readerStartIndexAsync(this.detail).then((index: number) => {
-      this.loadReaderPageByIndex(index);
-    }).catch(() => {
-      this.loadReaderPageByIndex(readerStartIndex(this.detail));
-    });
-  }
-
-  private persistReaderSession(): void {
-    readerSessionStore.updateSession(createReaderSessionState(this.detail, this.readerPage, this.readerStatus,
-      this.detailRequestUrl, this.requestUrl, this.activeSite, this.readerPreviewIndex));
-  }
-
-  private publishReaderSession(): void {
-    readerSessionStore.setSession(createReaderSessionState(this.detail, this.readerPage, this.readerStatus,
-      this.detailRequestUrl, this.requestUrl, this.activeSite, this.readerPreviewIndex));
-  }
-
-  private openReaderAbility(): void {
-    this.publishReaderSession();
-    if (ehSettingsStore.getValue('reader_standalone', 'On') !== 'On') {
-      enterEmbeddedReaderFullscreen();
-      this.showReader = true;
-      return;
-    }
-    this.showReader = false;
-    const context = getAbilityContext();
-    if (context === undefined) {
-      this.readerStatus = 'Reader launch failed: Ability context is not ready';
-      this.renderVersion++;
-      this.persistReaderSession();
-      return;
-    }
-    context.startAbility({
-      bundleName: 'yt.ehviewer.huawei',
-      moduleName: 'entry',
-      abilityName: 'ReaderAbility'
-    }).catch((error: Error) => {
-      this.readerStatus = 'Reader launch failed: ' + error.message;
-      this.renderVersion++;
-      this.persistReaderSession();
-    });
-  }
-
-  private openDownloadedReaderAt(item: DownloadInfo, requestedIndex: number): void {
-    readerSessionStore.setSession(createDownloadReaderSessionState(item, requestedIndex, this.activeSite,
-      this.detailRequestUrl, this.requestUrl, this.detail));
-    if (ehSettingsStore.getValue('reader_standalone', 'On') !== 'On') {
-      enterEmbeddedReaderFullscreen();
-      this.showReader = true;
-      this.renderVersion++;
-      return;
-    }
-    this.showReader = false;
-    const context = getAbilityContext();
-    if (context === undefined) {
-      this.readerStatus = 'Reader launch failed: Ability context is not ready';
-      this.renderVersion++;
-      return;
-    }
-    context.startAbility({
-      bundleName: 'yt.ehviewer.huawei',
-      moduleName: 'entry',
-      abilityName: 'ReaderAbility'
-    }).catch((error: Error) => {
-      this.readerStatus = 'Reader launch failed: ' + error.message;
-      this.renderVersion++;
-    });
-  }
-
-  private resetReaderPreviewCache(): void {
-    this.readerPreviewMap.clear();
-    this.readerPreviewPageRequests.clear();
-    this.readerPreviewPageSize = 0;
-  }
-
-  private seedReaderPreviewCache(previews: GalleryPreview[]): void {
-    this.readerPreviewPageSize = seedPreviewMap(this.readerPreviewMap, previews, this.readerPreviewPageSize);
-  }
-
-  private readerTotalPages(): number {
-    if (this.detail.pages > 0) {
-      return this.detail.pages;
-    }
-    return Math.max(this.detail.previewSet.length, this.readerPreviewMap.size);
-  }
-
-  private readerPreviewForIndex(index: number): GalleryPreview | null {
-    const cached = this.readerPreviewMap.get(index);
-    if (cached !== undefined) {
-      return cached;
-    }
-    for (let i = 0; i < this.detail.previewSet.length; i++) {
-      if (this.detail.previewSet[i].index === index) {
-        this.readerPreviewMap.set(index, this.detail.previewSet[i]);
-        return this.detail.previewSet[i];
-      }
-    }
-    return null;
-  }
-
-  private setReaderPage(index: number, page: GalleryPage): void {
-    const next: ReaderPageState[] = [];
-    let replaced = false;
-    for (let i = 0; i < this.readerPages.length; i++) {
-      if (this.readerPages[i].index === index) {
-        next.push({ index: index, page: cloneGalleryPage(page) });
-        replaced = true;
-      } else {
-        next.push({ index: this.readerPages[i].index, page: cloneGalleryPage(this.readerPages[i].page) });
-      }
-    }
-    if (!replaced) {
-      next.push({ index: index, page: cloneGalleryPage(page) });
-    }
-    next.sort((left: ReaderPageState, right: ReaderPageState) => left.index - right.index);
-    this.readerPages = next;
-  }
-
-  private readerPreviewPageIndex(index: number): number {
-    const pageSize = this.readerPreviewPageSize > 0 ? this.readerPreviewPageSize :
-      Math.max(1, this.detail.previewSet.length);
-    return Math.floor(index / pageSize);
-  }
-
-  private ensureReaderPreview(index: number, silent: boolean): Promise<GalleryPreview | null> {
-    const cached = this.readerPreviewForIndex(index);
-    if (cached !== null) {
-      return Promise.resolve(cached);
-    }
-    if (this.detail.gid <= 0 || this.detail.token.length === 0 || index < 0 || index >= this.readerTotalPages()) {
-      return Promise.resolve(null);
-    }
-
-    const previewPageIndex = this.readerPreviewPageIndex(index);
-    const pending = this.readerPreviewPageRequests.get(previewPageIndex);
-    if (pending !== undefined) {
-      return pending;
-    }
-
-    const referer = this.detailRequestUrl.length > 0 ? this.detailRequestUrl : this.requestUrl;
-    const request = this.client.loadGalleryDetail(this.detail.gid, this.detail.token, previewPageIndex,
-      this.activeSite, referer).then((result: GalleryDetailLoadResult) => {
-      this.readerPreviewPageRequests.delete(previewPageIndex);
-      if (!result.ok || result.detail === null) {
-        if (!silent) {
-          this.readerStatus = 'Preview page load failed: ' + result.message;
-          this.renderVersion++;
-        }
-        return null;
-      }
-      this.mergeReaderPreviewSet(result.detail);
-      return this.readerPreviewForIndex(index);
-    }).catch((error: Error) => {
-      this.readerPreviewPageRequests.delete(previewPageIndex);
-      if (!silent) {
-        this.readerStatus = 'Preview page load failed: ' + error.message;
-        this.renderVersion++;
-      }
-      return null;
-    });
-    this.readerPreviewPageRequests.set(previewPageIndex, request);
-    return request;
-  }
-
-  private mergeReaderPreviewSet(loaded: GalleryDetail): void {
-    const merged = mergeGalleryPreviewSets(this.detail, loaded, this.readerPreviewMap, this.readerPreviewPageSize);
-    this.detail = merged.detail;
-    this.readerPreviewPageSize = merged.previewPageSize;
-    this.renderVersion++;
-  }
-
-  private async loadNextDetailPreviewPage(): Promise<void> {
-    const referer = this.detailRequestUrl.length > 0 ? this.detailRequestUrl : this.requestUrl;
-    await this.detailPreviewPager.loadNext({
-      client: this.client,
-      site: this.activeSite,
-      referer: referer,
-      getDetail: () => this.detail,
-      isVisible: () => this.showDetail,
-      onMerge: (detail: GalleryDetail) => {
-        this.mergeReaderPreviewSet(detail);
-      },
-      onError: (message: string) => {
-        this.detailStatus = 'Preview page load failed: ' + message;
-        this.renderVersion++;
-      }
-    });
-  }
-
-  private toggleDownloadDetail(): void {
-    const result: DetailDownloadToggleResult = toggleDetailDownloadTask(this.detail);
-    if (result.shouldStartQueue) {
-      const context = getAbilityContext();
-      if (context !== undefined) {
-        this.startDownloadQueueWithCellularGuard(context);
-      }
-    }
-    this.detailDownloadText = result.buttonText;
-    this.detailStatus = result.statusText;
-    this.renderVersion++;
-  }
-
-  private refreshDetailDownloadText(): void {
-    if (!this.showDetail || this.detail.gid <= 0) {
-      return;
-    }
-    this.detailDownloadText = detailDownloadButtonText(this.detail.gid);
-    this.renderVersion++;
-  }
-
-  private startDownloadQueueWithCellularGuard(context: common.UIAbilityContext): void {
-    if (shouldConfirmCellularNetworkOperation()) {
-      this.confirmMobileDataDownload(() => {
-        ehDownloadManager.startQueue(context);
-      });
-      return;
-    }
-    ehDownloadManager.startQueue(context);
-  }
-
-  private confirmMobileDataDownload(onContinue: () => void): void {
-    if (this.cellularWarningDialogOpen) {
-      return;
-    }
-    this.cellularWarningDialogOpen = true;
-    this.getUIContext().getPromptAction().showDialog({
-      title: uiText('Mobile data warning'),
-      message: uiText('You are using mobile data. Continue downloading?'),
-      buttons: [
-        {
-          text: uiText('Cancel'),
-          color: themeSecondaryText()
-        },
-        {
-          text: uiText('Continue'),
-          color: themePrimaryColor()
-        }
-      ]
-    }).then((data) => {
-      this.cellularWarningDialogOpen = false;
-      if (data.index === 1) {
-        confirmCellularNetworkWarningForSession();
-        onContinue();
-      } else {
-        this.detailStatus = 'Download waits for Wi-Fi or confirmation';
-        this.renderVersion++;
-      }
-    }).catch(() => {
-      this.cellularWarningDialogOpen = false;
-      this.detailStatus = 'Download waits for Wi-Fi or confirmation';
-      this.renderVersion++;
-    });
-  }
-
-  private toggleFavoriteDetail(): void {
-    if (this.detail.gid <= 0) {
-      this.detailStatus = 'No gallery loaded';
-      return;
-    }
-    if (this.favoriteBusy) {
-      return;
-    }
-    const wasFavorited = this.detail.isFavorited;
-    this.detailStatus = wasFavorited ? 'Removing from favorites...' : 'Adding to favorites...';
-    this.favoriteBusy = true;
-    this.optimisticFavorite = !wasFavorited;
-    this.applyDetailFavoriteState(this.optimisticFavorite);
-    this.renderVersion++;
-    this.client.toggleFavorite(this.detail.gid, this.detail.token, wasFavorited,
-      this.activeSite).then((result: ToggleFavoriteResult) => {
-      this.detailStatus = result.message;
-      if (result.ok) {
-        this.optimisticFavorite = result.nowFavorited;
-        this.applyDetailFavoriteState(result.nowFavorited);
-      } else {
-        this.optimisticFavorite = wasFavorited;
-        this.applyDetailFavoriteState(wasFavorited);
-      }
-      this.favoriteBusy = false;
-      this.renderVersion++;
-    }).catch((error: Error) => {
-      this.detailStatus = 'Favorite failed: ' + error.message;
-      this.optimisticFavorite = wasFavorited;
-      this.applyDetailFavoriteState(wasFavorited);
-      this.favoriteBusy = false;
-      this.renderVersion++;
-    });
-  }
-
-  private loadDetailByToken(gid: number, token: string): void {
-    const gallery = createEmptyGallery();
-    gallery.gid = gid;
-    gallery.token = token;
-    gallery.title = 'Gallery ' + gid.toString();
-    this.loadDetail(gallery);
-  }
-
-  private applyDetailFavoriteState(isFavorited: boolean): void {
-    const nextDetail = cloneGalleryDetail(this.detail);
-    nextDetail.isFavorited = isFavorited;
-    nextDetail.favoriteSlot = isFavorited ? Math.max(0, nextDetail.favoriteSlot) : -2;
-    this.detail = nextDetail;
-  }
-
-  private rateDetail(rating: number): void {
-    if (this.detail.gid <= 0 || this.detail.apiUid < 0 || this.detail.apiKey.length === 0) {
-      this.detailStatus = 'Rating needs a loaded gallery session';
-      this.renderVersion++;
-      return;
-    }
-    this.detailStatus = 'Submitting rating...';
-    this.renderVersion++;
-    this.client.rateGallery(this.detail.gid, this.detail.token, this.detail.apiUid, this.detail.apiKey, rating,
-      this.activeSite).then((result: RateGalleryResult) => {
-      this.detailStatus = result.message;
-      if (result.ok) {
-        const nextDetail = cloneGalleryDetail(this.detail);
-        nextDetail.rating = result.rating;
-        nextDetail.ratingCount = result.ratingCount > 0 ? result.ratingCount : nextDetail.ratingCount;
-        nextDetail.rated = true;
-        this.detail = nextDetail;
-      }
-      this.renderVersion++;
-    }).catch((error: Error) => {
-      this.detailStatus = 'Rating failed: ' + error.message;
-      this.renderVersion++;
-    });
-  }
-
-  private copyDetailLink(url: string, label: string): void {
-    if (url.length === 0) {
-      this.detailStatus = label + ' link is unavailable';
-      this.renderVersion++;
-      return;
-    }
-    try {
-      const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, url);
-      pasteboard.getSystemPasteboard().setData(data).then(() => {
-        this.detailStatus = label + ' link copied to clipboard';
-        this.renderVersion++;
-      }).catch((error: Error) => {
-        this.detailStatus = label + ' copy failed: ' + error.message;
-        this.renderVersion++;
-      });
-      return;
-    } catch (error) {
-      this.detailStatus = label + ' copy failed: ' + String(error);
-    }
-    this.renderVersion++;
-  }
-
-  private shareDetail(): void {
-    if (this.detail.gid <= 0) {
-      this.detailStatus = 'No gallery loaded';
-      this.renderVersion++;
-      return;
-    }
-    const url = EhUrl.getGalleryDetailUrl(this.detail.gid, this.detail.token, 0, false, this.activeSite);
-    this.copyDetailLink(url, 'Gallery URL');
-  }
-
-  private closeArchivePanel(): void {
-    this.archivePanelVisible = false;
-    this.archivePanelMode = '';
-    this.archivePanelStatus = '';
-    this.archiveBusy = false;
-    this.archiverInfo = { funds: '', options: [] };
-    this.hathArchiveList = { formParamOr: '', options: [] };
-  }
-
-  private openArchiverPanel(): void {
-    if (!this.ensureArchiveSession()) {
-      return;
-    }
-    this.archivePanelVisible = true;
-    this.archivePanelMode = 'archiver';
-    this.archivePanelStatus = 'Loading...';
-    this.archiveBusy = true;
-    this.archiverInfo = { funds: '', options: [] };
-    this.renderVersion++;
-    this.client.loadArchiver(this.detail.gid, this.detail.token, this.detail.archiveUrl, this.activeSite)
-      .then((result: ArchiverLoadResult) => {
-        if (!this.archivePanelVisible || this.archivePanelMode !== 'archiver') {
-          return;
-        }
-        this.archiveBusy = false;
-        this.archivePanelStatus = result.ok ? result.message : 'Archive failed: ' + result.message;
-        this.archiverInfo = result.info === null ? { funds: '', options: [] } : result.info;
-        this.renderVersion++;
-      }).catch((error: Error) => {
-        this.archiveBusy = false;
-        this.archivePanelStatus = 'Archive failed: ' + error.message;
-        this.renderVersion++;
-      });
-  }
-
-  private openHathPanel(): void {
-    if (!this.ensureArchiveSession()) {
-      return;
-    }
-    this.archivePanelVisible = true;
-    this.archivePanelMode = 'hath';
-    this.archivePanelStatus = 'Loading...';
-    this.archiveBusy = true;
-    this.hathArchiveList = { formParamOr: '', options: [] };
-    this.renderVersion++;
-    this.client.loadHathArchiveList(this.detail.gid, this.detail.token, this.detail.archiveUrl, this.activeSite)
-      .then((result: HathArchiveListLoadResult) => {
-        if (!this.archivePanelVisible || this.archivePanelMode !== 'hath') {
-          return;
-        }
-        this.archiveBusy = false;
-        this.archivePanelStatus = result.ok ? result.message : 'H@H failed: ' + result.message;
-        this.hathArchiveList = result.list === null ? { formParamOr: '', options: [] } : result.list;
-        this.renderVersion++;
-      }).catch((error: Error) => {
-        this.archiveBusy = false;
-        this.archivePanelStatus = 'H@H failed: ' + error.message;
-        this.renderVersion++;
-      });
-  }
-
-  private ensureArchiveSession(): boolean {
-    const reason = archiveUnavailableReason(this.detailLoaded, this.detail);
-    if (reason.length > 0) {
-      this.detailStatus = reason;
-      this.renderVersion++;
-      return false;
-    }
-    return true;
-  }
-
-  private submitArchiverOption(option: ArchiverOption): void {
-    if (this.archiveBusy) {
-      return;
-    }
-    this.archiveBusy = true;
-    this.archivePanelStatus = 'Submitting...';
-    this.renderVersion++;
-    const referer = detailArchiveReferer(this.detail, this.activeSite);
-    this.client.requestArchiverDownload(option, referer, this.activeSite).then((result: ArchiverDownloadResult) => {
-      this.archiveBusy = false;
-      this.archivePanelStatus = result.message;
-      if (result.ok && result.downloadUrl.length > 0) {
-        this.copyDetailLink(result.downloadUrl, 'Archive');
-      }
-      this.renderVersion++;
-    }).catch((error: Error) => {
-      this.archiveBusy = false;
-      this.archivePanelStatus = 'Archive failed: ' + error.message;
-      this.renderVersion++;
-    });
-  }
-
-  private submitHathOption(option: ArchiveOption): void {
-    if (this.archiveBusy) {
-      return;
-    }
-    this.archiveBusy = true;
-    this.archivePanelStatus = 'Submitting...';
-    this.renderVersion++;
-    this.client.submitHathArchive(this.detail.gid, this.detail.token, this.hathArchiveList.formParamOr, option.value,
-      this.activeSite).then((result: HathArchiveSubmitResult) => {
-      this.archiveBusy = false;
-      this.archivePanelStatus = result.message;
-      this.detailStatus = result.message;
-      this.renderVersion++;
-    }).catch((error: Error) => {
-      this.archiveBusy = false;
-      this.archivePanelStatus = 'H@H failed: ' + error.message;
-      this.renderVersion++;
-    });
-  }
-
-  private openSimilarGalleryList(): void {
-    if (!this.detailLoaded || this.detail.gid <= 0) {
-      this.detailStatus = 'Similar search needs a loaded gallery';
-      this.renderVersion++;
-      return;
-    }
-    const request = createSimilarGallerySearch(this.detail);
-    if (request !== null) {
-      this.openSearchResult(request);
-    }
-  }
-
-  private openCoverSearch(): void {
-    const context = getAbilityContext();
-    const thumb = this.detail.thumb === undefined ? '' : this.detail.thumb;
-    if (context === undefined || thumb.length === 0) {
-      this.detailStatus = 'Cover image is unavailable';
-      this.renderVersion++;
-      return;
-    }
-    this.detailStatus = 'Preparing cover search...';
-    this.renderVersion++;
-    const referer = this.detailRequestUrl.length > 0 ? this.detailRequestUrl :
-      EhUrl.getGalleryDetailUrl(this.detail.gid, this.detail.token, 0, false, this.activeSite);
-    readerImageCache.ensureCached(context, thumb, referer, true, undefined, detailCoverCacheKey(this.detail))
-      .then((path: string) => {
-        if (path.length === 0) {
-          this.detailStatus = 'Cover image cache failed';
-          this.renderVersion++;
-          return;
-        }
-        this.openSearchResult(createCoverSearchRequest(path));
-      }).catch((error: Error) => {
-        this.detailStatus = 'Cover search failed: ' + error.message;
-        this.renderVersion++;
-      });
-  }
-
   private openSearchResult(request: DetailSearchRequest): void {
-    this.showComments = false;
     this.showReader = false;
     this.showSearchResultScene = false;
     this.searchResultDraft = {
@@ -1893,30 +1147,10 @@ export struct GalleryListScene {
             TransitionEffect.move(TransitionEdge.END).animation({ duration: 260, curve: Curve.EaseOut }),
             TransitionEffect.move(TransitionEdge.END).animation({ duration: 220, curve: Curve.EaseIn })))
       } else if (this.showReader) {
-        ReaderScene({
-          renderVersion: this.renderVersion,
-          page: this.readerPage,
-          readerPages: this.readerPages,
-          statusText: this.readerStatus,
-          pageIndex: this.readerPreviewIndex,
-          totalPages: this.readerTotalPages(),
+        ReaderSessionScene({
+          restoreAppChromeOnExit: true,
           onBack: () => {
             this.closeReader();
-          },
-          onPrev: () => {
-            this.loadReaderPageByIndex(this.readerPreviewIndex - 1);
-          },
-          onNext: () => {
-            this.loadReaderPageByIndex(this.readerPreviewIndex + 1);
-          },
-          onJump: (index: number) => {
-            this.loadReaderPageByIndex(index);
-          },
-          onRetry: () => {
-            this.loadReaderPageByIndex(this.readerPreviewIndex);
-          },
-          onRefreshPage: (index: number) => {
-            this.loadReaderPageByIndex(index);
           }
         })
           .width('100%')

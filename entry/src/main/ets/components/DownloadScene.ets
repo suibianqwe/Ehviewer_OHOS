@@ -175,18 +175,8 @@ export struct DownloadScene {
   @State showDetail: boolean = false;
   @State detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();
   @State detail: GalleryDetail = createEmptyDetail();
-  @State detailStatus: string = '';
   @State detailRequestUrl: string = '';
-  @State detailLoaded: boolean = false;
-  @State detailRenderVersion: number = 0;
-  @State archivePanelVisible: boolean = false;
-  @State archivePanelMode: string = '';
-  @State archivePanelStatus: string = '';
-  @State archiveBusy: boolean = false;
-  @State archiverInfo: ArchiverInfo = { funds: '', options: [] };
-  @State hathArchiveList: HathArchiveList = { formParamOr: '', options: [] };
   @State showReader: boolean = false;
-  @State showComments: boolean = false;
   @State restoreDetailWithFade: boolean = false;
   @State showTagSearch: boolean = false;
   @State tagSearchTitle: string = 'Search';
@@ -208,7 +198,6 @@ export struct DownloadScene {
   @State viewportHeight: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
-  private detailItem: DownloadInfo | null = null;
   private downloadScroller: Scroller = new Scroller();
   private downloadScrollOffset: number = 0;
   private toolbarRestoring: boolean = false;
@@ -223,7 +212,6 @@ export struct DownloadScene {
     setActiveBackHandler(() => this.handleSystemBack());
     this.unsubscribeStore = ehDownloadStore.subscribe((items: DownloadInfo[]) => {
       this.items = items;
-      this.syncDetailDownloadItem();
       this.refreshDownloadRows();
     });
     this.unsubscribeDownloadManager = ehDownloadManager.subscribe((status: string) => {
@@ -256,10 +244,6 @@ export struct DownloadScene {
     }
     if (this.showReader) {
       this.closeEmbeddedReader();
-      return true;
-    }
-    if (this.showComments) {
-      this.closeComments();
       return true;
     }
     if (this.showDetail) {
@@ -968,54 +952,21 @@ export struct DownloadScene {
   }
 
   private openDetail(item: DownloadInfo): void {
-    this.detailItem = item;
     this.restoreDetailWithFade = false;
     this.showDetail = true;
     const detailLink = createGalleryDetailLinkFromGallery(item, currentGallerySite(),
       EhUrl.getReferer(currentGallerySite()));
     this.detailLink = detailLink;
     this.detail = initialDetailForLink(detailLink);
-    this.detailStatus = '';
     this.detailRequestUrl = detailLink.url;
-    this.detailLoaded = false;
-    this.detailRenderVersion++;
-  }
-
-  private syncDetailDownloadItem(): void {
-    if (this.detailItem === null) {
-      return;
-    }
-    const latest = findDetailDownloadItem(this.detailItem.gid);
-    if (latest === null) {
-      this.detailItem = null;
-      this.detailRenderVersion++;
-      return;
-    }
-    this.detailItem = latest;
-    this.detailRenderVersion++;
   }
 
   private closeDetail(): void {
     this.restoreDetailWithFade = false;
     this.showDetail = false;
-    this.showComments = false;
-    this.detailItem = null;
     this.detailLink = createEmptyGalleryDetailLink();
-    this.detailStatus = '';
-    this.closeArchivePanel();
-  }
-
-  private openComments(): void {
-    if (!this.detailLoaded || this.detail.comments.length === 0) {
-      return;
-    }
-    this.showComments = true;
-    this.detailRenderVersion++;
-  }
-
-  private closeComments(): void {
-    this.showComments = false;
-    this.detailRenderVersion++;
+    this.detail = createEmptyDetail();
+    this.detailRequestUrl = '';
   }
 
   private openTagSearch(namespace: string, tag: string): void {
@@ -1049,7 +1000,6 @@ export struct DownloadScene {
     this.tagSearchImageOnlyCovers = request.onlySearchCovers;
     this.tagSearchImageShowExpunged = request.showExpunged;
     this.showReader = false;
-    this.showComments = false;
     this.showTagSearch = true;
   }
 
@@ -1065,181 +1015,6 @@ export struct DownloadScene {
     }
     const tagQuery = trimmedTag.indexOf(' ') >= 0 ? '"' + trimmedTag.replace(/"/g, '\\"') + '"' : trimmedTag;
     return trimmedNamespace + ':' + tagQuery;
-  }
-
-  private closeArchivePanel(): void {
-    this.archivePanelVisible = false;
-    this.archivePanelMode = '';
-    this.archivePanelStatus = '';
-    this.archiveBusy = false;
-    this.archiverInfo = { funds: '', options: [] };
-    this.hathArchiveList = { formParamOr: '', options: [] };
-  }
-
-  private ensureArchiveSession(): boolean {
-    const reason = archiveUnavailableReason(this.detailLoaded, this.detail);
-    if (reason.length > 0) {
-      this.detailStatus = reason;
-      this.detailRenderVersion++;
-      return false;
-    }
-    return true;
-  }
-
-  private openArchiverPanel(): void {
-    if (!this.ensureArchiveSession()) {
-      return;
-    }
-    this.archivePanelVisible = true;
-    this.archivePanelMode = 'archiver';
-    this.archivePanelStatus = 'Loading...';
-    this.archiveBusy = true;
-    this.archiverInfo = { funds: '', options: [] };
-    this.detailRenderVersion++;
-    this.client.loadArchiver(this.detail.gid, this.detail.token, this.detail.archiveUrl, currentGallerySite())
-      .then((result: ArchiverLoadResult) => {
-        this.archiveBusy = false;
-        this.archivePanelStatus = result.ok ? result.message : 'Archive failed: ' + result.message;
-        this.archiverInfo = result.info === null ? { funds: '', options: [] } : result.info;
-        this.detailRenderVersion++;
-      }).catch((error: Error) => {
-        this.archiveBusy = false;
-        this.archivePanelStatus = 'Archive failed: ' + error.message;
-        this.detailRenderVersion++;
-      });
-  }
-
-  private openHathPanel(): void {
-    if (!this.ensureArchiveSession()) {
-      return;
-    }
-    this.archivePanelVisible = true;
-    this.archivePanelMode = 'hath';
-    this.archivePanelStatus = 'Loading...';
-    this.archiveBusy = true;
-    this.hathArchiveList = { formParamOr: '', options: [] };
-    this.detailRenderVersion++;
-    this.client.loadHathArchiveList(this.detail.gid, this.detail.token, this.detail.archiveUrl, currentGallerySite())
-      .then((result: HathArchiveListLoadResult) => {
-        this.archiveBusy = false;
-        this.archivePanelStatus = result.ok ? result.message : 'H@H failed: ' + result.message;
-        this.hathArchiveList = result.list === null ? { formParamOr: '', options: [] } : result.list;
-        this.detailRenderVersion++;
-      }).catch((error: Error) => {
-        this.archiveBusy = false;
-        this.archivePanelStatus = 'H@H failed: ' + error.message;
-        this.detailRenderVersion++;
-      });
-  }
-
-  private submitArchiverOption(option: ArchiverOption): void {
-    if (this.archiveBusy) {
-      return;
-    }
-    this.archiveBusy = true;
-    this.archivePanelStatus = 'Submitting...';
-    this.detailRenderVersion++;
-    const referer = detailArchiveReferer(this.detail, currentGallerySite());
-    this.client.requestArchiverDownload(option, referer, currentGallerySite()).then((result: ArchiverDownloadResult) => {
-      this.archiveBusy = false;
-      this.archivePanelStatus = result.message;
-      if (result.ok && result.downloadUrl.length > 0) {
-        this.copyDetailLink(result.downloadUrl, 'Archive');
-      }
-      this.detailRenderVersion++;
-    }).catch((error: Error) => {
-      this.archiveBusy = false;
-      this.archivePanelStatus = 'Archive failed: ' + error.message;
-      this.detailRenderVersion++;
-    });
-  }
-
-  private submitHathOption(option: ArchiveOption): void {
-    if (this.archiveBusy) {
-      return;
-    }
-    this.archiveBusy = true;
-    this.archivePanelStatus = 'Submitting...';
-    this.detailRenderVersion++;
-    this.client.submitHathArchive(this.detail.gid, this.detail.token, this.hathArchiveList.formParamOr, option.value,
-      currentGallerySite()).then((result: HathArchiveSubmitResult) => {
-      this.archiveBusy = false;
-      this.archivePanelStatus = result.message;
-      this.detailStatus = result.message;
-      this.detailRenderVersion++;
-    }).catch((error: Error) => {
-      this.archiveBusy = false;
-      this.archivePanelStatus = 'H@H failed: ' + error.message;
-      this.detailRenderVersion++;
-    });
-  }
-
-  private copyDetailLink(url: string, label: string): void {
-    if (url.length === 0) {
-      this.detailStatus = label + ' link is unavailable';
-      this.detailRenderVersion++;
-      return;
-    }
-    const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, url);
-    pasteboard.getSystemPasteboard().setData(data).then(() => {
-      this.detailStatus = label + ' link copied to clipboard';
-      this.detailRenderVersion++;
-    }).catch((error: Error) => {
-      this.detailStatus = label + ' copy failed: ' + error.message;
-      this.detailRenderVersion++;
-    });
-  }
-
-  private openSimilarGalleryList(): void {
-    if (!this.detailLoaded || this.detail.gid <= 0) {
-      this.detailStatus = 'Similar search needs a loaded gallery';
-      this.detailRenderVersion++;
-      return;
-    }
-    const request = createSimilarGallerySearch(this.detail);
-    if (request !== null) {
-      this.openRemoteSearch(request);
-    }
-  }
-
-  private openCoverSearch(): void {
-    const context = getAbilityContext();
-    const thumb = this.detail.thumb === undefined ? '' : this.detail.thumb;
-    if (context === undefined || thumb.length === 0) {
-      this.detailStatus = 'Cover image is unavailable';
-      this.detailRenderVersion++;
-      return;
-    }
-    this.detailStatus = 'Preparing cover search...';
-    this.detailRenderVersion++;
-    const referer = this.detailRequestUrl.length > 0 ? this.detailRequestUrl :
-      EhUrl.getGalleryDetailUrl(this.detail.gid, this.detail.token, 0, false, currentGallerySite());
-    readerImageCache.ensureCached(context, thumb, referer, true, undefined, detailCoverCacheKey(this.detail))
-      .then((path: string) => {
-        if (path.length === 0) {
-          this.detailStatus = 'Cover image cache failed';
-          this.detailRenderVersion++;
-          return;
-        }
-        this.openImageSearch(path);
-      }).catch((error: Error) => {
-        this.detailStatus = 'Cover search failed: ' + error.message;
-        this.detailRenderVersion++;
-      });
-  }
-
-  private readDetail(): void {
-    if (this.detailItem !== null) {
-      readerStartIndexAsync(this.detail).then((index: number) => {
-        if (this.detailItem !== null) {
-          this.openDownloadedItemAt(this.detailItem, index);
-        }
-      }).catch(() => {
-        if (this.detailItem !== null) {
-          this.openDownloadedItem(this.detailItem);
-        }
-      });
-    }
   }
 
   private openDownloadedItem(item: DownloadInfo): void {
