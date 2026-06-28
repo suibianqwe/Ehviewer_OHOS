@@ -52,7 +52,7 @@ export struct DetailHeader {
 
       Row() {
         HeaderActionButton({
-          symbolIcon: this.downloadText === 'Queued' ? $r('sys.symbol.checkmark') : $r('sys.symbol.save'),
+          symbolIcon: this.downloadIcon(),
           text: uiText(this.downloadText),
           onTap: this.onDownload
         })
@@ -79,6 +79,16 @@ export struct DetailHeader {
     .width('100%')
     .padding(16)
     .backgroundColor(themePrimaryColor())
+  }
+
+  private downloadIcon(): Resource {
+    if (this.downloadText === 'Downloaded') {
+      return $r('sys.symbol.checkmark');
+    }
+    if (this.downloadText === 'Waiting' || this.downloadText === 'Downloading') {
+      return $r('sys.symbol.pause_fill');
+    }
+    return $r('sys.symbol.save');
   }
 }
 

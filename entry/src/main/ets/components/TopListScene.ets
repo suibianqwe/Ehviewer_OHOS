@@ -17,7 +17,16 @@ import {
   detailCoverCacheKey,
   DetailSearchRequest
 } from '../services/GalleryDetailActionSupport';
+import {
+  createDownloadReaderSessionState,
+  detailDownloadButtonText,
+  DetailDownloadToggleResult,
+  findDetailDownloadItem,
+  refreshDetailDownloadItem,
+  toggleDetailDownloadTask
+} from '../services/GalleryDetailDownloadSupport';
 import { ehDownloadManager } from '../services/EhDownloadManager';
+import { DownloadInfo, ehDownloadStore } from '../services/EhDownloadStore';
 import {
   confirmCellularNetworkWarningForSession,
   shouldConfirmCellularNetworkOperation
@@ -35,7 +44,7 @@ import {
   themeTransparentColor
 } from '../shared/EhTheme';
 import { ArrayDataSource } from '../shared/ListDataSource';
-import { STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, createEmptyDetail, createEmptyPage, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, cloneTopListDetail, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, readerStartIndexAsync, downloadButtonText, toggleGalleryDownload, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, topListChipColor, currentGallerySite, uiText } from '../shared/EhShared';
+import { STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, createEmptyDetail, createEmptyPage, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, cloneTopListDetail, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, readerStartIndexAsync, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, topListChipColor, currentGallerySite, uiText } from '../shared/EhShared';
 import { GalleryDetailOverlayScene, GalleryListScene, GalleryListStateView, ReaderPageState, ReaderScene } from './GalleryScenes';
 import { FloatingToolbarHost } from './NavigationComponents';
 
@@ -115,14 +124,19 @@ export struct TopListScene {
   private readerPreviewPageSize: number = 0;
   private detailPreviewPager: DetailPreviewPager = new DetailPreviewPager();
   private cellularWarningDialogOpen: boolean = false;
+  private unsubscribeDownloadStore: () => void = () => {};
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
     setActiveBackHandler(() => this.handleSystemBack());
+    this.unsubscribeDownloadStore = ehDownloadStore.subscribe((_items: DownloadInfo[]) => {
+      this.refreshDetailDownloadText();
+    });
     this.loadTopList();
   }
 
   aboutToDisappear(): void {
+    this.unsubscribeDownloadStore();
   }
 
   private handleSystemBack(): boolean {
@@ -264,7 +278,7 @@ export struct TopListScene {
     this.resetReaderPreviewCache();
     this.detailStatus = 'Loading detail for gid ' + item.gid + '...';
     this.detailRequestUrl = '';
-    this.detailDownloadText = downloadButtonText(gid);
+    this.detailDownloadText = detailDownloadButtonText(gid);
     this.detailLoaded = false;
     this.optimisticFavorite = false;
     this.favoriteBusy = false;
@@ -291,7 +305,8 @@ export struct TopListScene {
       this.detailStatus = 'Detail loaded';
       this.detail = loadedDetail;
       this.seedReaderPreviewCache(this.detail.previewSet);
-      this.detailDownloadText = downloadButtonText(result.detail.gid);
+      refreshDetailDownloadItem(this.detail);
+      this.detailDownloadText = detailDownloadButtonText(result.detail.gid);
       this.detailLoaded = true;
       this.optimisticFavorite = this.detail.isFavorited;
       this.favoriteBusy = false;
@@ -531,6 +546,15 @@ export struct TopListScene {
   }
 
   private readDetail(): void {
+    const downloadItem = findDetailDownloadItem(this.detail.gid);
+    if (downloadItem !== null) {
+      readerStartIndexAsync(this.detail).then((index: number) => {
+        this.openDownloadedReaderAt(downloadItem, index);
+      }).catch(() => {
+        this.openDownloadedReaderAt(downloadItem, readerStartIndex(this.detail));
+      });
+      return;
+    }
     if (this.readerTotalPages() <= 0) {
       this.detailStatus = 'Read is waiting for preview pages';
       return;
@@ -686,19 +710,23 @@ export struct TopListScene {
   }
 
   private toggleDownloadDetail(): void {
-    if (this.detail.gid <= 0) {
-      this.detailStatus = 'Download needs a loaded gallery';
-      return;
-    }
-    const queued = toggleGalleryDownload(this.detail);
-    if (queued) {
+    const result: DetailDownloadToggleResult = toggleDetailDownloadTask(this.detail);
+    if (result.shouldStartQueue) {
       const context = getAbilityContext();
       if (context !== undefined) {
         this.startDownloadQueueWithCellularGuard(context);
       }
     }
-    this.detailDownloadText = queued ? 'Queued' : 'Download';
-    this.detailStatus = queued ? 'Added to download queue and started' : 'Removed from download queue';
+    this.detailDownloadText = result.buttonText;
+    this.detailStatus = result.statusText;
+    this.renderVersion++;
+  }
+
+  private refreshDetailDownloadText(): void {
+    if (!this.showDetail || this.detail.gid <= 0) {
+      return;
+    }
+    this.detailDownloadText = detailDownloadButtonText(this.detail.gid);
     this.renderVersion++;
   }
 
@@ -742,6 +770,33 @@ export struct TopListScene {
     }).catch(() => {
       this.cellularWarningDialogOpen = false;
       this.detailStatus = 'Download waits for Wi-Fi or confirmation';
+      this.renderVersion++;
+    });
+  }
+
+  private openDownloadedReaderAt(item: DownloadInfo, requestedIndex: number): void {
+    const site = this.gallerySite();
+    readerSessionStore.setSession(createDownloadReaderSessionState(item, requestedIndex, site, this.detailRequestUrl,
+      this.requestUrl, this.detail));
+    if (ehSettingsStore.getValue('reader_standalone', 'On') !== 'On') {
+      enterEmbeddedReaderFullscreen();
+      this.showReader = true;
+      this.renderVersion++;
+      return;
+    }
+    this.showReader = false;
+    const context = getAbilityContext();
+    if (context === undefined) {
+      this.readerStatus = 'Reader launch failed: Ability context is not ready';
+      this.renderVersion++;
+      return;
+    }
+    context.startAbility({
+      bundleName: 'yt.ehviewer.huawei',
+      moduleName: 'entry',
+      abilityName: 'ReaderAbility'
+    }).catch((error: Error) => {
+      this.readerStatus = 'Reader launch failed: ' + error.message;
       this.renderVersion++;
     });
   }

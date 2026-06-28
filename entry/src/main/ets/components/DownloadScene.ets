@@ -7,7 +7,6 @@ import {
   ArchiverOption,
   GalleryCategory,
   GalleryDetail,
-  GalleryPage,
   GalleryPreview,
   GalleryRoute,
   HathArchiveList
@@ -30,7 +29,7 @@ import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { DEFAULT_ADVANCE_SEARCH, EhUrl, ListMode } from '../services/EhUrl';
 import { galleryMatchesLocalSearch, LocalGallerySearchOptions } from '../services/LocalGallerySearch';
-import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
+import { readerSessionStore } from '../services/ReaderSessionStore';
 import { readerImageCache } from '../services/ReaderImageCache';
 import {
   archiveUnavailableReason,
@@ -41,6 +40,13 @@ import {
   detailCoverCacheKey,
   DetailSearchRequest
 } from '../services/GalleryDetailActionSupport';
+import {
+  createDownloadReaderSessionState,
+  detailDownloadButtonText,
+  DetailDownloadToggleResult,
+  findDetailDownloadItem,
+  toggleDetailDownloadTask
+} from '../services/GalleryDetailDownloadSupport';
 import { ehAppLog } from '../services/EhAppLog';
 import {
   applyAppChromeImmersiveMode,
@@ -55,9 +61,7 @@ import {
   cloneGalleryDetail,
   createDetailFromGallery,
   createEmptyDetail,
-  createEmptyPage,
   currentGallerySite,
-  downloadButtonText,
   downloadPageIndexes,
   downloadProgressText,
   downloadSizeText,
@@ -225,6 +229,7 @@ export struct DownloadScene {
     setActiveBackHandler(() => this.handleSystemBack());
     this.unsubscribeStore = ehDownloadStore.subscribe((items: DownloadInfo[]) => {
       this.items = items;
+      this.syncDetailDownloadItem();
       this.refreshDownloadRows();
     });
     this.unsubscribeDownloadManager = ehDownloadManager.subscribe((status: string) => {
@@ -999,10 +1004,25 @@ export struct DownloadScene {
       });
   }
 
+  private syncDetailDownloadItem(): void {
+    if (this.detailItem === null) {
+      return;
+    }
+    const latest = findDetailDownloadItem(this.detailItem.gid);
+    if (latest === null) {
+      this.detailItem = null;
+      this.detailRenderVersion++;
+      return;
+    }
+    this.detailItem = latest;
+    this.detailRenderVersion++;
+  }
+
   private closeDetail(): void {
     this.restoreDetailWithFade = false;
     this.showDetail = false;
     this.showComments = false;
+    this.detailItem = null;
     this.detailStatus = '';
     this.closeArchivePanel();
   }
@@ -1261,9 +1281,8 @@ export struct DownloadScene {
       return;
     }
 
-    const session = await this.createReaderSessionForDownload(item, requestedIndex);
-    readerSessionStore.setSession(createReaderSessionState(session.detail, session.page, session.status,
-      session.detailRequestUrl, '', currentGallerySite(), session.index));
+    readerSessionStore.setSession(createDownloadReaderSessionState(item, requestedIndex, currentGallerySite(),
+      this.detailRequestUrl, '', this.detail));
 
     if (ehSettingsStore.getValue('reader_standalone', 'On') !== 'On') {
       enterEmbeddedReaderFullscreen();
@@ -1278,66 +1297,6 @@ export struct DownloadScene {
     }).catch((error: Error) => {
       this.statusText = 'Reader launch failed: ' + error.message;
     });
-  }
-
-  private async createReaderSessionForDownload(item: DownloadInfo, requestedIndex: number): Promise<DownloadReaderSession> {
-    let detail = createDetailFromGallery(item);
-    let detailRequestUrl = '';
-    try {
-      const result = await this.client.loadGalleryDetail(item.gid, item.token, 0, currentGallerySite(),
-        EhUrl.getReferer(currentGallerySite()));
-      if (result.ok && result.detail !== null) {
-        detail = mergeDownloadDetailTitles(result.detail, item);
-        detailRequestUrl = result.url;
-        ehDownloadStore.updateGallery(detail);
-        this.persistDownloads();
-      }
-    } catch (error) {
-    }
-
-    const total = Math.max(detail.pages, item.total, item.pages, item.finished, 1);
-    const previews: GalleryPreview[] = [];
-    for (let i = 0; i < total; i++) {
-      const preview = this.previewForIndex(detail, i);
-      const pageUrl = preview.pageUrl;
-      previews.push({
-        index: i,
-        pageUrl: pageUrl,
-        imageUrl: preview.imageUrl,
-        width: preview.width,
-        height: preview.height,
-        xOffset: preview.xOffset,
-        yOffset: preview.yOffset
-      });
-    }
-    detail.pages = total;
-    detail.previewPages = Math.max(detail.previewPages, 1);
-    detail.previewSet = previews;
-    const index = requestedIndex >= 0 && requestedIndex < total ? requestedIndex : 0;
-    return {
-      detail: detail,
-      page: createEmptyPage(),
-      index: index,
-      status: 'Reader is ready',
-      detailRequestUrl: detailRequestUrl
-    };
-  }
-
-  private previewForIndex(detail: GalleryDetail, index: number): GalleryPreview {
-    for (let i = 0; i < detail.previewSet.length; i++) {
-      if (detail.previewSet[i].index === index) {
-        return detail.previewSet[i];
-      }
-    }
-    return {
-      index: index,
-      pageUrl: '',
-      imageUrl: '',
-      width: 0,
-      height: 0,
-      xOffset: 0,
-      yOffset: 0
-    };
   }
 
   private closeEmbeddedReader(): void {
@@ -1448,7 +1407,7 @@ export struct DownloadScene {
         isFavorited: this.detail.isFavorited,
         statusText: this.detailStatus,
         requestUrl: this.detailRequestUrl,
-        downloadText: downloadButtonText(this.detail.gid),
+        downloadText: detailDownloadButtonText(this.detail.gid),
         archivePanelVisible: this.archivePanelVisible,
         archivePanelMode: this.archivePanelMode,
         archivePanelStatus: this.archivePanelStatus,
@@ -1462,9 +1421,12 @@ export struct DownloadScene {
           this.closeComments();
         },
         onDownload: () => {
-          if (this.detailItem !== null) {
-            this.cycleItemState(this.detailItem);
+          const result: DetailDownloadToggleResult = toggleDetailDownloadTask(this.detail);
+          this.detailStatus = result.statusText;
+          if (result.shouldStartQueue) {
+            this.startGlobalDownloadQueue();
           }
+          this.detailRenderVersion++;
         },
         onRead: () => {
           this.readDetail();
@@ -1884,14 +1846,6 @@ export struct DownloadScene {
   }
 }
 
-}
-
-interface DownloadReaderSession {
-  detail: GalleryDetail;
-  page: GalleryPage;
-  index: number;
-  status: string;
-  detailRequestUrl: string;
 }
 
 @Component

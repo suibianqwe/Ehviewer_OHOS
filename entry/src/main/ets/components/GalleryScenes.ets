@@ -33,6 +33,7 @@ import { DetailPreviewPager, mergeGalleryPreviewSets, seedPreviewMap } from '../
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehDownloadManager } from '../services/EhDownloadManager';
+import { DownloadInfo, ehDownloadStore } from '../services/EhDownloadStore';
 import { readerImageCache } from '../services/ReaderImageCache';
 import {
   archiveUnavailableReason,
@@ -43,6 +44,14 @@ import {
   detailCoverCacheKey,
   DetailSearchRequest
 } from '../services/GalleryDetailActionSupport';
+import {
+  createDownloadReaderSessionState,
+  detailDownloadButtonText,
+  DetailDownloadToggleResult,
+  findDetailDownloadItem,
+  refreshDetailDownloadItem,
+  toggleDetailDownloadTask
+} from '../services/GalleryDetailDownloadSupport';
 import { common } from '@kit.AbilityKit';
 import {
   confirmCellularNetworkWarningForSession,
@@ -110,8 +119,6 @@ import {
   saveGalleryReadPosition,
   readerStartIndex,
   readerStartIndexAsync,
-  downloadButtonText,
-  toggleGalleryDownload,
   listModeForRoute,
   routeUsesKeyword,
   defaultKeywordForRoute,
@@ -363,6 +370,7 @@ export struct GalleryListScene {
   private readerPreviewPageSize: number = 0;
   private detailPreviewPager: DetailPreviewPager = new DetailPreviewPager();
   private cellularWarningDialogOpen: boolean = false;
+  private unsubscribeDownloadStore: () => void = () => {};
 
   private cacheKey(): string {
     const mode = this.useForcedMode ? this.forcedMode.toString() : listModeForRoute(this.sourceRoute).toString();
@@ -508,10 +516,14 @@ export struct GalleryListScene {
       }
     }
     setActiveBackHandler(() => this.handleSystemBack());
+    this.unsubscribeDownloadStore = ehDownloadStore.subscribe((_items: DownloadInfo[]) => {
+      this.refreshDetailDownloadText();
+    });
   }
 
   aboutToDisappear(): void {
     this.saveListCache();
+    this.unsubscribeDownloadStore();
   }
 
   private handleSystemBack(): boolean {
@@ -1069,7 +1081,7 @@ export struct GalleryListScene {
     this.resetReaderPreviewCache();
     this.detailStatus = 'Loading detail for gid ' + gallery.gid.toString() + '...';
     this.detailRequestUrl = '';
-    this.detailDownloadText = downloadButtonText(gallery.gid);
+    this.detailDownloadText = detailDownloadButtonText(gallery.gid);
     this.detailLoaded = false;
     this.optimisticFavorite = gallery.favoriteSlot >= 0;
     this.favoriteBusy = false;
@@ -1097,7 +1109,8 @@ export struct GalleryListScene {
         this.detailStatus = 'Detail loaded';
         this.detail = loadedDetail;
         this.seedReaderPreviewCache(this.detail.previewSet);
-        this.detailDownloadText = downloadButtonText(result.detail.gid);
+        refreshDetailDownloadItem(this.detail);
+        this.detailDownloadText = detailDownloadButtonText(result.detail.gid);
         this.detailLoaded = true;
         this.optimisticFavorite = this.detail.isFavorited;
         this.favoriteBusy = false;
@@ -1351,6 +1364,15 @@ export struct GalleryListScene {
   }
 
   private readDetail(): void {
+    const downloadItem = findDetailDownloadItem(this.detail.gid);
+    if (downloadItem !== null) {
+      readerStartIndexAsync(this.detail).then((index: number) => {
+        this.openDownloadedReaderAt(downloadItem, index);
+      }).catch(() => {
+        this.openDownloadedReaderAt(downloadItem, readerStartIndex(this.detail));
+      });
+      return;
+    }
     if (this.readerTotalPages() <= 0) {
       this.detailStatus = 'Read is waiting for preview pages';
       return;
@@ -1395,6 +1417,32 @@ export struct GalleryListScene {
       this.readerStatus = 'Reader launch failed: ' + error.message;
       this.renderVersion++;
       this.persistReaderSession();
+    });
+  }
+
+  private openDownloadedReaderAt(item: DownloadInfo, requestedIndex: number): void {
+    readerSessionStore.setSession(createDownloadReaderSessionState(item, requestedIndex, this.activeSite,
+      this.detailRequestUrl, this.requestUrl, this.detail));
+    if (ehSettingsStore.getValue('reader_standalone', 'On') !== 'On') {
+      enterEmbeddedReaderFullscreen();
+      this.showReader = true;
+      this.renderVersion++;
+      return;
+    }
+    this.showReader = false;
+    const context = getAbilityContext();
+    if (context === undefined) {
+      this.readerStatus = 'Reader launch failed: Ability context is not ready';
+      this.renderVersion++;
+      return;
+    }
+    context.startAbility({
+      bundleName: 'yt.ehviewer.huawei',
+      moduleName: 'entry',
+      abilityName: 'ReaderAbility'
+    }).catch((error: Error) => {
+      this.readerStatus = 'Reader launch failed: ' + error.message;
+      this.renderVersion++;
     });
   }
 
@@ -1519,19 +1567,23 @@ export struct GalleryListScene {
   }
 
   private toggleDownloadDetail(): void {
-    if (this.detail.gid <= 0) {
-      this.detailStatus = 'Download needs a loaded gallery';
-      return;
-    }
-    const queued = toggleGalleryDownload(this.detail);
-    if (queued) {
+    const result: DetailDownloadToggleResult = toggleDetailDownloadTask(this.detail);
+    if (result.shouldStartQueue) {
       const context = getAbilityContext();
       if (context !== undefined) {
         this.startDownloadQueueWithCellularGuard(context);
       }
     }
-    this.detailDownloadText = queued ? 'Queued' : 'Download';
-    this.detailStatus = queued ? 'Added to download queue and started' : 'Removed from download queue';
+    this.detailDownloadText = result.buttonText;
+    this.detailStatus = result.statusText;
+    this.renderVersion++;
+  }
+
+  private refreshDetailDownloadText(): void {
+    if (!this.showDetail || this.detail.gid <= 0) {
+      return;
+    }
+    this.detailDownloadText = detailDownloadButtonText(this.detail.gid);
     this.renderVersion++;
   }
 

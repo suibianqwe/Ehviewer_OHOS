@@ -421,6 +421,10 @@ export function zhText(text: string): string {
     case 'History': return '历史';
     case 'Downloads': return '下载';
     case 'Download': return '下载';
+    case 'Added to download list and started': return '已加入下载列表并开始下载';
+    case 'Download stopped': return '已停止下载';
+    case 'Download queued': return '已加入下载队列';
+    case 'Download queued for update': return '已加入更新下载队列';
     case 'Settings': return '设置';
     case 'Preferences': return '偏好设置';
     case 'Gallery list and search': return '画廊列表与搜索';
