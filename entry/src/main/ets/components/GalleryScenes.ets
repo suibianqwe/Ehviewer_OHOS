@@ -176,6 +176,7 @@ interface SearchResultDraft {
   searchFilterEnabled: boolean;
   searchAdvancedPanelOpened: boolean;
   submitted: boolean;
+  sourceRoute: GalleryRoute;
   imagePath: string;
   imageUseSimilarityScan: boolean;
   imageOnlySearchCovers: boolean;
@@ -199,6 +200,7 @@ function createEmptySearchResultDraft(): SearchResultDraft {
     searchFilterEnabled: true,
     searchAdvancedPanelOpened: false,
     submitted: false,
+    sourceRoute: GalleryRoute.Home,
     imagePath: '',
     imageUseSimilarityScan: false,
     imageOnlySearchCovers: false,
@@ -929,6 +931,7 @@ export struct GalleryListScene {
       searchFilterEnabled: true,
       searchAdvancedPanelOpened: false,
       submitted: false,
+      sourceRoute: this.sourceRoute,
       imagePath: '',
       imageUseSimilarityScan: false,
       imageOnlySearchCovers: false,
@@ -992,6 +995,7 @@ export struct GalleryListScene {
       searchFilterEnabled: true,
       searchAdvancedPanelOpened: false,
       submitted: true,
+      sourceRoute: GalleryRoute.Home,
       imagePath: '',
       imageUseSimilarityScan: false,
       imageOnlySearchCovers: false,
@@ -1859,6 +1863,7 @@ export struct GalleryListScene {
       searchFilterEnabled: true,
       searchAdvancedPanelOpened: false,
       submitted: true,
+      sourceRoute: GalleryRoute.Home,
       imagePath: '',
       imageUseSimilarityScan: false,
       imageOnlySearchCovers: false,
@@ -1889,6 +1894,7 @@ export struct GalleryListScene {
       searchFilterEnabled: true,
       searchAdvancedPanelOpened: false,
       submitted: true,
+      sourceRoute: GalleryRoute.Home,
       imagePath: imagePath,
       imageUseSimilarityScan: true,
       imageOnlySearchCovers: false,
@@ -1906,7 +1912,7 @@ export struct GalleryListScene {
         GalleryListScene({
           sceneTitle: this.searchResultDraft.keyword.length > 0 ? this.searchResultDraft.keyword : 'Search',
           listMode: 'Search',
-          sourceRoute: this.sourceRoute,
+          sourceRoute: this.searchResultDraft.sourceRoute,
           initialKeyword: this.searchResultDraft.keyword,
           initialSearchMode: this.searchResultDraft.mode,
           initialSearchCategory: this.searchResultDraft.category,
