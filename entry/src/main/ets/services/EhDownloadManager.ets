@@ -19,10 +19,12 @@ import {
 import { EhUrl } from './EhUrl';
 import { mergeGalleryPreviewSets } from './GalleryPreviewLoader';
 import { ehAppLog } from './EhAppLog';
+import { hathQualityStore } from './HathQualityStore';
 
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
 const DOWNLOAD_PAGE_RETRY_LIMIT: number = 3;
 const DOWNLOAD_IMAGE_RETRY_LIMIT: number = 1;
+const DOWNLOAD_SLOW_HATH_SKIP_LIMIT: number = 2;
 const DOWNLOAD_NOTIFICATION_ID: number = 8001;
 const DOWNLOAD_NOTIFICATION_TEMPLATE: string = 'downloadTemplate';
 
@@ -370,6 +372,8 @@ export class EhDownloadManager {
         this.reloadedPageHostLog(previousPage, page));
     }
 
+    page = await this.skipSlowHathPageIfNeeded(context, page, preview.pageUrl, currentGallerySite(),
+      readerPageReferer(detailUrl, detail.previewSet, pageIndex, currentGallerySite()), item, pageIndex, total);
     const imageUrl = downloadImageUrlForPage(page);
     if (imageUrl.length === 0) {
       throw new Error('Image URL missing');
@@ -411,6 +415,32 @@ export class EhDownloadManager {
     const nextHost = imageHostForLog(downloadImageUrlForPage(page));
     const skipText = previousPage.skipHathKey.length > 0 ? ', nl=on' : ', nl=missing';
     return skipText + ', imageHost=' + previousHost + ' -> ' + nextHost;
+  }
+
+  private async skipSlowHathPageIfNeeded(context: common.UIAbilityContext, page: GalleryPage, previewPageUrl: string,
+    site: GallerySite, referer: string, item: DownloadInfo, pageIndex: number, total: number): Promise<GalleryPage> {
+    let current = page;
+    for (let i = 0; i < DOWNLOAD_SLOW_HATH_SKIP_LIMIT; i++) {
+      const imageUrl = downloadImageUrlForPage(current);
+      if (current.skipHathKey.length === 0 || !hathQualityStore.shouldSkip(context, imageUrl)) {
+        return current;
+      }
+      const pageUrl = current.pageUrl.length > 0 ? current.pageUrl : previewPageUrl;
+      const pageResult = await this.client.skipHathAndReloadPage(pageUrl, current.skipHathKey, site, referer);
+      if (!pageResult.ok || pageResult.page === null) {
+        return current;
+      }
+      const nextPage = pageResult.page;
+      const cacheUrl = nextPage.pageUrl.length > 0 ? nextPage.pageUrl : previewPageUrl;
+      galleryPageCache.put(cacheUrl, nextPage);
+      galleryPageCache.put(previewPageUrl, nextPage);
+      ehAppLog.info(context, 'DownloadManager', 'Skipped slow H@H gid=' + item.gid.toString() +
+        ', page=' + (pageIndex + 1).toString() + '/' + total.toString() + ', ' +
+        hathQualityStore.hostSummary(context, imageUrl) + ', imageHost=' + imageHostForLog(imageUrl) +
+        ' -> ' + imageHostForLog(downloadImageUrlForPage(nextPage)));
+      current = nextPage;
+    }
+    return current;
   }
 
   private recordDownloadSpeed(item: DownloadInfo, state: DownloadWorkerState, total: number, deltaBytes: number,

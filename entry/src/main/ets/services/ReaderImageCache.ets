@@ -11,6 +11,7 @@ import {
   recordEhRequestOutcome
 } from './EhNetworkConfig';
 import { ehSettingsStore } from './EhSettingsStore';
+import { hathQualityStore } from './HathQualityStore';
 
 interface PendingImageDownload {
   url: string;
@@ -170,7 +171,7 @@ export class ReaderImageCache {
     const retryLimit = normalizedRetryLimit(options);
     for (let attempt = 0; attempt < retryLimit; attempt++) {
       try {
-        await this.downloadOnce(imageUrl, referer, path, attempt, onProgress);
+        await this.downloadOnce(context, imageUrl, referer, path, attempt, onProgress);
         return;
       } catch (error) {
         removeFileQuietly(path);
@@ -186,7 +187,7 @@ export class ReaderImageCache {
     throw new Error(lastError.length > 0 ? lastError : 'Image download failed');
   }
 
-  private async downloadOnce(imageUrl: string, referer: string, path: string,
+  private async downloadOnce(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
     attempt: number, onProgress?: ImageDownloadProgressCallback): Promise<void> {
     const request = http.createHttp();
     let plan: EhRequestPlan | null = null;
@@ -210,6 +211,7 @@ export class ReaderImageCache {
 
       if (statusCode < 200 || statusCode >= 300) {
         recordEhRequestOutcome(plan, false, Date.now() - startedAt);
+        hathQualityStore.recordFailure(context, imageUrl);
         outcomeRecorded = true;
         throw new Error(imageStatusMessage(statusCode));
       }
@@ -217,10 +219,13 @@ export class ReaderImageCache {
       const size = statFileSize(path);
       if (size <= 0) {
         recordEhRequestOutcome(plan, false, Date.now() - startedAt);
+        hathQualityStore.recordFailure(context, imageUrl);
         outcomeRecorded = true;
         throw new Error('Empty image response');
       }
-      recordEhRequestOutcome(plan, true, Date.now() - startedAt);
+      const elapsedMs = Date.now() - startedAt;
+      recordEhRequestOutcome(plan, true, elapsedMs);
+      hathQualityStore.recordSuccess(context, imageUrl, elapsedMs, size);
       outcomeRecorded = true;
       if (onProgress !== undefined) {
         onProgress({ receivedBytes: size, totalBytes: size });
@@ -228,6 +233,7 @@ export class ReaderImageCache {
     } catch (error) {
       if (plan !== null && !outcomeRecorded) {
         recordEhRequestOutcome(plan, false, Date.now() - startedAt);
+        hathQualityStore.recordFailure(context, imageUrl);
       }
       throw new Error(imageNetworkErrorMessage(error));
     } finally {
