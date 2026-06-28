@@ -17,6 +17,7 @@ import {
   LANGUAGE_REVISION_KEY,
   IDENTITY_AUTH_LOCKED_KEY,
   STATUS_BAR_HEIGHT_KEY,
+  THEME_REVISION_KEY,
   getAbilityContext,
   launchRouteFromSetting,
   runActiveBackHandler,
@@ -50,6 +51,7 @@ struct Index {
   @State updateRelease: ReleaseInfo | null = null;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeight: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+  @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
   @StorageProp(IDENTITY_AUTH_LOCKED_KEY) identityAuthLocked: boolean = false;
 
   private statusBarVp(): number {
@@ -211,7 +213,11 @@ struct Index {
               .height(this.statusBarVp() + 56)
               .backgroundColor(themePrimaryColor())
 
-            this.RouteContent()
+            if (this.themeRevision % 2 === 0) {
+              this.RouteContent()
+            } else {
+              this.RouteContent()
+            }
           }
           .width('100%')
           .height('100%')

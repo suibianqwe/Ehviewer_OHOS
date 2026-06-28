@@ -9,11 +9,13 @@ import {
   applyReaderWindowStateFromSettings,
   scheduleReaderFullscreenImmersiveMode
 } from '../services/EhWindowImmersive';
-import { runReaderActiveBackHandler } from '../shared/EhShared';
+import { THEME_REVISION_KEY, runReaderActiveBackHandler } from '../shared/EhShared';
 
 @Entry
 @Component
 struct ReaderPage {
+  @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
+
   aboutToAppear(): void {
     this.applyReaderEntryChrome();
   }
@@ -75,7 +77,11 @@ struct ReaderPage {
 
   build() {
     Column() {
-      ReaderHostScene()
+      if (this.themeRevision % 2 === 0) {
+        ReaderHostScene()
+      } else {
+        ReaderHostScene()
+      }
     }
     .width('100%')
     .height('100%')

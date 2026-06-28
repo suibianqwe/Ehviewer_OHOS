@@ -18,6 +18,7 @@ import {
   IDENTITY_AUTH_LOCKED_KEY,
   IDENTITY_AUTH_OFF,
   IDENTITY_AUTH_PASSWORD_FIRST,
+  THEME_REVISION_KEY,
   notifyThemeChanged,
   normalizeIdentityAuthenticationOption,
   uiText
@@ -54,6 +55,7 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate<number>(BOTTOM_AVOID_HEIGHT_KEY, 0);
     AppStorage.setOrCreate<window.Window | undefined>(MAIN_WINDOW_KEY, undefined);
     AppStorage.setOrCreate<number>(LANGUAGE_REVISION_KEY, 0);
+    AppStorage.setOrCreate<number>(THEME_REVISION_KEY, 0);
     AppStorage.setOrCreate<string>(WINDOW_PRIVACY_STATUS_KEY, '');
     AppStorage.setOrCreate<boolean>(IDENTITY_AUTH_LOCKED_KEY, false);
     this.updateSystemColorMode(this.context.config.colorMode);

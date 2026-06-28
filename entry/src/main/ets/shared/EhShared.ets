@@ -50,6 +50,7 @@ export interface EhBackupBundle {
 }
 
 export const LANGUAGE_REVISION_KEY: string = 'ehviewer_language_revision';
+export const THEME_REVISION_KEY: string = 'ehviewer_theme_revision';
 export const HISTORY_READ_REVISION_KEY: string = 'ehviewer_history_read_revision';
 export const GALLERY_TITLE_REVISION_KEY: string = 'ehviewer_gallery_title_revision';
 export const IDENTITY_AUTH_LOCKED_KEY: string = 'ehviewer_identity_auth_locked';
@@ -127,6 +128,8 @@ export function notifyLanguageChanged(): void {
 }
 
 export function notifyThemeChanged(): void {
+  const current = AppStorage.get<number>(THEME_REVISION_KEY);
+  AppStorage.setOrCreate<number>(THEME_REVISION_KEY, current === undefined ? 1 : current + 1);
   notifyLanguageChanged();
 }
 
