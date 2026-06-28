@@ -1383,18 +1383,23 @@ export struct ReaderScene {
         .zIndex(3)
 
       if (!this.menuVisible) {
-        ReaderInfoOverlay({
-          showProgress: this.overlayShowProgress,
-          showClock: this.overlayShowClock,
-          showBattery: this.overlayShowBattery,
-          progressText: this.progressText(),
-          clockText: this.clockText,
-          batteryText: this.batteryText(),
-          top: this.readerStatusOverlayTop(),
-          right: this.readerStatusOverlayRight()
-        })
-          .position({ x: 40, y: 40 })
-          .zIndex(4)
+        Stack({ alignContent: Alignment.TopEnd }) {
+          ReaderInfoOverlay({
+            showProgress: this.overlayShowProgress,
+            showClock: this.overlayShowClock,
+            showBattery: this.overlayShowBattery,
+            progressText: this.progressText(),
+            clockText: this.clockText,
+            batteryText: this.batteryText(),
+            top: this.readerStatusOverlayTop(),
+            right: this.readerStatusOverlayRight()
+          })
+            .margin({ top: this.readerStatusOverlayTop(), right: this.readerStatusOverlayRight() })
+        }
+        .width('100%')
+        .height('100%')
+        .hitTestBehavior(HitTestMode.Transparent)
+        .zIndex(4)
       }
       if (this.sliderVisible) {
         ReaderSliderPanel({
@@ -1471,6 +1476,7 @@ export struct ReaderScene {
           menuAutoTransferTime: this.menuAutoTransferTime,
           menuKeepScreenOn: this.menuKeepScreenOn,
           menuShowBattery: this.menuShowBattery,
+          batteryText: this.batteryText(),
           menuReadingFullscreen: this.menuReadingFullscreen,
           menuVolumePage: this.menuVolumePage,
           menuCustomBrightness: this.menuCustomBrightness,

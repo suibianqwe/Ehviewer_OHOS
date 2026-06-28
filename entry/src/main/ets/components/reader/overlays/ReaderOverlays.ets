@@ -1,6 +1,5 @@
 import {
   readerClockText,
-  uiStatusText,
   uiText,
   uiValue
 } from '../../../shared/EhShared';
@@ -346,14 +345,15 @@ export struct ReaderSettingsMenuOverlay {
   @Prop statusText: string = '';
   @Prop menuShowClock: boolean = true;
   @Prop menuShowProgress: boolean = true;
+  @Prop menuShowBattery: boolean = true;
   @Prop progressText: string = '';
+  @Prop batteryText: string = '';
   @Prop menuScreenRotation: string = 'Default';
   @Prop menuReadingDirection: string = 'Right to left';
   @Prop menuPageScaling: string = 'Fit screen';
   @Prop menuStartPosition: string = 'Top right';
   @Prop menuAutoTransferTime: string = '5s';
   @Prop menuKeepScreenOn: boolean = false;
-  @Prop menuShowBattery: boolean = true;
   @Prop menuReadingFullscreen: boolean = true;
   @Prop menuVolumePage: boolean = false;
   @Prop @Watch('onMenuCustomBrightnessChange') menuCustomBrightness: boolean = false;
@@ -416,13 +416,6 @@ export struct ReaderSettingsMenuOverlay {
             this.onBack();
           })
 
-          Text(uiStatusText(this.statusText))
-            .fontSize(12)
-            .fontColor('#E5E7EB')
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .margin({ left: 10 })
-            .layoutWeight(1)
           if (this.menuShowClock) {
             Text(readerClockText())
               .fontSize(12)
@@ -431,6 +424,12 @@ export struct ReaderSettingsMenuOverlay {
           }
           if (this.menuShowProgress) {
             Text(this.progressText)
+              .fontSize(12)
+              .fontColor('#E5E7EB')
+              .margin({ left: 8 })
+          }
+          if (this.menuShowBattery) {
+            Text(this.batteryText)
               .fontSize(12)
               .fontColor('#E5E7EB')
               .margin({ left: 8 })
