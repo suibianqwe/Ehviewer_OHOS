@@ -18,6 +18,8 @@ const IP_SUCCESS_LATENCY_BONUS_MS: number = 120;
 const IP_RETRY_DEMOTE_THRESHOLD: number = 2;
 const IP_UNTESTED_LATENCY_MS: number = 2200;
 const IP_QUALITY_SAVE_THROTTLE_MS: number = 30000;
+const IP_SLOW_RESPONSE_THRESHOLD_MS: number = 6000;
+const IP_SLOW_LATENCY_PENALTY_MS: number = 350;
 const FRONTING_PROBE_USER_AGENT: string =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36';
 const BUILT_IN_RULES: HostRule[] = [
@@ -204,6 +206,10 @@ export function recordEhRequestOutcome(plan: EhRequestPlan, ok: boolean, elapsed
     const measured = Math.max(1, elapsedMs);
     current.latencyMs = Math.max(1, Math.round((current.latencyMs * 2 + measured) / 3) -
       Math.min(IP_SUCCESS_LATENCY_BONUS_MS, current.successCount * 20));
+    if (measured >= IP_SLOW_RESPONSE_THRESHOLD_MS) {
+      current.latencyMs += Math.min(IP_SLOW_LATENCY_PENALTY_MS * 3,
+        IP_SLOW_LATENCY_PENALTY_MS + Math.round((measured - IP_SLOW_RESPONSE_THRESHOLD_MS) / 20));
+    }
   } else {
     current.failureCount = failureCount + 1;
     current.latencyMs = Math.max(current.latencyMs, Math.max(1, elapsedMs)) +
