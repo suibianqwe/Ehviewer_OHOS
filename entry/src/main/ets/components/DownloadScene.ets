@@ -48,10 +48,10 @@ import {
   toggleDetailDownloadTask
 } from '../services/GalleryDetailDownloadSupport';
 import {
+  createEmptyGalleryDetailLink,
   createGalleryDetailLinkFromGallery,
-  GalleryDetailModuleLoadResult,
-  initialDetailForLink,
-  loadGalleryDetailModule
+  GalleryDetailLink,
+  initialDetailForLink
 } from '../services/GalleryDetailModule';
 import { ehAppLog } from '../services/EhAppLog';
 import {
@@ -97,6 +97,7 @@ import { ArrayDataSource } from '../shared/ListDataSource';
 import { FloatingToolbarHost } from './NavigationComponents';
 import { ActionBubble, GalleryListRow, GalleryListScene, GalleryThumbCard } from './GalleryScenes';
 import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
+import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
 import {
   applyTagSuggestionToKeyword,
@@ -172,6 +173,7 @@ export struct DownloadScene {
   @State categoryFilter: string = 'All';
   @State statusText: string = 'Downloads: idle';
   @State showDetail: boolean = false;
+  @State detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();
   @State detail: GalleryDetail = createEmptyDetail();
   @State detailStatus: string = '';
   @State detailRequestUrl: string = '';
@@ -971,31 +973,12 @@ export struct DownloadScene {
     this.showDetail = true;
     const detailLink = createGalleryDetailLinkFromGallery(item, currentGallerySite(),
       EhUrl.getReferer(currentGallerySite()));
+    this.detailLink = detailLink;
     this.detail = initialDetailForLink(detailLink);
-    this.detailStatus = 'Loading gallery detail...';
+    this.detailStatus = '';
     this.detailRequestUrl = detailLink.url;
     this.detailLoaded = false;
     this.detailRenderVersion++;
-    loadGalleryDetailModule(this.client, detailLink)
-      .then((result: GalleryDetailModuleLoadResult) => {
-        if (!result.ok) {
-          this.detailStatus = result.statusText;
-          ehAppLog.warn(getAbilityContext(), 'DownloadDetail', this.detailStatus);
-          this.detailRenderVersion++;
-          return;
-        }
-        this.detail = result.detail;
-        this.detailRequestUrl = result.url;
-        this.detailStatus = result.statusText;
-        this.detailLoaded = true;
-        ehDownloadStore.updateGallery(this.detail);
-        this.persistDownloads();
-        this.detailRenderVersion++;
-      }).catch((error: Error) => {
-        this.detailStatus = 'Detail load failed: ' + error.message;
-        ehAppLog.error(getAbilityContext(), 'DownloadDetail', this.detailStatus);
-        this.detailRenderVersion++;
-      });
   }
 
   private syncDetailDownloadItem(): void {
@@ -1017,6 +1000,7 @@ export struct DownloadScene {
     this.showDetail = false;
     this.showComments = false;
     this.detailItem = null;
+    this.detailLink = createEmptyGalleryDetailLink();
     this.detailStatus = '';
     this.closeArchivePanel();
   }
@@ -1393,77 +1377,23 @@ export struct DownloadScene {
         .transition(TransitionEffect.move(TransitionEdge.BOTTOM)
           .animation({ duration: 300, curve: Curve.EaseOut }))
     } else if (this.showDetail) {
-      GalleryDetailOverlayScene({
-        renderVersion: this.detailRenderVersion,
-        showComments: this.showComments,
-        detail: this.detail,
-        isDetailLoaded: this.detailLoaded,
-        isFavorited: this.detail.isFavorited,
-        statusText: this.detailStatus,
-        requestUrl: this.detailRequestUrl,
-        downloadText: detailDownloadButtonText(this.detail.gid),
-        archivePanelVisible: this.archivePanelVisible,
-        archivePanelMode: this.archivePanelMode,
-        archivePanelStatus: this.archivePanelStatus,
-        archiveBusy: this.archiveBusy,
-        archiverInfo: this.archiverInfo,
-        hathArchiveList: this.hathArchiveList,
+      GalleryDetailHostScene({
+        detailLink: this.detailLink,
+        listRequestUrl: '',
         onBack: () => {
           this.closeDetail();
         },
-        onCloseComments: () => {
-          this.closeComments();
+        onShowEmbeddedReader: () => {
+          enterEmbeddedReaderFullscreen();
+          this.showReader = true;
         },
-        onDownload: () => {
-          const result: DetailDownloadToggleResult = toggleDetailDownloadTask(this.detail);
-          this.detailStatus = result.statusText;
-          if (result.shouldStartQueue) {
-            this.startGlobalDownloadQueue();
-          }
-          this.detailRenderVersion++;
+        onOpenSearch: (request: DetailSearchRequest) => {
+          this.openRemoteSearch(request);
         },
-        onRead: () => {
-          this.readDetail();
-        },
-        onSelectPreview: (preview: GalleryPreview) => {
-          if (this.detailItem !== null) {
-            this.openDownloadedItemAt(this.detailItem, preview.index);
-          }
-        },
-        onComments: () => {
-          this.openComments();
-        },
-        onFavorite: () => {},
-        onShare: () => {},
-        onRate: (_rating: number) => {},
-        onTorrent: () => {
-          this.copyDetailLink(this.detail.torrentUrl, 'Torrent');
-        },
-        onArchive: () => {
-          this.openArchiverPanel();
-        },
-        onHath: () => {
-          this.openHathPanel();
-        },
-        onSimilar: () => {
-          this.openSimilarGalleryList();
-        },
-        onSearchCover: () => {
-          this.openCoverSearch();
-        },
-        onCloseArchivePanel: () => {
-          this.closeArchivePanel();
-          this.detailRenderVersion++;
-        },
-        onSelectArchiverOption: (option: ArchiverOption) => {
-          this.submitArchiverOption(option);
-        },
-        onSelectHathOption: (option: ArchiveOption) => {
-          this.submitHathOption(option);
-        },
-        onLoadMorePreviews: () => {},
-        onTagSearch: (namespace: string, tag: string) => {
-          this.openTagSearch(namespace, tag);
+        onDetailLoaded: (detail: GalleryDetail) => {
+          this.detail = detail;
+          ehDownloadStore.updateGallery(detail);
+          this.persistDownloads();
         }
       })
         .transition(TransitionEffect.move(TransitionEdge.END)

@@ -27,9 +27,9 @@ import {
 } from '../services/GalleryDetailDownloadSupport';
 import {
   createGalleryDetailLink,
-  GalleryDetailModuleLoadResult,
-  initialDetailForLink,
-  loadGalleryDetailModule
+  createEmptyGalleryDetailLink,
+  GalleryDetailLink,
+  initialDetailForLink
 } from '../services/GalleryDetailModule';
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { DownloadInfo, ehDownloadStore } from '../services/EhDownloadStore';
@@ -52,6 +52,7 @@ import {
 import { ArrayDataSource } from '../shared/ListDataSource';
 import { STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, createEmptyDetail, createEmptyPage, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneGalleryDetail, cloneGalleryPage, createReaderLoadingPage, cloneTopListDetail, getAbilityContext, saveGalleryToHistory, saveGalleryReadPosition, readerStartIndex, readerStartIndexAsync, readerPageReferer, cacheReaderImageForPage, readerPreloadCount, topListChipColor, currentGallerySite, uiText } from '../shared/EhShared';
 import { GalleryDetailOverlayScene, GalleryListScene, GalleryListStateView, ReaderPageState, ReaderScene } from './GalleryScenes';
+import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { FloatingToolbarHost } from './NavigationComponents';
 
 function normalizeSceneScrollOffset(offset: number): number {
@@ -82,6 +83,7 @@ export struct TopListScene {
   @State showReader: boolean = false;
   @State showComments: boolean = false;
   @State restoreDetailWithFade: boolean = false;
+  @State detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();
   @State detail: GalleryDetail = createEmptyDetail();
   @State detailStatus: string = 'Tap a ranking item to load detail';
   @State detailRequestUrl: string = '';
@@ -263,54 +265,13 @@ export struct TopListScene {
 
     this.restoreDetailWithFade = false;
     this.showDetail = true;
-    this.detailPreviewPager.start();
     const site = this.gallerySite();
     const detailLink = createGalleryDetailLink(gid, item.token, item.value, site, this.requestUrl);
-    const loadingDetail = initialDetailForLink(detailLink);
-    const requestGid = detailLink.gid;
-    this.detail = loadingDetail;
-    this.resetReaderPreviewCache();
-    this.detailStatus = 'Loading detail for gid ' + detailLink.gid.toString() + '...';
+    this.detailLink = detailLink;
+    this.detail = initialDetailForLink(detailLink);
+    this.detailStatus = '';
     this.detailRequestUrl = detailLink.url;
-    this.detailDownloadText = detailDownloadButtonText(detailLink.gid);
-    this.detailLoaded = false;
-    this.optimisticFavorite = false;
-    this.favoriteBusy = false;
     this.renderVersion++;
-
-    loadGalleryDetailModule(this.client, detailLink).then((result: GalleryDetailModuleLoadResult) => {
-      if (!result.ok) {
-        if (this.showDetail && this.detail.gid === requestGid) {
-          this.detailRequestUrl = result.url;
-          this.detailStatus = result.statusText;
-          this.renderVersion++;
-        }
-        ehAppLog.warn(getAbilityContext(), 'TopListDetail', result.statusText);
-        return;
-      }
-      saveGalleryToHistory(result.detail);
-      if (!this.showDetail || this.detail.gid !== requestGid) {
-        return;
-      }
-      this.detailRequestUrl = result.url;
-      this.detailStatus = result.statusText;
-      this.detail = result.detail;
-      this.seedReaderPreviewCache(this.detail.previewSet);
-      refreshDetailDownloadItem(this.detail);
-      this.detailDownloadText = detailDownloadButtonText(this.detail.gid);
-      this.detailLoaded = true;
-      this.optimisticFavorite = this.detail.isFavorited;
-      this.favoriteBusy = false;
-      this.renderVersion++;
-      this.prewarmReader();
-    }).catch((error: Error) => {
-      const message = 'Detail load failed: ' + error.message;
-      if (this.showDetail && this.detail.gid === requestGid) {
-        this.detailStatus = message;
-        this.renderVersion++;
-      }
-      ehAppLog.error(getAbilityContext(), 'TopListDetail', message);
-    });
   }
 
   private closeDetail(): void {
@@ -318,6 +279,7 @@ export struct TopListScene {
     this.showDetail = false;
     this.showReader = false;
     this.showComments = false;
+    this.detailLink = createEmptyGalleryDetailLink();
     this.detail = createEmptyDetail();
     this.resetReaderPreviewCache();
     this.detailStatus = 'Tap a ranking item to load detail';
@@ -1144,82 +1106,25 @@ export struct TopListScene {
         .transition(TransitionEffect.move(TransitionEdge.BOTTOM)
           .animation({ duration: 300, curve: Curve.EaseOut }))
     } else if (this.showDetail) {
-      GalleryDetailOverlayScene({
-        renderVersion: this.renderVersion,
-        showComments: this.showComments,
-        detail: this.detail,
-        isDetailLoaded: this.detailLoaded,
-        isFavorited: this.optimisticFavorite,
-        statusText: this.detailStatus,
-        requestUrl: this.detailRequestUrl,
-        downloadText: this.detailDownloadText,
-        archivePanelVisible: this.archivePanelVisible,
-        archivePanelMode: this.archivePanelMode,
-        archivePanelStatus: this.archivePanelStatus,
-        archiveBusy: this.archiveBusy,
-        archiverInfo: this.archiverInfo,
-        hathArchiveList: this.hathArchiveList,
+      GalleryDetailHostScene({
+        detailLink: this.detailLink,
+        listRequestUrl: this.requestUrl,
+        initialDetailScrollOffset: this.detailScrollOffset,
         onBack: () => {
           this.closeDetail();
         },
-        onCloseComments: () => {
-          this.closeComments();
+        onShowEmbeddedReader: () => {
+          enterEmbeddedReaderFullscreen();
+          this.showReader = true;
         },
-        onDownload: () => {
-          this.toggleDownloadDetail();
+        onOpenSearch: (request: DetailSearchRequest) => {
+          this.openRemoteSearch(request);
         },
-        onRead: () => {
-          this.readDetail();
+        onDetailLoaded: (detail: GalleryDetail) => {
+          this.detail = detail;
         },
-        onSelectPreview: (preview: GalleryPreview) => {
-          this.loadReaderPage(preview);
-        },
-        onComments: () => {
-          this.openComments();
-        },
-        onFavorite: () => {
-          this.toggleFavoriteDetail();
-        },
-        onShare: () => {
-          this.shareDetail();
-        },
-        onRate: (rating: number) => {
-          this.rateDetail(rating);
-        },
-        onTorrent: () => {
-          this.copyDetailLink(this.detail.torrentUrl, 'Torrent');
-        },
-        onArchive: () => {
-          this.openArchiverPanel();
-        },
-        onHath: () => {
-          this.openHathPanel();
-        },
-        onSimilar: () => {
-          this.openSimilarGalleryList();
-        },
-        onSearchCover: () => {
-          this.openCoverSearch();
-        },
-        onCloseArchivePanel: () => {
-          this.closeArchivePanel();
-          this.renderVersion++;
-        },
-        onSelectArchiverOption: (option: ArchiverOption) => {
-          this.submitArchiverOption(option);
-        },
-        onSelectHathOption: (option: ArchiveOption) => {
-          this.submitHathOption(option);
-        },
-        onLoadMorePreviews: () => {
-          this.loadNextDetailPreviewPage();
-        },
-        initialDetailScrollOffset: this.detailScrollOffset,
         onDetailScrollUpdate: (offset: number) => {
           this.detailScrollOffset = offset;
-        },
-        onTagSearch: (namespace: string, tag: string) => {
-          this.openTagSearch(namespace, tag);
         }
       })
         .transition(TransitionEffect.move(TransitionEdge.END)

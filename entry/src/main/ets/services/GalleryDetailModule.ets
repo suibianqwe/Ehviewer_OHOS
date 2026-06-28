@@ -24,6 +24,17 @@ interface ParsedGalleryDetailUrl {
   token: string;
 }
 
+export function createEmptyGalleryDetailLink(): GalleryDetailLink {
+  return {
+    gid: 0,
+    token: '',
+    url: '',
+    referer: '',
+    site: GallerySite.E,
+    seed: createEmptyGallery()
+  };
+}
+
 export function createGalleryDetailLinkFromGallery(gallery: GalleryInfo, site: GallerySite,
   referer: string = ''): GalleryDetailLink {
   const url = EhUrl.getGalleryDetailUrl(gallery.gid, gallery.token, 0, false, site);
