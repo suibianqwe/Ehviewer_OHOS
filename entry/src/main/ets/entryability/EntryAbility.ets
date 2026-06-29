@@ -2,7 +2,12 @@ import { Configuration, ConfigurationConstant, UIAbility } from '@kit.AbilityKit
 import { window } from '@kit.ArkUI';
 import { preferences } from '@kit.ArkData';
 import { userAuth } from '@kit.UserAuthenticationKit';
-import { MAIN_WINDOW_KEY, prepareAppChromeBeforeContent, rememberMainWindow } from '../services/EhWindowImmersive';
+import {
+  EMBEDDED_READER_ACTIVE_KEY,
+  MAIN_WINDOW_KEY,
+  prepareAppChromeBeforeContent,
+  rememberMainWindow
+} from '../services/EhWindowImmersive';
 import { applyWindowPrivacyMode, WINDOW_PRIVACY_STATUS_KEY } from '../services/EhWindowPrivacy';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehAppLog } from '../services/EhAppLog';
@@ -62,6 +67,7 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate<number>(THEME_REVISION_KEY, 0);
     AppStorage.setOrCreate<string>(WINDOW_PRIVACY_STATUS_KEY, '');
     AppStorage.setOrCreate<boolean>(IDENTITY_AUTH_LOCKED_KEY, false);
+    AppStorage.setOrCreate<boolean>(EMBEDDED_READER_ACTIVE_KEY, false);
     this.updateSystemColorMode(this.context.config.colorMode);
     const windowReady = stage.getMainWindow().then((win) => {
       rememberMainWindow(win);

@@ -18,13 +18,12 @@ import {
 import { LocalGallerySearchOptions } from '../services/LocalGallerySearch';
 import {
   applyAppChromeImmersiveMode,
+  EMBEDDED_READER_ACTIVE_KEY,
   enterEmbeddedReaderFullscreen,
-  isEmbeddedReaderActive,
   leaveEmbeddedReaderFullscreen,
   mainContentWidthFallbackVp,
   rememberMainContentWidthVp
 } from '../services/EhWindowImmersive';
-import { hasActiveReaderSession } from '../services/ReaderSessionStore';
 import { LANGUAGE_REVISION_KEY } from '../shared/EhShared';
 import {
   themeFieldBackground,
@@ -275,7 +274,7 @@ export struct GalleryListScene {
   @State pageTo: number = -1;
   @State searchSubmitted: boolean = false;
   @State showDetail: boolean = false;
-  @State showReader: boolean = false;
+  @StorageLink(EMBEDDED_READER_ACTIVE_KEY) showReader: boolean = false;
   @State restoreDetailWithFade: boolean = false;
   @State detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();
   @State detail: GalleryDetail = createEmptyDetail();
@@ -404,7 +403,6 @@ export struct GalleryListScene {
       this.searchSubmitted = !this.isSearchResultScene || this.initialSearchSubmitted;
       this.localSearchBarVisible = false;
     }
-    this.restoreEmbeddedReaderAfterRebuild();
     const context = getAbilityContext();
     if (context !== undefined) {
       Promise.all([
@@ -435,14 +433,6 @@ export struct GalleryListScene {
       }
     }
     setActiveBackHandler(() => this.handleSystemBack());
-  }
-
-  private restoreEmbeddedReaderAfterRebuild(): void {
-    if (this.showReader || !isEmbeddedReaderActive() || !hasActiveReaderSession()) {
-      return;
-    }
-    this.showReader = true;
-    this.fabExpanded = false;
   }
 
   aboutToDisappear(): void {

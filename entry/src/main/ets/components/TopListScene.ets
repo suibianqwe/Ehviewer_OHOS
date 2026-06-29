@@ -10,11 +10,10 @@ import {
 } from '../services/GalleryDetailModule';
 import {
   applyAppChromeImmersiveMode,
+  EMBEDDED_READER_ACTIVE_KEY,
   enterEmbeddedReaderFullscreen,
-  isEmbeddedReaderActive,
   leaveEmbeddedReaderFullscreen
 } from '../services/EhWindowImmersive';
-import { hasActiveReaderSession } from '../services/ReaderSessionStore';
 import {
   themeOnPrimaryText,
   themePageBackground,
@@ -57,7 +56,7 @@ export struct TopListScene {
   @State galleryUseForcedMode: boolean = false;
   @State galleryForcedMode: ListMode = ListMode.Normal;
   @State showDetail: boolean = false;
-  @State showReader: boolean = false;
+  @StorageLink(EMBEDDED_READER_ACTIVE_KEY) showReader: boolean = false;
   @State restoreDetailWithFade: boolean = false;
   @State detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();
   @State detail: GalleryDetail = createEmptyDetail();
@@ -81,16 +80,8 @@ export struct TopListScene {
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
-    this.restoreEmbeddedReaderAfterRebuild();
     setActiveBackHandler(() => this.handleSystemBack());
     this.loadTopList();
-  }
-
-  private restoreEmbeddedReaderAfterRebuild(): void {
-    if (this.showReader || !isEmbeddedReaderActive() || !hasActiveReaderSession()) {
-      return;
-    }
-    this.showReader = true;
   }
 
   aboutToDisappear(): void {

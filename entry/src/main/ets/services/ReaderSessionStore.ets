@@ -29,10 +29,6 @@ class ReaderSessionStore {
     return cloneReaderSessionState(this.session);
   }
 
-  hasSession(): boolean {
-    return this.session !== null && this.session.detail.gid > 0;
-  }
-
   updateSession(state: ReaderSessionState): void {
     this.session = cloneReaderSessionState(state);
   }
@@ -43,10 +39,6 @@ class ReaderSessionStore {
 }
 
 export const readerSessionStore: ReaderSessionStore = new ReaderSessionStore();
-
-export function hasActiveReaderSession(): boolean {
-  return readerSessionStore.hasSession();
-}
 
 export function createReaderSessionState(detail: GalleryDetail, page: GalleryPage, statusText: string,
   detailRequestUrl: string, listRequestUrl: string, site: GallerySite, pageIndex: number): ReaderSessionState {
