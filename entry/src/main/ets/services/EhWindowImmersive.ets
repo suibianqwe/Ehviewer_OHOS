@@ -303,7 +303,7 @@ async function restoreAppWindowChrome(target: window.Window): Promise<void> {
   await setWindowSystemBarEnableQuietly(target, VISIBLE_SYSTEM_BARS, 'restore app system bar set');
   await setSpecificSystemBarEnabledQuietly(target, 'status', true, 'restore app status bar');
   await setSpecificSystemBarEnabledQuietly(target, 'navigationIndicator', false, 'restore app navigation indicator');
-  await setWindowLayoutFullScreenQuietly(target, true, 'restore app full-screen layout');
+  await setWindowLayoutFullScreenQuietly(target, false, 'restore app non-full-screen layout');
   await setWindowSystemBarEnableQuietly(target, VISIBLE_SYSTEM_BARS, 'confirm app system bar set');
   await setSpecificSystemBarEnabledQuietly(target, 'status', true, 'confirm app status bar');
   await setSpecificSystemBarEnabledQuietly(target, 'navigationIndicator', false, 'confirm app navigation indicator');
