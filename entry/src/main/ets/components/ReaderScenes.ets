@@ -216,11 +216,50 @@ export struct ReaderScene {
   }
 
   aboutToDisappear(): void {
+    if (this.restoreAppChromeOnExit && !isEmbeddedReaderActive()) {
+      this.restoreSystemBarsForReaderExit();
+    }
     if (this.restoreAppChromeOnExit && isEmbeddedReaderActive()) {
       this.scheduleTransientDisappearCleanup();
       return;
     }
     this.cleanupReaderScene();
+  }
+
+  onPageHide(): void {
+    if (this.restoreAppChromeOnExit) {
+      this.restoreSystemBarsForReaderExit();
+    }
+  }
+
+  private restoreSystemBarsForReaderExit(): void {
+    const hostContext = this.getUIContext().getHostContext() as common.UIAbilityContext | undefined;
+    if (hostContext === undefined) {
+      return;
+    }
+    window.getLastWindow(hostContext).then(async (win: window.Window) => {
+      const visibleBars: Array<'status' | 'navigation'> = ['status', 'navigation'];
+      try {
+        await win.setWindowSystemBarEnable(visibleBars);
+      } catch (error) {
+      }
+      try {
+        await win.setSpecificSystemBarEnabled('status', true);
+      } catch (error) {
+      }
+      try {
+        await win.setSpecificSystemBarEnabled('navigationIndicator', false);
+      } catch (error) {
+      }
+      try {
+        await win.setWindowLayoutFullScreen(false);
+      } catch (error) {
+      }
+      try {
+        await win.setWindowSystemBarEnable(visibleBars);
+      } catch (error) {
+      }
+    }).catch(() => {});
   }
 
   private scheduleTransientDisappearCleanup(): void {
