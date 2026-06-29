@@ -3,6 +3,7 @@ import { GalleryListScene } from './GalleryScenes';
 
 @Component
 export struct FavoriteGalleryScene {
+  resetVersion: number = 0;
   onMenu: () => void = () => {};
 
   build() {
@@ -10,6 +11,7 @@ export struct FavoriteGalleryScene {
       sceneTitle: 'Favourite',
       listMode: 'Favorites',
       sourceRoute: GalleryRoute.Favorites,
+      resetVersion: this.resetVersion,
       onMenu: this.onMenu
     })
   }

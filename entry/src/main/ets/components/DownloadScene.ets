@@ -116,6 +116,7 @@ const DOWNLOAD_JUMP_PAGE_SIZE: number = 25;
 export struct DownloadScene {
   private unsubscribeStore: () => void = () => {};
   private unsubscribeDownloadManager: () => void = () => {};
+  @Prop @Watch('onResetVersionChanged') resetVersion: number = 0;
   onMenu: () => void = () => {};
 
   @State items: DownloadInfo[] = [];
@@ -192,6 +193,10 @@ export struct DownloadScene {
     this.unsubscribeDownloadManager();
   }
 
+  onResetVersionChanged(): void {
+    this.resetToTopLevel();
+  }
+
   private handleSystemBack(): boolean {
     if (this.downloadSelectionCount() > 0) {
       this.clearDownloadSelection();
@@ -214,6 +219,32 @@ export struct DownloadScene {
       return true;
     }
     return false;
+  }
+
+  private resetToTopLevel(): void {
+    if (this.showReader) {
+      leaveEmbeddedReaderFullscreen();
+    }
+    this.clearDownloadSelection();
+    this.searchBarVisible = false;
+    this.advancedPanelVisible = false;
+    this.downloadActionsExpanded = false;
+    this.downloadJumpPanelVisible = false;
+    this.showTagSearch = false;
+    this.showReader = false;
+    this.showDetail = false;
+    this.restoreDetailWithFade = false;
+    this.detailLink = createEmptyGalleryDetailLink();
+    this.detail = createEmptyDetail();
+    this.detailRequestUrl = '';
+    this.tagSearchTitle = 'Search';
+    this.tagSearchKeyword = '';
+    this.tagSearchMode = ListMode.Tag;
+    this.tagSearchImagePath = '';
+    this.tagSearchImageUseSimilarity = false;
+    this.tagSearchImageOnlyCovers = false;
+    this.tagSearchImageShowExpunged = false;
+    this.restoreBackHandler();
   }
 
   private clearDownloadSelection(): void {

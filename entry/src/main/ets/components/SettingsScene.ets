@@ -111,6 +111,7 @@ export struct SettingsScene {
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   private webViewController: webview.WebviewController = new webview.WebviewController();
   private client: EhHttpClient = new EhHttpClient();
+  @Prop @Watch('onResetVersionChanged') resetVersion: number = 0;
   onMenu: () => void = () => {};
   onSignedIn: () => void = () => {};
 
@@ -142,6 +143,10 @@ export struct SettingsScene {
   aboutToDisappear(): void {
   }
 
+  onResetVersionChanged(): void {
+    this.resetToTopLevel();
+  }
+
   private handleSystemBack(): boolean {
     if (this.optionPickerOpen) {
       this.closeOptionPicker();
@@ -152,6 +157,17 @@ export struct SettingsScene {
       return true;
     }
     return false;
+  }
+
+  private resetToTopLevel(): void {
+    this.optionPickerOpen = false;
+    this.downloadMigrationDialogOpen = false;
+    this.updateDialogVisible = false;
+    this.webViewUrl = '';
+    this.webViewTitle = '';
+    this.panel = SettingsPanel.Main;
+    this.panelStack = [SettingsPanel.Main];
+    this.restoreBackHandler();
   }
 
   private openPanel(panel: SettingsPanel): void {

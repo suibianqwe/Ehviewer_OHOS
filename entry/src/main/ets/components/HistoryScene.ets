@@ -10,6 +10,7 @@ const HISTORY_PAGE_SIZE: number = 25;
 
 @Component
 export struct HistoryScene {
+  resetVersion: number = 0;
   onMenu: () => void = () => {
   };
 
@@ -84,6 +85,7 @@ export struct HistoryScene {
         options: LocalGallerySearchOptions): Promise<GalleryListLoadResult> => {
         return this.loadHistoryPage(keyword, pageIndex, pageSize, options);
       },
+      resetVersion: this.resetVersion,
       onMenu: () => {
         this.onMenu();
       }

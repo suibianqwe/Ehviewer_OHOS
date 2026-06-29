@@ -214,6 +214,7 @@ export struct GalleryListScene {
   initialImageOnlySearchCovers: boolean = false;
   initialImageShowExpunged: boolean = false;
   isSearchResultScene: boolean = false;
+  @Prop @Watch('onResetVersionChanged') resetVersion: number = 0;
   useForcedMode: boolean = false;
   forcedMode: ListMode = ListMode.Normal;
   useLocalProvider: boolean = false;
@@ -432,6 +433,10 @@ export struct GalleryListScene {
     this.saveListCache();
   }
 
+  onResetVersionChanged(): void {
+    this.resetToTopLevel();
+  }
+
   private handleSystemBack(): boolean {
     if (this.showReader) {
       this.closeReader();
@@ -454,6 +459,26 @@ export struct GalleryListScene {
       return true;
     }
     return false;
+  }
+
+  private resetToTopLevel(): void {
+    if (this.showReader) {
+      leaveEmbeddedReaderFullscreen();
+    }
+    this.showReader = false;
+    this.showDetail = false;
+    this.restoreDetailWithFade = false;
+    this.detailLink = createEmptyGalleryDetailLink();
+    this.detail = createEmptyDetail();
+    this.detailStatus = 'Tap a gallery row to load detail';
+    this.detailRequestUrl = '';
+    this.detailScrollOffset = 0;
+    this.showSearchResultScene = false;
+    this.searchResultDraft = createEmptySearchResultDraft();
+    this.localSearchBarVisible = false;
+    this.fabExpanded = false;
+    this.restoreBackHandler();
+    this.renderVersion++;
   }
 
   private firstRefresh(): void {

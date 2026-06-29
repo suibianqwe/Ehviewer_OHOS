@@ -43,7 +43,7 @@ struct Index {
   @State drawerOffsetX: number = -264;
   @State drawerOverlayOpacity: number = 0;
   @State settingsReady: boolean = false;
-  @State routeStack: GalleryRoute[] = [];
+  @State routeResetVersion: number = 0;
   @State updateDialogVisible: boolean = false;
   @State updateCurrentVersion: string = '';
   @State updateRelease: ReleaseInfo | null = null;
@@ -95,12 +95,9 @@ struct Index {
     if (runActiveBackHandler()) {
       return true;
     }
-    if (this.routeStack.length > 0) {
-      this.popRoute();
-      return true;
-    }
-    if (this.activeRoute !== GalleryRoute.Home) {
-      this.setRootRoute(GalleryRoute.Home);
+    const launchRoute = this.routeAfterSignIn();
+    if (this.activeRoute !== launchRoute) {
+      this.setRootRoute(launchRoute);
       return true;
     }
     return false;
@@ -154,28 +151,13 @@ struct Index {
 
   selectRoute(route: GalleryRoute): void {
     applyAppChromeImmersiveMode();
-    if (this.activeRoute !== route) {
-      const nextStack = this.routeStack.slice();
-      nextStack.push(this.activeRoute);
-      this.routeStack = nextStack;
-      this.activeRoute = route;
-    }
+    this.setRootRoute(route);
     this.closeDrawer();
   }
 
   private setRootRoute(route: GalleryRoute): void {
-    this.routeStack = [];
     this.activeRoute = route;
-  }
-
-  private popRoute(): void {
-    const nextStack = this.routeStack.slice();
-    const previousRoute = nextStack.pop();
-    this.routeStack = nextStack;
-    if (previousRoute !== undefined) {
-      applyAppChromeImmersiveMode();
-      this.activeRoute = previousRoute;
-    }
+    this.routeResetVersion++;
   }
 
   openDrawer(): void {
@@ -298,26 +280,27 @@ struct Index {
   private RouteContent() {
     if (this.activeRoute === GalleryRoute.Home) {
       HomeGalleryScene({
+        resetVersion: this.routeResetVersion,
         onMenu: () => { this.openDrawer(); }
       })
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.Subscription) {
-      SubscriptionGalleryScene({ onMenu: () => { this.openDrawer(); } })
+      SubscriptionGalleryScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.WhatsHot) {
-      HotGalleryScene({ onMenu: () => { this.openDrawer(); } })
+      HotGalleryScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.TopLists) {
-      TopListScene({ onMenu: () => { this.openDrawer(); } })
+      TopListScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.Favorites) {
-      FavoriteGalleryScene({ onMenu: () => { this.openDrawer(); } })
+      FavoriteGalleryScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.History) {
-      HistoryScene({ onMenu: () => { this.openDrawer(); } })
+      HistoryScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.Downloads) {
-      DownloadScene({ onMenu: () => { this.openDrawer(); } })
+      DownloadScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.Session) {
       SessionScene({
@@ -329,6 +312,7 @@ struct Index {
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else {
       SettingsScene({
+        resetVersion: this.routeResetVersion,
         onMenu: () => { this.openDrawer(); },
         onSignedIn: () => { this.setRootRoute(this.routeAfterSignIn()); }
       })

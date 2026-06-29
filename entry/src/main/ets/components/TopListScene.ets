@@ -34,6 +34,7 @@ function normalizeSceneScrollOffset(offset: number): number {
 @Component
 export struct TopListScene {
   private client: EhHttpClient = new EhHttpClient();
+  @Prop @Watch('onResetVersionChanged') resetVersion: number = 0;
   onMenu: () => void = () => {};
 
   @State statusText: string = 'Loading top lists...';
@@ -81,12 +82,45 @@ export struct TopListScene {
   aboutToDisappear(): void {
   }
 
+  onResetVersionChanged(): void {
+    this.resetToTopLevel();
+  }
+
   private handleSystemBack(): boolean {
     if (this.showTagSearch) { this.closeTagSearch(); return true; }
     if (this.showReader) { this.closeReader(); return true; }
     if (this.showDetail) { this.closeDetail(); return true; }
     if (this.showGalleryList) { this.closeGalleryList(); return true; }
     return false;
+  }
+
+  private resetToTopLevel(): void {
+    if (this.showReader) {
+      leaveEmbeddedReaderFullscreen();
+    }
+    this.showTagSearch = false;
+    this.showReader = false;
+    this.showDetail = false;
+    this.showGalleryList = false;
+    this.restoreDetailWithFade = false;
+    this.detailLink = createEmptyGalleryDetailLink();
+    this.detail = createEmptyDetail();
+    this.detailStatus = 'Tap a ranking item to load detail';
+    this.detailRequestUrl = '';
+    this.detailScrollOffset = 0;
+    this.galleryFollow = '';
+    this.galleryKeyword = '';
+    this.gallerySearchMode = ListMode.Normal;
+    this.galleryUseForcedMode = false;
+    this.tagSearchTitle = 'Search';
+    this.tagSearchKeyword = '';
+    this.tagSearchMode = ListMode.Tag;
+    this.tagSearchImagePath = '';
+    this.tagSearchImageUseSimilarity = false;
+    this.tagSearchImageOnlyCovers = false;
+    this.tagSearchImageShowExpunged = false;
+    this.restoreBackHandler();
+    this.renderVersion++;
   }
 
   private closeTagSearch(): void {

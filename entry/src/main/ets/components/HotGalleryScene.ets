@@ -3,6 +3,7 @@ import { GalleryListScene } from './GalleryScenes';
 
 @Component
 export struct HotGalleryScene {
+  resetVersion: number = 0;
   onMenu: () => void = () => {};
 
   build() {
@@ -10,6 +11,7 @@ export struct HotGalleryScene {
       sceneTitle: 'What\'s Hot',
       listMode: 'Popular',
       sourceRoute: GalleryRoute.WhatsHot,
+      resetVersion: this.resetVersion,
       onMenu: this.onMenu
     })
   }
