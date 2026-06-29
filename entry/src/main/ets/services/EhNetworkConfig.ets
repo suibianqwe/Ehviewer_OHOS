@@ -272,7 +272,9 @@ export async function ensureEhHostRules(): Promise<void> {
   if (directProbePassed && ehSettingsStore.getValue('auto_direct_connection', 'On') === 'On') {
     const key = 'Direct';
     if (appliedHostRulesKey !== key) {
-      await waitHostRuleTask(removeKnownHostRules(), 1200);
+      if (appliedHostRulesKey.length > 0) {
+        await waitHostRuleTask(removeKnownHostRules(), 1200);
+      }
       appliedHostRulesKey = key;
     }
     return;
@@ -281,7 +283,9 @@ export async function ensureEhHostRules(): Promise<void> {
     ehSettingsStore.getValue('built_ex_hosts', 'Off');
   if (key === 'Off:Off') {
     if (appliedHostRulesKey !== key) {
-      await waitHostRuleTask(removeKnownHostRules(), 1200);
+      if (appliedHostRulesKey.length > 0) {
+        await waitHostRuleTask(removeKnownHostRules(), 1200);
+      }
     }
     appliedHostRulesKey = key;
     return;
@@ -923,7 +927,9 @@ function isValidPort(port: number): boolean {
 
 async function applyHostRules(key: string): Promise<void> {
   try {
-    await removeKnownHostRules();
+    if (appliedHostRulesKey.length > 0) {
+      await removeKnownHostRules();
+    }
     const rules: HostRule[] = [];
     if (ehSettingsStore.getValue('built_in_hosts', 'Off') === 'On') {
       pushRules(rules, BUILT_IN_RULES);
