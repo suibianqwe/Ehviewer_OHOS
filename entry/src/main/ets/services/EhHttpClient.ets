@@ -39,6 +39,7 @@ export interface EhHttpResponse {
   statusCode: number;
   body: string;
   cookies: string;
+  headers?: Record<string, Object>;
 }
 
 export interface EhTextRequestOptions {
@@ -1049,16 +1050,21 @@ export class EhHttpClient {
     try {
       const multipart = buildImageSearchMultipartBody(builder.imagePath, builder.useSimilarityScan,
         builder.onlySearchCovers, builder.showExpunged);
-      const response = await this.postMultipart(url, multipart.body, multipart.contentType, EhUrl.getReferer(site) + '/',
-        EhUrl.getReferer(site));
+      const referer = EhUrl.getReferer(site) + '/';
+      let response = await this.postMultipart(url, multipart.body, multipart.contentType, referer, EhUrl.getReferer(site));
+      const redirectUrl = imageSearchRedirectUrl(response, url);
+      if (redirectUrl.length > 0) {
+        response = await this.getText(redirectUrl, referer, 0);
+      }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return emptyGalleryListResult(url, httpStatusMessage(response.statusCode, response.body), response.statusCode);
       }
       const parsed: GalleryListParseResult = parseGalleryList(response.body);
       await this.fillGalleryListByApi(parsed.galleries, url, site);
+      const ok = parsed.galleries.length > 0 || isSuccessfulEmptyImageSearch(parsed.warning);
       return {
-        ok: parsed.galleries.length > 0,
-        url: url,
+        ok: ok,
+        url: redirectUrl.length > 0 ? redirectUrl : url,
         statusCode: response.statusCode,
         message: parsed.warning.length > 0 ? parsed.warning : 'Parsed image search results',
         pages: parsed.pages,
@@ -1085,6 +1091,7 @@ export class EhHttpClient {
     let plan: EhRequestPlan | null = null;
     const startedAt = Date.now();
     let outcomeRecorded = false;
+    let responseHeaders: Record<string, Object> = {};
     await acquireTextSlot();
     try {
       plan = createEhRequestPlan(url);
@@ -1100,6 +1107,9 @@ export class EhHttpClient {
         readTimeout: TEXT_READ_TIMEOUT_MS
       };
       applyEhNetworkOptions(options, plan);
+      request.on('headersReceive', (header: Object) => {
+        responseHeaders = header as Record<string, Object>;
+      });
       const response = await requestWithDeadline(request, plan.url, options, TEXT_DEADLINE_TIMEOUT_MS);
       const statusCode = Number(response.responseCode);
       recordEhRequestOutcome(plan, statusCode >= 200 && statusCode < 500, Date.now() - startedAt);
@@ -1110,7 +1120,8 @@ export class EhHttpClient {
       return {
         statusCode: statusCode,
         body: response.result as string,
-        cookies: response.cookies
+        cookies: response.cookies,
+        headers: responseHeaders
       };
     } catch (error) {
       if (plan !== null && !outcomeRecorded) {
@@ -1119,6 +1130,7 @@ export class EhHttpClient {
       throw new Error(networkErrorMessage(error));
     } finally {
       try {
+        request.off('headersReceive');
         request.destroy();
       } catch (error) {
       }
@@ -1508,8 +1520,9 @@ function buildImageSearchMultipartBody(imagePath: string, useSimilarityScan: boo
   const fileData = readFileBuffer(imagePath);
   const chunks: ArrayBuffer[] = [];
   chunks.push(stringToUtf8Buffer('--' + boundary + '\r\n'));
-  chunks.push(stringToUtf8Buffer('Content-Disposition: form-data; name="sfile"; filename="' + fileName + '"\r\n'));
-  chunks.push(stringToUtf8Buffer('Content-Type: image/jpeg\r\n\r\n'));
+  chunks.push(stringToUtf8Buffer('Content-Disposition: form-data; name="sfile"; filename="' + fileName +
+    '"; size="40"\r\n'));
+  chunks.push(stringToUtf8Buffer('Content-Type: ' + imageMimeType(fileName) + '\r\n\r\n'));
   chunks.push(fileData);
   chunks.push(stringToUtf8Buffer('\r\n'));
   if (useSimilarityScan) {
@@ -1594,6 +1607,54 @@ function imageFileName(path: string): string {
   return name.indexOf('.') > 0 ? name : name + '.jpg';
 }
 
+function imageMimeType(fileName: string): string {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith('.png')) {
+    return 'image/png';
+  }
+  if (lower.endsWith('.webp')) {
+    return 'image/webp';
+  }
+  if (lower.endsWith('.gif')) {
+    return 'image/gif';
+  }
+  return 'image/jpeg';
+}
+
+function imageSearchRedirectUrl(response: EhHttpResponse, baseUrl: string): string {
+  if (response.statusCode < 300 || response.statusCode >= 400 || response.headers === undefined) {
+    return '';
+  }
+  const location = responseHeaderValue(response.headers, 'location');
+  if (location.length === 0) {
+    return '';
+  }
+  return absoluteUrl(location, baseUrl);
+}
+
+function isSuccessfulEmptyImageSearch(warning: string): boolean {
+  return warning === 'No hits found';
+}
+
+function responseHeaderValue(headers: Record<string, Object>, name: string): string {
+  const keys = Object.keys(headers);
+  const target = name.toLowerCase();
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i].toLowerCase() !== target) {
+      continue;
+    }
+    const value = headers[keys[i]];
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
+      return value[0];
+    }
+    return String(value);
+  }
+  return '';
+}
+
 function absoluteUrl(url: string, base: string): string {
   if (url.indexOf('http://') === 0 || url.indexOf('https://') === 0) {
     return url;
@@ -1622,7 +1683,8 @@ function cloneResponse(response: EhHttpResponse): EhHttpResponse {
   return {
     statusCode: response.statusCode,
     body: response.body,
-    cookies: response.cookies
+    cookies: response.cookies,
+    headers: response.headers
   };
 }
 

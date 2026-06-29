@@ -129,19 +129,19 @@ export function leaveEmbeddedReaderFullscreen(): void {
     return;
   }
   restoreAppWindowState(target).then(() => {
-    scheduleAppChromeImmersiveMode(target, 32);
-    scheduleAppChromeImmersiveMode(target, 120);
-    scheduleAppChromeImmersiveMode(target, 320);
-    scheduleAppChromeImmersiveMode(target, 800);
+    scheduleAppWindowStateAfterReader(target, 32);
+    scheduleAppWindowStateAfterReader(target, 120);
+    scheduleAppWindowStateAfterReader(target, 320);
+    scheduleAppWindowStateAfterReader(target, 800);
   }).catch(() => {});
 }
 
-function scheduleAppChromeImmersiveMode(win: window.Window, delayMs: number): void {
+function scheduleAppWindowStateAfterReader(win: window.Window, delayMs: number): void {
   setTimeout(() => {
     if (isEmbeddedReaderActive()) {
       return;
     }
-    applyAppChromeImmersiveMode(win);
+    restoreAppWindowChrome(win).catch(() => {});
   }, delayMs);
 }
 
@@ -277,10 +277,14 @@ export function normalizeReaderScreenRotationSetting(value: string): string {
 }
 
 export async function restoreAppWindowState(target: window.Window): Promise<void> {
-  const useLightSystemBarIcons = isDarkTheme();
   await setWindowKeepScreenOnQuietly(target, false, 'restore app keep screen on');
   await restoreWindowPreferredOrientation(target);
-  await setWindowLayoutFullScreenQuietly(target, true, 'keep app full-screen layout');
+  await restoreAppWindowChrome(target);
+}
+
+async function restoreAppWindowChrome(target: window.Window): Promise<void> {
+  const useLightSystemBarIcons = isDarkTheme();
+  await setWindowLayoutFullScreenQuietly(target, false, 'restore app normal layout');
   await setWindowSystemBarEnableQuietly(target, VISIBLE_SYSTEM_BARS, 'restore app system bar set');
   await setWindowSystemBarPropertiesQuietly(target, {
     statusBarColor: themeTransparentColor(),
