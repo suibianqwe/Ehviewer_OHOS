@@ -80,7 +80,7 @@ export class PreviewThumbnailCache {
       };
       pixelMap = await imageSource.createPixelMap(options);
       imagePacker = image.createImagePacker();
-      const packOptions: image.PackingOption = { format: 'image/jpeg', quality: 95 };
+      const packOptions: image.PackingOption = { format: 'image/png', quality: 100 };
       const data = await imagePacker.packToData(pixelMap, packOptions);
       writeArrayBuffer(outputPath, data);
       return outputPath;
@@ -113,7 +113,7 @@ export class PreviewThumbnailCache {
   private pathFor(context: common.UIAbilityContext, preview: GalleryPreview): string {
     const key = preview.imageUrl + '#' + preview.xOffset.toString() + ',' + preview.yOffset.toString() + ',' +
       preview.width.toString() + 'x' + preview.height.toString();
-    return readerImageCacheDirectory(context) + '/preview_' + stablePreviewKey(key) + '.jpg';
+    return readerImageCacheDirectory(context) + '/preview_png_' + stablePreviewKey(key) + '.png';
   }
 }
 
