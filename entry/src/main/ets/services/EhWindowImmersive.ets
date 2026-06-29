@@ -12,6 +12,7 @@ const VISIBLE_SYSTEM_BARS: SystemBarName[] = ['status', 'navigation'];
 const HIDDEN_SYSTEM_BARS: SystemBarName[] = [];
 const READER_STATUS_BAR_VISIBLE_SYSTEM_BARS: SystemBarName[] = ['status'];
 const savedReaderPreferredOrientations: Map<number, window.Orientation> = new Map();
+let readerChromeGeneration: number = 0;
 
 export function rememberMainWindow(win: window.Window): void {
   AppStorage.set<window.Window | undefined>(MAIN_WINDOW_KEY, win);
@@ -109,6 +110,8 @@ export function applyReaderFullscreenImmersiveMode(win?: window.Window): void {
 }
 
 export function enterEmbeddedReaderFullscreen(): void {
+  readerChromeGeneration++;
+  const generation = readerChromeGeneration;
   setEmbeddedReaderActive(true);
   const target = getMainWindow();
   if (target === undefined) {
@@ -116,38 +119,45 @@ export function enterEmbeddedReaderFullscreen(): void {
   }
   rememberWindowPreferredOrientation(target);
   applyReaderWindowStateFromSettings(target).catch(() => {});
-  scheduleReaderFullscreenImmersiveMode(target, 32);
-  scheduleReaderFullscreenImmersiveMode(target, 120);
-  scheduleReaderFullscreenImmersiveMode(target, 320);
-  scheduleReaderFullscreenImmersiveMode(target, 800);
+  scheduleReaderFullscreenImmersiveMode(target, 32, generation);
+  scheduleReaderFullscreenImmersiveMode(target, 120, generation);
+  scheduleReaderFullscreenImmersiveMode(target, 320, generation);
+  scheduleReaderFullscreenImmersiveMode(target, 800, generation);
 }
 
 export function leaveEmbeddedReaderFullscreen(): void {
+  readerChromeGeneration++;
+  const generation = readerChromeGeneration;
   setEmbeddedReaderActive(false);
   const target = getMainWindow();
   if (target === undefined) {
     return;
   }
   restoreAppWindowState(target).then(() => {
-    scheduleAppWindowStateAfterReader(target, 32);
-    scheduleAppWindowStateAfterReader(target, 120);
-    scheduleAppWindowStateAfterReader(target, 320);
-    scheduleAppWindowStateAfterReader(target, 800);
+    scheduleAppWindowStateAfterReader(target, 32, generation);
+    scheduleAppWindowStateAfterReader(target, 120, generation);
+    scheduleAppWindowStateAfterReader(target, 320, generation);
+    scheduleAppWindowStateAfterReader(target, 800, generation);
+    scheduleAppWindowStateAfterReader(target, 1600, generation);
+    scheduleAppWindowStateAfterReader(target, 3000, generation);
   }).catch(() => {});
 }
 
-function scheduleAppWindowStateAfterReader(win: window.Window, delayMs: number): void {
+function scheduleAppWindowStateAfterReader(win: window.Window, delayMs: number, generation: number): void {
   setTimeout(() => {
-    if (isEmbeddedReaderActive()) {
+    if (isEmbeddedReaderActive() || generation !== readerChromeGeneration) {
       return;
     }
     restoreAppWindowChrome(win).catch(() => {});
   }, delayMs);
 }
 
-export function scheduleReaderFullscreenImmersiveMode(win: window.Window, delayMs: number): void {
+export function scheduleReaderFullscreenImmersiveMode(win: window.Window, delayMs: number): void;
+export function scheduleReaderFullscreenImmersiveMode(win: window.Window, delayMs: number, generation: number): void;
+export function scheduleReaderFullscreenImmersiveMode(win: window.Window, delayMs: number,
+  generation: number = readerChromeGeneration): void {
   setTimeout(() => {
-    if (win === getMainWindow() && !isEmbeddedReaderActive()) {
+    if (generation !== readerChromeGeneration || (win === getMainWindow() && !isEmbeddedReaderActive())) {
       return;
     }
     applyReaderWindowStateFromSettings(win).catch(() => {});
@@ -284,8 +294,9 @@ export async function restoreAppWindowState(target: window.Window): Promise<void
 
 async function restoreAppWindowChrome(target: window.Window): Promise<void> {
   const useLightSystemBarIcons = isDarkTheme();
-  await setWindowLayoutFullScreenQuietly(target, false, 'restore app normal layout');
   await setWindowSystemBarEnableQuietly(target, VISIBLE_SYSTEM_BARS, 'restore app system bar set');
+  await setWindowLayoutFullScreenQuietly(target, false, 'restore app normal layout');
+  await setWindowSystemBarEnableQuietly(target, VISIBLE_SYSTEM_BARS, 'confirm app system bar set');
   await setWindowSystemBarPropertiesQuietly(target, {
     statusBarColor: themeTransparentColor(),
     navigationBarColor: themeTransparentColor(),

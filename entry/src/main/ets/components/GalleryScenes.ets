@@ -1176,7 +1176,6 @@ export struct GalleryListScene {
     this.showReader = false;
     leaveEmbeddedReaderFullscreen();
     this.restoreBackHandler();
-    this.renderVersion++;
     this.clearRestoreDetailFadeLater();
   }
 

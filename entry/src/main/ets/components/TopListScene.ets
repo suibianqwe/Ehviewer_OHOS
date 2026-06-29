@@ -271,7 +271,6 @@ export struct TopListScene {
     this.showReader = false;
     leaveEmbeddedReaderFullscreen();
     this.restoreBackHandler();
-    this.renderVersion++;
     this.clearRestoreDetailFadeLater();
   }
 

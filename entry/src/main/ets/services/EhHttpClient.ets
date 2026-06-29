@@ -44,6 +44,9 @@ export interface EhHttpResponse {
 
 export interface EhTextRequestOptions {
   includeUConfig?: boolean;
+  connectTimeoutMs?: number;
+  readTimeoutMs?: number;
+  deadlineTimeoutMs?: number;
 }
 
 interface CachedHttpResponse {
@@ -75,6 +78,7 @@ const MAX_ACTIVE_TEXT_REQUESTS: number = 6;
 const TEXT_CONNECT_TIMEOUT_MS: number = 15000;
 const TEXT_READ_TIMEOUT_MS: number = 15000;
 const TEXT_DEADLINE_TIMEOUT_MS: number = 26000;
+const IMAGE_SEARCH_TIMEOUT_MS: number = 100000;
 const API_TIMEOUT_MS: number = 10000;
 const API_DEADLINE_TIMEOUT_MS: number = 18000;
 const TEXT_RETRY_DELAYS_MS: number[] = [250, 750];
@@ -211,7 +215,7 @@ export class EhHttpClient {
       }
     }
 
-    const promise = this.getTextNetwork(url, referer, cookieHeader, cacheTtlMs)
+    const promise = this.getTextNetwork(url, referer, cookieHeader, cacheTtlMs, options)
       .then((response: EhHttpResponse) => {
         if (cacheTtlMs > 0 && response.statusCode >= 200 && response.statusCode < 300) {
           this.putCachedResponse(cacheKey, response, cacheTtlMs);
@@ -231,14 +235,14 @@ export class EhHttpClient {
   }
 
   private async getTextNetwork(url: string, referer: string, cookieHeader: string,
-    cacheTtlMs: number): Promise<EhHttpResponse> {
+    cacheTtlMs: number, options?: EhTextRequestOptions): Promise<EhHttpResponse> {
     return requestTextWithRetry((): Promise<EhHttpResponse> => {
-      return this.getTextOnce(url, referer, cookieHeader, cacheTtlMs);
+      return this.getTextOnce(url, referer, cookieHeader, cacheTtlMs, options);
     }, 3);
   }
 
   private async getTextOnce(url: string, referer: string, cookieHeader: string,
-    cacheTtlMs: number): Promise<EhHttpResponse> {
+    cacheTtlMs: number, requestOptions?: EhTextRequestOptions): Promise<EhHttpResponse> {
     const request = http.createHttp();
     let plan: EhRequestPlan | null = null;
     const startedAt = Date.now();
@@ -252,11 +256,12 @@ export class EhHttpClient {
         method: http.RequestMethod.GET,
         header: header,
         expectDataType: http.HttpDataType.STRING,
-        connectTimeout: TEXT_CONNECT_TIMEOUT_MS,
-        readTimeout: TEXT_READ_TIMEOUT_MS
+        connectTimeout: requestOptions?.connectTimeoutMs ?? TEXT_CONNECT_TIMEOUT_MS,
+        readTimeout: requestOptions?.readTimeoutMs ?? TEXT_READ_TIMEOUT_MS
       };
       applyEhNetworkOptions(options, plan);
-      const response = await requestWithDeadline(request, plan.url, options, TEXT_DEADLINE_TIMEOUT_MS);
+      const response = await requestWithDeadline(request, plan.url, options,
+        requestOptions?.deadlineTimeoutMs ?? TEXT_DEADLINE_TIMEOUT_MS);
       const statusCode = Number(response.responseCode);
       recordEhRequestOutcome(plan, statusCode >= 200 && statusCode < 500, Date.now() - startedAt);
       outcomeRecorded = true;
@@ -1051,10 +1056,15 @@ export class EhHttpClient {
       const multipart = buildImageSearchMultipartBody(builder.imagePath, builder.useSimilarityScan,
         builder.onlySearchCovers, builder.showExpunged);
       const referer = EhUrl.getReferer(site) + '/';
-      let response = await this.postMultipart(url, multipart.body, multipart.contentType, referer, EhUrl.getReferer(site));
+      let response = await this.postMultipart(url, multipart.body, multipart.contentType, referer, EhUrl.getReferer(site),
+        IMAGE_SEARCH_TIMEOUT_MS);
       const redirectUrl = imageSearchRedirectUrl(response, url);
       if (redirectUrl.length > 0) {
-        response = await this.getText(redirectUrl, referer, 0);
+        response = await this.getText(redirectUrl, referer, 0, {
+          connectTimeoutMs: IMAGE_SEARCH_TIMEOUT_MS,
+          readTimeoutMs: IMAGE_SEARCH_TIMEOUT_MS,
+          deadlineTimeoutMs: IMAGE_SEARCH_TIMEOUT_MS
+        });
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return emptyGalleryListResult(url, httpStatusMessage(response.statusCode, response.body), response.statusCode);
@@ -1079,14 +1089,14 @@ export class EhHttpClient {
   }
 
   private async postMultipart(url: string, body: ArrayBuffer, contentType: string, referer: string,
-    origin: string): Promise<EhHttpResponse> {
+    origin: string, timeoutMs: number = TEXT_DEADLINE_TIMEOUT_MS): Promise<EhHttpResponse> {
     return requestTextWithRetry((): Promise<EhHttpResponse> => {
-      return this.postMultipartOnce(url, body, contentType, referer, origin);
+      return this.postMultipartOnce(url, body, contentType, referer, origin, timeoutMs);
     }, 2);
   }
 
   private async postMultipartOnce(url: string, body: ArrayBuffer, contentType: string, referer: string,
-    origin: string): Promise<EhHttpResponse> {
+    origin: string, timeoutMs: number): Promise<EhHttpResponse> {
     const request = http.createHttp();
     let plan: EhRequestPlan | null = null;
     const startedAt = Date.now();
@@ -1103,14 +1113,14 @@ export class EhHttpClient {
         header: header,
         extraData: body,
         expectDataType: http.HttpDataType.STRING,
-        connectTimeout: TEXT_CONNECT_TIMEOUT_MS,
-        readTimeout: TEXT_READ_TIMEOUT_MS
+        connectTimeout: timeoutMs,
+        readTimeout: timeoutMs
       };
       applyEhNetworkOptions(options, plan);
       request.on('headersReceive', (header: Object) => {
         responseHeaders = header as Record<string, Object>;
       });
-      const response = await requestWithDeadline(request, plan.url, options, TEXT_DEADLINE_TIMEOUT_MS);
+      const response = await requestWithDeadline(request, plan.url, options, timeoutMs);
       const statusCode = Number(response.responseCode);
       recordEhRequestOutcome(plan, statusCode >= 200 && statusCode < 500, Date.now() - startedAt);
       outcomeRecorded = true;
