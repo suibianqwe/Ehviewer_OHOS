@@ -1142,8 +1142,6 @@ export struct GalleryListScene {
         })
           .width('100%')
           .height('100%')
-          .transition(TransitionEffect.move(TransitionEdge.BOTTOM)
-            .animation({ duration: 300, curve: Curve.EaseOut }))
       } else {
         Stack({ alignContent: Alignment.TopStart }) {
           GalleryListContent({

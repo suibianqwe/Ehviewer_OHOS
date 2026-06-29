@@ -6,11 +6,17 @@ export const READER_SESSION_REVISION_KEY: string = 'readerSessionRevision';
 export interface ReaderSessionState {
   detail: GalleryDetail;
   page: GalleryPage;
+  pages: ReaderSessionPageState[];
   statusText: string;
   detailRequestUrl: string;
   listRequestUrl: string;
   site: GallerySite;
   pageIndex: number;
+}
+
+export interface ReaderSessionPageState {
+  index: number;
+  page: GalleryPage;
 }
 
 class ReaderSessionStore {
@@ -41,10 +47,12 @@ class ReaderSessionStore {
 export const readerSessionStore: ReaderSessionStore = new ReaderSessionStore();
 
 export function createReaderSessionState(detail: GalleryDetail, page: GalleryPage, statusText: string,
-  detailRequestUrl: string, listRequestUrl: string, site: GallerySite, pageIndex: number): ReaderSessionState {
+  detailRequestUrl: string, listRequestUrl: string, site: GallerySite, pageIndex: number,
+  pages: ReaderSessionPageState[] = []): ReaderSessionState {
   return {
     detail: cloneGalleryDetail(detail),
     page: cloneGalleryPage(page),
+    pages: cloneReaderSessionPages(pages),
     statusText: statusText,
     detailRequestUrl: detailRequestUrl,
     listRequestUrl: listRequestUrl,
@@ -59,10 +67,22 @@ function cloneReaderSessionState(state: ReaderSessionState): ReaderSessionState 
   return {
     detail: detail,
     page: cloneGalleryPage(state.page),
+    pages: cloneReaderSessionPages(state.pages),
     statusText: state.statusText,
     detailRequestUrl: state.detailRequestUrl,
     listRequestUrl: state.listRequestUrl,
     site: state.site,
     pageIndex: state.pageIndex
   };
+}
+
+function cloneReaderSessionPages(pages: ReaderSessionPageState[]): ReaderSessionPageState[] {
+  const next: ReaderSessionPageState[] = [];
+  for (let i = 0; i < pages.length; i++) {
+    next.push({
+      index: pages[i].index,
+      page: cloneGalleryPage(pages[i].page)
+    });
+  }
+  return next;
 }

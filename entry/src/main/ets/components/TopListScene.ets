@@ -374,8 +374,6 @@ export struct TopListScene {
           this.closeReader();
         }
       })
-        .transition(TransitionEffect.move(TransitionEdge.BOTTOM)
-          .animation({ duration: 300, curve: Curve.EaseOut }))
     } else if (this.showDetail) {
       GalleryDetailHostScene({
         detailLink: this.detailLink,

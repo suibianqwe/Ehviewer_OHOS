@@ -4,7 +4,12 @@ import { READER_ABILITY_CONTEXT_KEY } from '../entryability/ReaderAbility';
 import { EhHttpClient, GalleryDetailLoadResult, GalleryPageLoadResult } from '../services/EhHttpClient';
 import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
 import { galleryPageCache } from '../services/GalleryPageCache';
-import { createReaderSessionState, readerSessionStore, READER_SESSION_REVISION_KEY } from '../services/ReaderSessionStore';
+import {
+  createReaderSessionState,
+  readerSessionStore,
+  ReaderSessionPageState,
+  READER_SESSION_REVISION_KEY
+} from '../services/ReaderSessionStore';
 import {
   cacheReaderImageForPage,
   cloneGalleryDetail,
@@ -69,7 +74,6 @@ export struct ReaderSessionScene {
     this.readerPreviewMap.clear();
     this.readerPreviewPageRequests.clear();
     this.readerPreviewPageSize = 0;
-    this.readerPages = [];
     this.detail = cloneGalleryDetail(session.detail);
     this.statusText = session.statusText;
     this.detailRequestUrl = session.detailRequestUrl;
@@ -78,7 +82,9 @@ export struct ReaderSessionScene {
     const usesSavedPosition = session.pageIndex < 0;
     this.pageIndex = usesSavedPosition ? readerStartIndex(this.detail) : session.pageIndex;
     this.seedReaderPreviewCache(this.detail.previewSet);
-    this.page = this.isPageForIndex(session.page, this.pageIndex) ? cloneGalleryPage(session.page) : createEmptyPage();
+    this.readerPages = this.cloneSessionReaderPages(session.pages);
+    const restoredPage = this.restoredPageForIndex(session.page, this.pageIndex);
+    this.page = restoredPage === null ? createEmptyPage() : restoredPage;
     if (this.page.imageUrl.length > 0 || this.page.pageUrl.length > 0 ||
       (this.page.cachedImagePath !== undefined && this.page.cachedImagePath.length > 0)) {
       this.setReaderPage(this.pageIndex, this.page);
@@ -120,7 +126,7 @@ export struct ReaderSessionScene {
 
   private persistSession(): void {
     readerSessionStore.updateSession(createReaderSessionState(this.detail, this.page, this.statusText,
-      this.detailRequestUrl, this.listRequestUrl, this.site, this.pageIndex));
+      this.detailRequestUrl, this.listRequestUrl, this.site, this.pageIndex, this.readerPages));
   }
 
   private closeReader(): void {
@@ -366,6 +372,29 @@ export struct ReaderSessionScene {
     }
     const preview = this.readerPreviewForIndex(index);
     return preview !== null && preview.pageUrl === page.pageUrl;
+  }
+
+  private restoredPageForIndex(sessionPage: GalleryPage, index: number): GalleryPage | null {
+    if (this.isPageForIndex(sessionPage, index)) {
+      return cloneGalleryPage(sessionPage);
+    }
+    for (let i = 0; i < this.readerPages.length; i++) {
+      if (this.readerPages[i].index === index) {
+        return cloneGalleryPage(this.readerPages[i].page);
+      }
+    }
+    return null;
+  }
+
+  private cloneSessionReaderPages(pages: ReaderSessionPageState[]): ReaderPageState[] {
+    const next: ReaderPageState[] = [];
+    for (let i = 0; i < pages.length; i++) {
+      next.push({
+        index: pages[i].index,
+        page: cloneGalleryPage(pages[i].page)
+      });
+    }
+    return next;
   }
 
   private setReaderPage(index: number, page: GalleryPage): void {
