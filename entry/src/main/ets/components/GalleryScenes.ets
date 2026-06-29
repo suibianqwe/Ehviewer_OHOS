@@ -38,7 +38,8 @@ import {
   themeSecondaryText,
   themeShadowColor,
   themeSurface,
-  themeTertiaryText
+  themeTertiaryText,
+  themeTransparentColor
 } from '../shared/EhTheme';
 import { ArrayDataSource } from '../shared/ListDataSource';
 import { EhNavBar } from '../components/NavigationComponents';
@@ -46,14 +47,18 @@ import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard } from '.
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
 import {
-  applyTagSuggestionToKeyword,
+  addSearchTagToken,
   buildSearchSuggestions,
+  composeSearchKeywordWithInput,
   gallerySuggestionUrl,
   QuickActionColumn,
+  removeSearchTagToken,
   SearchAdvancedPanel,
   SearchSuggestionItem,
   SearchSuggestionList,
   SearchSummaryStrip,
+  searchKeywordWithoutTagTokens,
+  searchTagTokens,
   recordSearchHistory
 } from './GallerySearchScenes';
 import {
@@ -1743,6 +1748,93 @@ export struct GalleryListContent {
     this.refreshGalleryRows();
   }
 
+  private selectedSearchTagTokens(): string[] {
+    return searchTagTokens(this.keyword);
+  }
+
+  private searchInputText(): string {
+    return searchKeywordWithoutTagTokens(this.keyword);
+  }
+
+  private updateSearchInputText(value: string): void {
+    this.onKeywordChange(composeSearchKeywordWithInput(this.keyword, value));
+  }
+
+  private removeSearchTag(token: string): void {
+    this.onKeywordChange(removeSearchTagToken(this.keyword, token));
+  }
+
+  @Builder
+  private searchTagChip(token: string) {
+    Row({ space: 4 }) {
+      Text(token.endsWith('$') ? token.substring(0, token.length - 1) : token)
+        .fontSize(12)
+        .fontColor(themeOnPrimaryText())
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .constraintSize({ maxWidth: 132 })
+
+      SymbolGlyph($r('sys.symbol.xmark'))
+        .fontSize(13)
+        .fontColor([themeOnPrimaryText()])
+        .width(18)
+        .height(18)
+        .onClick(() => {
+          this.removeSearchTag(token);
+        })
+    }
+    .height(28)
+    .padding({ left: 9, right: 6 })
+    .backgroundColor(themePrimaryColor())
+    .borderRadius(14)
+    .flexShrink(0)
+  }
+
+  @Builder
+  private searchKeywordEditor() {
+    Row({ space: 6 }) {
+      if (this.selectedSearchTagTokens().length > 0) {
+        Scroll() {
+          Row({ space: 6 }) {
+            ForEach(this.selectedSearchTagTokens(), (token: string) => {
+              this.searchTagChip(token)
+            }, (token: string) => token)
+          }
+        }
+        .width('45%')
+        .height(30)
+        .scrollable(ScrollDirection.Horizontal)
+        .scrollBar(BarState.Off)
+      }
+
+      TextInput({ text: this.searchInputText(), placeholder: uiText(this.searchPlaceholder) })
+        .height(34)
+        .layoutWeight(1)
+        .backgroundColor(themeTransparentColor())
+        .placeholderColor(themeSecondaryText())
+        .fontColor(themePrimaryText())
+        .caretColor(themePrimaryColor())
+        .padding({ left: this.selectedSearchTagTokens().length > 0 ? 0 : 8, right: 8 })
+        .onFocus(() => {
+          this.refreshSearchSuggestions();
+          this.onSearchFocus();
+        })
+        .onChange((value: string) => {
+          this.updateSearchInputText(value);
+        })
+        .onSubmit(() => {
+          this.closeAdvancedPanel();
+          this.onSearch();
+        })
+    }
+    .height(38)
+    .layoutWeight(1)
+    .padding({ left: 8, right: 8 })
+    .backgroundColor(themeFieldBackground())
+    .borderRadius(19)
+    .alignItems(VerticalAlign.Center)
+  }
+
   private syncContentWidthFromWindow(): void {
     if (this.contentWidth >= 240) {
       return;
@@ -1772,26 +1864,7 @@ export struct GalleryListContent {
           this.onBack();
         })
 
-        TextInput({ text: this.keyword, placeholder: uiText(this.searchPlaceholder) })
-          .height(38)
-          .layoutWeight(1)
-          .backgroundColor(themeFieldBackground())
-          .borderRadius(19)
-          .placeholderColor(themeSecondaryText())
-          .fontColor(themePrimaryText())
-          .caretColor(themePrimaryColor())
-          .padding({ left: 16, right: 16 })
-          .onFocus(() => {
-            this.refreshSearchSuggestions();
-            this.onSearchFocus();
-          })
-          .onChange((value: string) => {
-            this.onKeywordChange(value);
-          })
-          .onSubmit(() => {
-            this.closeAdvancedPanel();
-            this.onSearch();
-          })
+        this.searchKeywordEditor()
 
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.plus'))
@@ -1837,8 +1910,8 @@ export struct GalleryListContent {
 
   private applySearchSuggestion(suggestion: SearchSuggestionItem): void {
     if (suggestion.kind === 'tag') {
-      this.onKeywordChange(applyTagSuggestionToKeyword(this.keyword, suggestion.query));
-      this.onSearchModeChange(ListMode.Tag);
+      this.onKeywordChange(addSearchTagToken(this.keyword, suggestion.query));
+      this.onSearchModeChange(ListMode.Normal);
       return;
     }
     this.onKeywordChange(suggestion.query);

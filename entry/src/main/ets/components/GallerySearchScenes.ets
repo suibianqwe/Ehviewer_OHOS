@@ -77,6 +77,76 @@ function activeTagPrefix(keyword: string): string {
   return collected.join(' ').trim();
 }
 
+const EXACT_TAG_PATTERN: RegExp = /(^|\s)([A-Za-z0-9_]+:[^$]+?\$)/g;
+
+export function normalizeSearchTagToken(tag: string): string {
+  const trimmed = tag.trim();
+  if (trimmed.length === 0) {
+    return '';
+  }
+  return trimmed.endsWith('$') ? trimmed : trimmed + '$';
+}
+
+export function searchTagTokens(keyword: string): string[] {
+  const tokens: string[] = [];
+  const seen: string[] = [];
+  EXACT_TAG_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null = EXACT_TAG_PATTERN.exec(keyword);
+  while (match !== null) {
+    const token = match[2].trim();
+    const key = token.toLowerCase();
+    if (token.length > 0 && seen.indexOf(key) < 0) {
+      tokens.push(token);
+      seen.push(key);
+    }
+    match = EXACT_TAG_PATTERN.exec(keyword);
+  }
+  return tokens;
+}
+
+export function searchKeywordWithoutTagTokens(keyword: string): string {
+  EXACT_TAG_PATTERN.lastIndex = 0;
+  return keyword.replace(EXACT_TAG_PATTERN, ' ').replace(/\s+/g, ' ').trim();
+}
+
+export function composeSearchKeywordWithInput(keyword: string, input: string): string {
+  const tokens = searchTagTokens(keyword);
+  const text = input.trim();
+  if (text.length > 0) {
+    tokens.push(text);
+  }
+  return tokens.join(' ').trim();
+}
+
+export function removeSearchTagToken(keyword: string, token: string): string {
+  const removeKey = token.trim().toLowerCase();
+  const tokens = searchTagTokens(keyword).filter((item: string) => item.toLowerCase() !== removeKey);
+  const text = searchKeywordWithoutTagTokens(keyword);
+  if (text.length > 0) {
+    tokens.push(text);
+  }
+  return tokens.join(' ').trim();
+}
+
+export function addSearchTagToken(keyword: string, tag: string): string {
+  const nextToken = normalizeSearchTagToken(tag);
+  if (nextToken.length === 0) {
+    return keyword.trim();
+  }
+  const tokens = searchTagTokens(keyword);
+  const seen = tokens.map((item: string) => item.toLowerCase());
+  if (seen.indexOf(nextToken.toLowerCase()) < 0) {
+    tokens.push(nextToken);
+  }
+  const text = searchKeywordWithoutTagTokens(keyword);
+  const active = activeTagPrefix(text);
+  const remaining = active.length > 0 && text.endsWith(active) ? text.substring(0, text.length - active.length).trim() : text;
+  if (remaining.length > 0) {
+    tokens.push(remaining);
+  }
+  return tokens.join(' ').trim();
+}
+
 export function applyTagSuggestionToKeyword(keyword: string, tag: string): string {
   const trimmed = keyword.trim();
   if (trimmed.length === 0) {
