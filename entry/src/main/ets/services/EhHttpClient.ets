@@ -1532,7 +1532,7 @@ function buildImageSearchMultipartBody(imagePath: string, useSimilarityScan: boo
   chunks.push(stringToUtf8Buffer('--' + boundary + '\r\n'));
   chunks.push(stringToUtf8Buffer('Content-Disposition: form-data; name="sfile"; filename="' + fileName +
     '"; size="40"\r\n'));
-  chunks.push(stringToUtf8Buffer('Content-Type: ' + imageMimeType(fileName) + '\r\n\r\n'));
+  chunks.push(stringToUtf8Buffer('Content-Type: file\r\n\r\n'));
   chunks.push(fileData);
   chunks.push(stringToUtf8Buffer('\r\n'));
   if (useSimilarityScan) {
@@ -1544,7 +1544,7 @@ function buildImageSearchMultipartBody(imagePath: string, useSimilarityScan: boo
   if (showExpunged) {
     appendMultipartText(chunks, boundary, 'fs_exp', 'on');
   }
-  appendMultipartText(chunks, boundary, 'f_sfile', 'File Search');
+  appendMultipartText(chunks, boundary, 'f_sfile', 'File Search', 'submit');
   chunks.push(stringToUtf8Buffer('--' + boundary + '--\r\n'));
   return {
     body: concatBuffers(chunks),
@@ -1552,9 +1552,14 @@ function buildImageSearchMultipartBody(imagePath: string, useSimilarityScan: boo
   };
 }
 
-function appendMultipartText(chunks: ArrayBuffer[], boundary: string, name: string, value: string): void {
+function appendMultipartText(chunks: ArrayBuffer[], boundary: string, name: string, value: string,
+  contentType: string = ''): void {
   chunks.push(stringToUtf8Buffer('--' + boundary + '\r\n'));
-  chunks.push(stringToUtf8Buffer('Content-Disposition: form-data; name="' + name + '"\r\n\r\n'));
+  chunks.push(stringToUtf8Buffer('Content-Disposition: form-data; name="' + name + '"\r\n'));
+  if (contentType.length > 0) {
+    chunks.push(stringToUtf8Buffer('Content-Type: ' + contentType + '\r\n'));
+  }
+  chunks.push(stringToUtf8Buffer('\r\n'));
   chunks.push(stringToUtf8Buffer(value + '\r\n'));
 }
 
@@ -1615,20 +1620,6 @@ function imageFileName(path: string): string {
   const index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
   const name = index >= 0 ? path.substring(index + 1) : path;
   return name.indexOf('.') > 0 ? name : name + '.jpg';
-}
-
-function imageMimeType(fileName: string): string {
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith('.png')) {
-    return 'image/png';
-  }
-  if (lower.endsWith('.webp')) {
-    return 'image/webp';
-  }
-  if (lower.endsWith('.gif')) {
-    return 'image/gif';
-  }
-  return 'image/jpeg';
 }
 
 function imageSearchRedirectUrl(response: EhHttpResponse, baseUrl: string): string {

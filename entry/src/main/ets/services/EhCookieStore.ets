@@ -62,8 +62,9 @@ export class EhCookieStore {
 
   getCookieHeaderForUrl(url: string, options?: CookieHeaderOptions): string {
     const eSite = isEHost(url);
-    const includeContentWarning = eSite || options?.includeContentWarning !== false;
-    const includeUConfig = eSite ? false : options?.includeUConfig !== false;
+    const uploadSite = isUploadHost(url);
+    const includeContentWarning = eSite || uploadSite || options?.includeContentWarning !== false;
+    const includeUConfig = eSite && !uploadSite ? false : options?.includeUConfig !== false;
     if (!this.hasCookies()) {
       return includeContentWarning ? this.buildGuestCookieHeader() : '';
     }
@@ -199,6 +200,11 @@ export const ehCookieStore: EhCookieStore = new EhCookieStore();
 function isEHost(url: string): boolean {
   const host = requestHost(url);
   return host === 'e-hentai.org' || host.endsWith('.e-hentai.org');
+}
+
+function isUploadHost(url: string): boolean {
+  const host = requestHost(url);
+  return host === 'upld.e-hentai.org' || host === 'upld.exhentai.org';
 }
 
 function requestHost(url: string): string {
