@@ -121,6 +121,7 @@ interface GalleryListSceneCache {
   searchAdvancedPanelOpened: boolean;
   searchSubmitted: boolean;
   listScrollOffset: number;
+  appendExhausted?: boolean;
 }
 
 interface SearchResultDraft {
@@ -274,6 +275,7 @@ export struct GalleryListScene {
   @State detailRequestUrl: string = '';
   @State renderVersion: number = 0;
   @State isLoadingMore: boolean = false;
+  @State appendExhausted: boolean = false;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   private listScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
@@ -334,6 +336,7 @@ export struct GalleryListScene {
     this.pageTo = cache.pageTo;
     this.searchSubmitted = cache.searchSubmitted === true;
     this.listScrollOffset = cache.listScrollOffset;
+    this.appendExhausted = cache.appendExhausted === true;
     return true;
   }
 
@@ -361,7 +364,8 @@ export struct GalleryListScene {
       pageFrom: this.pageFrom,
       pageTo: this.pageTo,
       searchSubmitted: this.searchSubmitted,
-      listScrollOffset: this.listScrollOffset
+      listScrollOffset: this.listScrollOffset,
+      appendExhausted: this.appendExhausted
     });
   }
 
@@ -494,6 +498,7 @@ export struct GalleryListScene {
     }
     this.nextUrl = '';
     this.isLoadingMore = false;
+    this.appendExhausted = false;
     if (pageIndex === 0) {
       this.resetListScroll();
       this.scrollResetVersion++;
@@ -510,6 +515,7 @@ export struct GalleryListScene {
       this.totalPages = result.pages;
       this.nextUrl = result.nextUrl;
       this.resultCount = result.resultCount;
+      this.appendExhausted = this.isAppendExhausted(result, pageIndex, this.galleries.length);
       this.renderVersion++;
       this.saveListCache();
       if (onDone !== undefined) {
@@ -543,6 +549,7 @@ export struct GalleryListScene {
     }
     this.nextUrl = '';
     this.isLoadingMore = false;
+    this.appendExhausted = false;
     this.resetListScroll();
     this.scrollResetVersion++;
     this.renderVersion++;
@@ -556,6 +563,7 @@ export struct GalleryListScene {
       this.totalPages = result.pages;
       this.nextUrl = result.nextUrl;
       this.resultCount = result.resultCount;
+      this.appendExhausted = this.isAppendExhausted(result, this.pageIndex, this.galleries.length);
       this.renderVersion++;
       this.saveListCache();
       if (onDone !== undefined) {
@@ -582,6 +590,7 @@ export struct GalleryListScene {
     }
     this.nextUrl = '';
     this.isLoadingMore = false;
+    this.appendExhausted = false;
     if (pageIndex === 0) {
       this.resetListScroll();
       this.scrollResetVersion++;
@@ -598,6 +607,7 @@ export struct GalleryListScene {
       this.totalPages = result.pages;
       this.nextUrl = result.nextUrl;
       this.resultCount = result.resultCount;
+      this.appendExhausted = this.isAppendExhausted(result, pageIndex, this.galleries.length);
       this.renderVersion++;
       this.saveListCache();
       if (onDone !== undefined) {
@@ -621,6 +631,10 @@ export struct GalleryListScene {
     if (this.isLoadingMore) {
       return;
     }
+    if (this.appendExhausted) {
+      this.statusText = uiText('All pages loaded');
+      return;
+    }
     if (this.useLocalProvider) {
       this.loadAppendLocalPage();
       return;
@@ -628,6 +642,7 @@ export struct GalleryListScene {
     // Only stop if we have confirmed total page count AND already at the last page
     if (this.nextUrl.length === 0 && this.totalPages > 0 && this.pageIndex >= this.totalPages - 1) {
       this.statusText = uiText('All pages loaded');
+      this.appendExhausted = true;
       return;
     }
     const nextPage = this.pageIndex + 1;
@@ -644,12 +659,20 @@ export struct GalleryListScene {
       if (newGalleries.length === 0) {
         // Empty page = reached the end even if we don't know total
         this.statusText = uiText('All pages loaded');
+        this.appendExhausted = true;
         this.isLoadingMore = false;
         this.saveListCache();
         return;
       }
       const existingGids: Set<number> = new Set(this.galleries.map((g: GalleryInfo) => g.gid));
       const unique: GalleryInfo[] = newGalleries.filter((g: GalleryInfo) => !existingGids.has(g.gid));
+      if (unique.length === 0) {
+        this.statusText = uiText('All pages loaded');
+        this.appendExhausted = true;
+        this.isLoadingMore = false;
+        this.saveListCache();
+        return;
+      }
       this.galleries = this.galleries.concat(unique);
       this.pageIndex = nextPage;
       if (result.pages > 0) {
@@ -658,6 +681,7 @@ export struct GalleryListScene {
       this.nextUrl = result.nextUrl;
       this.resultCount = result.resultCount;
       this.statusText = result.ok ? result.message : galleryListFailureMessage(result, this.activeSite);
+      this.appendExhausted = this.isAppendExhausted(result, nextPage, unique.length);
       this.isLoadingMore = false;
       this.saveListCache();
     }).catch((error: Error) => {
@@ -679,8 +703,13 @@ export struct GalleryListScene {
   }
 
   private loadAppendLocalPage(): void {
+    if (this.appendExhausted) {
+      this.statusText = uiText('All pages loaded');
+      return;
+    }
     if (this.nextUrl.length === 0 && this.totalPages > 0 && this.pageIndex >= this.totalPages - 1) {
       this.statusText = uiText('All pages loaded');
+      this.appendExhausted = true;
       return;
     }
     const nextPage = this.pageIndex + 1;
@@ -691,12 +720,20 @@ export struct GalleryListScene {
       const newGalleries = this.visibleRemoteGalleries(result.galleries);
       if (newGalleries.length === 0) {
         this.statusText = uiText('All pages loaded');
+        this.appendExhausted = true;
         this.isLoadingMore = false;
         this.saveListCache();
         return;
       }
       const existingGids: Set<number> = new Set(this.galleries.map((g: GalleryInfo) => g.gid));
       const unique: GalleryInfo[] = newGalleries.filter((g: GalleryInfo) => !existingGids.has(g.gid));
+      if (unique.length === 0) {
+        this.statusText = uiText('All pages loaded');
+        this.appendExhausted = true;
+        this.isLoadingMore = false;
+        this.saveListCache();
+        return;
+      }
       this.galleries = this.galleries.concat(unique);
       this.pageIndex = nextPage;
       if (result.pages > 0) {
@@ -705,6 +742,7 @@ export struct GalleryListScene {
       this.nextUrl = result.nextUrl;
       this.resultCount = result.resultCount;
       this.statusText = result.ok ? result.message : result.message;
+      this.appendExhausted = this.isAppendExhausted(result, nextPage, unique.length);
       this.isLoadingMore = false;
       this.saveListCache();
     }).catch((error: Error) => {
@@ -945,6 +983,19 @@ export struct GalleryListScene {
     this.detailStatus = '';
     this.detailRequestUrl = detailLink.url;
     this.renderVersion++;
+  }
+
+  private isAppendExhausted(result: GalleryListLoadResult, loadedPageIndex: number, addedCount: number): boolean {
+    if (addedCount <= 0) {
+      return true;
+    }
+    if (result.nextUrl.length > 0) {
+      return false;
+    }
+    if (result.nextPage >= 0 && result.nextPage !== loadedPageIndex) {
+      return false;
+    }
+    return result.pages <= 0 || loadedPageIndex >= result.pages - 1;
   }
 
   private openDetailByToken(gid: number, token: string): void {

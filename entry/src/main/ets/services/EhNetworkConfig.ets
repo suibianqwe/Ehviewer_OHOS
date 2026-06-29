@@ -787,7 +787,7 @@ function shouldUseDirectConnection(host: string): boolean {
     return true;
   }
   const selectedHost = selectedGalleryHost();
-  return normalizedHost === selectedHost || normalizedHost.endsWith('.' + selectedHost);
+  return normalizedHost === selectedHost;
 }
 
 function directProbeKeyValue(): string {
