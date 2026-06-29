@@ -7,6 +7,7 @@ export const READER_WINDOW_KEY: string = 'readerWindow';
 export const EMBEDDED_READER_ACTIVE_KEY: string = 'embeddedReaderActive';
 export const MAIN_CONTENT_WIDTH_VP_KEY: string = 'mainContentWidthVp';
 type SystemBarName = 'status' | 'navigation';
+type SpecificSystemBarName = 'status' | 'navigationIndicator';
 
 const VISIBLE_SYSTEM_BARS: SystemBarName[] = ['status', 'navigation'];
 const HIDDEN_SYSTEM_BARS: SystemBarName[] = [];
@@ -168,6 +169,8 @@ async function applyAppChromeImmersiveModeAsync(target: window.Window): Promise<
   const useLightSystemBarIcons = isDarkTheme();
   await setWindowLayoutFullScreenQuietly(target, true, 'set app full-screen layout');
   await setWindowSystemBarEnableQuietly(target, VISIBLE_SYSTEM_BARS, 'show app system bars');
+  await setSpecificSystemBarEnabledQuietly(target, 'status', true, 'show app status bar');
+  await setSpecificSystemBarEnabledQuietly(target, 'navigationIndicator', false, 'hide app navigation indicator');
   await setWindowSystemBarPropertiesQuietly(target, {
     statusBarColor: themeTransparentColor(),
     navigationBarColor: themeTransparentColor(),
@@ -188,6 +191,9 @@ export async function applyReaderWindowState(target: window.Window, keepScreenOn
   await setWindowLayoutFullScreenQuietly(target, true, 'set reader full-screen layout');
   await setWindowSystemBarEnableQuietly(target, fullscreen ? HIDDEN_SYSTEM_BARS : READER_STATUS_BAR_VISIBLE_SYSTEM_BARS,
     fullscreen ? 'hide reader system bar set' : 'show reader status bar');
+  await setSpecificSystemBarEnabledQuietly(target, 'status', !fullscreen,
+    fullscreen ? 'hide reader status bar' : 'show reader status bar');
+  await setSpecificSystemBarEnabledQuietly(target, 'navigationIndicator', false, 'hide reader navigation indicator');
   await setWindowSystemBarPropertiesQuietly(target, {
     statusBarColor: themeTransparentColor(),
     navigationBarColor: themeTransparentColor(),
@@ -295,8 +301,12 @@ export async function restoreAppWindowState(target: window.Window): Promise<void
 async function restoreAppWindowChrome(target: window.Window): Promise<void> {
   const useLightSystemBarIcons = isDarkTheme();
   await setWindowSystemBarEnableQuietly(target, VISIBLE_SYSTEM_BARS, 'restore app system bar set');
-  await setWindowLayoutFullScreenQuietly(target, false, 'restore app normal layout');
+  await setSpecificSystemBarEnabledQuietly(target, 'status', true, 'restore app status bar');
+  await setSpecificSystemBarEnabledQuietly(target, 'navigationIndicator', false, 'restore app navigation indicator');
+  await setWindowLayoutFullScreenQuietly(target, true, 'restore app full-screen layout');
   await setWindowSystemBarEnableQuietly(target, VISIBLE_SYSTEM_BARS, 'confirm app system bar set');
+  await setSpecificSystemBarEnabledQuietly(target, 'status', true, 'confirm app status bar');
+  await setSpecificSystemBarEnabledQuietly(target, 'navigationIndicator', false, 'confirm app navigation indicator');
   await setWindowSystemBarPropertiesQuietly(target, {
     statusBarColor: themeTransparentColor(),
     navigationBarColor: themeTransparentColor(),
@@ -365,6 +375,15 @@ async function setWindowSystemBarEnableQuietly(target: window.Window, names: Sys
   operation: string): Promise<void> {
   try {
     await target.setWindowSystemBarEnable(names);
+  } catch (error) {
+    logWindowError(operation, error);
+  }
+}
+
+async function setSpecificSystemBarEnabledQuietly(target: window.Window, name: SpecificSystemBarName, enabled: boolean,
+  operation: string): Promise<void> {
+  try {
+    await target.setSpecificSystemBarEnabled(name, enabled);
   } catch (error) {
     logWindowError(operation, error);
   }
