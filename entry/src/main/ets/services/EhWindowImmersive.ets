@@ -126,15 +126,15 @@ export function enterEmbeddedReaderFullscreen(): void {
   scheduleReaderFullscreenImmersiveMode(target, 800, generation);
 }
 
-export function leaveEmbeddedReaderFullscreen(): void {
+export function leaveEmbeddedReaderFullscreen(): Promise<void> {
   readerChromeGeneration++;
   const generation = readerChromeGeneration;
   setEmbeddedReaderActive(false);
   const target = getMainWindow();
   if (target === undefined) {
-    return;
+    return Promise.resolve();
   }
-  restoreAppWindowState(target).then(() => {
+  return restoreAppWindowState(target).then(() => {
     scheduleAppWindowStateAfterReader(target, 32, generation);
     scheduleAppWindowStateAfterReader(target, 120, generation);
     scheduleAppWindowStateAfterReader(target, 320, generation);

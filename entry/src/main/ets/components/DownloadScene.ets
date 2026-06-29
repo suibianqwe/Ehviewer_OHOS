@@ -24,7 +24,6 @@ import {
 import {
   applyAppChromeImmersiveMode,
   EMBEDDED_READER_ACTIVE_KEY,
-  enterEmbeddedReaderFullscreen,
   leaveEmbeddedReaderFullscreen,
   mainContentWidthFallbackVp,
   rememberMainContentWidthVp
@@ -142,6 +141,7 @@ export struct DownloadScene {
   @State detail: GalleryDetail = createEmptyDetail();
   @State detailRequestUrl: string = '';
   @StorageLink(EMBEDDED_READER_ACTIVE_KEY) showReader: boolean = false;
+  private readerClosing: boolean = false;
   @State restoreDetailWithFade: boolean = false;
   @State showTagSearch: boolean = false;
   @State tagSearchTitle: string = 'Search';
@@ -975,11 +975,18 @@ export struct DownloadScene {
   }
 
   private closeEmbeddedReader(): void {
+    if (this.readerClosing) {
+      return;
+    }
+    this.readerClosing = true;
     this.restoreDetailWithFade = this.showDetail;
-    this.showReader = false;
-    leaveEmbeddedReaderFullscreen();
-    this.restoreBackHandler();
-    this.clearRestoreDetailFadeLater();
+    leaveEmbeddedReaderFullscreen().then(() => {
+      this.showReader = false;
+      this.restoreBackHandler();
+      this.clearRestoreDetailFadeLater();
+    }).finally(() => {
+      this.readerClosing = false;
+    });
   }
 
   private clearRestoreDetailFadeLater(): void {
@@ -1079,7 +1086,6 @@ export struct DownloadScene {
           this.closeDetail();
         },
         onShowEmbeddedReader: () => {
-          enterEmbeddedReaderFullscreen();
           this.showReader = true;
         },
         onOpenSearch: (request: DetailSearchRequest) => {

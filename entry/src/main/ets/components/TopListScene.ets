@@ -11,7 +11,6 @@ import {
 import {
   applyAppChromeImmersiveMode,
   EMBEDDED_READER_ACTIVE_KEY,
-  enterEmbeddedReaderFullscreen,
   leaveEmbeddedReaderFullscreen
 } from '../services/EhWindowImmersive';
 import {
@@ -57,6 +56,7 @@ export struct TopListScene {
   @State galleryForcedMode: ListMode = ListMode.Normal;
   @State showDetail: boolean = false;
   @StorageLink(EMBEDDED_READER_ACTIVE_KEY) showReader: boolean = false;
+  private readerClosing: boolean = false;
   @State restoreDetailWithFade: boolean = false;
   @State detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();
   @State detail: GalleryDetail = createEmptyDetail();
@@ -267,11 +267,18 @@ export struct TopListScene {
   }
 
   private closeReader(): void {
+    if (this.readerClosing) {
+      return;
+    }
+    this.readerClosing = true;
     this.restoreDetailWithFade = this.showDetail;
-    this.showReader = false;
-    leaveEmbeddedReaderFullscreen();
-    this.restoreBackHandler();
-    this.clearRestoreDetailFadeLater();
+    leaveEmbeddedReaderFullscreen().then(() => {
+      this.showReader = false;
+      this.restoreBackHandler();
+      this.clearRestoreDetailFadeLater();
+    }).finally(() => {
+      this.readerClosing = false;
+    });
   }
 
   private clearRestoreDetailFadeLater(): void {
@@ -382,7 +389,6 @@ export struct TopListScene {
           this.closeDetail();
         },
         onShowEmbeddedReader: () => {
-          enterEmbeddedReaderFullscreen();
           this.showReader = true;
         },
         onOpenSearch: (request: DetailSearchRequest) => {
