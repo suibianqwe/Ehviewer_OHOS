@@ -18,7 +18,6 @@ import {
   themeSurface,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { ArrayDataSource } from '../shared/ListDataSource';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, createEmptyDetail, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneTopListDetail, nextFloatingToolbarOffset, topListChipColor, currentGallerySite } from '../shared/EhShared';
 import { GalleryListScene, GalleryListStateView } from './GalleryScenes';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
@@ -446,14 +445,16 @@ export struct TopListTabs {
     Scroll() {
       Row({ space: 8 }) {
         ForEach(this.lists, (info: TopListInfo, index: number) => {
-          Button(info.title)
-            .type(ButtonType.Normal)
-            .stateEffect(true)
+          Text(info.title)
             .height(34)
             .fontSize(12)
             .fontColor(index === this.selectedIndex ? themeOnPrimaryText() : themePrimaryColor())
+            .textAlign(TextAlign.Center)
+            .textVerticalAlign(TextVerticalAlign.CENTER)
+            .padding({ left: 12, right: 12 })
             .backgroundColor(index === this.selectedIndex ? themePrimaryColor() : themeTransparentColor())
             .border({ width: 1, color: index === this.selectedIndex ? themePrimaryColor() : themeSecondaryText() })
+            .borderRadius(6)
             .onClick(() => {
               this.onSelect(index);
             })
@@ -500,7 +501,10 @@ export struct TopListBoard {
       TopListTabs({
         lists: this.lists,
         selectedIndex: this.selectedIndex,
-        onSelect: this.onSelectList
+        onSelect: (index: number) => {
+          this.onSelectList(index);
+          this.boardScroller.scrollTo({ xOffset: 0, yOffset: 0 });
+        }
       })
         .width('100%')
         .padding({ top: 4, bottom: 4 })
@@ -514,7 +518,7 @@ export struct TopListBoard {
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       List({ space: 10, scroller: this.boardScroller }) {
-        LazyForEach(new ArrayDataSource<TopListBucket>(this.info.buckets), (bucket: TopListBucket) => {
+        ForEach(this.info.buckets, (bucket: TopListBucket) => {
           ListItem() {
             TopListBucketCard({
               bucket: bucket,
@@ -525,7 +529,7 @@ export struct TopListBoard {
             })
           }
           .reuseId('top-list-bucket')
-        }, (bucket: TopListBucket) => this.selectedIndex.toString() + ':' + bucket.title)
+        }, (bucket: TopListBucket) => this.selectedIndex.toString() + ':' + this.info.kind.toString() + ':' + bucket.title)
       }
       .width('100%')
       .height('100%')
