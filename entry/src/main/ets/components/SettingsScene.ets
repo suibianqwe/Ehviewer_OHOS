@@ -82,6 +82,25 @@ const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
 const DIAGNOSTIC_LOG_TAG: string = 'SettingsScene';
 const LOG_EXPORT_CHUNK_BYTES: number = 64 * 1024;
 
+function cloneSettingsPanelStack(stack: SettingsPanel[]): SettingsPanel[] {
+  const result: SettingsPanel[] = [];
+  for (let i = 0; i < stack.length; i++) {
+    result.push(stack[i]);
+  }
+  return result;
+}
+
+interface SettingsNavigationCache {
+  panel: SettingsPanel;
+  panelStack: SettingsPanel[];
+  webViewUrl: string;
+  webViewTitle: string;
+  filterNewText: string;
+  filterNewMode: number;
+}
+
+let settingsNavigationCache: SettingsNavigationCache | null = null;
+
 @Component
 export struct SettingsScene {
   @State panel: SettingsPanel = SettingsPanel.Main;
@@ -117,6 +136,7 @@ export struct SettingsScene {
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
+    this.restoreNavigationCache();
     setActiveBackHandler(() => this.handleSystemBack());
     const context = getAbilityContext();
     if (context !== undefined) {
@@ -141,6 +161,7 @@ export struct SettingsScene {
   }
 
   aboutToDisappear(): void {
+    this.saveNavigationCache();
   }
 
   onResetVersionChanged(): void {
@@ -168,6 +189,7 @@ export struct SettingsScene {
     this.panel = SettingsPanel.Main;
     this.panelStack = [SettingsPanel.Main];
     this.restoreBackHandler();
+    this.clearNavigationCache();
   }
 
   private openPanel(panel: SettingsPanel): void {
@@ -182,6 +204,7 @@ export struct SettingsScene {
     nextStack.push(panel);
     this.panelStack = nextStack;
     this.panel = panel;
+    this.saveNavigationCache();
     this.restoreBackHandler();
   }
 
@@ -199,7 +222,35 @@ export struct SettingsScene {
       this.panel = this.panelStack[this.panelStack.length - 1];
     }
     this.signedIn = ehCookieStore.hasCookies();
+    this.saveNavigationCache();
     this.restoreBackHandler();
+  }
+
+  private restoreNavigationCache(): void {
+    if (settingsNavigationCache === null) {
+      return;
+    }
+    this.panel = settingsNavigationCache.panel;
+    this.panelStack = cloneSettingsPanelStack(settingsNavigationCache.panelStack);
+    this.webViewUrl = settingsNavigationCache.webViewUrl;
+    this.webViewTitle = settingsNavigationCache.webViewTitle;
+    this.filterNewText = settingsNavigationCache.filterNewText;
+    this.filterNewMode = settingsNavigationCache.filterNewMode;
+  }
+
+  private saveNavigationCache(): void {
+    settingsNavigationCache = {
+      panel: this.panel,
+      panelStack: cloneSettingsPanelStack(this.panelStack),
+      webViewUrl: this.webViewUrl,
+      webViewTitle: this.webViewTitle,
+      filterNewText: this.filterNewText,
+      filterNewMode: this.filterNewMode
+    };
+  }
+
+  private clearNavigationCache(): void {
+    settingsNavigationCache = null;
   }
 
   private restoreBackHandler(): void {

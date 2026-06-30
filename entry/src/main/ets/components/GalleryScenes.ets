@@ -75,7 +75,9 @@ import {
   setActiveBackHandler,
   createEmptyGallery,
   createEmptyDetail,
+  cloneGalleryDetail,
   cloneGalleryInfos,
+  cloneGalleryInfo,
   applyGalleryFilters,
   getAbilityContext,
   immersiveChromeHeightFromOffset,
@@ -165,7 +167,22 @@ interface SearchResultDraft {
   imageShowExpunged: boolean;
 }
 
+interface GalleryListNavigationCache {
+  showSearchResultScene: boolean;
+  searchResultDraft: SearchResultDraft;
+  localSearchBarVisible: boolean;
+  showDetail: boolean;
+  restoreDetailWithFade: boolean;
+  detailLink: GalleryDetailLink;
+  detail: GalleryDetail;
+  detailStatus: string;
+  detailRequestUrl: string;
+  detailScrollOffset: number;
+  fabExpanded: boolean;
+}
+
 const galleryListSceneCache: Map<string, GalleryListSceneCache> = new Map();
+const galleryListNavigationCache: Map<string, GalleryListNavigationCache> = new Map();
 const ACCOUNT_DEFAULT_FILTER_DISABLE_FLAGS: number = 0x100 | 0x200 | 0x400;
 const IMAGE_SEARCH_FILE_SUFFIXES: string[] = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
 
@@ -188,6 +205,39 @@ function createEmptySearchResultDraft(): SearchResultDraft {
     imageUseSimilarityScan: false,
     imageOnlySearchCovers: false,
     imageShowExpunged: false
+  };
+}
+
+function cloneSearchResultDraft(draft: SearchResultDraft): SearchResultDraft {
+  return {
+    keyword: draft.keyword,
+    mode: draft.mode,
+    category: draft.category,
+    advancedEnabled: draft.advancedEnabled,
+    advanceSearch: draft.advanceSearch,
+    minRating: draft.minRating,
+    pageFrom: draft.pageFrom,
+    pageTo: draft.pageTo,
+    filterActive: draft.filterActive,
+    searchFilterEnabled: draft.searchFilterEnabled,
+    searchAdvancedPanelOpened: draft.searchAdvancedPanelOpened,
+    submitted: draft.submitted,
+    sourceRoute: draft.sourceRoute,
+    imagePath: draft.imagePath,
+    imageUseSimilarityScan: draft.imageUseSimilarityScan,
+    imageOnlySearchCovers: draft.imageOnlySearchCovers,
+    imageShowExpunged: draft.imageShowExpunged
+  };
+}
+
+function cloneGalleryDetailLink(link: GalleryDetailLink): GalleryDetailLink {
+  return {
+    gid: link.gid,
+    token: link.token,
+    url: link.url,
+    referer: link.referer,
+    site: link.site,
+    seed: cloneGalleryInfo(link.seed)
   };
 }
 
@@ -357,6 +407,7 @@ export struct GalleryListScene {
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   private listScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
+  private navigationCacheSuppressed: boolean = false;
 
   private cacheKey(): string {
     const mode = this.useForcedMode ? this.forcedMode.toString() : listModeForRoute(this.sourceRoute).toString();
@@ -380,6 +431,13 @@ export struct GalleryListScene {
       (this.initialAdvancedSearchEnabled ? '1' : '0') + '|' + this.initialAdvanceSearch.toString() + '|' +
       this.initialMinRating.toString() + '|' + this.initialPageFrom.toString() + '|' + this.initialPageTo.toString() +
       '|' + (this.accountFilterEnabled ? 'account-filter-on' : 'account-filter-off');
+  }
+
+  private navigationCacheKey(): string {
+    const mode = this.useForcedMode ? this.forcedMode.toString() : listModeForRoute(this.sourceRoute).toString();
+    return this.sourceRoute.toString() + '|' + this.listMode + '|' + mode + '|' + this.follow + '|' +
+      this.initialKeyword + '|' + (this.isSearchResultScene ? 'search-result' : 'root') + '|' +
+      (this.useLocalProvider ? 'local' : 'remote');
   }
 
   private restoreListCache(): boolean {
@@ -422,6 +480,24 @@ export struct GalleryListScene {
     return true;
   }
 
+  private restoreNavigationCache(): void {
+    const cache = galleryListNavigationCache.get(this.navigationCacheKey());
+    if (cache === undefined) {
+      return;
+    }
+    this.showSearchResultScene = cache.showSearchResultScene;
+    this.searchResultDraft = cloneSearchResultDraft(cache.searchResultDraft);
+    this.localSearchBarVisible = cache.localSearchBarVisible;
+    this.showDetail = cache.showDetail;
+    this.restoreDetailWithFade = cache.restoreDetailWithFade;
+    this.detailLink = cloneGalleryDetailLink(cache.detailLink);
+    this.detail = cloneGalleryDetail(cache.detail);
+    this.detailStatus = cache.detailStatus;
+    this.detailRequestUrl = cache.detailRequestUrl;
+    this.detailScrollOffset = cache.detailScrollOffset;
+    this.fabExpanded = cache.fabExpanded;
+  }
+
   private saveListCache(): void {
     galleryListSceneCache.set(this.cacheKey(), {
       keyword: this.keyword,
@@ -455,6 +531,35 @@ export struct GalleryListScene {
     });
   }
 
+  private saveNavigationCache(): void {
+    if (this.navigationCacheSuppressed) {
+      return;
+    }
+    galleryListNavigationCache.set(this.navigationCacheKey(), {
+      showSearchResultScene: this.showSearchResultScene,
+      searchResultDraft: cloneSearchResultDraft(this.searchResultDraft),
+      localSearchBarVisible: this.localSearchBarVisible,
+      showDetail: this.showDetail,
+      restoreDetailWithFade: this.restoreDetailWithFade,
+      detailLink: cloneGalleryDetailLink(this.detailLink),
+      detail: cloneGalleryDetail(this.detail),
+      detailStatus: this.detailStatus,
+      detailRequestUrl: this.detailRequestUrl,
+      detailScrollOffset: this.detailScrollOffset,
+      fabExpanded: this.fabExpanded
+    });
+  }
+
+  private clearNavigationCache(): void {
+    galleryListNavigationCache.delete(this.navigationCacheKey());
+  }
+
+  private closeSearchResultToParent(): void {
+    this.navigationCacheSuppressed = true;
+    this.clearNavigationCache();
+    this.onBack();
+  }
+
   private resetListScroll(): void {
     this.listScrollOffset = 0;
     this.saveListCache();
@@ -486,6 +591,7 @@ export struct GalleryListScene {
       this.searchSubmitted = !this.isSearchResultScene || this.initialSearchSubmitted;
       this.localSearchBarVisible = false;
     }
+    this.restoreNavigationCache();
     const context = getAbilityContext();
     if (context !== undefined) {
       Promise.all([
@@ -520,6 +626,7 @@ export struct GalleryListScene {
 
   aboutToDisappear(): void {
     this.saveListCache();
+    this.saveNavigationCache();
   }
 
   onResetVersionChanged(): void {
@@ -548,7 +655,7 @@ export struct GalleryListScene {
       return true;
     }
     if (this.isSearchResultScene) {
-      this.onBack();
+      this.closeSearchResultToParent();
       return true;
     }
     return false;
@@ -574,6 +681,7 @@ export struct GalleryListScene {
     this.fabExpanded = false;
     this.restoreBackHandler();
     this.renderVersion++;
+    this.clearNavigationCache();
   }
 
   private firstRefresh(): void {
@@ -1017,6 +1125,7 @@ export struct GalleryListScene {
     if (!this.isSearchResultScene) {
       this.searchResultDraft = draft;
       this.showSearchResultScene = true;
+      this.saveNavigationCache();
       return;
     }
     this.keyword = '';
@@ -1067,6 +1176,7 @@ export struct GalleryListScene {
       imageShowExpunged: false
     };
     this.showSearchResultScene = true;
+    this.saveNavigationCache();
   }
 
   private openLocalSearchBar(): void {
@@ -1077,6 +1187,7 @@ export struct GalleryListScene {
     this.nextUrl = '';
     this.statusText = '';
     this.saveListCache();
+    this.saveNavigationCache();
   }
 
   private closeLocalSearchBar(): void {
@@ -1091,11 +1202,14 @@ export struct GalleryListScene {
     this.minRating = -1;
     this.hasFirstRefresh = false;
     this.saveListCache();
+    this.saveNavigationCache();
     this.loadListPage(0);
   }
 
   private closeSearchResultScene(): void {
     this.showSearchResultScene = false;
+    this.searchResultDraft = createEmptySearchResultDraft();
+    this.saveNavigationCache();
     setTimeout(() => {
       setActiveBackHandler(() => this.handleSystemBack());
     }, 0);
@@ -1156,6 +1270,7 @@ export struct GalleryListScene {
     this.detailStatus = '';
     this.detailRequestUrl = detailLink.url;
     this.renderVersion++;
+    this.saveNavigationCache();
   }
 
   private isAppendExhausted(result: GalleryListLoadResult, loadedPageIndex: number, addedCount: number): boolean {
@@ -1180,6 +1295,7 @@ export struct GalleryListScene {
     this.detailStatus = '';
     this.detailRequestUrl = detailLink.url;
     this.renderVersion++;
+    this.saveNavigationCache();
   }
 
   private closeDetail(): void {
@@ -1192,6 +1308,7 @@ export struct GalleryListScene {
     this.detailRequestUrl = '';
     this.detailScrollOffset = 0;
     this.renderVersion++;
+    this.saveNavigationCache();
   }
 
   private closeReader(): void {
@@ -1328,6 +1445,7 @@ export struct GalleryListScene {
     this.fabExpanded = false;
     setTimeout(() => {
       this.showSearchResultScene = true;
+      this.saveNavigationCache();
     }, 0);
   }
 
@@ -1485,6 +1603,8 @@ export struct GalleryListScene {
             onBack: () => {
               if (this.useLocalProvider && this.localSearchBarVisible) {
                 this.closeLocalSearchBar();
+              } else if (this.isSearchResultScene) {
+                this.closeSearchResultToParent();
               } else {
                 this.onBack();
               }

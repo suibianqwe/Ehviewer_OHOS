@@ -22,7 +22,7 @@ import {
   themeSurface,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, createEmptyDetail, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneTopListDetail, nextFloatingToolbarOffset, topListChipColor, currentGallerySite } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, createEmptyDetail, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneGalleryDetail, cloneGalleryInfo, cloneTopListDetail, nextFloatingToolbarOffset, topListChipColor, currentGallerySite } from '../shared/EhShared';
 import { GalleryListScene, GalleryListStateView } from './GalleryScenes';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
@@ -33,6 +33,48 @@ function normalizeSceneScrollOffset(offset: number): number {
     return 0;
   }
   return offset;
+}
+
+interface TopListNavigationCache {
+  selectedIndex: number;
+  showGalleryList: boolean;
+  galleryListTitle: string;
+  galleryListModeLabel: string;
+  galleryFollow: string;
+  galleryKeyword: string;
+  gallerySearchMode: ListMode;
+  galleryRoute: GalleryRoute;
+  galleryUseForcedMode: boolean;
+  galleryForcedMode: ListMode;
+  showDetail: boolean;
+  restoreDetailWithFade: boolean;
+  detailLink: GalleryDetailLink;
+  detail: GalleryDetail;
+  detailStatus: string;
+  detailRequestUrl: string;
+  detailScrollOffset: number;
+  showTagSearch: boolean;
+  tagSearchTitle: string;
+  tagSearchKeyword: string;
+  tagSearchMode: ListMode;
+  tagSearchImagePath: string;
+  tagSearchImageUseSimilarity: boolean;
+  tagSearchImageOnlyCovers: boolean;
+  tagSearchImageShowExpunged: boolean;
+  toolbarOffsetY: number;
+}
+
+let topListNavigationCache: TopListNavigationCache | null = null;
+
+function cloneTopListDetailLink(link: GalleryDetailLink): GalleryDetailLink {
+  return {
+    gid: link.gid,
+    token: link.token,
+    url: link.url,
+    referer: link.referer,
+    site: link.site,
+    seed: cloneGalleryInfo(link.seed)
+  };
 }
 
 @Component
@@ -80,11 +122,13 @@ export struct TopListScene {
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
+    this.restoreNavigationCache();
     setActiveBackHandler(() => this.handleSystemBack());
     this.loadTopList();
   }
 
   aboutToDisappear(): void {
+    this.saveNavigationCache();
   }
 
   onResetVersionChanged(): void {
@@ -126,6 +170,75 @@ export struct TopListScene {
     this.tagSearchImageShowExpunged = false;
     this.restoreBackHandler();
     this.renderVersion++;
+    this.clearNavigationCache();
+  }
+
+  private restoreNavigationCache(): void {
+    if (topListNavigationCache === null) {
+      return;
+    }
+    const cache = topListNavigationCache;
+    this.selectedIndex = cache.selectedIndex;
+    this.showGalleryList = cache.showGalleryList;
+    this.galleryListTitle = cache.galleryListTitle;
+    this.galleryListModeLabel = cache.galleryListModeLabel;
+    this.galleryFollow = cache.galleryFollow;
+    this.galleryKeyword = cache.galleryKeyword;
+    this.gallerySearchMode = cache.gallerySearchMode;
+    this.galleryRoute = cache.galleryRoute;
+    this.galleryUseForcedMode = cache.galleryUseForcedMode;
+    this.galleryForcedMode = cache.galleryForcedMode;
+    this.showDetail = cache.showDetail;
+    this.restoreDetailWithFade = cache.restoreDetailWithFade;
+    this.detailLink = cloneTopListDetailLink(cache.detailLink);
+    this.detail = cloneGalleryDetail(cache.detail);
+    this.detailStatus = cache.detailStatus;
+    this.detailRequestUrl = cache.detailRequestUrl;
+    this.detailScrollOffset = cache.detailScrollOffset;
+    this.showTagSearch = cache.showTagSearch;
+    this.tagSearchTitle = cache.tagSearchTitle;
+    this.tagSearchKeyword = cache.tagSearchKeyword;
+    this.tagSearchMode = cache.tagSearchMode;
+    this.tagSearchImagePath = cache.tagSearchImagePath;
+    this.tagSearchImageUseSimilarity = cache.tagSearchImageUseSimilarity;
+    this.tagSearchImageOnlyCovers = cache.tagSearchImageOnlyCovers;
+    this.tagSearchImageShowExpunged = cache.tagSearchImageShowExpunged;
+    this.toolbarOffsetY = cache.toolbarOffsetY;
+  }
+
+  private saveNavigationCache(): void {
+    topListNavigationCache = {
+      selectedIndex: this.selectedIndex,
+      showGalleryList: this.showGalleryList,
+      galleryListTitle: this.galleryListTitle,
+      galleryListModeLabel: this.galleryListModeLabel,
+      galleryFollow: this.galleryFollow,
+      galleryKeyword: this.galleryKeyword,
+      gallerySearchMode: this.gallerySearchMode,
+      galleryRoute: this.galleryRoute,
+      galleryUseForcedMode: this.galleryUseForcedMode,
+      galleryForcedMode: this.galleryForcedMode,
+      showDetail: this.showDetail,
+      restoreDetailWithFade: this.restoreDetailWithFade,
+      detailLink: cloneTopListDetailLink(this.detailLink),
+      detail: cloneGalleryDetail(this.detail),
+      detailStatus: this.detailStatus,
+      detailRequestUrl: this.detailRequestUrl,
+      detailScrollOffset: this.detailScrollOffset,
+      showTagSearch: this.showTagSearch,
+      tagSearchTitle: this.tagSearchTitle,
+      tagSearchKeyword: this.tagSearchKeyword,
+      tagSearchMode: this.tagSearchMode,
+      tagSearchImagePath: this.tagSearchImagePath,
+      tagSearchImageUseSimilarity: this.tagSearchImageUseSimilarity,
+      tagSearchImageOnlyCovers: this.tagSearchImageOnlyCovers,
+      tagSearchImageShowExpunged: this.tagSearchImageShowExpunged,
+      toolbarOffsetY: this.toolbarOffsetY
+    };
+  }
+
+  private clearNavigationCache(): void {
+    topListNavigationCache = null;
   }
 
   private closeTagSearch(): void {
@@ -137,6 +250,7 @@ export struct TopListScene {
     this.tagSearchImageUseSimilarity = false;
     this.tagSearchImageOnlyCovers = false;
     this.tagSearchImageShowExpunged = false;
+    this.saveNavigationCache();
     setTimeout(() => {
       setActiveBackHandler(() => this.handleSystemBack());
     }, 0);
@@ -152,6 +266,7 @@ export struct TopListScene {
     this.tagSearchImageShowExpunged = request.showExpunged;
     this.showReader = false;
     this.showTagSearch = true;
+    this.saveNavigationCache();
   }
 
   private gallerySite(): GallerySite {
@@ -189,6 +304,7 @@ export struct TopListScene {
     this.galleryRoute = GalleryRoute.TopLists;
     this.galleryUseForcedMode = false;
     this.showGalleryList = true;
+    this.saveNavigationCache();
   }
 
   private openTopListItem(item: TopListItem, info: TopListInfo): void {
@@ -206,6 +322,7 @@ export struct TopListScene {
     this.galleryUseForcedMode = false;
     this.galleryForcedMode = ListMode.Normal;
     this.showGalleryList = true;
+    this.saveNavigationCache();
   }
 
   private searchModeForTopListItem(_item: TopListItem, info: TopListInfo): ListMode {
@@ -231,6 +348,7 @@ export struct TopListScene {
     this.galleryKeyword = '';
     this.gallerySearchMode = ListMode.Normal;
     this.galleryUseForcedMode = false;
+    this.saveNavigationCache();
     setTimeout(() => {
       setActiveBackHandler(() => this.handleSystemBack());
     }, 0);
@@ -252,6 +370,7 @@ export struct TopListScene {
     this.detailStatus = '';
     this.detailRequestUrl = detailLink.url;
     this.renderVersion++;
+    this.saveNavigationCache();
   }
 
   private closeDetail(): void {
@@ -264,6 +383,7 @@ export struct TopListScene {
     this.detailRequestUrl = '';
     this.detailScrollOffset = 0;
     this.renderVersion++;
+    this.saveNavigationCache();
   }
 
   private closeReader(): void {

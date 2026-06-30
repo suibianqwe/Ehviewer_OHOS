@@ -30,6 +30,8 @@ import {
 } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, nextFloatingToolbarOffset, setActiveBackHandler } from '../shared/EhShared';
 import {
+  cloneGalleryDetail,
+  cloneGalleryInfo,
   createEmptyDownloadInfo,
   createEmptyDetail,
   currentGallerySite,
@@ -112,6 +114,35 @@ const ACTION_BUBBLE_PRIMARY_SIZE: number = 54;
 const ACTION_BUBBLE_PRIMARY_GAP: number = 10;
 const DOWNLOAD_JUMP_PAGE_SIZE: number = 25;
 
+interface DownloadNavigationCache {
+  showDetail: boolean;
+  restoreDetailWithFade: boolean;
+  detailLink: GalleryDetailLink;
+  detail: GalleryDetail;
+  detailRequestUrl: string;
+  showTagSearch: boolean;
+  tagSearchTitle: string;
+  tagSearchKeyword: string;
+  tagSearchMode: ListMode;
+  tagSearchImagePath: string;
+  tagSearchImageUseSimilarity: boolean;
+  tagSearchImageOnlyCovers: boolean;
+  tagSearchImageShowExpunged: boolean;
+}
+
+let downloadNavigationCache: DownloadNavigationCache | null = null;
+
+function cloneDownloadDetailLink(link: GalleryDetailLink): GalleryDetailLink {
+  return {
+    gid: link.gid,
+    token: link.token,
+    url: link.url,
+    referer: link.referer,
+    site: link.site,
+    seed: cloneGalleryInfo(link.seed)
+  };
+}
+
 @Component
 export struct DownloadScene {
   private unsubscribeStore: () => void = () => {};
@@ -173,6 +204,7 @@ export struct DownloadScene {
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
+    this.restoreNavigationCache();
     this.syncDownloadContentWidthFromWindow();
     setActiveBackHandler(() => this.handleSystemBack());
     this.unsubscribeStore = ehDownloadStore.subscribe((items: DownloadInfo[]) => {
@@ -190,6 +222,7 @@ export struct DownloadScene {
   }
 
   aboutToDisappear(): void {
+    this.saveNavigationCache();
     this.unsubscribeStore();
     this.unsubscribeDownloadManager();
   }
@@ -246,6 +279,49 @@ export struct DownloadScene {
     this.tagSearchImageOnlyCovers = false;
     this.tagSearchImageShowExpunged = false;
     this.restoreBackHandler();
+    this.clearNavigationCache();
+  }
+
+  private restoreNavigationCache(): void {
+    if (downloadNavigationCache === null) {
+      return;
+    }
+    const cache = downloadNavigationCache;
+    this.showDetail = cache.showDetail;
+    this.restoreDetailWithFade = cache.restoreDetailWithFade;
+    this.detailLink = cloneDownloadDetailLink(cache.detailLink);
+    this.detail = cloneGalleryDetail(cache.detail);
+    this.detailRequestUrl = cache.detailRequestUrl;
+    this.showTagSearch = cache.showTagSearch;
+    this.tagSearchTitle = cache.tagSearchTitle;
+    this.tagSearchKeyword = cache.tagSearchKeyword;
+    this.tagSearchMode = cache.tagSearchMode;
+    this.tagSearchImagePath = cache.tagSearchImagePath;
+    this.tagSearchImageUseSimilarity = cache.tagSearchImageUseSimilarity;
+    this.tagSearchImageOnlyCovers = cache.tagSearchImageOnlyCovers;
+    this.tagSearchImageShowExpunged = cache.tagSearchImageShowExpunged;
+  }
+
+  private saveNavigationCache(): void {
+    downloadNavigationCache = {
+      showDetail: this.showDetail,
+      restoreDetailWithFade: this.restoreDetailWithFade,
+      detailLink: cloneDownloadDetailLink(this.detailLink),
+      detail: cloneGalleryDetail(this.detail),
+      detailRequestUrl: this.detailRequestUrl,
+      showTagSearch: this.showTagSearch,
+      tagSearchTitle: this.tagSearchTitle,
+      tagSearchKeyword: this.tagSearchKeyword,
+      tagSearchMode: this.tagSearchMode,
+      tagSearchImagePath: this.tagSearchImagePath,
+      tagSearchImageUseSimilarity: this.tagSearchImageUseSimilarity,
+      tagSearchImageOnlyCovers: this.tagSearchImageOnlyCovers,
+      tagSearchImageShowExpunged: this.tagSearchImageShowExpunged
+    };
+  }
+
+  private clearNavigationCache(): void {
+    downloadNavigationCache = null;
   }
 
   private clearDownloadSelection(): void {
@@ -938,6 +1014,7 @@ export struct DownloadScene {
     this.detailLink = detailLink;
     this.detail = initialDetailForLink(detailLink);
     this.detailRequestUrl = detailLink.url;
+    this.saveNavigationCache();
   }
 
   private closeDetail(): void {
@@ -946,6 +1023,7 @@ export struct DownloadScene {
     this.detailLink = createEmptyGalleryDetailLink();
     this.detail = createEmptyDetail();
     this.detailRequestUrl = '';
+    this.saveNavigationCache();
   }
 
   private closeTagSearch(): void {
@@ -957,6 +1035,7 @@ export struct DownloadScene {
     this.tagSearchImageUseSimilarity = false;
     this.tagSearchImageOnlyCovers = false;
     this.tagSearchImageShowExpunged = false;
+    this.saveNavigationCache();
     setTimeout(() => {
       setActiveBackHandler(() => this.handleSystemBack());
     }, 0);
@@ -972,6 +1051,7 @@ export struct DownloadScene {
     this.tagSearchImageShowExpunged = request.showExpunged;
     this.showReader = false;
     this.showTagSearch = true;
+    this.saveNavigationCache();
   }
 
   private closeEmbeddedReader(): void {

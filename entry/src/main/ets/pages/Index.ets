@@ -35,6 +35,18 @@ import {
 // ----------------------------------------------------------------
 // Root page: full-screen immersive shell with slide-in side drawer
 // ----------------------------------------------------------------
+interface RootNavigationCache {
+  initialized: boolean;
+  activeRoute: GalleryRoute;
+  routeResetVersion: number;
+}
+
+let rootNavigationCache: RootNavigationCache = {
+  initialized: false,
+  activeRoute: GalleryRoute.Home,
+  routeResetVersion: 0
+};
+
 @Entry
 @Component
 struct Index {
@@ -105,6 +117,7 @@ struct Index {
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
+    this.restoreRootRoute();
     const context = getAbilityContext();
     if (context === undefined) {
       this.setRootRoute(GalleryRoute.Home);
@@ -139,10 +152,26 @@ struct Index {
 
   private loadSessionRoute(ctx: common.UIAbilityContext): void {
     ehCookieStore.load(ctx).then(() => {
-      this.setRootRoute(this.routeAfterSignIn());
+      this.applyInitialRoute();
     }).catch(() => {
-      this.setRootRoute(this.routeAfterSignIn());
+      this.applyInitialRoute();
     });
+  }
+
+  private restoreRootRoute(): void {
+    if (!rootNavigationCache.initialized) {
+      return;
+    }
+    this.activeRoute = rootNavigationCache.activeRoute;
+    this.routeResetVersion = rootNavigationCache.routeResetVersion;
+  }
+
+  private applyInitialRoute(): void {
+    if (rootNavigationCache.initialized) {
+      this.restoreRootRoute();
+      return;
+    }
+    this.setRootRoute(this.routeAfterSignIn());
   }
 
   private routeAfterSignIn(): GalleryRoute {
@@ -158,6 +187,11 @@ struct Index {
   private setRootRoute(route: GalleryRoute): void {
     this.activeRoute = route;
     this.routeResetVersion++;
+    rootNavigationCache = {
+      initialized: true,
+      activeRoute: this.activeRoute,
+      routeResetVersion: this.routeResetVersion
+    };
   }
 
   openDrawer(): void {
