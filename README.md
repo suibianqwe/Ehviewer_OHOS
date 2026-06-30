@@ -13,20 +13,24 @@
     <td><img src="docs/images/home-black.jpg" alt="黑色主题主页" width="220" /></td>
     <td><img src="docs/images/home-dark.jpg" alt="深色主题主页" width="220" /></td>
     <td><img src="docs/images/gallery-list.jpg" alt="画廊列表" width="220" /></td>
+    <td><img src="docs/images/drawer.jpg" alt="侧边菜单" width="220" /></td>
   </tr>
   <tr>
     <td align="center">黑色主题主页</td>
     <td align="center">深色主题主页</td>
     <td align="center">画廊列表</td>
+    <td align="center">侧边菜单</td>
   </tr>
   <tr>
-    <td><img src="docs/images/gallery-detail.jpg" alt="画廊详情" width="220" /></td>
-    <td><img src="docs/images/tag-search.jpg" alt="标签搜索" width="220" /></td>
+    <td><img src="docs/images/multi-tag-search.jpg" alt="多标签搜索" width="220" /></td>
+    <td><img src="docs/images/image-search-dialog.jpg" alt="图片搜索" width="220" /></td>
+    <td><img src="docs/images/gallery-detail-actions.jpg" alt="画廊详情操作" width="220" /></td>
     <td><img src="docs/images/advanced-search.jpg" alt="高级搜索" width="220" /></td>
   </tr>
   <tr>
-    <td align="center">画廊详情</td>
-    <td align="center">标签搜索</td>
+    <td align="center">多标签搜索</td>
+    <td align="center">图片搜索</td>
+    <td align="center">画廊详情操作</td>
     <td align="center">高级搜索</td>
   </tr>
   <tr>
