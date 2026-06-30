@@ -16,6 +16,7 @@ const HIDDEN_SYSTEM_BARS: SystemBarName[] = [];
 const READER_STATUS_BAR_VISIBLE_SYSTEM_BARS: SystemBarName[] = ['status'];
 const savedReaderPreferredOrientations: Map<number, window.Orientation> = new Map();
 const savedReaderDisplayOrientations: Map<number, display.Orientation> = new Map();
+const pendingReaderExitOrientations: Map<number, window.Orientation> = new Map();
 let readerChromeGeneration: number = 0;
 
 export function rememberMainWindow(win: window.Window): void {
@@ -152,7 +153,9 @@ function scheduleAppWindowStateAfterReader(win: window.Window, delayMs: number, 
     if (isEmbeddedReaderActive() || generation !== readerChromeGeneration) {
       return;
     }
-    restoreAppWindowChrome(win).catch(() => {});
+    restoreAppWindowChrome(win).then(() => {
+      restorePendingReaderExitOrientation(win).catch(() => {});
+    }).catch(() => {});
   }, delayMs);
 }
 
@@ -234,6 +237,7 @@ export function rememberWindowPreferredOrientation(target: window.Window): void 
     if (savedReaderPreferredOrientations.has(windowId)) {
       return;
     }
+    pendingReaderExitOrientations.delete(windowId);
     savedReaderPreferredOrientations.set(windowId, target.getPreferredOrientation());
     const currentDisplayOrientation = readCurrentDisplayOrientation();
     if (currentDisplayOrientation !== undefined) {
@@ -326,6 +330,7 @@ async function restoreAppWindowChrome(target: window.Window): Promise<void> {
 
 async function restoreWindowPreferredOrientation(target: window.Window): Promise<void> {
   let orientation = window.Orientation.UNSPECIFIED;
+  let shouldConfirmOrientation = false;
   try {
     const windowId = target.getWindowProperties().id;
     const saved = savedReaderPreferredOrientations.get(windowId);
@@ -336,12 +341,46 @@ async function restoreWindowPreferredOrientation(target: window.Window): Promise
     }
     savedReaderDisplayOrientations.delete(windowId);
     if (isSystemRotationLocked()) {
-      orientation = orientationForDisplayOrientation(savedDisplayOrientation) ?? orientation;
+      const displayOrientation = orientationForDisplayOrientation(savedDisplayOrientation);
+      if (displayOrientation !== undefined) {
+        orientation = displayOrientation;
+        pendingReaderExitOrientations.set(windowId, orientation);
+        shouldConfirmOrientation = true;
+      }
     }
   } catch (error) {
     logWindowError('read previous orientation', error);
   }
   await setPreferredOrientationQuietly(target, orientation, 'restore app orientation');
+  if (shouldConfirmOrientation) {
+    schedulePendingReaderExitOrientation(target, 80);
+    schedulePendingReaderExitOrientation(target, 260);
+    schedulePendingReaderExitOrientation(target, 620);
+    schedulePendingReaderExitOrientation(target, 1200);
+  }
+}
+
+async function restorePendingReaderExitOrientation(target: window.Window): Promise<void> {
+  try {
+    const windowId = target.getWindowProperties().id;
+    const orientation = pendingReaderExitOrientations.get(windowId);
+    if (orientation === undefined) {
+      return;
+    }
+    if (!isSystemRotationLocked()) {
+      pendingReaderExitOrientations.delete(windowId);
+      return;
+    }
+    await setPreferredOrientationQuietly(target, orientation, 'confirm reader exit orientation');
+  } catch (error) {
+    logWindowError('confirm reader exit orientation', error);
+  }
+}
+
+function schedulePendingReaderExitOrientation(target: window.Window, delayMs: number): void {
+  setTimeout(() => {
+    restorePendingReaderExitOrientation(target).catch(() => {});
+  }, delayMs);
 }
 
 function readCurrentDisplayOrientation(): display.Orientation | undefined {
