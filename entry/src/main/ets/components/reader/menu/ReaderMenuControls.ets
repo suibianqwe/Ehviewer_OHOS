@@ -6,7 +6,12 @@ import {
   uiValue
 } from '../../../shared/EhShared';
 import { readerSelectColors, selectArrowModifier } from '../../../shared/EhSelectStyle';
-import { themeDividerColor, themePrimaryText, themeScrimColor, themeSurface } from '../../../shared/EhTheme';
+import { themeScrimColor } from '../../../shared/EhTheme';
+
+const READER_MENU_SURFACE = '#EE111827';
+const READER_MENU_ITEM_TEXT = '#E5E7EB';
+const READER_MENU_ITEM_ICON = '#FFFFFF';
+const READER_MENU_DIVIDER = '#334155';
 
 @Component
 export struct ReaderPopupBackdrop {
@@ -56,7 +61,8 @@ export struct ReaderImageActionDialog {
         .backgroundColor(Color.Transparent)
         .borderRadius(0)
         .fontSize(15)
-        .fontColor(themePrimaryText())
+        .fontColor(READER_MENU_ITEM_TEXT)
+        .iconColor(READER_MENU_ITEM_ICON)
         .iconSize(20)
         .layoutDirection(SecurityComponentLayoutDirection.HORIZONTAL)
         .onClick((_event: ClickEvent, result: SaveButtonOnClickResult) => {
@@ -72,7 +78,7 @@ export struct ReaderImageActionDialog {
     .width('78%')
     .constraintSize({ maxWidth: 360 })
     .padding({ top: 6, bottom: 6 })
-    .backgroundColor(themeSurface())
+    .backgroundColor(READER_MENU_SURFACE)
     .borderRadius(12)
     .clip(true)
     .shadow({ radius: 18, color: '#66000000', offsetY: 8 })
@@ -91,10 +97,10 @@ struct ReaderImageActionButton {
       Row() {
         SymbolGlyph(this.symbolIcon)
           .fontSize(20)
-          .fontColor([themePrimaryText()])
+          .fontColor([READER_MENU_ITEM_ICON])
         Text(this.label)
           .fontSize(15)
-          .fontColor(themePrimaryText())
+          .fontColor(READER_MENU_ITEM_TEXT)
           .margin({ left: 12 })
           .layoutWeight(1)
           .textAlign(TextAlign.End)
@@ -117,7 +123,7 @@ export struct ReaderMenuDivider {
   build() {
     Divider()
       .height(1)
-      .color(themeDividerColor())
+      .color(READER_MENU_DIVIDER)
       .margin({ left: 16, right: 16 })
   }
 }
