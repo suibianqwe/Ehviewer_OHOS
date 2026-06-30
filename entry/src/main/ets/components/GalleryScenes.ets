@@ -1484,6 +1484,7 @@ export struct GalleryListScene {
 @Component
 struct ImageSearchPanel {
   @Prop panelWidth: number = 320;
+  @Prop panelMaxHeight: number = 420;
   onClose: () => void = () => {
   };
   onSearch: (path: string, useSimilarityScan: boolean, onlySearchCovers: boolean) => void =
@@ -1568,145 +1569,149 @@ struct ImageSearchPanel {
   }
 
   build() {
-    Column({ space: 12 }) {
-      Row() {
-        Text(uiText('Image search'))
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(themePrimaryText())
+    Scroll() {
+      Column({ space: 12 }) {
+        Row() {
+          Text(uiText('Image search'))
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(themePrimaryText())
+            .layoutWeight(1)
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.xmark'))
+              .fontSize(18)
+              .fontColor([themePrimaryText()])
+          }
+          .width(34)
+          .height(34)
+          .backgroundColor(themeFieldBackground())
+          .onClick(() => {
+            this.onClose();
+          })
+        }
+        .width('100%')
+
+        Row({ space: 8 }) {
+          Button({ type: ButtonType.Normal, stateEffect: true }) {
+            Row({ space: 6 }) {
+              SymbolGlyph($r('sys.symbol.magnifyingglass'))
+                .fontSize(18)
+                .fontColor([themeOnPrimaryText()])
+              Text(uiText('From album'))
+                .fontSize(13)
+                .fontColor(themeOnPrimaryText())
+            }
+            .justifyContent(FlexAlign.Center)
+            .alignItems(VerticalAlign.Center)
+            .width('100%')
+          }
+          .height(38)
           .layoutWeight(1)
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.xmark'))
-            .fontSize(18)
-            .fontColor([themePrimaryText()])
-        }
-        .width(34)
-        .height(34)
-        .backgroundColor(themeFieldBackground())
-        .onClick(() => {
-          this.onClose();
-        })
-      }
-      .width('100%')
+          .borderRadius(6)
+          .backgroundColor(themePrimaryColor())
+          .enabled(!this.busy)
+          .onClick(() => {
+            this.chooseFromAlbum();
+          })
 
-      Row({ space: 8 }) {
-        Button({ type: ButtonType.Normal, stateEffect: true }) {
-          Row({ space: 6 }) {
-            SymbolGlyph($r('sys.symbol.magnifyingglass'))
-              .fontSize(18)
-              .fontColor([themeOnPrimaryText()])
-            Text(uiText('From album'))
-              .fontSize(13)
-              .fontColor(themeOnPrimaryText())
+          Button({ type: ButtonType.Normal, stateEffect: true }) {
+            Row({ space: 6 }) {
+              SymbolGlyph($r('sys.symbol.folder'))
+                .fontSize(18)
+                .fontColor([themePrimaryColor()])
+              Text(uiText('From file'))
+                .fontSize(13)
+                .fontColor(themePrimaryColor())
+            }
+            .justifyContent(FlexAlign.Center)
+            .alignItems(VerticalAlign.Center)
+            .width('100%')
           }
-          .justifyContent(FlexAlign.Center)
-          .alignItems(VerticalAlign.Center)
-          .width('100%')
+          .height(38)
+          .layoutWeight(1)
+          .borderRadius(6)
+          .backgroundColor(themeFieldBackground())
+          .enabled(!this.busy)
+          .onClick(() => {
+            this.chooseFromFile();
+          })
         }
-        .height(38)
-        .layoutWeight(1)
-        .borderRadius(6)
-        .backgroundColor(themePrimaryColor())
-        .enabled(!this.busy)
-        .onClick(() => {
-          this.chooseFromAlbum();
-        })
+        .width('100%')
 
-        Button({ type: ButtonType.Normal, stateEffect: true }) {
-          Row({ space: 6 }) {
-            SymbolGlyph($r('sys.symbol.folder'))
-              .fontSize(18)
-              .fontColor([themePrimaryColor()])
-            Text(uiText('From file'))
-              .fontSize(13)
-              .fontColor(themePrimaryColor())
-          }
-          .justifyContent(FlexAlign.Center)
-          .alignItems(VerticalAlign.Center)
-          .width('100%')
+        Column({ space: 4 }) {
+          Text(uiText('Selected image'))
+            .fontSize(12)
+            .fontColor(themeSecondaryText())
+          Text(this.selectedName())
+            .fontSize(13)
+            .fontColor(this.selectedPath.length > 0 ? themePrimaryText() : themeTertiaryText())
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
-        .height(38)
-        .layoutWeight(1)
-        .borderRadius(6)
+        .width('100%')
+        .padding(10)
         .backgroundColor(themeFieldBackground())
-        .enabled(!this.busy)
-        .onClick(() => {
-          this.chooseFromFile();
-        })
-      }
-      .width('100%')
+        .borderRadius(6)
 
-      Column({ space: 4 }) {
-        Text(uiText('Selected image'))
+        Row() {
+          Text(uiText('Upload original image'))
+            .fontSize(14)
+            .fontColor(themePrimaryText())
+            .layoutWeight(1)
+          Toggle({ type: ToggleType.Switch, isOn: this.uploadOriginalPhoto })
+            .onChange((isOn: boolean) => {
+              this.uploadOriginalPhoto = isOn;
+            })
+        }
+        .width('100%')
+
+        Row() {
+          Text(uiText('Similarity scan'))
+            .fontSize(14)
+            .fontColor(themePrimaryText())
+            .layoutWeight(1)
+          Toggle({ type: ToggleType.Switch, isOn: this.useSimilarityScan })
+            .onChange((isOn: boolean) => {
+              this.useSimilarityScan = isOn;
+            })
+        }
+        .width('100%')
+
+        Row() {
+          Text(uiText('Only cover search'))
+            .fontSize(14)
+            .fontColor(themePrimaryText())
+            .layoutWeight(1)
+          Toggle({ type: ToggleType.Switch, isOn: this.onlySearchCovers })
+            .onChange((isOn: boolean) => {
+              this.onlySearchCovers = isOn;
+            })
+        }
+        .width('100%')
+
+        Text(uiStatusText(this.statusText))
           .fontSize(12)
-          .fontColor(themeSecondaryText())
-        Text(this.selectedName())
-          .fontSize(13)
-          .fontColor(this.selectedPath.length > 0 ? themePrimaryText() : themeTertiaryText())
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-      }
-      .width('100%')
-      .padding(10)
-      .backgroundColor(themeFieldBackground())
-      .borderRadius(6)
+          .fontColor(this.statusText === 'Image selection failed' ? themeDangerText() : themeSecondaryText())
+          .width('100%')
+          .maxLines(2)
 
-      Row() {
-        Text(uiText('Upload original image'))
+        Button(uiText('Search image'))
+          .height(40)
+          .width('100%')
           .fontSize(14)
-          .fontColor(themePrimaryText())
-          .layoutWeight(1)
-        Toggle({ type: ToggleType.Switch, isOn: this.uploadOriginalPhoto })
-          .onChange((isOn: boolean) => {
-            this.uploadOriginalPhoto = isOn;
+          .fontColor(themeOnPrimaryText())
+          .backgroundColor(themePrimaryColor())
+          .borderRadius(6)
+          .enabled(this.selectedPath.length > 0 && !this.busy)
+          .onClick(() => {
+            this.submit();
           })
       }
       .width('100%')
-
-      Row() {
-        Text(uiText('Similarity scan'))
-          .fontSize(14)
-          .fontColor(themePrimaryText())
-          .layoutWeight(1)
-        Toggle({ type: ToggleType.Switch, isOn: this.useSimilarityScan })
-          .onChange((isOn: boolean) => {
-            this.useSimilarityScan = isOn;
-          })
-      }
-      .width('100%')
-
-      Row() {
-        Text(uiText('Only cover search'))
-          .fontSize(14)
-          .fontColor(themePrimaryText())
-          .layoutWeight(1)
-        Toggle({ type: ToggleType.Switch, isOn: this.onlySearchCovers })
-          .onChange((isOn: boolean) => {
-            this.onlySearchCovers = isOn;
-          })
-      }
-      .width('100%')
-
-      Text(uiStatusText(this.statusText))
-        .fontSize(12)
-        .fontColor(this.statusText === 'Image selection failed' ? themeDangerText() : themeSecondaryText())
-        .width('100%')
-        .maxLines(2)
-
-      Button(uiText('Search image'))
-        .height(40)
-        .width('100%')
-        .fontSize(14)
-        .fontColor(themeOnPrimaryText())
-        .backgroundColor(themePrimaryColor())
-        .borderRadius(6)
-        .enabled(this.selectedPath.length > 0 && !this.busy)
-        .onClick(() => {
-          this.submit();
-        })
+      .padding(14)
     }
     .width(this.panelWidth)
-    .padding(14)
+    .constraintSize({ maxHeight: this.panelMaxHeight })
     .backgroundColor(themeSurface())
     .borderRadius(8)
     .shadow({ radius: 14, color: themeShadowColor(), offsetX: 0, offsetY: 4 })
@@ -1952,6 +1957,13 @@ export struct GalleryListContent {
       return 320;
     }
     return Math.min(320, Math.max(260, this.contentWidth - 24));
+  }
+
+  private imageSearchPanelMaxHeight(): number {
+    if (this.viewportHeight <= 0) {
+      return 420;
+    }
+    return Math.max(280, this.viewportHeight - 48);
   }
 
   private visibleBarHeight(): number {
@@ -2558,30 +2570,31 @@ export struct GalleryListContent {
       }
 
       if (this.imageSearchPanelVisible) {
-        Column()
+        Stack({ alignContent: Alignment.Center }) {
+          Column()
+            .width('100%')
+            .height('100%')
+            .backgroundColor(themeScrimColor())
+            .onClick(() => {
+              this.closeImageSearchPanel();
+            })
+
+          ImageSearchPanel({
+            panelWidth: this.imageSearchPanelWidth(),
+            panelMaxHeight: this.imageSearchPanelMaxHeight(),
+            onClose: () => {
+              this.closeImageSearchPanel();
+            },
+            onSearch: (path: string, useSimilarityScan: boolean, onlySearchCovers: boolean) => {
+              this.closeImageSearchPanel();
+              this.onImageSearch(path, useSimilarityScan, onlySearchCovers);
+            }
+          })
+        }
           .width('100%')
           .height('100%')
-          .backgroundColor(themeScrimColor())
-          .onClick(() => {
-            this.closeImageSearchPanel();
-          })
+          .padding(16)
           .zIndex(13)
-
-        ImageSearchPanel({
-          panelWidth: this.imageSearchPanelWidth(),
-          onClose: () => {
-            this.closeImageSearchPanel();
-          },
-          onSearch: (path: string, useSimilarityScan: boolean, onlySearchCovers: boolean) => {
-            this.closeImageSearchPanel();
-            this.onImageSearch(path, useSimilarityScan, onlySearchCovers);
-          }
-        })
-          .position({
-            x: this.contentWidth > 0 ? Math.max(12, this.contentWidth - this.imageSearchPanelWidth() - 12) : 12,
-            y: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - 330) : 280
-          })
-          .zIndex(14)
       }
 
       if (this.jumpPanelVisible) {
