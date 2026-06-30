@@ -46,12 +46,23 @@
 请在 [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases) 中下载最新的 `.hap` 安装包。  
 推荐使用 [小白调试助手](https://github.com/likuai2010/auto-installer) 安装。
 
-当前版本：`0.4.0`  
-最新安装包：[`EhViewer_OHOS_0.4.0.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.4.0/EhViewer_OHOS_0.4.0.hap)  
+当前版本：`0.4.1`  
+最新安装包：[`EhViewer_OHOS_0.4.1.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.4.1/EhViewer_OHOS_0.4.1.hap)  
 发布包类型：未签名 HAP  
 目标API：`6.1.1(24)`  
 兼容API：`6.1.0.31(23)`  
 **因为绕过sni功能仅能在API23实现，因此暂不支持更低API版本**
+
+## 0.4.1 重点变化
+
+- 图片搜索支持原图上传，修复图片搜索重定向和详情页封面搜索图片来源问题。
+- 优化图片搜索浮层位置，更新 README 界面预览截图。
+- 画廊卡片长按菜单新增分享、下载等快捷操作，历史页支持删除历史。
+- 修复多标签搜索关键词拼接、输入栏布局和软键盘退格删除标签。
+- 修复详情页相似画廊、封面搜索范围，打开搜索后保留详情页。
+- 统一阅读器图片长按菜单配色。
+- 改进阅读器退出时的状态栏、方向和旋转锁定恢复逻辑。
+- 修复分辨率变化时搜索页、排行页、下载详情页和设置子页层级丢失。
 
 ## 0.4.0 重点变化
 
