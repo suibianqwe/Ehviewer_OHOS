@@ -20,6 +20,7 @@ import {
   readerOrientationFromImageMatch,
   readerOrientationFromSetting,
   readerScreenRotationSetting,
+  restoreReaderExitOrientationOnPageHide,
   setEmbeddedReaderActive
 } from '../services/EhWindowImmersive';
 import { ehSettingsStore } from '../services/EhSettingsStore';
@@ -228,6 +229,9 @@ export struct ReaderScene {
 
   onPageHide(): void {
     if (this.restoreAppChromeOnExit) {
+      if (!isEmbeddedReaderActive()) {
+        restoreReaderExitOrientationOnPageHide(this.hostReaderWindow);
+      }
       this.restoreSystemBarsForReaderExit();
     }
   }
