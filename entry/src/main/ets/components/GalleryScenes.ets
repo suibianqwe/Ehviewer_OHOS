@@ -2460,6 +2460,12 @@ export struct GalleryListContent {
         .onChange((value: string) => {
           this.updateSearchInputText(value);
         })
+        .onWillDelete((value: DeleteValue): boolean => {
+          if (value.direction === TextDeleteDirection.BACKWARD && this.removeLastSearchTagFromEmptyInput()) {
+            return false;
+          }
+          return true;
+        })
         .onKeyEvent((event: KeyEvent): boolean => {
           if (event.type === KeyType.Down && event.keyCode === KeyCode.KEYCODE_DEL) {
             return this.removeLastSearchTagFromEmptyInput();
