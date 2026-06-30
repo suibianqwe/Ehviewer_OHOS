@@ -1063,16 +1063,22 @@ export struct GalleryListScene {
   }
 
   private requestCategoryForMode(mode: ListMode): number {
-    if (this.isSearchResultScene && this.searchAdvancedPanelOpened && this.searchSupportsAdvanced(mode)) {
+    if (this.isSearchResultScene && this.searchAdvancedPanelOpened && this.searchSupportsCategory(mode)) {
       return this.searchCategory === GalleryCategory.None ? ALL_CATEGORY : this.searchCategory;
     }
-    if (!this.isSearchResultScene && this.shouldApplySearchFilters() && this.searchCategory !== GalleryCategory.None) {
+    if (!this.isSearchResultScene && this.shouldApplySearchFilters() && this.searchSupportsCategory(mode) &&
+      this.searchCategory !== GalleryCategory.None) {
       return this.searchCategory;
     }
-    if (!this.isSearchResultScene && this.searchSupportsAdvanced(mode) && !this.accountFilterEnabled) {
+    if (!this.isSearchResultScene && this.searchSupportsCategory(mode) && !this.accountFilterEnabled) {
       return ALL_CATEGORY;
     }
     return GalleryCategory.None;
+  }
+
+  private searchSupportsCategory(mode: ListMode): boolean {
+    return mode === ListMode.Normal || mode === ListMode.Subscription || mode === ListMode.Tag ||
+      mode === ListMode.Uploader || mode === ListMode.WhatsHot;
   }
 
   private searchSupportsAdvanced(mode: ListMode): boolean {

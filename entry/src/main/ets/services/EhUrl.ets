@@ -137,7 +137,8 @@ export class ListUrlBuilder {
   build(site: GallerySite = GallerySite.E): string {
     switch (this.mode) {
       case ListMode.Uploader:
-        return buildPathUrl(EhUrl.getHost(site), 'uploader', this.keyword, this.pageIndex);
+        return buildUrl(buildPathUrl(EhUrl.getHost(site), 'uploader', this.keyword, this.pageIndex),
+          this.buildPathSearchParams());
       case ListMode.Tag:
         return buildUrl(buildPathUrl(EhUrl.getHost(site), 'tag', this.keyword, this.pageIndex),
           this.buildPathSearchParams());
