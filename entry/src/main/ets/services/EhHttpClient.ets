@@ -1135,6 +1135,20 @@ export class EhHttpClient {
         headers: responseHeaders
       };
     } catch (error) {
+      const redirectLocation = responseHeaderValue(responseHeaders, 'location');
+      if (plan !== null && isRedirectLimitError(error) && redirectLocation.length > 0) {
+        recordEhRequestOutcome(plan, true, Date.now() - startedAt);
+        outcomeRecorded = true;
+        const cookies = responseHeaderValue(responseHeaders, 'set-cookie');
+        ehCookieStore.absorbSetCookieHeader(cookies);
+        syncSetCookiesToWebView(url, cookies);
+        return {
+          statusCode: 302,
+          body: '',
+          cookies: cookies,
+          headers: responseHeaders
+        };
+      }
       if (plan !== null && !outcomeRecorded) {
         recordEhRequestOutcome(plan, false, Date.now() - startedAt);
       }
@@ -1311,6 +1325,24 @@ function isTransientError(message: string): boolean {
     lower.indexOf('http2') >= 0 || lower.indexOf('2300016') >= 0 ||
     lower.indexOf('2300007') >= 0 || lower.indexOf('230350') >= 0 ||
     lower.indexOf('temporary') >= 0 || lower.indexOf('503') >= 0 || lower.indexOf('504') >= 0;
+}
+
+function isRedirectLimitError(error: Object): boolean {
+  const message = readableErrorMessage(error).toLowerCase();
+  if (message.indexOf('2300047') >= 0) {
+    return true;
+  }
+  if (message.indexOf('curl') >= 0 && message.indexOf('47') >= 0) {
+    return true;
+  }
+  if (message.indexOf('redirect') >= 0 &&
+    (message.indexOf('exceed') >= 0 || message.indexOf('too many') >= 0 || message.indexOf('47') >= 0)) {
+    return true;
+  }
+
+  const record = error as Record<string, Object>;
+  const code = record['code'];
+  return code === 2300047 || String(code) === '2300047';
 }
 
 function httpStatusMessage(statusCode: number, body: string): string {
