@@ -77,7 +77,7 @@ function activeTagPrefix(keyword: string): string {
   return collected.join(' ').trim();
 }
 
-const EXACT_TAG_PATTERN: RegExp = /(^|\s)([A-Za-z0-9_]+:[^$]+?\$)/g;
+const EXACT_TAG_PATTERN: RegExp = /([A-Za-z0-9_]+:[^$]+?\$)/g;
 
 export function normalizeSearchTagToken(tag: string): string {
   const trimmed = tag.trim();
@@ -93,7 +93,7 @@ export function searchTagTokens(keyword: string): string[] {
   EXACT_TAG_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null = EXACT_TAG_PATTERN.exec(keyword);
   while (match !== null) {
-    const token = match[2].trim();
+    const token = match[1].trim();
     const key = token.toLowerCase();
     if (token.length > 0 && seen.indexOf(key) < 0) {
       tokens.push(token);
@@ -107,6 +107,38 @@ export function searchTagTokens(keyword: string): string[] {
 export function searchKeywordWithoutTagTokens(keyword: string): string {
   EXACT_TAG_PATTERN.lastIndex = 0;
   return keyword.replace(EXACT_TAG_PATTERN, ' ').replace(/\s+/g, ' ').trim();
+}
+
+export function searchTagTokenLabel(token: string): string {
+  let value = token.trim();
+  if (value.endsWith('$')) {
+    value = value.substring(0, value.length - 1).trim();
+  }
+  const colon = value.indexOf(':');
+  if (colon >= 0 && colon < value.length - 1) {
+    value = value.substring(colon + 1).trim();
+  }
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+export function searchKeywordForRequest(keyword: string): string {
+  const tokens = searchTagTokens(keyword);
+  if (tokens.length === 0) {
+    return keyword.trim();
+  }
+
+  const parts: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const label = searchTagTokenLabel(tokens[i]);
+    if (label.length > 0) {
+      parts.push(label);
+    }
+  }
+  const text = searchKeywordWithoutTagTokens(keyword);
+  if (text.length > 0) {
+    parts.push(text);
+  }
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
 }
 
 export function composeSearchKeywordWithInput(keyword: string, input: string): string {

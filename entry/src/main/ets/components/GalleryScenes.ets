@@ -62,7 +62,9 @@ import {
   SearchSuggestionItem,
   SearchSuggestionList,
   SearchSummaryStrip,
+  searchKeywordForRequest,
   searchKeywordWithoutTagTokens,
+  searchTagTokenLabel,
   searchTagTokens,
   recordSearchHistory
 } from './GallerySearchScenes';
@@ -884,19 +886,24 @@ export struct GalleryListScene {
   }
 
   private loadRoutePage(pageIndex: number, site: GallerySite): Promise<GalleryListLoadResult> {
+    const requestKeyword = searchKeywordForRequest(this.keyword);
+    const hasSearchTags = searchTagTokens(this.keyword).length > 0;
     if (this.sourceRoute === GalleryRoute.Favorites) {
       const builder = new FavListUrlBuilder();
-      builder.keyword = this.keyword;
+      builder.keyword = requestKeyword;
       builder.index = pageIndex;
       this.requestUrl = builder.build(site);
       return this.client.loadFavoritesList(builder, site);
     }
 
     const builder = new ListUrlBuilder();
-    builder.keyword = (this.isSearchResultScene || routeUsesKeyword(this.sourceRoute)) ? this.keyword : '';
+    builder.keyword = (this.isSearchResultScene || routeUsesKeyword(this.sourceRoute)) ? requestKeyword : '';
     builder.pageIndex = pageIndex;
-    const routeMode = this.useForcedMode ? this.forcedMode : listModeForRoute(this.sourceRoute);
+    const routeMode = hasSearchTags ? ListMode.Normal : (this.useForcedMode ? this.forcedMode : listModeForRoute(this.sourceRoute));
     builder.mode = this.searchModeForRoute(routeMode, builder.keyword);
+    if (hasSearchTags) {
+      builder.mode = ListMode.Normal;
+    }
     builder.follow = this.follow;
     builder.category = this.requestCategoryForMode(builder.mode);
     builder.imagePath = this.imageSearchPath;
@@ -2376,7 +2383,7 @@ export struct GalleryListContent {
   @Builder
   private searchTagChip(token: string) {
     Row({ space: 4 }) {
-      Text(token.endsWith('$') ? token.substring(0, token.length - 1) : token)
+      Text(searchTagTokenLabel(token))
         .fontSize(12)
         .fontColor(themeOnPrimaryText())
         .maxLines(1)
@@ -2401,7 +2408,7 @@ export struct GalleryListContent {
 
   @Builder
   private searchKeywordEditor() {
-    Row({ space: 6 }) {
+    Row({ space: this.selectedSearchTagTokens().length > 0 ? 4 : 0 }) {
       if (this.selectedSearchTagTokens().length > 0) {
         Scroll() {
           Row({ space: 6 }) {
@@ -2410,20 +2417,21 @@ export struct GalleryListContent {
             }, (token: string) => token)
           }
         }
-        .width('45%')
         .height(30)
         .scrollable(ScrollDirection.Horizontal)
         .scrollBar(BarState.Off)
+        .flexShrink(1)
       }
 
       TextInput({ text: this.searchInputText(), placeholder: uiText(this.searchPlaceholder) })
         .height(34)
         .layoutWeight(1)
+        .constraintSize({ minWidth: 96 })
         .backgroundColor(themeTransparentColor())
         .placeholderColor(themeSecondaryText())
         .fontColor(themePrimaryText())
         .caretColor(themePrimaryColor())
-        .padding({ left: this.selectedSearchTagTokens().length > 0 ? 0 : 8, right: 8 })
+        .padding({ left: this.selectedSearchTagTokens().length > 0 ? 4 : 8, right: 8 })
         .onFocus(() => {
           this.refreshSearchSuggestions();
           this.onSearchFocus();
