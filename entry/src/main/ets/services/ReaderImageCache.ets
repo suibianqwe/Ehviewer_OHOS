@@ -27,6 +27,12 @@ const MAX_IMAGE_CACHE_BYTES: number = 320 * 1024 * 1024;
 const IMAGE_RETRY_DELAYS_MS: number[] = [300, 900, 1800, 3200];
 const IMAGE_CONNECT_TIMEOUT_MS: number = 4500;
 const DEFAULT_IMAGE_RETRY_LIMIT: number = 5;
+const IMAGE_ACTIVE_IDLE_TIMEOUT_MIN_MS: number = 30000;
+const IMAGE_ACTIVE_IDLE_TIMEOUT_MAX_MS: number = 60000;
+const IMAGE_TOTAL_TIMEOUT_MARGIN_MS: number = 30000;
+const IMAGE_MIN_EXPECTED_SPEED_BYTES_PER_SECOND: number = 64 * 1024;
+const IMAGE_UNKNOWN_TOTAL_TIMEOUT_MS: number = 5 * 60 * 1000;
+const IMAGE_MAX_TOTAL_TIMEOUT_MS: number = 10 * 60 * 1000;
 let activeImageDownloads: number = 0;
 
 interface CachedImageFile {
@@ -203,7 +209,7 @@ export class ReaderImageCache {
         header: header,
         expectDataType: http.HttpDataType.ARRAY_BUFFER,
         connectTimeout: plan.fronted ? IMAGE_CONNECT_TIMEOUT_MS : Math.min(timeout, 10000),
-        readTimeout: timeout
+        readTimeout: imageHttpReadTimeoutMs(timeout)
       };
       applyEhNetworkOptions(options, plan);
       const statusCode = await streamImageToFile(request, plan.url, options, path,
@@ -311,13 +317,43 @@ function imageRequestDeadlineMs(plan: EhRequestPlan, attempt: number): number {
   return Math.min(timeout, 15000);
 }
 
+function imageHttpReadTimeoutMs(_baseTimeoutMs: number): number {
+  return IMAGE_MAX_TOTAL_TIMEOUT_MS;
+}
+
+function imageActiveIdleTimeoutMs(baseTimeoutMs: number): number {
+  return Math.max(IMAGE_ACTIVE_IDLE_TIMEOUT_MIN_MS,
+    Math.min(IMAGE_ACTIVE_IDLE_TIMEOUT_MAX_MS, Math.max(1, baseTimeoutMs)));
+}
+
+function imageUnknownTotalTimeoutMs(baseTimeoutMs: number): number {
+  return Math.max(IMAGE_UNKNOWN_TOTAL_TIMEOUT_MS, baseTimeoutMs * 4);
+}
+
+function imageDynamicTotalTimeoutMs(baseTimeoutMs: number, totalBytes: number): number {
+  if (totalBytes <= 0) {
+    return imageUnknownTotalTimeoutMs(baseTimeoutMs);
+  }
+  const bySize = Math.ceil(totalBytes * 1000 / IMAGE_MIN_EXPECTED_SPEED_BYTES_PER_SECOND) +
+    IMAGE_TOTAL_TIMEOUT_MARGIN_MS;
+  return Math.max(baseTimeoutMs * 2, bySize);
+}
+
+function clampImageTotalTimeout(timeoutMs: number): number {
+  return Math.max(IMAGE_ACTIVE_IDLE_TIMEOUT_MIN_MS, Math.min(IMAGE_MAX_TOTAL_TIMEOUT_MS, timeoutMs));
+}
+
 function streamImageToFile(request: http.HttpRequest, url: string, options: http.HttpRequestOptions, path: string,
   timeoutMs: number, onProgress?: ImageDownloadProgressCallback): Promise<number> {
   return new Promise<number>((resolve: (value: number) => void, reject: (reason: Error) => void) => {
     let finished = false;
     let fd = -1;
+    let writtenBytes = 0;
     let receivedBytes = 0;
     let totalBytes = 0;
+    let lastProgressBytes = 0;
+    let idleTimer = -1;
+    let totalTimer = -1;
     const tempPath = path + '.part';
     removeFileQuietly(tempPath);
     try {
@@ -354,19 +390,73 @@ function streamImageToFile(request: http.HttpRequest, url: string, options: http
       }
     };
 
-    const timer = setTimeout(() => {
+    const clearTimers = (): void => {
+      if (idleTimer >= 0) {
+        clearTimeout(idleTimer);
+        idleTimer = -1;
+      }
+      if (totalTimer >= 0) {
+        clearTimeout(totalTimer);
+        totalTimer = -1;
+      }
+    };
+
+    const failRequest = (message: string): void => {
       if (finished) {
         return;
       }
       finished = true;
+      clearTimers();
       cleanup();
       try {
         request.destroy();
       } catch (error) {
       }
       removeFileQuietly(tempPath);
-      reject(new Error('Image request timed out after ' + Math.floor(timeoutMs / 1000).toString() + 's'));
-    }, timeoutMs);
+      reject(new Error(message));
+    };
+
+    const armIdleTimer = (delayMs: number): void => {
+      if (idleTimer >= 0) {
+        clearTimeout(idleTimer);
+      }
+      idleTimer = setTimeout(() => {
+        const seconds = Math.floor(delayMs / 1000);
+        failRequest('Image request stalled for ' + seconds.toString() + 's');
+      }, delayMs);
+    };
+
+    const armTotalTimer = (delayMs: number): void => {
+      if (totalTimer >= 0) {
+        clearTimeout(totalTimer);
+      }
+      const safeDelay = clampImageTotalTimeout(delayMs);
+      totalTimer = setTimeout(() => {
+        failRequest('Image request timed out after ' + Math.floor(safeDelay / 1000).toString() + 's');
+      }, safeDelay);
+    };
+
+    const updateKnownTotalBytes = (value: number): void => {
+      if (value <= totalBytes) {
+        return;
+      }
+      totalBytes = value;
+      armTotalTimer(imageDynamicTotalTimeoutMs(timeoutMs, totalBytes));
+    };
+
+    const recordReceivedBytes = (value: number): void => {
+      if (value <= receivedBytes) {
+        return;
+      }
+      receivedBytes = value;
+      if (receivedBytes > lastProgressBytes) {
+        lastProgressBytes = receivedBytes;
+        armIdleTimer(imageActiveIdleTimeoutMs(timeoutMs));
+      }
+    };
+
+    armIdleTimer(timeoutMs);
+    armTotalTimer(imageUnknownTotalTimeoutMs(timeoutMs));
 
     request.on('dataReceive', (data: ArrayBuffer) => {
       if (finished) {
@@ -374,20 +464,13 @@ function streamImageToFile(request: http.HttpRequest, url: string, options: http
       }
       try {
         fs.writeSync(fd, data);
-        receivedBytes += data.byteLength;
+        writtenBytes += data.byteLength;
+        recordReceivedBytes(Math.max(receivedBytes, writtenBytes));
         if (onProgress !== undefined) {
           onProgress({ receivedBytes: receivedBytes, totalBytes: totalBytes });
         }
       } catch (error) {
-        finished = true;
-        clearTimeout(timer);
-        cleanup();
-        try {
-          request.destroy();
-        } catch (destroyError) {
-        }
-        removeFileQuietly(tempPath);
-        reject(new Error(String(error)));
+        failRequest(String(error));
       }
     });
     request.on('headersReceive', (header: Object) => {
@@ -396,7 +479,7 @@ function streamImageToFile(request: http.HttpRequest, url: string, options: http
       }
       const contentLength = headerContentLength(header);
       if (contentLength > 0) {
-        totalBytes = contentLength;
+        updateKnownTotalBytes(contentLength);
         if (onProgress !== undefined) {
           onProgress({ receivedBytes: receivedBytes, totalBytes: totalBytes });
         }
@@ -406,8 +489,8 @@ function streamImageToFile(request: http.HttpRequest, url: string, options: http
       if (finished) {
         return;
       }
-      totalBytes = Math.max(totalBytes, progress.totalSize);
-      receivedBytes = Math.max(receivedBytes, progress.receiveSize);
+      updateKnownTotalBytes(progress.totalSize);
+      recordReceivedBytes(Math.max(receivedBytes, progress.receiveSize));
       if (onProgress !== undefined) {
         onProgress({ receivedBytes: receivedBytes, totalBytes: totalBytes });
       }
@@ -418,7 +501,7 @@ function streamImageToFile(request: http.HttpRequest, url: string, options: http
         return;
       }
       finished = true;
-      clearTimeout(timer);
+      clearTimers();
       cleanup();
       if (statusCode >= 200 && statusCode < 300 && receivedBytes > 0) {
         try {
@@ -438,7 +521,7 @@ function streamImageToFile(request: http.HttpRequest, url: string, options: http
         return;
       }
       finished = true;
-      clearTimeout(timer);
+      clearTimers();
       cleanup();
       removeFileQuietly(tempPath);
       reject(error);
