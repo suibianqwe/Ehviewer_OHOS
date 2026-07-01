@@ -497,6 +497,7 @@ export struct SearchAdvancedPanel {
   @Prop minRating: number = -1;
   @Prop pageFrom: number = -1;
   @Prop pageTo: number = -1;
+  @Prop panelMaxHeight: number = 520;
   @State modeDraft: ListMode = ListMode.Normal;
   @State categoryDraft: number = GalleryCategory.None;
   @State advancedEnabledDraft: boolean = false;
@@ -729,7 +730,7 @@ export struct SearchAdvancedPanel {
         .padding({ left: 12, right: 12, top: 12, bottom: 12 })
       }
       .width('100%')
-      .constraintSize({ maxHeight: 440 })
+      .constraintSize({ maxHeight: Math.max(320, this.panelMaxHeight - 64) })
 
       Column() {
         Button(uiText('Search'), { type: ButtonType.Normal, stateEffect: true }) {

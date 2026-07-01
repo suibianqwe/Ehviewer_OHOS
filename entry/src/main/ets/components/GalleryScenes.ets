@@ -2320,6 +2320,13 @@ export struct GalleryListContent {
     return Math.max(280, this.viewportHeight - 48);
   }
 
+  private advancedPanelMaxHeight(): number {
+    if (this.viewportHeight <= 0) {
+      return 520;
+    }
+    return Math.max(360, this.viewportHeight - this.statusBarVp() - this.barHeight - 28);
+  }
+
   private visibleBarHeight(): number {
     return immersiveChromeHeightFromOffset(this.toolbarOffsetY, this.totalBarHeight());
   }
@@ -2947,6 +2954,7 @@ export struct GalleryListContent {
           minRating: this.minRating,
           pageFrom: -1,
           pageTo: -1,
+          panelMaxHeight: this.advancedPanelMaxHeight(),
           onSearchModeChange: this.onSearchModeChange,
           onSearchCategoryChange: this.onSearchCategoryChange,
           onAdvancedEnabledChange: this.onAdvancedEnabledChange,

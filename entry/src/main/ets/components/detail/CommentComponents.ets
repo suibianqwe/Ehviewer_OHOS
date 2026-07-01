@@ -106,6 +106,7 @@ export struct CommentLinkedText {
   @Prop openGalleryLinksInApp: boolean = false;
   @Prop selectable: boolean = true;
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
+  onTapText: () => void = () => {};
 
   build() {
     Text() {
@@ -123,6 +124,8 @@ export struct CommentLinkedText {
               } else {
                 openCommentUrl(segment.url);
               }
+            } else if (!this.selectable) {
+              this.onTapText();
             }
           })
       }, (segment: CommentTextSegment, index: number) => index.toString() + '-' + segment.text)
@@ -244,7 +247,8 @@ export struct GalleryCommentRow {
         maxLines: this.maxLines,
         openGalleryLinksInApp: this.openGalleryLinksInApp,
         selectable: this.selectableText,
-        onOpenGalleryLink: this.onOpenGalleryLink
+        onOpenGalleryLink: this.onOpenGalleryLink,
+        onTapText: this.onTapRow
       })
 
       if (this.comment.voteState !== undefined && this.comment.voteState.length > 0) {
