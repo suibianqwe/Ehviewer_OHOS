@@ -59,6 +59,7 @@ export struct DetailComments {
             maxLines: 4,
             compact: true,
             openGalleryLinksInApp: true,
+            selectableText: false,
             rowClickable: true,
             onVoteComment: this.onVoteComment,
             onOpenGalleryLink: this.onOpenGalleryLink,

@@ -104,6 +104,7 @@ export struct CommentLinkedText {
   @Prop html: string = '';
   @Prop maxLines: number = 1000;
   @Prop openGalleryLinksInApp: boolean = false;
+  @Prop selectable: boolean = true;
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
 
   build() {
@@ -130,7 +131,7 @@ export struct CommentLinkedText {
     .fontColor(themePrimaryText())
     .lineHeight(24)
     .copyOption(CopyOptions.LocalDevice)
-    .textSelectable(TextSelectableMode.SELECTABLE_FOCUSABLE)
+    .textSelectable(this.selectable ? TextSelectableMode.SELECTABLE_FOCUSABLE : TextSelectableMode.UNSELECTABLE)
     .draggable(false)
     .maxLines(this.maxLines)
     .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -177,6 +178,7 @@ export struct GalleryCommentRow {
   maxLines: number = 1000;
   compact: boolean = false;
   openGalleryLinksInApp: boolean = false;
+  selectableText: boolean = true;
   rowClickable: boolean = false;
   onVoteComment: (comment: GalleryComment, vote: number) => void = (_comment: GalleryComment, _vote: number) => {};
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
@@ -241,6 +243,7 @@ export struct GalleryCommentRow {
         html: this.comment.content,
         maxLines: this.maxLines,
         openGalleryLinksInApp: this.openGalleryLinksInApp,
+        selectable: this.selectableText,
         onOpenGalleryLink: this.onOpenGalleryLink
       })
 
