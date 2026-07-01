@@ -355,6 +355,13 @@ export struct DownloadScene {
     return Math.max(1, this.viewportHeight - this.downloadContentStartOffset());
   }
 
+  private advancedPanelMaxHeight(): number {
+    if (this.viewportHeight <= 0) {
+      return 520;
+    }
+    return Math.max(360, this.viewportHeight - this.statusBarVp() - 56 - 28);
+  }
+
   private updateToolbarForScrollFrame(scrollOffset: number): number {
     const offset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
     if (offset <= 4) {
@@ -1368,51 +1375,56 @@ export struct DownloadScene {
             })
             .zIndex(15)
 
-          SearchAdvancedPanel({
-            searchModeValue: this.searchMode,
-            searchCategory: this.searchCategory,
-            advancedSearchEnabled: this.advancedSearchEnabled,
-            advanceSearch: this.advanceSearch,
-            searchFilterEnabled: true,
-            minRating: this.minRating,
-            pageFrom: -1,
-            pageTo: -1,
-            onSearchModeChange: (mode: ListMode) => {
-              this.searchMode = mode;
-              this.searchSubmitted = false;
-              this.refreshDownloadRows();
-            },
-            onSearchCategoryChange: (category: number) => {
-              this.searchCategory = category;
-              this.searchSubmitted = false;
-              this.refreshDownloadRows();
-            },
-            onAdvancedEnabledChange: (enabled: boolean) => {
-              this.advancedSearchEnabled = enabled;
-              this.searchSubmitted = false;
-              this.refreshDownloadRows();
-            },
-            onAdvanceSearchChange: (flags: number) => {
-              this.advanceSearch = flags;
-              this.searchSubmitted = false;
-            },
-            onMinRatingChange: (rating: number) => {
-              this.minRating = rating;
-              this.searchSubmitted = false;
-              this.refreshDownloadRows();
-            },
-            onClose: () => {
-              this.advancedPanelVisible = false;
-            },
-            onSearch: () => {
-              this.advancedPanelVisible = false;
-              this.applyDownloadSearch();
-            }
-          })
-            .margin({ top: this.statusBarVp() + 56 + 8, left: 10, right: 10 })
-            .alignSelf(ItemAlign.Start)
-            .transition(TransitionEffect.move(TransitionEdge.TOP)
-              .animation({ duration: 180, curve: Curve.EaseOut }))
+          Stack({ alignContent: Alignment.Top }) {
+            SearchAdvancedPanel({
+              searchModeValue: this.searchMode,
+              searchCategory: this.searchCategory,
+              advancedSearchEnabled: this.advancedSearchEnabled,
+              advanceSearch: this.advanceSearch,
+              searchFilterEnabled: true,
+              minRating: this.minRating,
+              pageFrom: -1,
+              pageTo: -1,
+              panelMaxHeight: this.advancedPanelMaxHeight(),
+              onSearchModeChange: (mode: ListMode) => {
+                this.searchMode = mode;
+                this.searchSubmitted = false;
+                this.refreshDownloadRows();
+              },
+              onSearchCategoryChange: (category: number) => {
+                this.searchCategory = category;
+                this.searchSubmitted = false;
+                this.refreshDownloadRows();
+              },
+              onAdvancedEnabledChange: (enabled: boolean) => {
+                this.advancedSearchEnabled = enabled;
+                this.searchSubmitted = false;
+                this.refreshDownloadRows();
+              },
+              onAdvanceSearchChange: (flags: number) => {
+                this.advanceSearch = flags;
+                this.searchSubmitted = false;
+              },
+              onMinRatingChange: (rating: number) => {
+                this.minRating = rating;
+                this.searchSubmitted = false;
+                this.refreshDownloadRows();
+              },
+              onClose: () => {
+                this.advancedPanelVisible = false;
+              },
+              onSearch: () => {
+                this.advancedPanelVisible = false;
+                this.applyDownloadSearch();
+              }
+            })
+              .constraintSize({ maxHeight: this.advancedPanelMaxHeight() })
+              .transition(TransitionEffect.move(TransitionEdge.TOP)
+                .animation({ duration: 180, curve: Curve.EaseOut }))
+          }
+            .width('100%')
+            .height('100%')
+            .padding({ top: this.statusBarVp() + 56 + 8, left: 10, right: 10 })
             .zIndex(16)
         }
 

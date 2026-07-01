@@ -344,7 +344,7 @@ async function restoreAppWindowChrome(target: window.Window): Promise<void> {
 }
 
 async function restoreWindowPreferredOrientation(target: window.Window): Promise<void> {
-  let orientation = window.Orientation.AUTO_ROTATION_UNSPECIFIED;
+  let orientation = window.Orientation.AUTO_ROTATION;
   let shouldConfirmOrientation = false;
   try {
     const windowId = target.getWindowProperties().id;
@@ -366,7 +366,7 @@ async function restoreWindowPreferredOrientation(target: window.Window): Promise
         shouldConfirmOrientation = true;
       }
     } else {
-      orientation = window.Orientation.AUTO_ROTATION_UNSPECIFIED;
+      orientation = window.Orientation.AUTO_ROTATION;
       pendingReaderExitOrientations.delete(windowId);
     }
   } catch (error) {

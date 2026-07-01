@@ -2945,7 +2945,7 @@ export struct GalleryListContent {
           })
           .zIndex(11)
 
-        Column() {
+        Stack({ alignContent: Alignment.Top }) {
           SearchAdvancedPanel({
             searchModeValue: this.searchModeValue,
             searchCategory: this.searchCategory,
@@ -2975,8 +2975,6 @@ export struct GalleryListContent {
         }
           .width('100%')
           .height('100%')
-          .justifyContent(FlexAlign.Start)
-          .alignItems(HorizontalAlign.Center)
           .padding({ top: this.statusBarVp() + this.barHeight + 8, left: 10, right: 10 })
           .zIndex(12)
       }
