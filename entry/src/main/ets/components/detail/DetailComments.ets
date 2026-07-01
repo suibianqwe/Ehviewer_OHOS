@@ -38,6 +38,11 @@ export struct DetailComments {
       }
       .width('100%')
       .margin({ bottom: 10 })
+      .onClick(() => {
+        if (this.isDetailLoaded && this.comments.length > 0) {
+          this.onComments();
+        }
+      })
 
       if (!this.isDetailLoaded) {
         Text(uiText('Loading comments...'))
@@ -54,13 +59,12 @@ export struct DetailComments {
             maxLines: 4,
             compact: true,
             openGalleryLinksInApp: true,
+            rowClickable: true,
             onVoteComment: this.onVoteComment,
-            onOpenGalleryLink: this.onOpenGalleryLink
+            onOpenGalleryLink: this.onOpenGalleryLink,
+            onTapRow: this.onComments
           })
             .margin({ bottom: 6 })
-            .onClick(() => {
-              this.onComments();
-            })
         }, (comment: GalleryComment) => comment.id)
       }
     }

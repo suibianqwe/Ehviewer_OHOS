@@ -177,8 +177,10 @@ export struct GalleryCommentRow {
   maxLines: number = 1000;
   compact: boolean = false;
   openGalleryLinksInApp: boolean = false;
+  rowClickable: boolean = false;
   onVoteComment: (comment: GalleryComment, vote: number) => void = (_comment: GalleryComment, _vote: number) => {};
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
+  onTapRow: () => void = () => {};
 
   private canVoteUp(): boolean {
     return this.comment.id !== '0' && this.comment.voteUpAble === true;
@@ -255,5 +257,10 @@ export struct GalleryCommentRow {
     .padding(this.compact ? 10 : { left: 16, right: 16, top: 14, bottom: 14 })
     .backgroundColor(this.compact ? themeSurfaceVariant() : themeSurface())
     .borderRadius(this.compact ? 6 : 0)
+    .onClick(() => {
+      if (this.rowClickable) {
+        this.onTapRow();
+      }
+    })
   }
 }
