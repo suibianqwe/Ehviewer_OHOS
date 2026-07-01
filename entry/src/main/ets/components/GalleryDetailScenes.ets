@@ -92,6 +92,7 @@ export struct GalleryDetailOverlayScene {
         onJumpPreviewPage: this.onJumpPreviewPage,
         onComments: this.onComments,
         onVoteComment: this.onVoteComment,
+        onOpenCommentGalleryLink: this.onOpenCommentGalleryLink,
         onFavorite: this.onFavorite,
         onShare: this.onShare,
         onRate: this.onRate,
@@ -134,6 +135,7 @@ export struct GalleryDetailScene {
   onJumpPreviewPage: (pageIndex: number) => void = (_pageIndex: number) => {};
   onComments: () => void = () => {};
   onVoteComment: (comment: GalleryComment, vote: number) => void = (_comment: GalleryComment, _vote: number) => {};
+  onOpenCommentGalleryLink: (url: string) => void = (_url: string) => {};
   onFavorite: () => void = () => {};
   onShare: () => void = () => {};
   onRate: (rating: number) => void = (_rating: number) => {};
@@ -249,7 +251,8 @@ export struct GalleryDetailScene {
               comments: this.detail.comments,
               isDetailLoaded: this.isDetailLoaded,
               onComments: this.onComments,
-              onVoteComment: this.onVoteComment
+              onVoteComment: this.onVoteComment,
+              onOpenGalleryLink: this.onOpenCommentGalleryLink
             })
           }
           .reuseId('detail-comments')

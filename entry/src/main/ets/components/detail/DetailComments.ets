@@ -9,6 +9,7 @@ export struct DetailComments {
   @Prop isDetailLoaded: boolean = false;
   onComments: () => void = () => {};
   onVoteComment: (comment: GalleryComment, vote: number) => void = (_comment: GalleryComment, _vote: number) => {};
+  onOpenGalleryLink: (url: string) => void = (_url: string) => {};
 
   build() {
     Column() {
@@ -52,9 +53,14 @@ export struct DetailComments {
             comment: comment,
             maxLines: 4,
             compact: true,
-            onVoteComment: this.onVoteComment
+            openGalleryLinksInApp: true,
+            onVoteComment: this.onVoteComment,
+            onOpenGalleryLink: this.onOpenGalleryLink
           })
             .margin({ bottom: 6 })
+            .onClick(() => {
+              this.onComments();
+            })
         }, (comment: GalleryComment) => comment.id)
       }
     }

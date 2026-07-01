@@ -901,6 +901,7 @@ export function zhText(text: string): string {
 
 let activeBackHandler: (() => boolean) | null = null;
 let readerActiveBackHandler: (() => boolean) | null = null;
+const DETAIL_BACK_HANDLERS: Array<() => boolean> = [];
 
 export function setActiveBackHandler(handler: (() => boolean) | null): void {
   activeBackHandler = handler;
@@ -916,6 +917,27 @@ export function setReaderActiveBackHandler(handler: (() => boolean) | null): voi
 
 export function runReaderActiveBackHandler(): boolean {
   return readerActiveBackHandler !== null && readerActiveBackHandler();
+}
+
+export function pushDetailBackHandler(handler: () => boolean): () => void {
+  DETAIL_BACK_HANDLERS.push(handler);
+  return () => {
+    for (let i = DETAIL_BACK_HANDLERS.length - 1; i >= 0; i--) {
+      if (DETAIL_BACK_HANDLERS[i] === handler) {
+        DETAIL_BACK_HANDLERS.splice(i, 1);
+        return;
+      }
+    }
+  };
+}
+
+export function runDetailBackHandler(): boolean {
+  for (let i = DETAIL_BACK_HANDLERS.length - 1; i >= 0; i--) {
+    if (DETAIL_BACK_HANDLERS[i]()) {
+      return true;
+    }
+  }
+  return false;
 }
 export const STATUS_BAR_HEIGHT_KEY: string = 'statusBarHeight';
 export const TOP_AVOID_HEIGHT_KEY: string = 'topAvoidHeight';

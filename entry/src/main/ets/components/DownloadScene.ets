@@ -28,7 +28,7 @@ import {
   mainContentWidthFallbackVp,
   rememberMainContentWidthVp
 } from '../services/EhWindowImmersive';
-import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, nextFloatingToolbarOffset, setActiveBackHandler } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, nextFloatingToolbarOffset, runDetailBackHandler, setActiveBackHandler } from '../shared/EhShared';
 import {
   cloneGalleryDetail,
   cloneGalleryInfo,
@@ -249,6 +249,9 @@ export struct DownloadScene {
       return true;
     }
     if (this.showDetail) {
+      if (runDetailBackHandler()) {
+        return true;
+      }
       this.closeDetail();
       return true;
     }

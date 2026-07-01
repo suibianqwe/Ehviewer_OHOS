@@ -29,7 +29,7 @@ import {
   mainContentWidthFallbackVp,
   rememberMainContentWidthVp
 } from '../services/EhWindowImmersive';
-import { LANGUAGE_REVISION_KEY } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, runDetailBackHandler } from '../shared/EhShared';
 import {
   themeFieldBackground,
   themeDangerText,
@@ -643,6 +643,9 @@ export struct GalleryListScene {
       return true;
     }
     if (this.showDetail) {
+      if (runDetailBackHandler()) {
+        return true;
+      }
       this.closeDetail();
       return true;
     }

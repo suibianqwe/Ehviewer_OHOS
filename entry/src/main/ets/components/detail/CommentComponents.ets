@@ -140,17 +140,20 @@ export struct CommentLinkedText {
 
 @Component
 export struct CommentVoteButton {
-  label: string = '';
+  @Prop symbolIcon: Resource = $r('sys.symbol.arrow_up_circle');
   @Prop enabledValue: boolean = false;
   @Prop selected: boolean = false;
   onClickAction: () => void = () => {};
 
   build() {
-    Button(this.label, { type: ButtonType.Normal, stateEffect: true })
+    Button({ type: ButtonType.Normal, stateEffect: true }) {
+      SymbolGlyph(this.symbolIcon)
+        .fontSize(22)
+        .fontColor([this.enabledValue ? (this.selected ? themeOnPrimaryText() : themePrimaryText()) :
+          themeInactiveActionText()])
+    }
       .height(36)
       .width(46)
-      .fontSize(20)
-      .fontColor(this.enabledValue ? (this.selected ? themeOnPrimaryText() : themePrimaryText()) : themeInactiveActionText())
       .backgroundColor(this.selected ? themePrimaryColor() : themeSurfaceVariant())
       .borderRadius(5)
       .padding(0)
@@ -213,7 +216,7 @@ export struct GalleryCommentRow {
           .fontColor(scoreColor(this.comment.score))
           .margin({ right: 2 })
         CommentVoteButton({
-          label: '👍',
+          symbolIcon: $r('sys.symbol.arrow_up_circle'),
           enabledValue: this.canVoteUp(),
           selected: this.comment.voteUpEd === true,
           onClickAction: () => {
@@ -221,7 +224,7 @@ export struct GalleryCommentRow {
           }
         })
         CommentVoteButton({
-          label: '👎',
+          symbolIcon: $r('sys.symbol.arrow_down_circle'),
           enabledValue: this.canVoteDown(),
           selected: this.comment.voteDownEd === true,
           onClickAction: () => {

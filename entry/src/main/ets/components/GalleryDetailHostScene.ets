@@ -49,6 +49,7 @@ import {
   createEmptyDetail,
   createEmptyPage,
   getAbilityContext,
+  pushDetailBackHandler,
   readerStartIndex,
   readerStartIndexAsync,
   readerPageImageCacheKey,
@@ -74,6 +75,7 @@ export struct GalleryDetailHostScene {
   private previewMap: Map<number, GalleryPreview> = new Map();
   private previewPageSize: number = 0;
   private unsubscribeDownloadStore: () => void = () => {};
+  private unregisterDetailBackHandler: () => void = () => {};
   private cellularWarningDialogOpen: boolean = false;
   @State renderVersion: number = 0;
   @State showComments: boolean = false;
@@ -94,6 +96,7 @@ export struct GalleryDetailHostScene {
 
   aboutToAppear(): void {
     this.loadDetailFromLink();
+    this.unregisterDetailBackHandler = pushDetailBackHandler(() => this.handleDetailSystemBack());
     this.unsubscribeDownloadStore = ehDownloadStore.subscribe((_items: DownloadInfo[]) => {
       this.refreshDetailDownloadText();
     });
@@ -101,6 +104,21 @@ export struct GalleryDetailHostScene {
 
   aboutToDisappear(): void {
     this.unsubscribeDownloadStore();
+    this.unregisterDetailBackHandler();
+  }
+
+  private handleDetailSystemBack(): boolean {
+    if (this.commentGalleryLink.gid > 0) {
+      this.commentGalleryLink = createEmptyGalleryDetailLink();
+      this.renderVersion++;
+      return true;
+    }
+    if (this.showComments) {
+      this.showComments = false;
+      this.renderVersion++;
+      return true;
+    }
+    return false;
   }
 
   private loadDetailFromLink(): void {

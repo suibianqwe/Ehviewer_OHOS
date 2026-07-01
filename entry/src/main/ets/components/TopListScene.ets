@@ -22,7 +22,7 @@ import {
   themeSurface,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, createEmptyDetail, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneGalleryDetail, cloneGalleryInfo, cloneTopListDetail, nextFloatingToolbarOffset, topListChipColor, currentGallerySite } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, runDetailBackHandler, createEmptyDetail, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneGalleryDetail, cloneGalleryInfo, cloneTopListDetail, nextFloatingToolbarOffset, topListChipColor, currentGallerySite } from '../shared/EhShared';
 import { GalleryListScene, GalleryListStateView } from './GalleryScenes';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
@@ -138,7 +138,11 @@ export struct TopListScene {
   private handleSystemBack(): boolean {
     if (this.showTagSearch) { this.closeTagSearch(); return true; }
     if (this.showReader) { this.closeReader(); return true; }
-    if (this.showDetail) { this.closeDetail(); return true; }
+    if (this.showDetail) {
+      if (runDetailBackHandler()) { return true; }
+      this.closeDetail();
+      return true;
+    }
     if (this.showGalleryList) { this.closeGalleryList(); return true; }
     return false;
   }
