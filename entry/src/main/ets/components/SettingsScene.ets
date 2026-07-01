@@ -259,6 +259,20 @@ export struct SettingsScene {
     }, 0);
   }
 
+  private isSettingsDetailPanel(panel: SettingsPanel): boolean {
+    return panel === SettingsPanel.Eh || panel === SettingsPanel.Read || panel === SettingsPanel.Download ||
+      panel === SettingsPanel.Privacy || panel === SettingsPanel.Advanced || panel === SettingsPanel.About;
+  }
+
+  private settingsDetailLayerPanel(): SettingsPanel {
+    for (let i = this.panelStack.length - 1; i >= 0; i--) {
+      if (this.isSettingsDetailPanel(this.panelStack[i])) {
+        return this.panelStack[i];
+      }
+    }
+    return SettingsPanel.Main;
+  }
+
   private signOut(): void {
     const context = getAbilityContext();
     if (context === undefined) {
@@ -1185,8 +1199,41 @@ export struct SettingsScene {
         }
       })
 
-      // Sub-panels slide in on top of Main; when returning to Main they slide away
-      // revealing Main underneath — no fade-in on Main needed.
+      // Ordinary settings panels stay underneath deeper panels. This keeps EH/Advanced
+      // visually fixed while account session, web config, filters, or migration slide over it.
+      if (this.settingsDetailLayerPanel() !== SettingsPanel.Main) {
+        SettingsDetailPanel({
+          panel: this.settingsDetailLayerPanel(),
+          signedIn: this.signedIn,
+          statusText: this.statusText,
+          themeName: this.themeName,
+          renderRevision: this.settingsRenderRevision,
+          settingEntries: this.settingEntries,
+          onBack: () => {
+            this.closePanel();
+          },
+          onOpenSession: () => {
+            this.openPanel(SettingsPanel.Session);
+          },
+          onOpenMigration: () => {
+            this.openPanel(SettingsPanel.Migration);
+          },
+          onSignOut: () => {
+            this.signOut();
+          },
+          onCycleSetting: (row: SettingsRowItem) => {
+            this.cycleSetting(row);
+          },
+          onSetSetting: (key: string, value: string) => {
+            this.saveSettingValue(key, value);
+          }
+        })
+          .transition(TransitionEffect.asymmetric(
+            TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }),
+            TransitionEffect.move(TransitionEdge.END).animation({ duration: 240, curve: Curve.EaseIn })))
+      }
+
+      // Deeper panels slide over the ordinary settings panel instead of replacing it.
       if (this.panel === SettingsPanel.Filter) {
         FilterPanel({
           rules: this.filterRules,
@@ -1274,36 +1321,6 @@ export struct SettingsScene {
         .height('100%')
         .transition(TransitionEffect.move(TransitionEdge.END)
           .animation({ duration: 300, curve: Curve.EaseOut }))
-      } else if (this.panel !== SettingsPanel.Main) {
-        SettingsDetailPanel({
-          panel: this.panel,
-          signedIn: this.signedIn,
-          statusText: this.statusText,
-          themeName: this.themeName,
-          renderRevision: this.settingsRenderRevision,
-          settingEntries: this.settingEntries,
-          onBack: () => {
-            this.closePanel();
-          },
-          onOpenSession: () => {
-            this.openPanel(SettingsPanel.Session);
-          },
-          onOpenMigration: () => {
-            this.openPanel(SettingsPanel.Migration);
-          },
-          onSignOut: () => {
-            this.signOut();
-          },
-          onCycleSetting: (row: SettingsRowItem) => {
-            this.cycleSetting(row);
-          },
-          onSetSetting: (key: string, value: string) => {
-            this.saveSettingValue(key, value);
-          }
-        })
-          .transition(TransitionEffect.asymmetric(
-            TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }),
-            TransitionEffect.move(TransitionEdge.END).animation({ duration: 240, curve: Curve.EaseIn })))
       }
 
       // Option picker slides in on top of everything
