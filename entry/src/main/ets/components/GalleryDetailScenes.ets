@@ -15,7 +15,7 @@ import { DetailHeader } from './detail/DetailHeader';
 import { DetailInfoBlock } from './detail/DetailInfo';
 import { DetailActions, RatingPanel } from './detail/DetailActions';
 import { DetailTags } from './detail/DetailTags';
-import { DetailPreviews } from './detail/DetailPreviews';
+import { DetailPreviews, DetailPreviewJumpOverlay } from './detail/DetailPreviews';
 import { DetailComments } from './detail/DetailComments';
 
 @Component
@@ -40,6 +40,7 @@ export struct GalleryDetailOverlayScene {
   onDownload: () => void = () => {};
   onRead: () => void = () => {};
   onSelectPreview: (preview: GalleryPreview) => void = () => {};
+  onJumpPreviewPage: (pageIndex: number) => void = (_pageIndex: number) => {};
   onComments: () => void = () => {};
   onFavorite: () => void = () => {};
   onShare: () => void = () => {};
@@ -83,6 +84,7 @@ export struct GalleryDetailOverlayScene {
         onDownload: this.onDownload,
         onRead: this.onRead,
         onSelectPreview: this.onSelectPreview,
+        onJumpPreviewPage: this.onJumpPreviewPage,
         onComments: this.onComments,
         onFavorite: this.onFavorite,
         onShare: this.onShare,
@@ -123,6 +125,7 @@ export struct GalleryDetailScene {
   onDownload: () => void = () => {};
   onRead: () => void = () => {};
   onSelectPreview: (preview: GalleryPreview) => void = () => {};
+  onJumpPreviewPage: (pageIndex: number) => void = (_pageIndex: number) => {};
   onComments: () => void = () => {};
   onFavorite: () => void = () => {};
   onShare: () => void = () => {};
@@ -142,6 +145,8 @@ export struct GalleryDetailScene {
   private detailScroller: Scroller = new Scroller();
   @State showRatingDialog: boolean = false;
   @State pendingRating: number = 0;
+  @State previewJumpPanelVisible: boolean = false;
+  @State previewJumpPageIndex: number = 0;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
 
   private statusBarVp(): number {
@@ -155,6 +160,32 @@ export struct GalleryDetailScene {
     const current = this.detail.rated && this.detail.rating > 0 ? Math.round(this.detail.rating) : 5;
     this.pendingRating = Math.max(1, Math.min(5, current));
     this.showRatingDialog = true;
+  }
+
+  private previewJumpTotalPages(): number {
+    if (this.detail.pages > 0) {
+      return this.detail.pages;
+    }
+    return Math.max(this.detail.previewPages, this.detail.previewSet.length);
+  }
+
+  private openPreviewJumpPanel(): void {
+    const total = this.previewJumpTotalPages();
+    if (!this.isDetailLoaded || total <= 1) {
+      return;
+    }
+    this.previewJumpPageIndex = Math.max(0, Math.min(this.previewJumpPageIndex, total - 1));
+    this.previewJumpPanelVisible = true;
+  }
+
+  private closePreviewJumpPanel(pageIndex: number): void {
+    const total = this.previewJumpTotalPages();
+    const target = Math.max(0, Math.min(pageIndex, Math.max(0, total - 1)));
+    this.previewJumpPageIndex = target;
+    this.previewJumpPanelVisible = false;
+    if (total > 1) {
+      this.onJumpPreviewPage(target);
+    }
   }
 
   build() {
@@ -218,8 +249,12 @@ export struct GalleryDetailScene {
             DetailPreviews({
               previews: this.detail.previewSet,
               previewPages: this.detail.previewPages,
+              totalPages: this.previewJumpTotalPages(),
               isDetailLoaded: this.isDetailLoaded,
-              onSelectPreview: this.onSelectPreview
+              onSelectPreview: this.onSelectPreview,
+              onOpenJumpPanel: () => {
+                this.openPreviewJumpPanel();
+              }
             })
           }
           .reuseId('detail-previews')
@@ -267,6 +302,17 @@ export struct GalleryDetailScene {
         .alignItems(HorizontalAlign.Center)
         .padding(24)
           .backgroundColor(themeScrimColor())
+      }
+      if (this.previewJumpPanelVisible) {
+        DetailPreviewJumpOverlay({
+          totalPages: this.previewJumpTotalPages(),
+          initialPageIndex: this.previewJumpPageIndex,
+          onClose: (pageIndex: number) => {
+            this.closePreviewJumpPanel(pageIndex);
+          }
+        })
+        .zIndex(12)
+        .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
       }
       if (this.archivePanelVisible) {
         ArchiveOptionsOverlay({

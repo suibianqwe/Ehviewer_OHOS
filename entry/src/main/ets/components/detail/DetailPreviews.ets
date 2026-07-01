@@ -9,8 +9,11 @@ import {
 } from '../../shared/EhShared';
 import {
   themePlaceholderColor,
+  themeOnPrimaryText,
+  themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
+  themeScrimColor,
   themeSurface,
   themeSurfaceVariant
 } from '../../shared/EhTheme';
@@ -19,8 +22,10 @@ import { GalleryThumb } from '../GalleryCards';
 export struct DetailPreviews {
   @Prop previews: GalleryPreview[] = [];
   @Prop previewPages: number = 0;
+  @Prop totalPages: number = 0;
   @Prop isDetailLoaded: boolean = false;
   onSelectPreview: (preview: GalleryPreview) => void = () => {};
+  onOpenJumpPanel: () => void = () => {};
   @State contentWidth: number = 0;
 
   private previewGap(): number {
@@ -60,6 +65,13 @@ export struct DetailPreviews {
     return value;
   }
 
+  private previewTotalPages(): number {
+    if (this.totalPages > 0) {
+      return this.totalPages;
+    }
+    return this.previewPages;
+  }
+
   private syncContentWidthFromWindow(): void {
     if (this.contentWidth >= 240) {
       return;
@@ -78,12 +90,18 @@ export struct DetailPreviews {
         .fontColor(themePrimaryText())
         .width('100%')
       Text(!this.isDetailLoaded ? uiText('Loading previews...') :
-        (shouldUseChineseUi() ? this.previews.length.toString() + ' 个缩略图 / ' + this.previewPages.toString() + ' 页' :
-          this.previews.length.toString() + ' thumbnails / ' + this.previewPages.toString() + ' pages'))
+        (shouldUseChineseUi() ? this.previews.length.toString() + ' 个缩略图 / ' +
+          this.previewTotalPages().toString() + ' 页' :
+          this.previews.length.toString() + ' thumbnails / ' + this.previewTotalPages().toString() + ' pages'))
         .fontSize(12)
-        .fontColor(themeSecondaryText())
+        .fontColor(this.isDetailLoaded && this.previewTotalPages() > 1 ? themePrimaryColor() : themeSecondaryText())
         .width('100%')
         .margin({ top: 6, bottom: 8 })
+        .onClick(() => {
+          if (this.isDetailLoaded && this.previewTotalPages() > 1) {
+            this.onOpenJumpPanel();
+          }
+        })
       if (this.isDetailLoaded && this.previews.length === 0) {
         Text(uiText('No previews'))
           .fontSize(12)
@@ -137,6 +155,92 @@ export struct DetailPreviews {
         rememberMainContentWidthVp(width);
       }
     })
+  }
+}
+
+@Component
+export struct DetailPreviewJumpOverlay {
+  @Prop totalPages: number = 0;
+  @Prop initialPageIndex: number = 0;
+  @State draftPageIndex: number = 0;
+  onClose: (pageIndex: number) => void = (_pageIndex: number) => {};
+
+  aboutToAppear(): void {
+    this.syncDraftPage();
+  }
+
+  private syncDraftPage(): void {
+    const maxIndex = Math.max(0, this.totalPages - 1);
+    this.draftPageIndex = Math.max(0, Math.min(this.initialPageIndex, maxIndex));
+  }
+
+  private closeWithSelection(): void {
+    const maxIndex = Math.max(0, this.totalPages - 1);
+    this.onClose(Math.max(0, Math.min(this.draftPageIndex, maxIndex)));
+  }
+
+  build() {
+    Stack({ alignContent: Alignment.Center }) {
+      Column()
+        .width('100%')
+        .height('100%')
+        .backgroundColor(themeScrimColor())
+        .onClick(() => {
+          this.closeWithSelection();
+        })
+
+      Column() {
+        Text(uiText('Jump'))
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(themePrimaryText())
+          .width('100%')
+        Text(uiText('Page') + ' ' + (this.draftPageIndex + 1).toString() + ' / ' +
+          Math.max(1, this.totalPages).toString())
+          .fontSize(15)
+          .fontColor(themeSecondaryText())
+          .width('100%')
+          .margin({ top: 12, bottom: 12 })
+        Slider({
+          value: this.draftPageIndex,
+          min: 0,
+          max: Math.max(0, this.totalPages - 1),
+          step: 1,
+          style: SliderStyle.OutSet
+        })
+          .blockColor(themePrimaryColor())
+          .selectedColor(themePrimaryColor())
+          .trackColor(themeSurfaceVariant())
+          .enabled(this.totalPages > 1)
+          .onChange((value: number, _mode: SliderChangeMode) => {
+            this.draftPageIndex = Math.round(value);
+          })
+        Button(uiText('Close'), { type: ButtonType.Normal, stateEffect: true })
+          .height(38)
+          .fontSize(14)
+          .fontColor(themeOnPrimaryText())
+          .backgroundColor(themePrimaryColor())
+          .borderRadius(6)
+          .width('100%')
+          .margin({ top: 16 })
+          .onClick(() => {
+            this.closeWithSelection();
+          })
+      }
+      .width('86%')
+      .constraintSize({ maxWidth: 420 })
+      .padding(18)
+      .backgroundColor(themeSurface())
+      .borderRadius(8)
+      .shadow({
+        radius: 18,
+        color: '#33000000',
+        offsetX: 0,
+        offsetY: 8
+      })
+    }
+    .width('100%')
+    .height('100%')
   }
 }
 

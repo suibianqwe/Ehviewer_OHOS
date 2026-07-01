@@ -201,6 +201,22 @@ export struct GalleryDetailHostScene {
     this.launchReader();
   }
 
+  private jumpPreviewPage(pageIndex: number): void {
+    const total = this.detail.pages > 0 ? this.detail.pages : this.detail.previewSet.length;
+    if (total <= 0) {
+      this.detailStatus = 'Read is waiting for preview pages';
+      this.renderVersion++;
+      return;
+    }
+    const target = Math.max(0, Math.min(pageIndex, total - 1));
+    const item = findDetailDownloadItem(this.detail.gid);
+    if (item !== null) {
+      this.openDownloadedReaderAt(item, target);
+    } else {
+      this.openRemoteReaderAt(target);
+    }
+  }
+
   private launchReader(): void {
     if (ehSettingsStore.getValue('reader_standalone', 'On') !== 'On') {
       this.onShowEmbeddedReader();
@@ -596,6 +612,9 @@ export struct GalleryDetailHostScene {
         } else {
           this.openRemoteReaderAt(preview.index);
         }
+      },
+      onJumpPreviewPage: (pageIndex: number) => {
+        this.jumpPreviewPage(pageIndex);
       },
       onComments: () => { this.openComments(); },
       onFavorite: () => { this.toggleFavoriteDetail(); },
