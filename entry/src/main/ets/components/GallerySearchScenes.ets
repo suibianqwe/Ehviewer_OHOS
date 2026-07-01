@@ -5,17 +5,6 @@ import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { mainContentWidthFallbackVp, rememberMainContentWidthVp } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, categoryColor, uiText } from '../shared/EhShared';
 import { themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePrimaryColor, themePrimaryText, themeSecondaryText, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
-import {
-  selectArrowModifier,
-  themedSelectButtonBackground,
-  themedSelectButtonText,
-  themedSelectMenuBackground,
-  themedSelectOptionBackground,
-  themedSelectOptionText,
-  themedSelectOutlineColor,
-  themedSelectSelectedOptionBackground,
-  themedSelectSelectedOptionText
-} from '../shared/EhSelectStyle';
 
 export interface SearchSuggestionItem {
   kind: string;
@@ -34,6 +23,11 @@ export interface GalleryUrlMatch {
 interface SearchCategoryOption {
   label: string;
   category: number;
+}
+
+interface SearchModeOption {
+  label: string;
+  mode: ListMode;
 }
 
 interface TagNamespaceOption {
@@ -510,7 +504,6 @@ export struct SearchAdvancedPanel {
   @State minRatingDraft: number = -1;
   @State pageFromDraft: number = -1;
   @State pageToDraft: number = -1;
-  @State modeLabelDraft: string = '';
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   onSearchModeChange: (mode: ListMode) => void = (_mode: ListMode) => {};
   onSearchCategoryChange: (category: number) => void = (_category: number) => {};
@@ -530,15 +523,14 @@ export struct SearchAdvancedPanel {
     this.minRatingDraft = this.minRating;
     this.pageFromDraft = this.pageFrom;
     this.pageToDraft = this.pageTo;
-    this.modeLabelDraft = this.modeLabelForIndex(this.searchModeIndex());
   }
 
-  private searchModeOptions(): SelectOption[] {
+  private searchModeOptions(): SearchModeOption[] {
     return [
-      { value: uiText('General search') },
-      { value: uiText('Subscription search') },
-      { value: uiText('Uploader search') },
-      { value: uiText('Tag search') }
+      { label: 'General search', mode: ListMode.Normal },
+      { label: 'Subscription search', mode: ListMode.Subscription },
+      { label: 'Uploader search', mode: ListMode.Uploader },
+      { label: 'Tag search', mode: ListMode.Tag }
     ];
   }
   private categoryOptions(): SearchCategoryOption[] {
@@ -554,27 +546,6 @@ export struct SearchAdvancedPanel {
       { label: 'Western', category: GalleryCategory.Western },
       { label: 'Misc', category: GalleryCategory.Misc }
     ];
-  }
-
-  private searchModeIndex(): number {
-    if (this.modeDraft === ListMode.Subscription) {
-      return 1;
-    }
-    if (this.modeDraft === ListMode.Uploader) {
-      return 2;
-    }
-    if (this.modeDraft === ListMode.Tag) {
-      return 3;
-    }
-    return 0;
-  }
-
-  private modeLabelForIndex(index: number): string {
-    const options = this.searchModeOptions();
-    if (index < 0 || index >= options.length) {
-      return options[0].value as string;
-    }
-    return options[index].value as string;
   }
 
   private selectedCategoryMask(): number {
@@ -606,19 +577,6 @@ export struct SearchAdvancedPanel {
     const mask = this.selectedCategoryMask();
     const next = (mask & category) !== 0 ? (mask & ~category) : (mask | category);
     this.emitCategoryMask(next);
-  }
-
-  private modeForIndex(index: number): ListMode {
-    if (index === 1) {
-      return ListMode.Subscription;
-    }
-    if (index === 2) {
-      return ListMode.Uploader;
-    }
-    if (index === 3) {
-      return ListMode.Tag;
-    }
-    return ListMode.Normal;
   }
 
   private ratingLevel(): number {
@@ -663,30 +621,20 @@ export struct SearchAdvancedPanel {
     Column() {
       Scroll() {
         Column({ space: 10 }) {
-          Row() {
-            Select(this.searchModeOptions())
-              .id('search-mode-select-' + this.languageRevision.toString() + '-' + this.modeLabelDraft)
-              .selected(this.searchModeIndex())
-              .value(this.modeLabelDraft.length > 0 ? this.modeLabelDraft : this.modeLabelForIndex(this.searchModeIndex()))
-              .height(38)
-              .width('100%')
-              .fontColor(themedSelectButtonText())
-              .backgroundColor(themedSelectButtonBackground())
-              .menuBackgroundColor(themedSelectMenuBackground())
-              .menuBackgroundBlurStyle(BlurStyle.NONE)
-              .optionBgColor(themedSelectOptionBackground())
-              .optionFontColor(themedSelectOptionText())
-              .optionFont({ size: 13 })
-              .selectedOptionBgColor(themedSelectSelectedOptionBackground())
-              .selectedOptionFontColor(themedSelectSelectedOptionText())
-              .menuOutline({ width: 1, color: themedSelectOutlineColor() })
-              .arrowModifier(selectArrowModifier())
-              .onSelect((index: number) => {
-                const next = this.modeForIndex(index);
-                this.modeDraft = next;
-                this.modeLabelDraft = this.modeLabelForIndex(index);
-                this.onSearchModeChange(next);
+          Row({ space: 6 }) {
+            ForEach(this.searchModeOptions(), (option: SearchModeOption) => {
+              SearchModeSegmentButton({
+                label: option.label,
+                selected: option.mode === this.modeDraft,
+                onSelect: () => {
+                  if (option.mode === this.modeDraft) {
+                    return;
+                  }
+                  this.modeDraft = option.mode;
+                  this.onSearchModeChange(option.mode);
+                }
               })
+            }, (option: SearchModeOption) => option.mode.toString() + '-' + this.languageRevision.toString())
           }
           .width('100%')
 
@@ -1068,6 +1016,34 @@ export struct ActionBubble {
     .transition(TransitionEffect.OPACITY
       .combine(TransitionEffect.translate({ y: 12 }))
       .animation({ duration: 160, curve: Curve.EaseOut }))
+  }
+}
+
+@Component
+export struct SearchModeSegmentButton {
+  @Prop label: string = '';
+  @Prop selected: boolean = false;
+  onSelect: () => void = () => {};
+
+  build() {
+    Button({ type: ButtonType.Normal, stateEffect: true }) {
+      Text(uiText(this.label))
+        .fontSize(12)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.selected ? themeOnPrimaryText() : themeSecondaryText())
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .width('100%')
+        .textAlign(TextAlign.Center)
+    }
+    .height(34)
+    .layoutWeight(1)
+    .padding({ left: 4, right: 4 })
+    .backgroundColor(this.selected ? themePrimaryColor() : themeSurfaceVariant())
+    .borderRadius(4)
+    .onClick(() => {
+      this.onSelect();
+    })
   }
 }
 
