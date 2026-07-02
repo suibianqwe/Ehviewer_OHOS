@@ -46,6 +46,7 @@ import { createReaderSessionState, readerSessionStore } from '../services/Reader
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import {
   cloneGalleryDetail,
+  cloneGalleryPreviews,
   createEmptyDetail,
   createEmptyPage,
   getAbilityContext,
@@ -81,6 +82,42 @@ function cloneDetailHostLink(link: GalleryDetailLink): GalleryDetailLink {
   };
 }
 
+function detailPreviewPageSize(detail: GalleryDetail, currentPageSize: number): number {
+  if (currentPageSize > 0) {
+    return currentPageSize;
+  }
+  if (detail.previewPages > 1 && detail.pages > 0) {
+    return Math.max(1, Math.ceil(detail.pages / detail.previewPages));
+  }
+  return Math.max(1, detail.previewSet.length);
+}
+
+function selectPreviewPage(previews: GalleryPreview[], pageIndex: number, pageSize: number): GalleryPreview[] {
+  const start = Math.max(0, pageIndex) * Math.max(1, pageSize);
+  const end = start + Math.max(1, pageSize);
+  const selected: GalleryPreview[] = [];
+  for (let i = 0; i < previews.length; i++) {
+    if (previews[i].index >= start && previews[i].index < end) {
+      selected.push(previews[i]);
+    }
+  }
+  selected.sort((left: GalleryPreview, right: GalleryPreview) => left.index - right.index);
+  return cloneGalleryPreviews(selected);
+}
+
+function mergePreviewList(current: GalleryPreview[], loaded: GalleryPreview[]): GalleryPreview[] {
+  const byIndex: Map<number, GalleryPreview> = new Map();
+  for (let i = 0; i < current.length; i++) {
+    byIndex.set(current[i].index, current[i]);
+  }
+  for (let i = 0; i < loaded.length; i++) {
+    byIndex.set(loaded[i].index, loaded[i]);
+  }
+  const merged = Array.from(byIndex.values());
+  merged.sort((left: GalleryPreview, right: GalleryPreview) => left.index - right.index);
+  return cloneGalleryPreviews(merged);
+}
+
 @Component
 export struct GalleryDetailHostScene {
   @Prop detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();
@@ -96,12 +133,15 @@ export struct GalleryDetailHostScene {
   private detailPreviewPager: DetailPreviewPager = new DetailPreviewPager();
   private previewMap: Map<number, GalleryPreview> = new Map();
   private previewPageSize: number = 0;
+  private previewJumpSerial: number = 0;
+  private previewJumpLoading: boolean = false;
   private unsubscribeDownloadStore: () => void = () => {};
   private unregisterDetailBackHandler: () => void = () => {};
   private cellularWarningDialogOpen: boolean = false;
   @State renderVersion: number = 0;
   @State showComments: boolean = false;
   @State detail: GalleryDetail = createEmptyDetail();
+  @State visiblePreviews: GalleryPreview[] = [];
   @State detailLoaded: boolean = false;
   @State detailStatus: string = '';
   @State detailRequestUrl: string = '';
@@ -187,6 +227,9 @@ export struct GalleryDetailHostScene {
     this.detailPreviewPager.start();
     this.previewMap.clear();
     this.previewPageSize = 0;
+    this.previewJumpSerial++;
+    this.previewJumpLoading = false;
+    this.visiblePreviews = [];
     this.showComments = navigationState.showComments;
     this.commentGalleryLink = navigationState.commentGalleryLink;
     this.detail = initialDetailForLink(this.detailLink);
@@ -209,6 +252,7 @@ export struct GalleryDetailHostScene {
         return;
       }
       this.detail = result.detail;
+      this.visiblePreviews = cloneGalleryPreviews(this.detail.previewSet);
       this.detailRequestUrl = result.url;
       this.detailStatus = result.statusText;
       this.detailLoaded = true;
@@ -233,6 +277,12 @@ export struct GalleryDetailHostScene {
     }
     this.detailDownloadText = detailDownloadButtonText(this.detail.gid);
     this.renderVersion++;
+  }
+
+  private displayDetail(): GalleryDetail {
+    const detail = cloneGalleryDetail(this.detail);
+    detail.previewSet = cloneGalleryPreviews(this.visiblePreviews);
+    return detail;
   }
 
   private openComments(): void {
@@ -306,7 +356,14 @@ export struct GalleryDetailHostScene {
       return;
     }
     const target = Math.max(0, Math.min(pageIndex, total - 1));
-    if (target === 0 || this.isPreviewPageLoaded(target)) {
+    const activeJumpSerial = ++this.previewJumpSerial;
+    const pageSize = detailPreviewPageSize(this.detail, this.previewPageSize);
+    this.previewPageSize = pageSize;
+    this.detailPreviewPager.setNextPageIndex(target + 1);
+    this.visiblePreviews = selectPreviewPage(this.detail.previewSet, target, pageSize);
+    this.previewJumpLoading = target > 0;
+    if (target === 0) {
+      this.previewJumpLoading = false;
       this.detailStatus = 'Preview page ' + (target + 1).toString() + '/' + total.toString() + ' loaded';
       this.renderVersion++;
       return;
@@ -320,39 +377,42 @@ export struct GalleryDetailHostScene {
       referer: referer,
       pageIndex: target,
       getDetail: () => this.detail,
-      isCurrent: () => this.detail.gid === this.detailLink.gid,
+      isCurrent: () => activeJumpSerial === this.previewJumpSerial && this.detail.gid === this.detailLink.gid,
       onMerge: (detail: GalleryDetail) => {
         const merged = mergeGalleryPreviewSets(this.detail, detail, this.previewMap, this.previewPageSize);
         this.detail = merged.detail;
         this.previewPageSize = merged.previewPageSize;
+        this.visiblePreviews = cloneGalleryPreviews(detail.previewSet);
+        this.previewJumpLoading = false;
         this.detailStatus = 'Preview page ' + (target + 1).toString() + '/' + total.toString() + ' loaded';
         this.onDetailLoaded(this.detail);
         this.renderVersion++;
       },
       onError: (message: string) => {
+        if (activeJumpSerial !== this.previewJumpSerial) {
+          return;
+        }
+        this.previewJumpLoading = false;
         this.detailStatus = 'Preview page load failed: ' + message;
         this.renderVersion++;
       }
     }).then((loaded: boolean) => {
+      if (activeJumpSerial !== this.previewJumpSerial) {
+        return;
+      }
+      this.previewJumpLoading = false;
       if (!loaded && this.detailStatus.indexOf('Preview page load failed') !== 0) {
         this.detailStatus = 'Preview page ' + (target + 1).toString() + '/' + total.toString() + ' unavailable';
         this.renderVersion++;
       }
     }).catch((error: Error) => {
+      if (activeJumpSerial !== this.previewJumpSerial) {
+        return;
+      }
+      this.previewJumpLoading = false;
       this.detailStatus = 'Preview page load failed: ' + error.message;
       this.renderVersion++;
     });
-  }
-
-  private isPreviewPageLoaded(pageIndex: number): boolean {
-    if (pageIndex <= 0) {
-      return this.detail.previewSet.length > 0;
-    }
-    if (this.previewPageSize <= 0) {
-      return false;
-    }
-    const firstPreviewIndex = pageIndex * this.previewPageSize;
-    return this.previewMap.has(firstPreviewIndex);
   }
 
   private launchReader(): void {
@@ -702,6 +762,9 @@ export struct GalleryDetailHostScene {
   }
 
   private async loadNextDetailPreviewPage(): Promise<void> {
+    if (this.previewJumpLoading) {
+      return;
+    }
     const referer = this.detailRequestUrl.length > 0 ? this.detailRequestUrl : this.detailLink.referer;
     await this.detailPreviewPager.loadNext({
       client: this.client,
@@ -713,6 +776,7 @@ export struct GalleryDetailHostScene {
         const merged = mergeGalleryPreviewSets(this.detail, detail, this.previewMap, this.previewPageSize);
         this.detail = merged.detail;
         this.previewPageSize = merged.previewPageSize;
+        this.visiblePreviews = mergePreviewList(this.visiblePreviews, detail.previewSet);
         this.renderVersion++;
       },
       onError: (message: string) => {
@@ -781,7 +845,7 @@ export struct GalleryDetailHostScene {
       GalleryDetailOverlayScene({
         renderVersion: this.renderVersion,
         showComments: this.showComments,
-        detail: this.detail,
+        detail: this.displayDetail(),
         isDetailLoaded: this.detailLoaded,
         isFavorited: this.optimisticFavorite || this.detail.isFavorited,
         statusText: this.detailStatus,

@@ -113,6 +113,12 @@ export class DetailPreviewPager {
     this.start();
   }
 
+  setNextPageIndex(pageIndex: number): void {
+    this.serial++;
+    this.nextPageIndex = Math.max(1, pageIndex);
+    this.loading = false;
+  }
+
   async loadNext(options: DetailPreviewPagerOptions): Promise<void> {
     const current = options.getDetail();
     if (this.loading || current.previewPages <= 1 || this.nextPageIndex >= current.previewPages) {
