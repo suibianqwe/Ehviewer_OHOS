@@ -11,7 +11,7 @@ import { EhUrl, ListMode } from '../services/EhUrl';
 import { readerImageCache } from '../services/ReaderImageCache';
 import { previewThumbnailCache } from '../services/PreviewThumbnailCache';
 import { FilterRule, ehFilterStore } from '../services/EhFilterStore';
-import { EH_APP_VERSION_NAME, EH_AUTHOR_NAME, EH_GIT_BRANCH, EH_RELEASE_TAG } from '../services/EhBuildInfo';
+import { EH_AUTHOR_NAME, EH_RELEASE_TAG } from '../services/EhBuildInfo';
 import {
   EH_THEME_PRIMARY_COLOR,
   currentDarkModeThemeName as themeCurrentDarkModeThemeName,
@@ -97,7 +97,6 @@ export enum SettingsPanel {
   Advanced = 'advanced',
   About = 'about',
   Session = 'session',
-  Migration = 'migration',
   WebView = 'webview',
   Filter = 'filter'
 }
@@ -119,7 +118,7 @@ export const SETTINGS_HEADERS: SettingsHeaderItem[] = [
   { panel: SettingsPanel.Download, title: 'Download', icon: 'D', summary: 'Location, threads, preload and cleanup' },
   { panel: SettingsPanel.Privacy, title: 'Privacy', icon: 'P', summary: 'Lock and local data controls' },
   { panel: SettingsPanel.Advanced, title: 'Advanced', icon: 'A', summary: 'Network, cache, hosts and diagnostics' },
-  { panel: SettingsPanel.About, title: 'About', icon: 'I', summary: 'Version, license and migration status' }
+  { panel: SettingsPanel.About, title: 'About', icon: 'I', summary: 'Version and license' }
 ];
 
 export function notifyLanguageChanged(): void {
@@ -642,7 +641,6 @@ export function zhText(text: string): string {
     case 'UConfig': return '账号配置';
     case 'My Tags': return '我的标签';
     case 'Migration': return '迁移状态';
-    case 'Migration status': return '迁移状态';
     case 'Open': return '打开';
     case 'Run': return '运行';
     case 'Scan': return '扫描';
@@ -703,14 +701,13 @@ export function zhText(text: string): string {
     case 'Location, threads, preload and cleanup': return '位置、线程、预加载和清理';
     case 'Lock and local data controls': return '锁定和本地数据控制';
     case 'Network, cache, hosts and diagnostics': return '网络、缓存、hosts 和诊断';
-    case 'Version, license and migration status': return '版本、许可和迁移状态';
+    case 'Version and license': return '版本和许可证';
     case 'Settings follow the original Android header groups': return '设置按原 Android 应用分组';
     case 'Account session': return '账号会话';
     case 'Cookie session is available. Open to replace or inspect cookies.': return 'Cookie 会话可用。打开后可替换或查看 Cookie。';
     case 'Open password, WebView or Cookie sign-in. This matches the original startup sign-in flow.': return '打开密码、网页或 Cookie 登录，保持原应用启动登录流程。';
     case 'Clear the persisted identity cookies': return '清除已保存的身份 Cookie';
     case 'Original app cycles Light, Dark and Black from drawer/footer and Settings': return '原应用可在抽屉/底部和设置中切换亮色、暗色、黑色主题';
-    case 'Open the HarmonyOS port checklist': return '打开 HarmonyOS 移植清单';
     case 'Identity cookies': return '身份 Cookie';
     case 'View or import ipb_member_id, ipb_pass_hash and igneous': return '查看或导入 ipb_member_id、ipb_pass_hash 和 igneous';
     case 'Gallery site': return '画廊站点';
@@ -861,18 +858,14 @@ export function zhText(text: string): string {
     case 'Current HarmonyOS repository': return '当前 HarmonyOS 仓库';
     case 'Author': return '作者';
     case 'xiaojieonly/Ehviewer_CN_SXJ contributors': return 'xiaojieonly/Ehviewer_CN_SXJ 贡献者';
-    case 'Latest release': return '最新版本';
     case 'GitHub release for the current port': return '当前移植版 GitHub release';
     case 'Issue help': return '问题帮助';
     case 'Issue tracker for the current port': return '当前移植版问题反馈';
     case 'License': return '许可证';
-    case 'Open-source license view': return '开源许可证查看';
+    case 'Inherited from original app': return '继承自原应用';
     case 'Version': return '版本';
-    case 'HarmonyOS port workspace version': return 'HarmonyOS 移植工作区版本';
-    case 'Release': return '发布版本';
     case 'Git commit': return 'Git 提交';
     case 'Branch and describe from the build workspace': return '构建工作区分支和 describe 信息';
-    case 'Branch and release from the build workspace': return '构建工作区分支和发布版本';
     case 'Check for updates': return '检查更新';
     case 'Check the latest GitHub release': return '检查 GitHub 最新发布版本';
     case 'Disable startup update check': return '关闭启动时自动检查更新';
@@ -1875,9 +1868,6 @@ export function settingsPanelTitle(panel: SettingsPanel): string {
   if (panel === SettingsPanel.Session) {
     return 'Sign in';
   }
-  if (panel === SettingsPanel.Migration) {
-    return 'Migration';
-  }
   return 'Settings';
 }
 
@@ -1995,12 +1985,9 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     return [
       staticSettingsRow('declaration', 'Declaration', 'Current HarmonyOS repository', 'Info', 'message'),
       staticSettingsRow('author', 'Author', EH_AUTHOR_NAME, 'GitHub', 'url'),
-      staticSettingsRow('latest_release', 'Latest release', 'GitHub release for the current port', EH_RELEASE_TAG, 'url'),
+      staticSettingsRow('latest_release', 'Version', 'GitHub release for the current port', EH_RELEASE_TAG, 'url'),
       staticSettingsRow('issue_help', 'Issue help', 'Issue tracker for the current port', 'Issues', 'url'),
-      staticSettingsRow('license', 'License', 'Open-source license view', 'GPL', 'activity'),
-      staticSettingsRow('version', 'Version', 'HarmonyOS port workspace version', EH_APP_VERSION_NAME, 'version'),
-      staticSettingsRow('git_commit', 'Release', 'Branch and release from the build workspace',
-        EH_GIT_BRANCH + ' / ' + EH_RELEASE_TAG, 'version'),
+      staticSettingsRow('license', 'License', 'Inherited from original app', 'GPL-3.0', 'url'),
       staticSettingsRow('check_for_updates', 'Check for updates', 'Check the latest GitHub release', 'Run', 'action'),
       optionSettingsRow('close_auto_updates', 'Close automatic updates', 'Disable startup update check', entries, ON_OFF_OPTIONS),
       staticSettingsRow('donate', 'Donate', 'Original donation entry', 'Not migrated', 'url')

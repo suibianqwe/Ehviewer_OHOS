@@ -34,9 +34,7 @@ import {
   EH_APP_VERSION_NAME,
   EH_AUTHOR_NAME,
   EH_AUTHOR_URL,
-  EH_GIT_BRANCH,
   EH_ISSUES_URL,
-  EH_RELEASE_TAG,
   EH_RELEASE_URL,
   EH_REPOSITORY_URL,
   EH_TARGET_PLATFORM
@@ -72,8 +70,8 @@ import {
   themedSelectSelectedOptionBackground,
   themedSelectSelectedOptionText
 } from '../shared/EhSelectStyle';
-import { EhBackupBundle, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, uiStatusText, setActiveBackHandler, padTwo, getAbilityContext, downloadSizeText, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, cloneStringOptions, settingMigrationMessage, isValidProxyPortText, formatNetworkDiagnostics, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption, normalizeIdentityAuthenticationOption } from '../shared/EhShared';
-import { FilterPanel, MigrationScene } from './DownloadMigrationScenes';
+import { EhBackupBundle, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, setActiveBackHandler, padTwo, getAbilityContext, downloadSizeText, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, cloneStringOptions, settingMigrationMessage, isValidProxyPortText, formatNetworkDiagnostics, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption, normalizeIdentityAuthenticationOption } from '../shared/EhShared';
+import { FilterPanel } from './DownloadMigrationScenes';
 import { AppSubToolbar, AppToolbar } from './NavigationComponents';
 import { collectWebCookies, hasLoginCookie, SessionScene, syncCookieHeaderToWebView } from './SessionScene';
 import { UpdatePromptOverlay } from './UpdatePromptOverlay';
@@ -81,6 +79,7 @@ import { UpdatePromptOverlay } from './UpdatePromptOverlay';
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
 const DIAGNOSTIC_LOG_TAG: string = 'SettingsScene';
 const LOG_EXPORT_CHUNK_BYTES: number = 64 * 1024;
+const EH_LICENSE_URL: string = 'https://github.com/suibianqwe/Ehviewer_OHOS/blob/main/LICENSE';
 
 function cloneSettingsPanelStack(stack: SettingsPanel[]): SettingsPanel[] {
   const result: SettingsPanel[] = [];
@@ -625,7 +624,7 @@ export struct SettingsScene {
       return true;
     }
     if (key === 'latest_release') {
-      this.openExternalUrl(EH_RELEASE_URL, 'latest release');
+      this.openExternalUrl(EH_RELEASE_URL, 'version');
       return true;
     }
     if (key === 'issue_help') {
@@ -633,16 +632,7 @@ export struct SettingsScene {
       return true;
     }
     if (key === 'license') {
-      this.statusText = 'License: GPL-compatible open-source project. Keep source disclosure for redistributed builds.';
-      return true;
-    }
-    if (key === 'version') {
-      this.statusText = 'Version: ' + EH_APP_VERSION_NAME + ' (' + EH_APP_VERSION_CODE.toString() + '), target ' +
-        EH_TARGET_PLATFORM + '.';
-      return true;
-    }
-    if (key === 'git_commit') {
-      this.statusText = 'Git: ' + EH_GIT_BRANCH + ' / ' + EH_RELEASE_TAG + '.';
+      this.openExternalUrl(EH_LICENSE_URL, 'license');
       return true;
     }
     if (key === 'check_for_updates') {
@@ -1191,8 +1181,6 @@ export struct SettingsScene {
       // Main panel always rendered at the bottom so sub-panels can slide over it
       // and returning to Main requires no enter animation — it's already there.
       SettingsHomePanel({
-        signedIn: this.signedIn,
-        statusText: this.statusText,
         onMenu: this.onMenu,
         onOpen: (panel: SettingsPanel) => {
           this.openPanel(panel);
@@ -1205,7 +1193,6 @@ export struct SettingsScene {
         SettingsDetailPanel({
           panel: this.settingsDetailLayerPanel(),
           signedIn: this.signedIn,
-          statusText: this.statusText,
           themeName: this.themeName,
           renderRevision: this.settingsRenderRevision,
           settingEntries: this.settingEntries,
@@ -1214,9 +1201,6 @@ export struct SettingsScene {
           },
           onOpenSession: () => {
             this.openPanel(SettingsPanel.Session);
-          },
-          onOpenMigration: () => {
-            this.openPanel(SettingsPanel.Migration);
           },
           onSignOut: () => {
             this.signOut();
@@ -1300,21 +1284,6 @@ export struct SettingsScene {
               this.onSignedIn();
             }
           })
-            .layoutWeight(1)
-        }
-        .width('100%')
-        .height('100%')
-        .transition(TransitionEffect.move(TransitionEdge.END)
-          .animation({ duration: 300, curve: Curve.EaseOut }))
-      } else if (this.panel === SettingsPanel.Migration) {
-        Column() {
-          SettingsSubToolbar({
-            title: uiText('Migration'),
-            onBack: () => {
-              this.closePanel();
-            }
-          })
-          MigrationScene()
             .layoutWeight(1)
         }
         .width('100%')
@@ -1465,8 +1434,6 @@ struct DownloadMigrationConfirmOverlay {
 
 @Component
 export struct SettingsHomePanel {
-  @Prop signedIn: boolean = false;
-  @Prop statusText: string = '';
   onMenu: () => void = () => {};
   onOpen: (panel: SettingsPanel) => void = () => {};
 
@@ -1479,11 +1446,9 @@ export struct SettingsHomePanel {
       })
 
       List({ space: 8 }) {
-        if (this.statusText.length > 0) {
-          ListItem() {
-            SettingsStatusBlock({ statusText: this.statusText })
-          }
-          .reuseId('settings-status')
+        ListItem() {
+          Row()
+            .height(0)
         }
         ForEach(SETTINGS_HEADERS, (item: SettingsHeaderItem) => {
           ListItem() {
@@ -1495,6 +1460,10 @@ export struct SettingsHomePanel {
             })
           }
         }, (item: SettingsHeaderItem) => item.panel)
+        ListItem() {
+          Row()
+            .height(0)
+        }
       }
       .width('100%')
       .height('100%')
@@ -1549,29 +1518,6 @@ export struct SettingsHeaderRow {
 }
 
 @Component
-export struct SettingsStatusBlock {
-  @Prop statusText: string = '';
-
-  build() {
-    Row() {
-      SymbolGlyph($r('sys.symbol.info_circle'))
-        .fontSize(20)
-        .fontColor([themePrimaryColor()])
-        .margin({ right: 10 })
-      Text(uiStatusText(this.statusText))
-        .fontSize(13)
-        .fontColor(themeSecondaryText())
-        .lineHeight(19)
-        .layoutWeight(1)
-    }
-    .width('100%')
-    .padding(14)
-    .backgroundColor(themeSurfaceVariant())
-    .borderRadius(6)
-  }
-}
-
-@Component
 export struct SettingsTextBlock {
   title: string = '';
   summary: string = '';
@@ -1599,13 +1545,11 @@ export struct SettingsTextBlock {
 export struct SettingsDetailPanel {
   panel: SettingsPanel = SettingsPanel.Eh;
   @Prop signedIn: boolean = false;
-  @Prop statusText: string = '';
   @Prop themeName: string = 'Light';
   @Prop renderRevision: number = 0;
   @Prop settingEntries: SettingEntry[] = [];
   onBack: () => void = () => {};
   onOpenSession: () => void = () => {};
-  onOpenMigration: () => void = () => {};
   onSignOut: () => void = () => {};
   onCycleSetting: (row: SettingsRowItem) => void = () => {};
   onSetSetting: (key: string, value: string) => void = () => {};
@@ -1618,11 +1562,9 @@ export struct SettingsDetailPanel {
       })
 
       List({ space: 8 }) {
-        if (this.statusText.length > 0) {
-          ListItem() {
-            SettingsStatusBlock({ statusText: this.statusText })
-          }
-          .reuseId('settings-status')
+        ListItem() {
+          Row()
+            .height(0)
         }
         if (this.panel === SettingsPanel.Eh) {
           ListItem() {
@@ -1666,37 +1608,6 @@ export struct SettingsDetailPanel {
             }
             .reuseId('settings-static-row')
           }, (row: SettingsRowItem) => settingsRowRenderKey(row))
-        } else if (this.panel === SettingsPanel.About) {
-          ForEach(settingsRowsForPanel(this.panel, this.themeName, this.settingEntries), (row: SettingsRowItem) => {
-            ListItem() {
-              SettingsStaticRow({
-                row: row,
-                renderRevision: this.renderRevision,
-                onTextChange: (key: string, value: string) => {
-                  this.onSetSetting(key, value);
-                },
-                onSwitchChange: (key: string, isOn: boolean) => {
-                  this.onSetSetting(key, isOn ? 'On' : 'Off');
-                },
-                onOptionSelect: (key: string, value: string) => {
-                  this.onSetSetting(key, value);
-                },
-                onTap: () => {
-                  this.onCycleSetting(row);
-                }
-              })
-            }
-            .reuseId('settings-static-row')
-          }, (row: SettingsRowItem) => settingsRowRenderKey(row))
-          ListItem() {
-            SettingsActionRow({
-              title: uiText('Migration status'),
-              summary: uiText('Open the HarmonyOS port checklist'),
-              value: uiText('Open'),
-              onTap: this.onOpenMigration
-            })
-          }
-          .reuseId('settings-migration-action')
         } else {
           ForEach(settingsRowsForPanel(this.panel, this.themeName, this.settingEntries), (row: SettingsRowItem) => {
             ListItem() {
@@ -1720,7 +1631,10 @@ export struct SettingsDetailPanel {
             .reuseId('settings-static-row')
           }, (row: SettingsRowItem) => settingsRowRenderKey(row))
         }
-
+        ListItem() {
+          Row()
+            .height(0)
+        }
       }
       .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
       .width('100%')
