@@ -52,6 +52,7 @@ export struct ReaderImageViewport {
   @State displayImageWidth: number = 1;
   @State displayImageHeight: number = 1;
   @State downloadProgress: number = -1;
+  @State imageRetryVersion: number = 0;
   private lastCommandVersion: number = -1;
   private sourceSizeRequestId: number = 0;
   private downloadProgressRequestId: number = 0;
@@ -96,6 +97,19 @@ export struct ReaderImageViewport {
 
   private imageUrl(): string {
     return readerDisplayImageUrl(this.page, this.preferOriginal);
+  }
+
+  private imageNodeId(): string {
+    const sourceKey = this.sourceImageCacheKey().length > 0 ? this.sourceImageCacheKey() : this.imageUrl();
+    return 'reader-image-' + this.imageRetryVersion.toString() + '-' + sourceKey;
+  }
+
+  private retryImage(): void {
+    this.failedImageUrl = '';
+    this.completedImageUrl = '';
+    this.downloadProgress = -1;
+    this.imageRetryVersion++;
+    this.onRetry();
   }
 
   private isFailed(): boolean {
@@ -366,6 +380,7 @@ export struct ReaderImageViewport {
       if (this.imageUrl().length > 0) {
         Stack({ alignContent: this.startAlignment() }) {
           Image(this.imageUrl())
+            .id(this.imageNodeId())
             .width(this.imageDisplayWidth())
             .height(this.imageDisplayHeight())
             .objectFit(this.imageObjectFit())
@@ -401,9 +416,7 @@ export struct ReaderImageViewport {
             failed: true,
             compact: false,
             onRetry: () => {
-              this.failedImageUrl = '';
-              this.completedImageUrl = '';
-              this.onRetry();
+              this.retryImage();
             }
           })
             .zIndex(2)
@@ -414,7 +427,7 @@ export struct ReaderImageViewport {
           compact: false,
           progress: this.downloadProgress,
           onRetry: () => {
-            this.onRetry();
+            this.retryImage();
           }
         })
       }
@@ -435,6 +448,10 @@ export struct ReaderImageViewport {
           }),
         TapGesture({ count: 1 })
           .onAction((event: GestureEvent) => {
+            if (this.isFailed()) {
+              this.retryImage();
+              return;
+            }
             this.onTap(
               this.tapCenterX(event),
               this.tapCenterY(event),

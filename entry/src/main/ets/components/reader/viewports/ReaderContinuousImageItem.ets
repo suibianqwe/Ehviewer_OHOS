@@ -50,6 +50,7 @@ export struct ReaderContinuousImageItem {
   @State displayImageWidth: number = 1;
   @State displayImageHeight: number = 120;
   @State downloadProgress: number = -1;
+  @State imageRetryVersion: number = 0;
   private isPinching: boolean = false;
   private pinchStartScale: number = READER_BASE_SCALE;
   private sourceSizeRequestId: number = 0;
@@ -62,6 +63,19 @@ export struct ReaderContinuousImageItem {
 
   private imageUrl(): string {
     return readerDisplayImageUrl(this.page, this.preferOriginal);
+  }
+
+  private imageNodeId(): string {
+    const sourceKey = this.sourceImageCacheKey().length > 0 ? this.sourceImageCacheKey() : this.imageUrl();
+    return 'reader-continuous-image-' + this.imageRetryVersion.toString() + '-' + sourceKey;
+  }
+
+  private retryImage(): void {
+    this.failedImageUrl = '';
+    this.completedImageUrl = '';
+    this.downloadProgress = -1;
+    this.imageRetryVersion++;
+    this.onRetry();
   }
 
   private onImageSourceChange(): void {
@@ -259,6 +273,7 @@ export struct ReaderContinuousImageItem {
     Stack({ alignContent: Alignment.Center }) {
       if (this.imageUrl().length > 0) {
         Image(this.imageUrl())
+          .id(this.imageNodeId())
           .width(this.displayWidth())
           .height(this.displayHeight())
           .objectFit(this.imageObjectFit())
@@ -290,9 +305,7 @@ export struct ReaderContinuousImageItem {
           failed: true,
           compact: true,
           onRetry: () => {
-            this.failedImageUrl = '';
-            this.completedImageUrl = '';
-            this.onRetry();
+            this.retryImage();
           }
         })
       }
@@ -313,9 +326,7 @@ export struct ReaderContinuousImageItem {
         TapGesture({ count: 1 })
           .onAction((event: GestureEvent) => {
             if (this.isFailed()) {
-              this.failedImageUrl = '';
-              this.completedImageUrl = '';
-              this.onRetry();
+              this.retryImage();
               return;
             }
             this.onTap(this.tapCenterX(event), this.tapCenterY(event), this.componentWidth, this.itemHeight());
