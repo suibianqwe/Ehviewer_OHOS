@@ -3,6 +3,7 @@ import { fileUri, picker } from '@kit.CoreFileKit';
 import {
   GalleryCategory,
   GalleryDetail,
+  GalleryInfo,
   GalleryRoute
 } from '../model/GalleryModels';
 import { ehDownloadFileStore, RestoredDownloadGallery } from '../services/EhDownloadFileStore';
@@ -63,7 +64,8 @@ import {
 } from '../shared/EhTheme';
 import { ArrayDataSource } from '../shared/ListDataSource';
 import { FloatingToolbarHost } from './NavigationComponents';
-import { ActionBubble, GalleryListRow, GalleryListScene, GalleryThumbCard } from './GalleryScenes';
+import { GalleryListRow, GalleryThumbCard } from './GalleryCards';
+import { ActionBubble, GalleryListScene } from './GalleryScenes';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
 import {
@@ -1303,25 +1305,31 @@ export struct DownloadScene {
                     ForEach(row, (item: DownloadInfo, colIndex: number) => {
                       Column() {
                       if (galleryListMode() === 'Thumb') {
-                        GalleryThumbCard({ gallery: item, selected: this.isDownloadSelected(item.gid) })
+                        GalleryThumbCard({
+                          gallery: item,
+                          selected: this.isDownloadSelected(item.gid),
+                          onLongPress: (_pressed: GalleryInfo) => {
+                            this.toggleDownloadSelection(item);
+                          }
+                        })
                           .width('100%')
                           .zIndex(2)
                           .onClick(() => {
                             this.handleDownloadCardTap(item);
                           })
-                            .gesture(LongPressGesture({ repeat: false }).onAction(() => {
-                              this.toggleDownloadSelection(item);
-                            }))
                       } else {
-                        GalleryListRow({ gallery: item, selected: this.isDownloadSelected(item.gid) })
+                        GalleryListRow({
+                          gallery: item,
+                          selected: this.isDownloadSelected(item.gid),
+                          onLongPress: (_pressed: GalleryInfo) => {
+                            this.toggleDownloadSelection(item);
+                          }
+                        })
                           .width('100%')
                           .zIndex(2)
                           .onClick(() => {
                             this.handleDownloadCardTap(item);
                           })
-                            .gesture(LongPressGesture({ repeat: false }).onAction(() => {
-                              this.toggleDownloadSelection(item);
-                            }))
                         }
                         if (item.state !== DownloadState.Finish) {
                         DownloadCardStatus({
