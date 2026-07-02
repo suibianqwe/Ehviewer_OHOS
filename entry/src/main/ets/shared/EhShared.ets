@@ -390,6 +390,62 @@ export function uiStatusText(text: string): string {
   if (text.indexOf('Filter save failed: ') === 0) {
     return '过滤规则保存失败：' + text.substring('Filter save failed: '.length);
   }
+  if (text === 'Export needs an ability context') {
+    return '导出需要 Ability 上下文';
+  }
+  if (text === 'Preparing export...') {
+    return '正在准备导出...';
+  }
+  if (text === 'Export cancelled') {
+    return '已取消导出';
+  }
+  if (text.indexOf('Export saved: ') === 0) {
+    return '导出已保存：' + text.substring('Export saved: '.length);
+  }
+  if (text.indexOf('Export write failed: ') === 0) {
+    return '导出写入失败：' + text.substring('Export write failed: '.length);
+  }
+  if (text.indexOf('Export picker failed: ') === 0) {
+    return '导出文件选择失败：' + text.substring('Export picker failed: '.length);
+  }
+  if (text.indexOf('Export load failed: ') === 0) {
+    return '导出读取数据失败：' + text.substring('Export load failed: '.length);
+  }
+  if (text === 'Import needs an ability context') {
+    return '导入需要 Ability 上下文';
+  }
+  if (text === 'Select backup file to import...') {
+    return '请选择要导入的备份文件...';
+  }
+  if (text === 'Import cancelled') {
+    return '已取消导入';
+  }
+  if (text === 'Import failed: not a valid EhViewer backup file') {
+    return '导入失败：不是有效的 EhViewer 备份文件';
+  }
+  if (text === 'Import complete') {
+    return '导入完成';
+  }
+  if (text.indexOf('Import save failed: ') === 0) {
+    return '导入保存失败：' + text.substring('Import save failed: '.length);
+  }
+  if (text.indexOf('Import failed: ') === 0) {
+    return '导入失败：' + text.substring('Import failed: '.length);
+  }
+  if (text.indexOf('Import picker failed: ') === 0) {
+    return '导入文件选择失败：' + text.substring('Import picker failed: '.length);
+  }
+  if (text.indexOf('Cache limit saved: ') === 0) {
+    return '缓存上限已保存：' + text.substring('Cache limit saved: '.length)
+      .replace('. Cleared oldest cache: ', '。已清理最旧缓存：')
+      .replace(/\.$/, '。');
+  }
+  if (text.indexOf('Cleared cache: ') === 0) {
+    return '已清除缓存：' + text.substring('Cleared cache: '.length)
+      .replace(' pages, ', ' 个页面，')
+      .replace(' images, ', ' 张图片，')
+      .replace(/\.$/, '。');
+  }
   if (text.indexOf('Saved network setting: ') === 0) {
     return '已保存网络设置：' + text.substring('Saved network setting: '.length);
   }
@@ -848,9 +904,9 @@ export function zhText(text: string): string {
     case 'Bypass SNI blocking using built-in host fronting': return '使用内置 hosts 绕过 SNI 封锁';
     case 'Use direct connection when the selected site responds within 3s': return '所选站点 3 秒内可直连时不使用 hosts 和域名前置';
     case 'Export data': return '导出数据';
-    case 'Export settings, database and app state': return '导出设置、数据库和应用状态';
+    case 'Save settings, history, downloads and filter rules to a JSON file': return '将设置、历史记录、下载和过滤规则保存为 JSON 文件';
     case 'Import data': return '导入数据';
-    case 'Import backup data': return '导入备份数据';
+    case 'Restore from a previously exported JSON backup': return '从之前导出的 JSON 备份恢复';
     case 'Wi-Fi server/client': return 'Wi-Fi 服务器/客户端';
     case 'Original Wi-Fi transfer tools': return '原应用 Wi-Fi 传输工具';
     case 'Declaration': return '声明';
@@ -1969,7 +2025,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       staticSettingsRow('clear_download_path_cache', 'Clear download path cache', 'Refresh cached file path and size lookups', 'Run', 'action'),
       staticSettingsRow('clear_memory_cache', 'Clear cache', 'Drop reader image and page caches',
         currentReaderCacheSizeText(), 'action'),
-      optionSettingsRow('read_cache_size', 'Read cache size', 'Reader cache budget', entries, ['40 MB', '80 MB', '160 MB', '320 MB', '640 MB']),
+      optionSettingsRow('read_cache_size', 'Read cache size', 'Reader cache budget', entries,
+        ['160 MB', '320 MB', '640 MB', '1 GB', '2 GB']),
       optionSettingsRow('app_language', 'App language', 'Language override', entries, ['System', 'English', 'zh-CN']),
       optionSettingsRow('proxy', 'Proxy', 'System proxy or direct connection', entries, ['System', 'Off', 'HTTP', 'SOCKS']),
       staticSettingsRow('network_diagnostics', 'Network diagnostics', 'Test E, EX, forums and repo connectivity with current settings', 'Run', 'action'),
@@ -2140,7 +2197,20 @@ function normalizeReaderSettingOption(key: string, value: string): string {
   if (key === 'pattern_protection') {
     return normalizeIdentityAuthenticationOption(value);
   }
+  if (key === 'read_cache_size') {
+    return normalizeReaderCacheSizeOption(value);
+  }
   return value;
+}
+
+export function normalizeReaderCacheSizeOption(value: string): string {
+  if (value === '40 MB' || value === '80 MB') {
+    return '160 MB';
+  }
+  if (value === '160 MB' || value === '320 MB' || value === '640 MB' || value === '1 GB' || value === '2 GB') {
+    return value;
+  }
+  return '160 MB';
 }
 
 export function normalizeIdentityAuthenticationOption(value: string): string {

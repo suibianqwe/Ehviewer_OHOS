@@ -70,7 +70,7 @@ import {
   themedSelectSelectedOptionBackground,
   themedSelectSelectedOptionText
 } from '../shared/EhSelectStyle';
-import { EhBackupBundle, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, setActiveBackHandler, padTwo, getAbilityContext, downloadSizeText, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, cloneStringOptions, settingMigrationMessage, isValidProxyPortText, formatNetworkDiagnostics, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption, normalizeIdentityAuthenticationOption } from '../shared/EhShared';
+import { EhBackupBundle, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, uiStatusText, setActiveBackHandler, padTwo, getAbilityContext, downloadSizeText, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, cloneStringOptions, settingMigrationMessage, isValidProxyPortText, formatNetworkDiagnostics, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption, normalizeIdentityAuthenticationOption, normalizeReaderCacheSizeOption } from '../shared/EhShared';
 import { FilterPanel } from './DownloadMigrationScenes';
 import { AppSubToolbar, AppToolbar } from './NavigationComponents';
 import { collectWebCookies, hasLoginCookie, SessionScene, syncCookieHeaderToWebView } from './SessionScene';
@@ -383,6 +383,9 @@ export struct SettingsScene {
     }
     if (key === 'pattern_protection') {
       return normalizeIdentityAuthenticationOption(value);
+    }
+    if (key === 'read_cache_size') {
+      return normalizeReaderCacheSizeOption(value);
     }
     if (key === 'theme' && ehSettingsStore.getValue('follow_system_dark_mode', 'Off') === 'On') {
       return value === 'Black' ? 'Black' : 'Dark';
@@ -729,10 +732,10 @@ export struct SettingsScene {
   private exportData(): void {
     const context = getAbilityContext();
     if (context === undefined) {
-      this.statusText = 'Export needs an ability context';
+      this.showFloatingStatus('Export needs an ability context');
       return;
     }
-    this.statusText = 'Preparing export...';
+    this.showFloatingStatus('Preparing export...');
     const now = new Date();
     const stamp = now.getFullYear().toString() +
       padTwo(now.getMonth() + 1) + padTwo(now.getDate()) + '_' +
@@ -762,7 +765,7 @@ export struct SettingsScene {
       const documentPicker = new picker.DocumentViewPicker(context);
       documentPicker.save(saveOptions).then((uris: string[]) => {
         if (uris.length === 0) {
-          this.statusText = 'Export cancelled';
+          this.showFloatingStatus('Export cancelled');
           return;
         }
         const uri = uris[0];
@@ -770,15 +773,15 @@ export struct SettingsScene {
           const file = fs.openSync(uri, fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
           fs.writeSync(file.fd, json);
           fs.closeSync(file.fd);
-          this.statusText = 'Export saved: ' + uri;
+          this.showFloatingStatus('Export saved: ' + uri);
         } catch (error) {
-          this.statusText = 'Export write failed: ' + String(error);
+          this.showFloatingStatus('Export write failed: ' + String(error));
         }
       }).catch((error: Error) => {
-        this.statusText = 'Export picker failed: ' + error.message;
+        this.showFloatingStatus('Export picker failed: ' + error.message);
       });
     }).catch((error: Error) => {
-      this.statusText = 'Export load failed: ' + error.message;
+      this.showFloatingStatus('Export load failed: ' + error.message);
     });
   }
 
@@ -848,7 +851,7 @@ export struct SettingsScene {
 
   private showToast(message: string): void {
     try {
-      this.getUIContext().getPromptAction().showToast({ message: uiText(message) });
+      this.getUIContext().getPromptAction().showToast({ message: uiStatusText(message) });
     } catch (error) {
     }
   }
@@ -866,16 +869,16 @@ export struct SettingsScene {
   private importData(): void {
     const context = getAbilityContext();
     if (context === undefined) {
-      this.statusText = 'Import needs an ability context';
+      this.showFloatingStatus('Import needs an ability context');
       return;
     }
-    this.statusText = 'Select backup file to import...';
+    this.showFloatingStatus('Select backup file to import...');
 
     const selectOptions = new picker.DocumentSelectOptions();
     const documentPicker = new picker.DocumentViewPicker(context);
     documentPicker.select(selectOptions).then((uris: string[]) => {
       if (uris.length === 0) {
-        this.statusText = 'Import cancelled';
+        this.showFloatingStatus('Import cancelled');
         return;
       }
       const uri = uris[0];
@@ -890,27 +893,37 @@ export struct SettingsScene {
         const bundle = JSON.parse(json) as EhBackupBundle;
 
         if (typeof bundle.version !== 'number') {
-          this.statusText = 'Import failed: not a valid EhViewer backup file';
+          this.showFloatingStatus('Import failed: not a valid EhViewer backup file');
           return;
         }
 
         const saves: Promise<void>[] = [];
 
-        if (typeof bundle.cookies === 'string' && bundle.cookies.length > 0) {
+        if (typeof bundle.cookies === 'string') {
           ehCookieStore.setCookieHeader(bundle.cookies);
           saves.push(ehCookieStore.save(context));
           this.signedIn = ehCookieStore.hasCookies();
         }
 
         let languageChanged = false;
+        let themeChanged = false;
+        let titleChanged = false;
         if (Array.isArray(bundle.settings)) {
           for (let i = 0; i < bundle.settings.length; i++) {
             const e = bundle.settings[i] as SettingEntry;
             if (typeof e.key === 'string' && typeof e.value === 'string') {
+              const importedValue = this.normalizedImportedSettingValue(e.key, e.value);
               if (e.key === 'app_language' && ehSettingsStore.getValue('app_language', 'System') !== e.value) {
                 languageChanged = true;
               }
-              ehSettingsStore.setValue(e.key, e.value);
+              if ((e.key === 'theme' || e.key === 'follow_system_dark_mode') &&
+                ehSettingsStore.getValue(e.key, '') !== importedValue) {
+                themeChanged = true;
+              }
+              if (e.key === 'show_jpn_title' && ehSettingsStore.getValue(e.key, '') !== importedValue) {
+                titleChanged = true;
+              }
+              ehSettingsStore.setValue(e.key, importedValue);
             }
           }
           saves.push(ehSettingsStore.save(context));
@@ -919,6 +932,15 @@ export struct SettingsScene {
           if (languageChanged) {
             notifyLanguageChanged();
           }
+          if (themeChanged) {
+            notifyThemeChanged();
+            applyAppChromeImmersiveMode();
+          }
+          if (titleChanged) {
+            notifyGalleryTitleChanged();
+          }
+          readerImageCache.prune(context);
+          this.settingsRenderRevision++;
         }
 
         if (Array.isArray(bundle.history)) {
@@ -928,11 +950,13 @@ export struct SettingsScene {
           saves.push(ehHistoryStore.save(context));
         }
 
+        let downloadsChanged = false;
         if (Array.isArray(bundle.downloadLabels)) {
           for (let i = 0; i < bundle.downloadLabels.length; i++) {
             const lbl = bundle.downloadLabels[i] as DownloadLabel;
             if (typeof lbl.label === 'string') {
               ehDownloadStore.addLabel(lbl.label);
+              downloadsChanged = true;
             }
           }
         }
@@ -942,8 +966,11 @@ export struct SettingsScene {
             const dl = bundle.downloadItems[i] as DownloadInfo;
             if (typeof dl.gid === 'number' && dl.gid > 0 && typeof dl.token === 'string') {
               ehDownloadStore.addGallery(dl as GalleryInfo, typeof dl.label === 'string' ? dl.label : '');
+              downloadsChanged = true;
             }
           }
+        }
+        if (downloadsChanged) {
           saves.push(ehDownloadStore.save(context));
         }
 
@@ -959,17 +986,27 @@ export struct SettingsScene {
         }
 
         Promise.all(saves).then(() => {
-          this.statusText = 'Import complete';
+          this.showFloatingStatus('Import complete');
         }).catch((error: Error) => {
-          this.statusText = 'Import save failed: ' + error.message;
+          this.showFloatingStatus('Import save failed: ' + error.message);
         });
 
       } catch (error) {
-        this.statusText = 'Import failed: ' + String(error);
+        this.showFloatingStatus('Import failed: ' + String(error));
       }
     }).catch((error: Error) => {
-      this.statusText = 'Import picker failed: ' + error.message;
+      this.showFloatingStatus('Import picker failed: ' + error.message);
     });
+  }
+
+  private normalizedImportedSettingValue(key: string, value: string): string {
+    if (key === 'read_cache_size') {
+      return normalizeReaderCacheSizeOption(value);
+    }
+    if (key === 'pattern_protection') {
+      return normalizeIdentityAuthenticationOption(value);
+    }
+    return value;
   }
 
   private restoreDownloadItems(): void {

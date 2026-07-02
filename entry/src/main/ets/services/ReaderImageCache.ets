@@ -762,11 +762,21 @@ export function readerImageCacheLimitBytes(): number {
 
 function parseCacheSizeBytes(value: string): number {
   const normalized = value.trim().toUpperCase();
+  if (normalized === '40 MB' || normalized === '80 MB') {
+    return DEFAULT_IMAGE_CACHE_BYTES;
+  }
   if (normalized.endsWith('MB')) {
     const numberPart = normalized.substring(0, normalized.length - 2).trim();
     const mb = Number.parseInt(numberPart, 10);
     if (Number.isFinite(mb) && mb > 0) {
-      return mb * 1024 * 1024;
+      return Math.max(160, Math.min(2048, mb)) * 1024 * 1024;
+    }
+  }
+  if (normalized.endsWith('GB')) {
+    const numberPart = normalized.substring(0, normalized.length - 2).trim();
+    const gb = Number.parseInt(numberPart, 10);
+    if (Number.isFinite(gb) && gb > 0) {
+      return Math.max(1, Math.min(2, gb)) * 1024 * 1024 * 1024;
     }
   }
   return DEFAULT_IMAGE_CACHE_BYTES;
