@@ -1,6 +1,6 @@
 ﻿import { common } from '@kit.AbilityKit';
 import { i18n } from '@kit.LocalizationKit';
-import { fileIo as fs } from '@kit.CoreFileKit';
+import { fileIo as fs, fileUri } from '@kit.CoreFileKit';
 import { GalleryCategory, GalleryComment, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite, GalleryTagGroup, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
 import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
@@ -2495,7 +2495,14 @@ function cloneGalleryPageWithCache(page: GalleryPage, cachedPath: string): Galle
 }
 
 export function readerLocalImageSource(path: string): string {
-  return path.startsWith('file://') ? path : 'file://' + path;
+  if (path.indexOf('://') >= 0) {
+    return path;
+  }
+  try {
+    return fileUri.getUriFromPath(path);
+  } catch (error) {
+    return 'file://' + path;
+  }
 }
 
 function localImagePathExists(path: string): boolean {
