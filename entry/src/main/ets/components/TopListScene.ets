@@ -11,6 +11,7 @@ import {
 import {
   applyAppChromeImmersiveMode,
   EMBEDDED_READER_ACTIVE_KEY,
+  isEmbeddedReaderActive,
   leaveEmbeddedReaderFullscreen
 } from '../services/EhWindowImmersive';
 import {
@@ -396,6 +397,13 @@ export struct TopListScene {
     }
     this.readerClosing = true;
     this.restoreDetailWithFade = this.showDetail;
+    if (!isEmbeddedReaderActive()) {
+      this.showReader = false;
+      this.restoreBackHandler();
+      this.clearRestoreDetailFadeLater();
+      this.readerClosing = false;
+      return;
+    }
     leaveEmbeddedReaderFullscreen().then(() => {
       this.showReader = false;
       this.restoreBackHandler();

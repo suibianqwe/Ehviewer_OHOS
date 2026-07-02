@@ -10,6 +10,7 @@ import {
   ReaderSessionPageState,
   READER_SESSION_REVISION_KEY
 } from '../services/ReaderSessionStore';
+import { leaveEmbeddedReaderFullscreen } from '../services/EhWindowImmersive';
 import {
   cacheReaderImageForPage,
   cloneGalleryDetail,
@@ -131,7 +132,10 @@ export struct ReaderSessionScene {
 
   private closeReader(): void {
     if (this.restoreAppChromeOnExit) {
-      this.onBack();
+      this.persistSession();
+      leaveEmbeddedReaderFullscreen().finally(() => {
+        this.onBack();
+      });
       return;
     }
     const context = AppStorage.get<common.UIAbilityContext>(READER_ABILITY_CONTEXT_KEY);

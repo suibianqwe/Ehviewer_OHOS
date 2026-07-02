@@ -20,7 +20,6 @@ import {
   readerOrientationFromImageMatch,
   readerOrientationFromSetting,
   readerScreenRotationSetting,
-  restoreReaderExitOrientationOnPageHide,
   setEmbeddedReaderActive
 } from '../services/EhWindowImmersive';
 import { ehSettingsStore } from '../services/EhSettingsStore';
@@ -225,22 +224,6 @@ export struct ReaderScene {
       return;
     }
     this.cleanupReaderScene();
-  }
-
-  onPageHide(): void {
-    if (this.restoreAppChromeOnExit) {
-      const hostContext = this.getUIContext().getHostContext() as common.UIAbilityContext | undefined;
-      if (hostContext !== undefined) {
-        window.getLastWindow(hostContext).then((win: window.Window) => {
-          restoreReaderExitOrientationOnPageHide(win);
-        }).catch(() => {
-          restoreReaderExitOrientationOnPageHide(this.hostReaderWindow);
-        });
-      } else {
-        restoreReaderExitOrientationOnPageHide(this.hostReaderWindow);
-      }
-      this.restoreSystemBarsForReaderExit();
-    }
   }
 
   private restoreSystemBarsForReaderExit(): void {

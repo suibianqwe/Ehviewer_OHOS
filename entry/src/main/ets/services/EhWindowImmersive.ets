@@ -172,16 +172,6 @@ export function scheduleReaderFullscreenImmersiveMode(win: window.Window, delayM
   }, delayMs);
 }
 
-export function restoreReaderExitOrientationOnPageHide(win?: window.Window): void {
-  const target = win === undefined ? (getMainWindow() ?? getReaderWindow()) : win;
-  if (target === undefined) {
-    return;
-  }
-  restoreWindowPreferredOrientation(target).then(() => {
-    restorePendingReaderExitOrientation(target).catch(() => {});
-  }).catch(() => {});
-}
-
 async function applyAppChromeImmersiveModeAsync(target: window.Window): Promise<void> {
   const useLightSystemBarIcons = isDarkTheme();
   await setWindowLayoutFullScreenQuietly(target, true, 'set app full-screen layout');

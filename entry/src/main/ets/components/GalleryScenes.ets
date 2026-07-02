@@ -25,6 +25,7 @@ import { LocalGallerySearchOptions } from '../services/LocalGallerySearch';
 import {
   applyAppChromeImmersiveMode,
   EMBEDDED_READER_ACTIVE_KEY,
+  isEmbeddedReaderActive,
   leaveEmbeddedReaderFullscreen,
   mainContentWidthFallbackVp,
   rememberMainContentWidthVp
@@ -1343,6 +1344,13 @@ export struct GalleryListScene {
     }
     this.readerClosing = true;
     this.restoreDetailWithFade = this.showDetail;
+    if (!isEmbeddedReaderActive()) {
+      this.showReader = false;
+      this.restoreBackHandler();
+      this.clearRestoreDetailFadeLater();
+      this.readerClosing = false;
+      return;
+    }
     leaveEmbeddedReaderFullscreen().then(() => {
       this.showReader = false;
       this.restoreBackHandler();
