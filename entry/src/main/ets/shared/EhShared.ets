@@ -98,7 +98,8 @@ export enum SettingsPanel {
   About = 'about',
   Session = 'session',
   WebView = 'webview',
-  Filter = 'filter'
+  Filter = 'filter',
+  MyTags = 'mytags'
 }
 
 export const DRAWER_ITEMS: DrawerItem[] = [
@@ -305,6 +306,27 @@ export function uiStatusText(text: string): string {
   }
   if (text === 'My Tags requires a signed-in session') {
     return 'My Tags 需要已登录会话';
+  }
+  if (text === 'Loading My Tags...') {
+    return '正在加载我的标签...';
+  }
+  if (text === 'Saving My Tags...') {
+    return '正在保存我的标签...';
+  }
+  if (text === 'My Tags loaded') {
+    return '我的标签已加载';
+  }
+  if (text === 'My Tags saved') {
+    return '我的标签已保存';
+  }
+  if (text === 'Enter a tag first') {
+    return '请先输入标签';
+  }
+  if (text.indexOf('My Tags load failed: ') === 0) {
+    return '我的标签加载失败：' + text.substring('My Tags load failed: '.length);
+  }
+  if (text.indexOf('My Tags save failed: ') === 0) {
+    return '我的标签保存失败：' + text.substring('My Tags save failed: '.length);
   }
   if (text === 'Running network diagnostics...') {
     return '正在运行网络诊断...';
@@ -711,6 +733,14 @@ export function zhText(text: string): string {
     case 'Session': return '会话';
     case 'UConfig': return '账号配置';
     case 'My Tags': return '我的标签';
+    case 'Blocked': return '屏蔽';
+    case 'Tag name': return '标签名';
+    case 'Save': return '保存';
+    case 'Refresh': return '刷新';
+    case 'No tags': return '无标签';
+    case 'Manage watched and hidden tags for the selected site.': return '管理当前站点的订阅和屏蔽标签。';
+    case 'Watched tags are used by the subscription page': return '订阅标签会用于订阅页面';
+    case 'Hidden tags are filtered by the account': return '屏蔽标签会由账号过滤';
     case 'Migration': return '迁移状态';
     case 'Open': return '打开';
     case 'Run': return '运行';
@@ -787,6 +817,7 @@ export function zhText(text: string): string {
     case 'Use account filters': return '使用账号过滤';
     case 'Use filtering options captured from UConfig': return '使用账号配置中抓取的过滤选项';
     case 'User tag set management, requires sign in': return '用户标签集管理，需要登录';
+    case 'Manage watched and hidden tags, requires sign in': return '管理订阅和屏蔽标签，需要登录';
     case 'Launch page': return '启动页面';
     case 'Default start scene after warnings and sign-in checks': return '警告和登录检查后的默认启动页面';
     case 'List mode': return '列表模式';
@@ -1964,6 +1995,9 @@ export function settingsPanelTitle(panel: SettingsPanel): string {
   if (panel === SettingsPanel.Session) {
     return 'Sign in';
   }
+  if (panel === SettingsPanel.MyTags) {
+    return 'My Tags';
+  }
   return 'Settings';
 }
 
@@ -1975,7 +2009,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('gallery_site', 'Gallery site', 'Original setting chooses E-Hentai or ExHentai where supported', entries, ['E-Hentai', 'ExHentai']),
       staticSettingsRow('u_config', 'UConfig', 'Account configuration page, requires sign in', 'Open', 'action'),
       optionSettingsRow('use_account_default_filter', 'Use account filters', 'Use filtering options captured from UConfig', entries, ON_OFF_OPTIONS),
-      staticSettingsRow('my_tags', 'My Tags', 'User tag set management, requires sign in', 'Open', 'action'),
+      staticSettingsRow('my_tags', 'My Tags', 'Manage watched and hidden tags, requires sign in', 'Open', 'action'),
       optionSettingsRow('launch_page', 'Launch page', 'Default start scene after warnings and sign-in checks', entries, ['Homepage', 'Subscription', 'What\'s Hot', 'Favorites']),
       optionSettingsRow('list_mode', 'List mode', 'Gallery list style from original Android preferences', entries, ['Detail', 'Thumb', 'Extended']),
       optionSettingsRow('detail_size', 'Detail size', 'Gallery detail image and metadata density', entries, ['Default', 'Compact', 'Large']),
@@ -2327,7 +2361,7 @@ export function settingMigrationMessage(key: string): string {
     return 'UConfig requires the account configuration parser and editor. The sign-in/session part is already available.';
   }
   if (key === 'my_tags') {
-    return 'My Tags needs the online tag management page to be migrated. Watched-tag list loading is handled by Subscription.';
+    return 'My Tags opens the native watched and hidden tag editor.';
   }
   if (key === 'filter') {
     return 'Filter rules need the local rule database before they can hide galleries in list scenes.';

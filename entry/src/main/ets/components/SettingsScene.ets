@@ -3,7 +3,7 @@ import { fileUri, picker } from '@kit.CoreFileKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
 import { webview } from '@kit.ArkWeb';
-import { GalleryInfo } from '../model/GalleryModels';
+import { GalleryInfo, GallerySite } from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
 import {
   DOWNLOAD_LOCATION_APP_FILES,
@@ -72,6 +72,7 @@ import {
 } from '../shared/EhSelectStyle';
 import { EhBackupBundle, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, uiStatusText, setActiveBackHandler, padTwo, getAbilityContext, downloadSizeText, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, cloneStringOptions, settingMigrationMessage, isValidProxyPortText, formatNetworkDiagnostics, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption, normalizeIdentityAuthenticationOption, normalizeReaderCacheSizeOption } from '../shared/EhShared';
 import { FilterPanel } from './DownloadMigrationScenes';
+import { MyTagsPanel } from './MyTagsPanel';
 import { AppSubToolbar, AppToolbar } from './NavigationComponents';
 import { collectWebCookies, hasLoginCookie, SessionScene, syncCookieHeaderToWebView } from './SessionScene';
 import { UpdatePromptOverlay } from './UpdatePromptOverlay';
@@ -274,6 +275,10 @@ export struct SettingsScene {
       }
     }
     return SettingsPanel.Main;
+  }
+
+  private currentGallerySite(): GallerySite {
+    return ehSettingsStore.getValue('gallery_site', 'E-Hentai') === 'ExHentai' ? GallerySite.Ex : GallerySite.E;
   }
 
   private signOut(): void {
@@ -677,8 +682,7 @@ export struct SettingsScene {
         this.statusText = 'My Tags requires a signed-in session';
         return true;
       }
-      const isEx = ehSettingsStore.getValue('gallery_site', 'E-Hentai') === 'ExHentai';
-      this.openAccountWebPage('My Tags', isEx ? 'https://exhentai.org/mytags' : 'https://e-hentai.org/mytags');
+      this.openPanel(SettingsPanel.MyTags);
       return true;
     }
     if (key === 'filter' || key === 'blacklist') {
@@ -1317,6 +1321,22 @@ export struct SettingsScene {
               this.captureAccountWebCookies(event.url);
             })
             .width('100%')
+            .layoutWeight(1)
+        }
+        .width('100%')
+        .height('100%')
+        .backgroundColor(themePageBackground())
+        .transition(TransitionEffect.move(TransitionEdge.END)
+          .animation({ duration: 300, curve: Curve.EaseOut }))
+      } else if (this.panel === SettingsPanel.MyTags) {
+        Column() {
+          SettingsSubToolbar({
+            title: uiText('My Tags'),
+            onBack: () => {
+              this.closePanel();
+            }
+          })
+          MyTagsPanel({ site: this.currentGallerySite() })
             .layoutWeight(1)
         }
         .width('100%')

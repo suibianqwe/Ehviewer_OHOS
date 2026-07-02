@@ -1,0 +1,255 @@
+import { GallerySite } from '../model/GalleryModels';
+import { EhHttpClient, EhHttpResponse } from './EhHttpClient';
+import { EhUrl } from './EhUrl';
+
+export enum MyTagKind {
+  Watched = 'watched',
+  Hidden = 'hidden'
+}
+
+export interface MyTagItem {
+  id: number;
+  tag: string;
+  watched: boolean;
+  hidden: boolean;
+  color: string;
+  weight: string;
+}
+
+export interface MyTagsPage {
+  url: string;
+  apiUrl: string;
+  apiUid: number;
+  apiKey: string;
+  tagsetId: string;
+  tagsetName: string;
+  watched: MyTagItem[];
+  hidden: MyTagItem[];
+  all: MyTagItem[];
+}
+
+interface FormField {
+  key: string;
+  value: string;
+}
+
+export class EhMyTagsService {
+  private client: EhHttpClient = new EhHttpClient();
+
+  async load(site: GallerySite): Promise<MyTagsPage> {
+    const url = this.myTagsUrl(site);
+    const response = await this.client.getText(url, url, 0);
+    this.ensureOk(response, 'Load My Tags failed');
+    return parseMyTagsPage(response.body, url);
+  }
+
+  async saveTag(site: GallerySite, page: MyTagsPage | null, tag: string, kind: MyTagKind): Promise<MyTagsPage> {
+    const normalizedTag = normalizeTag(tag);
+    if (normalizedTag.length === 0) {
+      throw new Error('Enter a tag first');
+    }
+    const currentPage = page === null ? await this.load(site) : page;
+    const existing = findTag(currentPage.all, normalizedTag);
+    if (existing !== null) {
+      await this.setExistingTagKind(site, currentPage, existing, kind);
+      return this.load(site);
+    }
+    return this.addTag(site, normalizedTag, kind);
+  }
+
+  private async setExistingTagKind(site: GallerySite, page: MyTagsPage, item: MyTagItem,
+    kind: MyTagKind): Promise<void> {
+    if (page.apiUrl.length === 0 || page.apiUid <= 0 || page.apiKey.length === 0) {
+      throw new Error('My Tags API key not found');
+    }
+    const payload = JSON.stringify({
+      method: 'setusertag',
+      apiuid: page.apiUid,
+      apikey: page.apiKey,
+      tagid: item.id,
+      tagwatch: kind === MyTagKind.Watched ? 1 : 0,
+      taghide: kind === MyTagKind.Hidden ? 1 : 0,
+      tagcolor: item.color,
+      tagweight: parseTagWeight(item.weight)
+    });
+    const response = await this.client.postJson(page.apiUrl, payload, page.url, EhUrl.getReferer(site));
+    this.ensureOk(response, 'Save My Tags failed');
+  }
+
+  private async addTag(site: GallerySite, tag: string, kind: MyTagKind): Promise<MyTagsPage> {
+    const url = this.myTagsUrl(site);
+    const fields: FormField[] = [
+      { key: 'usertag_action', value: 'add' },
+      { key: 'tagname_new', value: tag },
+      { key: 'tagcolor_new', value: '' },
+      { key: 'tagweight_new', value: '10' }
+    ];
+    if (kind === MyTagKind.Watched) {
+      fields.push({ key: 'tagwatch_new', value: 'on' });
+    } else {
+      fields.push({ key: 'taghide_new', value: 'on' });
+    }
+    const response = await this.client.postForm(url, buildFormBody(fields), url, EhUrl.getReferer(site));
+    this.ensureOk(response, 'Save My Tags failed');
+    return parseMyTagsPage(response.body, url);
+  }
+
+  private myTagsUrl(site: GallerySite): string {
+    return EhUrl.getHost(site) + 'mytags';
+  }
+
+  private ensureOk(response: EhHttpResponse, prefix: string): void {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw new Error(prefix + ': HTTP ' + response.statusCode.toString());
+    }
+  }
+}
+
+export const ehMyTagsService: EhMyTagsService = new EhMyTagsService();
+
+export function parseMyTagsPage(html: string, url: string): MyTagsPage {
+  const all = parseUserTags(html);
+  const watched: MyTagItem[] = [];
+  const hidden: MyTagItem[] = [];
+  for (let i = 0; i < all.length; i++) {
+    if (all[i].watched) {
+      watched.push(all[i]);
+    }
+    if (all[i].hidden) {
+      hidden.push(all[i]);
+    }
+  }
+  return {
+    url: url,
+    apiUrl: matchStringVariable(html, 'api_url'),
+    apiUid: matchNumberVariable(html, 'apiuid'),
+    apiKey: matchStringVariable(html, 'apikey'),
+    tagsetId: matchSelectedTagsetId(html),
+    tagsetName: matchStringVariable(html, 'tagset_name'),
+    watched: watched,
+    hidden: hidden,
+    all: all
+  };
+}
+
+function parseUserTags(html: string): MyTagItem[] {
+  const result: MyTagItem[] = [];
+  let offset = 0;
+  while (offset >= 0 && offset < html.length) {
+    const start = html.indexOf('<div id="usertag_', offset);
+    if (start < 0) {
+      break;
+    }
+    const idStart = start + '<div id="usertag_'.length;
+    const idEnd = html.indexOf('"', idStart);
+    if (idEnd < 0) {
+      break;
+    }
+    const id = Number.parseInt(html.substring(idStart, idEnd), 10);
+    const next = html.indexOf('<div id="usertag_', idEnd);
+    const mass = html.indexOf('<div id="usertags_mass"', idEnd);
+    const end = next >= 0 && (mass < 0 || next < mass) ? next : (mass >= 0 ? mass : html.length);
+    const block = html.substring(start, end);
+    offset = end;
+    if (id <= 0 || Number.isNaN(id)) {
+      continue;
+    }
+    const tag = decodeHtml(matchAttribute(block, 'title'));
+    if (tag.length === 0) {
+      continue;
+    }
+    result.push({
+      id: id,
+      tag: tag,
+      watched: isInputChecked(block, 'tagwatch_' + id.toString()),
+      hidden: isInputChecked(block, 'taghide_' + id.toString()),
+      color: matchInputValue(block, 'tagcolor_' + id.toString()),
+      weight: matchInputValue(block, 'tagweight_' + id.toString())
+    });
+  }
+  return result;
+}
+
+function matchStringVariable(html: string, name: string): string {
+  const re = new RegExp('var\\s+' + name + '\\s*=\\s*"([^"]*)"', 'i');
+  const matched = re.exec(html);
+  return matched === null ? '' : decodeHtml(matched[1]);
+}
+
+function matchNumberVariable(html: string, name: string): number {
+  const re = new RegExp('var\\s+' + name + '\\s*=\\s*(\\d+)', 'i');
+  const matched = re.exec(html);
+  if (matched === null) {
+    return 0;
+  }
+  const value = Number.parseInt(matched[1], 10);
+  return Number.isNaN(value) ? 0 : value;
+}
+
+function matchSelectedTagsetId(html: string): string {
+  const matched = /<option\s+value="([^"]+)"\s+selected=/i.exec(html);
+  return matched === null ? '' : decodeHtml(matched[1]);
+}
+
+function matchAttribute(block: string, name: string): string {
+  const re = new RegExp(name + '="([^"]*)"', 'i');
+  const matched = re.exec(block);
+  return matched === null ? '' : matched[1];
+}
+
+function isInputChecked(block: string, id: string): boolean {
+  const re = new RegExp('id="' + escapeRegExp(id) + '"[^>]*checked', 'i');
+  return re.test(block);
+}
+
+function matchInputValue(block: string, id: string): string {
+  const re = new RegExp('id="' + escapeRegExp(id) + '"[^>]*value="([^"]*)"', 'i');
+  const matched = re.exec(block);
+  return matched === null ? '' : decodeHtml(matched[1]);
+}
+
+function findTag(tags: MyTagItem[], tag: string): MyTagItem | null {
+  const normalizedTag = normalizeTag(tag).toLowerCase();
+  for (let i = 0; i < tags.length; i++) {
+    if (normalizeTag(tags[i].tag).toLowerCase() === normalizedTag) {
+      return tags[i];
+    }
+  }
+  return null;
+}
+
+function normalizeTag(tag: string): string {
+  return tag.trim().replace(/\s+/g, ' ');
+}
+
+function parseTagWeight(weight: string): number {
+  const value = Number.parseInt(weight, 10);
+  if (Number.isNaN(value)) {
+    return 10;
+  }
+  return Math.max(-99, Math.min(999, value));
+}
+
+function buildFormBody(fields: FormField[]): string {
+  const parts: string[] = [];
+  for (let i = 0; i < fields.length; i++) {
+    parts.push(encodeURIComponent(fields[i].key) + '=' + encodeURIComponent(fields[i].value));
+  }
+  return parts.join('&');
+}
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
