@@ -151,6 +151,10 @@ export struct SettingsScene {
       }).catch((error: Error) => {
         this.statusText = 'Settings load failed: ' + error.message;
       });
+      ehDownloadStore.load(context).then(() => {
+        this.settingsRenderRevision++;
+      }).catch(() => {
+      });
     } else {
       this.signedIn = ehCookieStore.hasCookies();
       this.statusText = this.signedIn ? 'Cookie session loaded' : 'Tourist mode';
@@ -1051,7 +1055,7 @@ export struct SettingsScene {
   private cleanDownloadRedundancy(): void {
     const context = getAbilityContext();
     if (context === undefined) {
-      this.statusText = 'Clean redundancy needs an ability context';
+      this.showFloatingStatus('Clean redundancy needs an ability context');
       return;
     }
     ehDownloadStore.load(context).then(() => {
@@ -1061,10 +1065,15 @@ export struct SettingsScene {
         keepGids.push(items[i].gid);
       }
       const result: DownloadDirectoryScanResult = ehDownloadFileStore.cleanRedundantDirectories(context, keepGids);
-      this.statusText = 'Cleaned redundancy: ' + result.directories.toString() + ' folders, ' +
-        result.files.toString() + ' files, ' + downloadSizeText(result.bytes) + '.';
+      this.settingsRenderRevision++;
+      if (result.directories <= 0 && result.files <= 0) {
+        this.showFloatingStatus('No redundant downloaded galleries');
+        return;
+      }
+      this.showFloatingStatus('Cleaned redundancy: ' + result.directories.toString() + ' folders, ' +
+        result.files.toString() + ' files, ' + downloadSizeText(result.bytes) + '.');
     }).catch((error: Error) => {
-      this.statusText = 'Clean redundancy failed: ' + error.message;
+      this.showFloatingStatus('Clean redundancy failed: ' + error.message);
     });
   }
 

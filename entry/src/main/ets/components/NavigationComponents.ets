@@ -504,6 +504,7 @@ export struct AppToolbar {
       statusBarHeight: this.statusBarVp(),
       title: this.title,
       subtitle: this.subtitle,
+      showRefreshButton: false,
       onMenu: this.onMenu,
       onRefresh: () => {}
     })

@@ -303,27 +303,12 @@ export class EhDownloadFileStore {
     return removeDirectoryTree(this.downloadedGalleryDirectory(context, gallery));
   }
 
+  scanRedundantDirectories(context: common.UIAbilityContext, keepGids: number[]): DownloadDirectoryScanResult {
+    return scanRedundantDownloadDirectories(this.downloadRoot(context), keepGids, false);
+  }
+
   cleanRedundantDirectories(context: common.UIAbilityContext, keepGids: number[]): DownloadDirectoryScanResult {
-    const root = this.downloadRoot(context);
-    let directories = 0;
-    let files = 0;
-    let bytes = 0;
-    try {
-      const names = fs.listFileSync(root);
-      for (let i = 0; i < names.length; i++) {
-        const directory = root + '/' + names[i];
-        const restoredGallery = readRestoredGallery(directory, names[i]);
-        if (restoredGallery === null || containsNumber(keepGids, restoredGallery.gallery.gid)) {
-          continue;
-        }
-        const removed = removeDirectoryTree(directory);
-        directories += removed.directories;
-        files += removed.files;
-        bytes += removed.bytes;
-      }
-    } catch (error) {
-    }
-    return { directories: directories, files: files, bytes: bytes };
+    return scanRedundantDownloadDirectories(this.downloadRoot(context), keepGids, true);
   }
 
   directorySizeByPath(directory: string): number {
@@ -376,6 +361,28 @@ export class EhDownloadFileStore {
       return '';
     }
   }
+}
+
+function scanRedundantDownloadDirectories(root: string, keepGids: number[], shouldRemove: boolean): DownloadDirectoryScanResult {
+  let directories = 0;
+  let files = 0;
+  let bytes = 0;
+  try {
+    const names = fs.listFileSync(root);
+    for (let i = 0; i < names.length; i++) {
+      const directory = root + '/' + names[i];
+      const restoredGallery = readRestoredGallery(directory, names[i]);
+      if (restoredGallery === null || containsNumber(keepGids, restoredGallery.gallery.gid)) {
+        continue;
+      }
+      const result = shouldRemove ? removeDirectoryTree(directory) : scanDirectoryTree(directory);
+      directories += result.directories;
+      files += result.files;
+      bytes += result.bytes;
+    }
+  } catch (error) {
+  }
+  return { directories: directories, files: files, bytes: bytes };
 }
 
 function normalizeDownloadLocation(location: string): string {
@@ -765,6 +772,28 @@ function isDirectory(path: string): boolean {
   } catch (error) {
     return false;
   }
+}
+
+function scanDirectoryTree(path: string): DownloadDirectoryScanResult {
+  let directories = 0;
+  let files = 0;
+  let bytes = 0;
+  try {
+    const stat = fs.statSync(path);
+    if (!stat.isDirectory()) {
+      return { directories: 0, files: 1, bytes: stat.size };
+    }
+    directories++;
+    const names = fs.listFileSync(path);
+    for (let i = 0; i < names.length; i++) {
+      const child = scanDirectoryTree(path + '/' + names[i]);
+      directories += child.directories;
+      files += child.files;
+      bytes += child.bytes;
+    }
+  } catch (error) {
+  }
+  return { directories: directories, files: files, bytes: bytes };
 }
 
 function removeDirectoryTree(path: string): DownloadDirectoryScanResult {

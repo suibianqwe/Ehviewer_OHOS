@@ -446,6 +446,21 @@ export function uiStatusText(text: string): string {
       .replace(' images, ', ' 张图片，')
       .replace(/\.$/, '。');
   }
+  if (text === 'Clean redundancy needs an ability context') {
+    return '清理冗余需要 Ability 上下文';
+  }
+  if (text === 'No redundant downloaded galleries') {
+    return '没有冗余下载画廊';
+  }
+  if (text.indexOf('Cleaned redundancy: ') === 0) {
+    return '已清理冗余：' + text.substring('Cleaned redundancy: '.length)
+      .replace(' folders, ', ' 个文件夹，')
+      .replace(' files, ', ' 个文件，')
+      .replace(/\.$/, '。');
+  }
+  if (text.indexOf('Clean redundancy failed: ') === 0) {
+    return '清理冗余失败：' + text.substring('Clean redundancy failed: '.length);
+  }
   if (text.indexOf('Saved network setting: ') === 0) {
     return '已保存网络设置：' + text.substring('Saved network setting: '.length);
   }
@@ -846,7 +861,7 @@ export function zhText(text: string): string {
     case 'Media scan': return '媒体扫描';
     case 'Expose downloaded images to system media index': return '将下载图片暴露给系统媒体索引';
     case 'Multi-thread download': return '多线程下载';
-    case 'Worker count used by the original SpiderQueen pipeline': return '原 SpiderQueen 下载管线使用的工作线程数';
+    case 'Number of images downloaded at the same time': return '同时下载的图片数量';
     case 'Preload image': return '预加载图片';
     case 'Reader/download prefetch count': return '阅读器/下载预取数量';
     case 'Download list pagination': return '下载列表分页';
@@ -862,7 +877,7 @@ export function zhText(text: string): string {
     case 'Restore download items': return '恢复下载项';
     case 'Rebuild queue from downloaded folders': return '从已下载文件夹重建队列';
     case 'Clean redundancy': return '清理冗余';
-    case 'Scan downloaded folders not present in queue': return '扫描不在队列中的下载文件夹';
+    case 'Delete downloaded gallery folders that are no longer in the download list': return '删除已不在下载列表中的画廊文件夹';
     case 'Identity authentication': return '身份验证';
     case 'Verify identity when the app returns from background': return '应用从后台恢复时验证身份';
     case 'Fingerprint first': return '指纹优先';
@@ -1844,6 +1859,23 @@ function currentReaderCacheSizeText(): string {
   return downloadSizeText(readerImageCache.size(context).bytes);
 }
 
+function currentDownloadRedundancyText(): string {
+  const context = getAbilityContext();
+  if (context === undefined) {
+    return '0 B';
+  }
+  const items = ehDownloadStore.getItems();
+  const keepGids: number[] = [];
+  for (let i = 0; i < items.length; i++) {
+    keepGids.push(items[i].gid);
+  }
+  try {
+    return downloadSizeText(ehDownloadFileStore.scanRedundantDirectories(context, keepGids).bytes);
+  } catch (error) {
+    return '0 B';
+  }
+}
+
 export function downloadImageUrlForPage(page: GalleryPage): string {
   if (ehSettingsStore.getValue('download_origin_image', 'Off') === 'On' && page.originImageUrl.length > 0) {
     return page.originImageUrl;
@@ -1996,7 +2028,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     return [
       optionSettingsRow('download_location', 'Download location', 'App internal storage or public Downloads directory', entries, ['App files', 'Downloads']),
       optionSettingsRow('media_scan', 'Media scan', 'Expose downloaded images to system media index', entries, ON_OFF_OPTIONS),
-      optionSettingsRow('download_thread', 'Multi-thread download', 'Worker count used by the original SpiderQueen pipeline', entries, ['1', '2', '3', '4', '5', '8', '10']),
+      optionSettingsRow('download_thread', 'Multi-thread download', 'Number of images downloaded at the same time',
+        entries, ['1', '2', '3', '4', '5', '8', '10']),
       optionSettingsRow('preload_image', 'Preload image', 'Reader/download prefetch count', entries, ['0', '3', '5', '10', '20']),
       optionSettingsRow('download_list_pagination', 'Download list pagination', 'Paginate large download lists', entries, ON_OFF_OPTIONS),
       optionSettingsRow('image_size', 'Image resolution', 'Requested E-Hentai image size', entries, ['Auto', '780x', '980x', '1280x', 'Original']),
@@ -2004,7 +2037,9 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('download_timeout', 'Download timeout', 'Network timeout for image tasks', entries, ['Default', '15s', '30s', '60s']),
       optionSettingsRow('download_order_asc', 'Download order ascending', 'Store pages in ascending page order', entries, ON_OFF_OPTIONS),
       staticSettingsRow('restore_download_items', 'Restore download items', 'Rebuild queue from downloaded folders', 'Run', 'action'),
-      staticSettingsRow('clean_redundancy', 'Clean redundancy', 'Delete downloaded folders not present in queue', 'Clean', 'action')
+      staticSettingsRow('clean_redundancy', 'Clean redundancy',
+        'Delete downloaded gallery folders that are no longer in the download list',
+        currentDownloadRedundancyText(), 'action')
     ];
   }
 
