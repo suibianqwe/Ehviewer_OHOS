@@ -441,7 +441,10 @@ export struct EhNavBar {
 export struct EhSubNavBar {
   @Prop statusBarHeight: number = 0;
   @Prop title: string = '';
+  @Prop showAction: boolean = false;
+  @Prop actionIcon: Resource = $r('sys.symbol.share');
   onBack: () => void = () => {};
+  onAction: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
   build() {
@@ -471,6 +474,22 @@ export struct EhSubNavBar {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
           .margin({ left: 12 })
+
+        if (this.showAction) {
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph(this.actionIcon)
+              .fontSize(22)
+              .fontColor([themeOnPrimaryText()])
+          }
+          .width(40)
+          .height(40)
+          .backgroundColor(themeOnPrimaryActionBackground())
+          .flexShrink(0)
+          .margin({ left: 8 })
+          .onClick(() => {
+            this.onAction();
+          })
+        }
       }
       .width('100%')
       .height(56)
@@ -514,7 +533,10 @@ export struct AppToolbar {
 @Component
 export struct AppSubToolbar {
   title: string = '';
+  showAction: boolean = false;
+  actionIcon: Resource = $r('sys.symbol.share');
   onBack: () => void = () => {};
+  onAction: () => void = () => {};
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeight: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
@@ -526,7 +548,10 @@ export struct AppSubToolbar {
     EhSubNavBar({
       statusBarHeight: this.statusBarVp(),
       title: this.title,
-      onBack: this.onBack
+      showAction: this.showAction,
+      actionIcon: this.actionIcon,
+      onBack: this.onBack,
+      onAction: this.onAction
     })
   }
 }

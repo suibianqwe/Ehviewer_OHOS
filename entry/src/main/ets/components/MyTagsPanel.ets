@@ -1,6 +1,5 @@
 import { KeyboardAvoidMode } from '@kit.ArkUI';
 import { GallerySite } from '../model/GalleryModels';
-import { EhUrl } from '../services/EhUrl';
 import {
   ehMyTagsService,
   MyTagItem,
@@ -14,7 +13,7 @@ import {
   SearchSuggestionList,
   SearchSummaryStrip
 } from './GallerySearchScenes';
-import { getAbilityContext, uiText } from '../shared/EhShared';
+import { uiText } from '../shared/EhShared';
 import {
   themeFieldBackground,
   themeOnPrimaryText,
@@ -214,17 +213,6 @@ export struct MyTagsPanel {
     this.saveTag(suggestion.query, kind);
   }
 
-  private currentMyTagsUrl(): string {
-    if (this.page !== null && this.page.url.length > 0) {
-      return this.page.url;
-    }
-    return EhUrl.getHost(this.site) + 'mytags';
-  }
-
-  private openOriginalMyTagsPage(): void {
-    openExternalMyTagsUrl(this.currentMyTagsUrl());
-  }
-
   build() {
     Column() {
       Scroll() {
@@ -239,9 +227,6 @@ export struct MyTagsPanel {
             selectedTagNamespaceKey: this.selectedWatchedTagNamespaceKey(),
             revision: this.suggestionRevision,
             loading: this.loading || this.saving,
-            onOpenOriginal: () => {
-              this.openOriginalMyTagsPage();
-            },
             onTextChange: (value: string) => {
               this.updateWatchedText(value);
             },
@@ -266,9 +251,6 @@ export struct MyTagsPanel {
             selectedTagNamespaceKey: this.selectedHiddenTagNamespaceKey(),
             revision: this.suggestionRevision,
             loading: this.loading || this.saving,
-            onOpenOriginal: () => {
-              this.openOriginalMyTagsPage();
-            },
             onTextChange: (value: string) => {
               this.updateHiddenText(value);
             },
@@ -309,7 +291,6 @@ struct MyTagsColumn {
   @Prop selectedTagNamespaceKey: string = '';
   @Prop revision: number = 0;
   @Prop loading: boolean = false;
-  onOpenOriginal: () => void = () => {};
   onTextChange: (value: string) => void = (_value: string) => {};
   onToggleTagNamespace: (namespace: string) => void = (_namespace: string) => {};
   onSuggestionSelect: (suggestion: SearchSuggestionItem) => void = (_suggestion: SearchSuggestionItem) => {};
@@ -323,18 +304,6 @@ struct MyTagsColumn {
           .fontWeight(FontWeight.Medium)
           .fontColor(themePrimaryText())
           .layoutWeight(1)
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.share'))
-            .fontSize(19)
-            .fontColor([themePrimaryColor()])
-        }
-        .width(32)
-        .height(32)
-        .backgroundColor(themeSurfaceVariant())
-        .enabled(!this.loading)
-        .onClick(() => {
-          this.onOpenOriginal();
-        })
       }
         .width('100%')
         .alignItems(VerticalAlign.Center)
@@ -518,21 +487,6 @@ function toggleNamespace(values: string[], namespace: string): string[] {
     next.push(namespace);
   }
   return next;
-}
-
-function openExternalMyTagsUrl(url: string): void {
-  const context = getAbilityContext();
-  if (context === undefined || url.length === 0) {
-    return;
-  }
-  context.startAbility({
-    action: 'ohos.want.action.viewData',
-    entities: ['entity.system.browsable'],
-    uri: url,
-    parameters: {
-      'ohos.ability.params.showDefaultPicker': true
-    }
-  }).catch(() => {});
 }
 
 function activeMyTagText(text: string): string {

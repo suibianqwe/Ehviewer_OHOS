@@ -1332,8 +1332,14 @@ export struct SettingsScene {
         Column() {
           SettingsSubToolbar({
             title: uiText('My Tags'),
+            showAction: true,
+            actionIcon: $r('sys.symbol.share'),
             onBack: () => {
               this.closePanel();
+            },
+            onAction: () => {
+              const site = this.currentGallerySite();
+              this.openAccountWebPage('My Tags', EhUrl.getHost(site) + 'mytags');
             }
           })
           MyTagsPanel({ site: this.currentGallerySite() })
@@ -1557,12 +1563,18 @@ export struct SettingsHomePanel {
 @Component
 export struct SettingsSubToolbar {
   title: string = '';
+  showAction: boolean = false;
+  actionIcon: Resource = $r('sys.symbol.share');
   onBack: () => void = () => {};
+  onAction: () => void = () => {};
 
   build() {
     AppSubToolbar({
       title: this.title,
-      onBack: this.onBack
+      showAction: this.showAction,
+      actionIcon: this.actionIcon,
+      onBack: this.onBack,
+      onAction: this.onAction
     })
   }
 }
