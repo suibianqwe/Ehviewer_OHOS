@@ -313,11 +313,17 @@ export function uiStatusText(text: string): string {
   if (text === 'Saving My Tags...') {
     return '正在保存我的标签...';
   }
+  if (text === 'Saving My Tags settings...') {
+    return '正在保存我的标签设置...';
+  }
   if (text === 'My Tags loaded') {
     return '我的标签已加载';
   }
   if (text === 'My Tags saved') {
     return '我的标签已保存';
+  }
+  if (text === 'My Tags settings saved') {
+    return '我的标签设置已保存';
   }
   if (text === 'Enter a tag first') {
     return '请先输入标签';
@@ -738,6 +744,10 @@ export function zhText(text: string): string {
     case 'Save': return '保存';
     case 'Refresh': return '刷新';
     case 'No tags': return '无标签';
+    case 'Website settings': return '网页设置';
+    case 'Default tagset': return '默认标签集';
+    case 'Default color': return '默认颜色';
+    case 'Save settings': return '保存设置';
     case 'Manage watched and hidden tags for the selected site.': return '管理当前站点的订阅和屏蔽标签。';
     case 'Watched tags are used by the subscription page': return '订阅标签会用于订阅页面';
     case 'Hidden tags are filtered by the account': return '屏蔽标签会由账号过滤';

@@ -16,6 +16,18 @@ export interface MyTagItem {
   weight: string;
 }
 
+export interface MyTagSetOption {
+  id: string;
+  name: string;
+  count: number;
+  selected: boolean;
+}
+
+export interface MyTagSuggestion {
+  tag: string;
+  display: string;
+}
+
 export interface MyTagsPage {
   url: string;
   apiUrl: string;
@@ -23,6 +35,9 @@ export interface MyTagsPage {
   apiKey: string;
   tagsetId: string;
   tagsetName: string;
+  tagsetEnabled: boolean;
+  tagsetColor: string;
+  tagsets: MyTagSetOption[];
   watched: MyTagItem[];
   hidden: MyTagItem[];
   all: MyTagItem[];
@@ -41,6 +56,40 @@ export class EhMyTagsService {
     const response = await this.client.getText(url, url, 0);
     this.ensureOk(response, 'Load My Tags failed');
     return parseMyTagsPage(response.body, url);
+  }
+
+  async suggestTags(site: GallerySite, page: MyTagsPage | null, text: string): Promise<MyTagSuggestion[]> {
+    const query = normalizeSuggestText(text);
+    if (query.replace(/^.*:/, '').length < 2) {
+      return [];
+    }
+    const currentPage = page === null ? await this.load(site) : page;
+    if (currentPage.apiUrl.length === 0) {
+      return [];
+    }
+    const response = await this.client.postJson(currentPage.apiUrl, JSON.stringify({
+      method: 'tagsuggest',
+      text: query
+    }), currentPage.url, EhUrl.getReferer(site));
+    this.ensureOk(response, 'Load tag suggestions failed');
+    return parseTagSuggestions(response.body, query);
+  }
+
+  async saveTagsetSettings(site: GallerySite, page: MyTagsPage | null, enabled: boolean,
+    color: string): Promise<MyTagsPage> {
+    const currentPage = page === null ? await this.load(site) : page;
+    const fields: FormField[] = [
+      { key: 'tagset_action', value: 'update' },
+      { key: 'tagset_name', value: '' },
+      { key: 'tagset_color', value: normalizeColor(color) }
+    ];
+    if (enabled) {
+      fields.push({ key: 'tagset_enable', value: 'on' });
+    }
+    const response = await this.client.postForm(currentPage.url, buildFormBody(fields), currentPage.url,
+      EhUrl.getReferer(site));
+    this.ensureOk(response, 'Save My Tags settings failed');
+    return parseMyTagsPage(response.body, currentPage.url);
   }
 
   async saveTag(site: GallerySite, page: MyTagsPage | null, tag: string, kind: MyTagKind): Promise<MyTagsPage> {
@@ -102,6 +151,10 @@ export class EhMyTagsService {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw new Error(prefix + ': HTTP ' + response.statusCode.toString());
     }
+    const pageError = parsePageError(response.body);
+    if (pageError.length > 0) {
+      throw new Error(prefix + ': ' + pageError);
+    }
   }
 }
 
@@ -126,10 +179,57 @@ export function parseMyTagsPage(html: string, url: string): MyTagsPage {
     apiKey: matchStringVariable(html, 'apikey'),
     tagsetId: matchSelectedTagsetId(html),
     tagsetName: matchStringVariable(html, 'tagset_name'),
+    tagsetEnabled: matchTagsetEnabled(html),
+    tagsetColor: matchTagsetColor(html),
+    tagsets: parseTagsetOptions(html),
     watched: watched,
     hidden: hidden,
     all: all
   };
+}
+
+function parseTagSuggestions(body: string, query: string): MyTagSuggestion[] {
+  try {
+    const obj = JSON.parse(body) as Record<string, Object>;
+    const rawError = obj['error'];
+    if (typeof rawError === 'string' && rawError.length > 0) {
+      throw new Error(rawError);
+    }
+    const rawTags = obj['tags'];
+    if (rawTags === undefined) {
+      return [];
+    }
+    const tags = rawTags as Record<string, Object>;
+    const keys = Object.keys(tags);
+    const suggestions: MyTagSuggestion[] = [];
+    const lowerQuery = query.toLowerCase();
+    for (let i = 0; i < keys.length; i++) {
+      const item = tags[keys[i]] as Record<string, Object>;
+      const ns = stringValue(item['ns']);
+      const tn = stringValue(item['tn']);
+      if (ns.length === 0 || tn.length === 0) {
+        continue;
+      }
+      const tag = ns + ':' + tn;
+      const mappedNs = stringValue(item['mns']);
+      const mappedTn = stringValue(item['mtn']);
+      const mapped = mappedNs.length > 0 && mappedTn.length > 0 ? mappedNs + ':' + mappedTn : '';
+      const value = mapped.length > 0 ? mapped : tag;
+      if (value.toLowerCase().indexOf(lowerQuery) < 0 && tag.toLowerCase().indexOf(lowerQuery) < 0) {
+        continue;
+      }
+      suggestions.push({
+        tag: value,
+        display: mapped.length > 0 ? tag + ' => ' + mapped : tag
+      });
+      if (suggestions.length >= 8) {
+        break;
+      }
+    }
+    return suggestions;
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : 'Invalid tag suggestion response');
+  }
 }
 
 function parseUserTags(html: string): MyTagItem[] {
@@ -191,6 +291,37 @@ function matchSelectedTagsetId(html: string): string {
   return matched === null ? '' : decodeHtml(matched[1]);
 }
 
+function parseTagsetOptions(html: string): MyTagSetOption[] {
+  const result: MyTagSetOption[] = [];
+  const selectMatched = /<select[^>]*onchange="change_tagset\(this\.value\)"[^>]*>([\s\S]*?)<\/select>/i.exec(html);
+  if (selectMatched === null) {
+    return result;
+  }
+  const optionRe = /<option\s+value="([^"]+)"([^>]*)>([\s\S]*?)<\/option>/gi;
+  let matched: RegExpExecArray | null = optionRe.exec(selectMatched[1]);
+  while (matched !== null) {
+    const label = decodeHtml(stripTags(matched[3]));
+    result.push({
+      id: decodeHtml(matched[1]),
+      name: label.replace(/\s*\(\d+\)\s*$/, ''),
+      count: parseOptionCount(label),
+      selected: matched[2].indexOf('selected') >= 0
+    });
+    matched = optionRe.exec(selectMatched[1]);
+  }
+  return result;
+}
+
+function matchTagsetEnabled(html: string): boolean {
+  const matched = /id="tagset_enable"[^>]*checked/i.exec(html);
+  return matched !== null;
+}
+
+function matchTagsetColor(html: string): string {
+  const matched = /id="tagcolor"[^>]*value="([^"]*)"/i.exec(html);
+  return matched === null ? '' : decodeHtml(matched[1]);
+}
+
 function matchAttribute(block: string, name: string): string {
   const re = new RegExp(name + '="([^"]*)"', 'i');
   const matched = re.exec(block);
@@ -228,6 +359,62 @@ function parseTagWeight(weight: string): number {
     return 10;
   }
   return Math.max(-99, Math.min(999, value));
+}
+
+function normalizeSuggestText(text: string): string {
+  let value = normalizeTag(text).replace(/["']/g, '').toLowerCase();
+  if (/^(x|mix).*:/.test(value)) {
+    value = value.replace(/^(x|mix).*:/, 'mixed:');
+  } else if (/^(mis).*:/.test(value)) {
+    value = value.replace(/^(mis).*:/, 'temp:');
+  } else if (/^(co).*:/.test(value)) {
+    value = value.replace(/^(co).*:/, 'cosplayer:');
+  } else if (/^(lo).*:/.test(value)) {
+    value = value.replace(/^(lo).*:/, 'location:');
+  } else {
+    value = value
+      .replace(/^t.*:/, 'temp:')
+      .replace(/^f.*:/, 'female:')
+      .replace(/^m.*:/, 'male:')
+      .replace(/^r.*:/, 'reclass:')
+      .replace(/^l.*:/, 'language:')
+      .replace(/^p.*:/, 'parody:')
+      .replace(/^c.*:/, 'character:')
+      .replace(/^g.*:/, 'group:')
+      .replace(/^a.*:/, 'artist:')
+      .replace(/^o.*:/, 'other:');
+  }
+  return value;
+}
+
+function normalizeColor(color: string): string {
+  const value = color.trim().replace(/^#/, '').toUpperCase();
+  if (value.length === 0) {
+    return '';
+  }
+  return /^[0-9A-F]{6}$/.test(value) ? '#' + value : color.trim();
+}
+
+function parseOptionCount(label: string): number {
+  const matched = /\((\d+)\)\s*$/.exec(label);
+  if (matched === null) {
+    return 0;
+  }
+  const count = Number.parseInt(matched[1], 10);
+  return Number.isNaN(count) ? 0 : count;
+}
+
+function parsePageError(html: string): string {
+  const matched = /<div\s+class="d">\s*<p>([^<]+)<\/p>/i.exec(html);
+  return matched === null ? '' : decodeHtml(matched[1]);
+}
+
+function stripTags(html: string): string {
+  return html.replace(/<[^>]+>/g, '');
+}
+
+function stringValue(value: Object | undefined): string {
+  return typeof value === 'string' ? value : '';
 }
 
 function buildFormBody(fields: FormField[]): string {

@@ -1,5 +1,12 @@
 import { GallerySite } from '../model/GalleryModels';
-import { ehMyTagsService, MyTagItem, MyTagKind, MyTagsPage } from '../services/EhMyTagsService';
+import {
+  ehMyTagsService,
+  MyTagItem,
+  MyTagKind,
+  MyTagsPage,
+  MyTagSetOption,
+  MyTagSuggestion
+} from '../services/EhMyTagsService';
 import { uiStatusText, uiText } from '../shared/EhShared';
 import {
   themeFieldBackground,
@@ -21,9 +28,17 @@ export struct MyTagsPanel {
   @State statusText: string = '';
   @State watchedText: string = '';
   @State hiddenText: string = '';
+  @State tagsetName: string = '';
+  @State tagsetColor: string = '';
+  @State tagsetEnabled: boolean = true;
+  @State tagsets: MyTagSetOption[] = [];
   @State watchedTags: MyTagItem[] = [];
   @State hiddenTags: MyTagItem[] = [];
+  @State watchedSuggestions: MyTagSuggestion[] = [];
+  @State hiddenSuggestions: MyTagSuggestion[] = [];
   private page: MyTagsPage | null = null;
+  private watchedSuggestVersion: number = 0;
+  private hiddenSuggestVersion: number = 0;
 
   aboutToAppear(): void {
     this.loadTags();
@@ -53,6 +68,23 @@ export struct MyTagsPanel {
     this.saveTag(this.hiddenText, MyTagKind.Hidden);
   }
 
+  private saveTagsetSettings(): void {
+    if (this.saving) {
+      return;
+    }
+    this.saving = true;
+    this.statusText = 'Saving My Tags settings...';
+    ehMyTagsService.saveTagsetSettings(this.site, this.page, this.tagsetEnabled, this.tagsetColor)
+      .then((page: MyTagsPage) => {
+        this.applyPage(page);
+        this.statusText = 'My Tags settings saved';
+      }).catch((error: Error) => {
+        this.statusText = 'My Tags save failed: ' + error.message;
+      }).finally(() => {
+        this.saving = false;
+      });
+  }
+
   private saveTag(text: string, kind: MyTagKind): void {
     const tag = text.trim();
     if (tag.length === 0) {
@@ -68,8 +100,10 @@ export struct MyTagsPanel {
       this.applyPage(page);
       if (kind === MyTagKind.Watched) {
         this.watchedText = '';
+        this.watchedSuggestions = [];
       } else {
         this.hiddenText = '';
+        this.hiddenSuggestions = [];
       }
       this.statusText = 'My Tags saved';
     }).catch((error: Error) => {
@@ -81,8 +115,58 @@ export struct MyTagsPanel {
 
   private applyPage(page: MyTagsPage): void {
     this.page = page;
+    this.tagsetName = page.tagsetName;
+    this.tagsetColor = page.tagsetColor;
+    this.tagsetEnabled = page.tagsetEnabled;
+    this.tagsets = cloneTagsets(page.tagsets);
     this.watchedTags = cloneTags(page.watched);
     this.hiddenTags = cloneTags(page.hidden);
+  }
+
+  private updateWatchedText(value: string): void {
+    this.watchedText = value;
+    this.refreshSuggestions(value, MyTagKind.Watched);
+  }
+
+  private updateHiddenText(value: string): void {
+    this.hiddenText = value;
+    this.refreshSuggestions(value, MyTagKind.Hidden);
+  }
+
+  private refreshSuggestions(value: string, kind: MyTagKind): void {
+    const text = value.trim();
+    if (text.replace(/^.*:/, '').length < 2 || this.page === null) {
+      if (kind === MyTagKind.Watched) {
+        this.watchedSuggestions = [];
+        this.watchedSuggestVersion++;
+      } else {
+        this.hiddenSuggestions = [];
+        this.hiddenSuggestVersion++;
+      }
+      return;
+    }
+    const version = kind === MyTagKind.Watched ? ++this.watchedSuggestVersion : ++this.hiddenSuggestVersion;
+    setTimeout(() => {
+      if (kind === MyTagKind.Watched && version !== this.watchedSuggestVersion) {
+        return;
+      }
+      if (kind === MyTagKind.Hidden && version !== this.hiddenSuggestVersion) {
+        return;
+      }
+      ehMyTagsService.suggestTags(this.site, this.page, text).then((suggestions: MyTagSuggestion[]) => {
+        if (kind === MyTagKind.Watched && version === this.watchedSuggestVersion) {
+          this.watchedSuggestions = cloneSuggestions(suggestions);
+        } else if (kind === MyTagKind.Hidden && version === this.hiddenSuggestVersion) {
+          this.hiddenSuggestions = cloneSuggestions(suggestions);
+        }
+      }).catch(() => {
+        if (kind === MyTagKind.Watched && version === this.watchedSuggestVersion) {
+          this.watchedSuggestions = [];
+        } else if (kind === MyTagKind.Hidden && version === this.hiddenSuggestVersion) {
+          this.hiddenSuggestions = [];
+        }
+      });
+    }, 220);
   }
 
   build() {
@@ -95,6 +179,23 @@ export struct MyTagsPanel {
             .lineHeight(18)
             .width('100%')
 
+          MyTagsetSettingsCard({
+            name: this.tagsetName,
+            color: this.tagsetColor,
+            tagsetEnabled: this.tagsetEnabled,
+            tagsets: this.tagsets,
+            loading: this.loading || this.saving,
+            onColorChange: (value: string) => {
+              this.tagsetColor = value;
+            },
+            onEnabledChange: (value: boolean) => {
+              this.tagsetEnabled = value;
+            },
+            onSave: () => {
+              this.saveTagsetSettings();
+            }
+          })
+
           Row({ space: 10 }) {
             MyTagsColumn({
               title: 'Subscription',
@@ -102,9 +203,14 @@ export struct MyTagsPanel {
               text: this.watchedText,
               placeholder: 'Tag name',
               tags: this.watchedTags,
+              suggestions: this.watchedSuggestions,
               loading: this.loading || this.saving,
               onTextChange: (value: string) => {
+                this.updateWatchedText(value);
+              },
+              onSuggestionSelect: (value: string) => {
                 this.watchedText = value;
+                this.watchedSuggestions = [];
               },
               onSave: () => {
                 this.saveWatchedTag();
@@ -117,9 +223,14 @@ export struct MyTagsPanel {
               text: this.hiddenText,
               placeholder: 'Tag name',
               tags: this.hiddenTags,
+              suggestions: this.hiddenSuggestions,
               loading: this.loading || this.saving,
               onTextChange: (value: string) => {
+                this.updateHiddenText(value);
+              },
+              onSuggestionSelect: (value: string) => {
                 this.hiddenText = value;
+                this.hiddenSuggestions = [];
               },
               onSave: () => {
                 this.saveHiddenTag();
@@ -171,8 +282,10 @@ struct MyTagsColumn {
   text: string = '';
   placeholder: string = '';
   tags: MyTagItem[] = [];
+  suggestions: MyTagSuggestion[] = [];
   loading: boolean = false;
   onTextChange: (value: string) => void = (_value: string) => {};
+  onSuggestionSelect: (value: string) => void = (_value: string) => {};
   onSave: () => void = () => {};
 
   build() {
@@ -202,6 +315,19 @@ struct MyTagsColumn {
           .onChange((value: string) => {
             this.onTextChange(value);
           })
+        if (this.suggestions.length > 0) {
+          Column({ space: 4 }) {
+            ForEach(this.suggestions, (suggestion: MyTagSuggestion) => {
+              MyTagSuggestionRow({
+                suggestion: suggestion,
+                onSelect: (value: string) => {
+                  this.onSuggestionSelect(value);
+                }
+              })
+            }, (suggestion: MyTagSuggestion) => suggestion.tag)
+          }
+          .width('100%')
+        }
         Button(uiText('Save'), { type: ButtonType.Normal, stateEffect: true })
           .fontSize(13)
           .fontColor(themeOnPrimaryText())
@@ -234,6 +360,120 @@ struct MyTagsColumn {
     .width('100%')
     .backgroundColor(themeSurface())
     .borderRadius(6)
+  }
+}
+
+@Component
+struct MyTagsetSettingsCard {
+  name: string = '';
+  color: string = '';
+  tagsetEnabled: boolean = true;
+  tagsets: MyTagSetOption[] = [];
+  loading: boolean = false;
+  onColorChange: (value: string) => void = (_value: string) => {};
+  onEnabledChange: (value: boolean) => void = (_value: boolean) => {};
+  onSave: () => void = () => {};
+
+  private tagsetSummary(): string {
+    if (this.tagsets.length <= 1) {
+      return this.name.length > 0 ? this.name : 'Default tagset';
+    }
+    const names: string[] = [];
+    for (let i = 0; i < this.tagsets.length; i++) {
+      names.push(this.tagsets[i].selected ? '[' + this.tagsets[i].name + ']' : this.tagsets[i].name);
+    }
+    return names.join(' / ');
+  }
+
+  build() {
+    Column({ space: 10 }) {
+      Row() {
+        Column({ space: 3 }) {
+          Text(uiText('Website settings'))
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(themePrimaryText())
+          Text(this.tagsetSummary())
+            .fontSize(12)
+            .fontColor(themeSecondaryText())
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+        Toggle({ type: ToggleType.Switch, isOn: this.tagsetEnabled })
+          .onChange((isOn: boolean) => {
+            this.onEnabledChange(isOn);
+          })
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+
+      Row({ space: 8 }) {
+        TextInput({ text: this.color, placeholder: uiText('Default color') })
+          .height(38)
+          .fontSize(14)
+          .fontColor(themePrimaryText())
+          .placeholderColor(themeTertiaryText())
+          .backgroundColor(themeFieldBackground())
+          .borderRadius(6)
+          .padding({ left: 10, right: 10 })
+          .layoutWeight(1)
+          .onChange((value: string) => {
+            this.onColorChange(value);
+          })
+        Button(uiText('Save settings'), { type: ButtonType.Normal, stateEffect: true })
+          .fontSize(13)
+          .fontColor(themeOnPrimaryText())
+          .backgroundColor(themePrimaryColor())
+          .borderRadius(6)
+          .height(38)
+          .enabled(!this.loading)
+          .onClick(() => {
+            this.onSave();
+          })
+      }
+      .width('100%')
+    }
+    .padding(12)
+    .width('100%')
+    .backgroundColor(themeSurface())
+    .borderRadius(6)
+  }
+}
+
+@Component
+struct MyTagSuggestionRow {
+  suggestion: MyTagSuggestion = { tag: '', display: '' };
+  onSelect: (value: string) => void = (_value: string) => {};
+
+  build() {
+    Button({ type: ButtonType.Normal, stateEffect: true }) {
+      Column({ space: 1 }) {
+        Text(this.suggestion.display)
+          .fontSize(12)
+          .fontColor(themePrimaryText())
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        if (this.suggestion.display !== this.suggestion.tag) {
+          Text(this.suggestion.tag)
+            .fontSize(11)
+            .fontColor(themeSecondaryText())
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Start)
+    }
+    .width('100%')
+    .height(38)
+    .padding({ left: 8, right: 8 })
+    .backgroundColor(themeSurfaceVariant())
+    .borderRadius(5)
+    .onClick(() => {
+      this.onSelect(this.suggestion.tag);
+    })
   }
 }
 
@@ -272,6 +512,30 @@ function cloneTags(tags: MyTagItem[]): MyTagItem[] {
       hidden: tags[i].hidden,
       color: tags[i].color,
       weight: tags[i].weight
+    });
+  }
+  return result;
+}
+
+function cloneTagsets(tagsets: MyTagSetOption[]): MyTagSetOption[] {
+  const result: MyTagSetOption[] = [];
+  for (let i = 0; i < tagsets.length; i++) {
+    result.push({
+      id: tagsets[i].id,
+      name: tagsets[i].name,
+      count: tagsets[i].count,
+      selected: tagsets[i].selected
+    });
+  }
+  return result;
+}
+
+function cloneSuggestions(suggestions: MyTagSuggestion[]): MyTagSuggestion[] {
+  const result: MyTagSuggestion[] = [];
+  for (let i = 0; i < suggestions.length; i++) {
+    result.push({
+      tag: suggestions[i].tag,
+      display: suggestions[i].display
     });
   }
   return result;
