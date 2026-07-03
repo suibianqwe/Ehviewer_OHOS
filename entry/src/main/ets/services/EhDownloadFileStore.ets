@@ -1,7 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { zlib } from '@kit.BasicServicesKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
-import { GalleryDetail, GalleryInfo, GalleryPage } from '../model/GalleryModels';
+import { GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryTagGroup } from '../model/GalleryModels';
 import { parseGalleryPageUrl } from './GalleryPageUrlParser';
 import { ehSettingsStore } from './EhSettingsStore';
 
@@ -19,6 +19,13 @@ interface GalleryMetadata {
   pages: number;
   previewPages: number;
   savedAt: number;
+  simpleLanguage?: string;
+  simpleTags?: string[];
+  tagList?: string[];
+  detailTags?: GalleryTagGroup[];
+  detailLanguage?: string;
+  language?: string;
+  previewSet?: GalleryPreview[];
 }
 
 interface AndroidSpiderInfo {
@@ -211,8 +218,18 @@ export class EhDownloadFileStore {
   }
 
   private rewriteGalleryMetadataByDirectory(directory: string, detail: GalleryDetail): void {
-    writeTextFile(directory + '/' + ANDROID_SPIDER_INFO_FILENAME, createAndroidSpiderInfo(detail));
-    writeTextFile(directory + '/' + OHOS_METADATA_FILENAME, JSON.stringify(createMetadata(detail)));
+    this.rewriteGalleryMetadataForDirectory(directory, detail);
+  }
+
+  rewriteGalleryMetadataForDirectory(directory: string, gallery: GalleryInfo): void {
+    const metadata = createMetadata(gallery);
+    writeTextFile(directory + '/' + OHOS_METADATA_FILENAME, JSON.stringify(metadata));
+    const detail = gallery as GalleryDetail;
+    if (detail.previewSet !== undefined && Array.isArray(detail.previewSet)) {
+      writeTextFile(directory + '/' + ANDROID_SPIDER_INFO_FILENAME, createAndroidSpiderInfo(detail));
+    } else {
+      writeTextFile(directory + '/' + ANDROID_SPIDER_INFO_FILENAME, createAndroidSpiderInfoFromMetadata(metadata));
+    }
   }
 
   savePageImage(context: common.UIAbilityContext, detail: GalleryDetail, page: GalleryPage, index: number,
@@ -474,21 +491,31 @@ function normalizeDownloadLocation(location: string): string {
   return location === DOWNLOAD_LOCATION_DOWNLOADS ? DOWNLOAD_LOCATION_DOWNLOADS : DOWNLOAD_LOCATION_APP_FILES;
 }
 
-function createMetadata(detail: GalleryDetail): GalleryMetadata {
+function createMetadata(gallery: GalleryInfo): GalleryMetadata {
+  const detail = gallery as GalleryDetail;
+  const tags = galleryDetailTags(gallery);
+  const language = galleryDetailLanguage(gallery);
   return {
     version: 1,
-    gid: detail.gid,
-    token: detail.token,
-    title: detail.title,
-    titleJpn: detail.titleJpn === undefined ? '' : detail.titleJpn,
-    thumb: detail.thumb === undefined ? '' : detail.thumb,
-    category: detail.category,
-    posted: detail.posted === undefined ? '' : detail.posted,
-    uploader: detail.uploader === undefined ? '' : detail.uploader,
-    rating: detail.rating,
-    pages: detail.pages,
-    previewPages: detail.previewPages,
-    savedAt: Date.now()
+    gid: gallery.gid,
+    token: gallery.token,
+    title: gallery.title,
+    titleJpn: gallery.titleJpn === undefined ? '' : gallery.titleJpn,
+    thumb: gallery.thumb === undefined ? '' : gallery.thumb,
+    category: gallery.category,
+    posted: gallery.posted === undefined ? '' : gallery.posted,
+    uploader: gallery.uploader === undefined ? '' : gallery.uploader,
+    rating: gallery.rating,
+    pages: gallery.pages,
+    previewPages: detail.previewPages === undefined ? 0 : detail.previewPages,
+    savedAt: Date.now(),
+    simpleLanguage: gallery.simpleLanguage,
+    simpleTags: cloneStringArray(gallery.simpleTags),
+    tagList: cloneStringArray(gallery.tagList),
+    detailTags: cloneGalleryTagGroups(tags),
+    detailLanguage: language,
+    language: detail.language,
+    previewSet: cloneGalleryPreviews(detail.previewSet)
   };
 }
 
@@ -628,12 +655,77 @@ function metadataToGallery(metadata: GalleryMetadata): GalleryInfo {
     uploader: metadata.uploader,
     rating: metadata.rating,
     rated: false,
+    simpleLanguage: metadata.simpleLanguage,
+    simpleTags: cloneStringArray(metadata.simpleTags),
     pages: metadata.pages,
     thumbWidth: 0,
     thumbHeight: 0,
     favoriteSlot: -1,
-    favoriteName: ''
+    favoriteName: '',
+    tagList: cloneStringArray(metadata.tagList),
+    detailTags: cloneGalleryTagGroups(metadata.detailTags),
+    detailLanguage: metadata.detailLanguage === undefined ? metadata.language : metadata.detailLanguage
   };
+}
+
+function galleryDetailTags(item: GalleryInfo): GalleryTagGroup[] | undefined {
+  const detail = item as GalleryDetail;
+  if (detail.tags !== undefined && Array.isArray(detail.tags) && detail.tags.length > 0) {
+    return detail.tags;
+  }
+  return item.detailTags;
+}
+
+function galleryDetailLanguage(item: GalleryInfo): string | undefined {
+  const detail = item as GalleryDetail;
+  if (detail.language !== undefined && detail.language.length > 0) {
+    return detail.language;
+  }
+  return item.detailLanguage;
+}
+
+function cloneStringArray(values: string[] | undefined): string[] | undefined {
+  if (values === undefined || !Array.isArray(values)) {
+    return undefined;
+  }
+  const cloned: string[] = [];
+  for (let i = 0; i < values.length; i++) {
+    cloned.push(values[i]);
+  }
+  return cloned;
+}
+
+function cloneGalleryTagGroups(groups: GalleryTagGroup[] | undefined): GalleryTagGroup[] | undefined {
+  if (groups === undefined || !Array.isArray(groups)) {
+    return undefined;
+  }
+  const cloned: GalleryTagGroup[] = [];
+  for (let i = 0; i < groups.length; i++) {
+    cloned.push({
+      namespace: groups[i].namespace,
+      tags: cloneStringArray(groups[i].tags) ?? []
+    });
+  }
+  return cloned;
+}
+
+function cloneGalleryPreviews(previews: GalleryPreview[] | undefined): GalleryPreview[] | undefined {
+  if (previews === undefined || !Array.isArray(previews)) {
+    return undefined;
+  }
+  const cloned: GalleryPreview[] = [];
+  for (let i = 0; i < previews.length; i++) {
+    cloned.push({
+      index: previews[i].index,
+      pageUrl: previews[i].pageUrl,
+      imageUrl: previews[i].imageUrl,
+      width: previews[i].width,
+      height: previews[i].height,
+      xOffset: previews[i].xOffset,
+      yOffset: previews[i].yOffset
+    });
+  }
+  return cloned;
 }
 
 function spiderInfoToGallery(info: AndroidSpiderInfo, directoryName: string): GalleryInfo {

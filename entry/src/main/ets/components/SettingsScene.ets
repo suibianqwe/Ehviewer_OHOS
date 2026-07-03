@@ -14,6 +14,7 @@ import {
 } from '../services/EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
+import { DownloadMetadataRestoreResult, rebuildRestoredDownloadMetadata } from '../services/DownloadMetadataRestore';
 import {
   HISTORY_INFO_SIZE_KEY,
   ehSettingsStore,
@@ -1075,6 +1076,9 @@ export struct SettingsScene {
       }
       await ehDownloadStore.load(context);
       const restored: RestoredDownloadGallery[] = ehDownloadFileStore.restoreDownloadedGalleries(context);
+      this.statusText = 'Rebuilding downloaded metadata...';
+      const metadataResult: DownloadMetadataRestoreResult =
+        await rebuildRestoredDownloadMetadata(context, restored, this.currentGallerySite());
       let added = 0;
       let updated = 0;
       let migrated = 0;
@@ -1082,12 +1086,13 @@ export struct SettingsScene {
       for (let i = 0; i < restored.length; i++) {
         const item = restored[i];
         const existed = ehDownloadStore.contains(item.gallery.gid);
-        if (ehDownloadStore.addGallery(item.gallery, '') !== null) {
+        const downloadItem = ehDownloadStore.addGallery(item.gallery, '');
+        if (downloadItem !== null) {
           const total = Math.max(item.total, item.finished);
-          ehDownloadStore.setProgress(item.gallery.gid, item.finished, total,
+          ehDownloadStore.setProgress(downloadItem.gid, item.finished, total,
             item.finished * DOWNLOAD_PAGE_PROGRESS_SCALE);
-          ehDownloadStore.setStorage(item.gallery.gid, item.directory, item.fileSize);
-          ehDownloadStore.setState(item.gallery.gid,
+          ehDownloadStore.setStorage(downloadItem.gid, item.directory, item.fileSize);
+          ehDownloadStore.setState(downloadItem.gid,
             total > 0 && item.finished >= total ? DownloadState.Finish : DownloadState.None);
           totalBytes += item.fileSize;
           if (item.migrated === true) {
@@ -1102,7 +1107,11 @@ export struct SettingsScene {
       }
       await ehDownloadStore.save(context);
       this.statusText = 'Restored downloads: ' + added.toString() + ' added, ' + updated.toString() +
-        ' updated, ' + migrated.toString() + ' migrated, ' + downloadSizeText(totalBytes) + '.';
+        ' updated, ' + migrated.toString() + ' migrated, ' + metadataResult.rebuilt.toString() +
+        ' metadata rebuilt, ' + downloadSizeText(totalBytes) + '.';
+      if (metadataResult.fetched > 0) {
+        this.statusText += ' Fetched ' + metadataResult.fetched.toString() + ' details.';
+      }
       if (!downloadsAccess) {
         this.statusText += ' Downloads access was not granted; scanned app files only.';
       }

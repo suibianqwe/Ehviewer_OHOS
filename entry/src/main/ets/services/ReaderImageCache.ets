@@ -313,7 +313,7 @@ function buildImageRequestHeader(plan: EhRequestPlan, referer: string, cookieHea
 }
 
 function imageRequestTimeoutMs(): number {
-  const value = ehSettingsStore.getValue('download_timeout', 'Default');
+  const value = ehSettingsStore.getValue('download_timeout', '30s');
   if (value === '15s') {
     return 15000;
   }

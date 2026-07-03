@@ -568,6 +568,7 @@ export function zhText(text: string): string {
     case 'Zoom in': return '放大';
     case 'Hide': return '隐藏';
     case 'Actions': return '操作';
+    case 'Select all': return '全选';
     case 'Close': return '关闭';
     case 'Ignore': return '忽略';
     case 'View': return '查看';
@@ -2099,7 +2100,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('download_list_pagination', 'Download list pagination', 'Paginate large download lists', entries, ON_OFF_OPTIONS),
       optionSettingsRow('image_size', 'Image resolution', 'Requested E-Hentai image size', entries, ['Auto', '780x', '980x', '1280x', 'Original']),
       optionSettingsRow('download_origin_image', 'Download original image', 'Prefer original files when available', entries, ON_OFF_OPTIONS),
-      optionSettingsRow('download_timeout', 'Download timeout', 'Network timeout for image tasks', entries, ['Default', '15s', '30s', '60s']),
+      optionSettingsRow('download_timeout', 'Download timeout', 'Network timeout for image tasks', entries, ['15s', '30s', '60s']),
       optionSettingsRow('download_order_asc', 'Download order ascending', 'Store pages in ascending page order', entries, ON_OFF_OPTIONS),
       staticSettingsRow('restore_download_items', 'Restore download items', 'Rebuild queue from downloaded folders', 'Run', 'action'),
       staticSettingsRow('clean_redundancy', 'Clean redundancy',

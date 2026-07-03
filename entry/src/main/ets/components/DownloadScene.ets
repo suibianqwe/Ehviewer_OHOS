@@ -15,6 +15,7 @@ import {
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { DownloadInfo, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
+import { DownloadMetadataRestoreResult, rebuildRestoredDownloadMetadata } from '../services/DownloadMetadataRestore';
 import {
   confirmCellularNetworkWarningForSession,
   shouldConfirmCellularNetworkOperation
@@ -680,13 +681,34 @@ export struct DownloadScene {
 
   private selectedDownloadItems(): DownloadInfo[] {
     const selected: DownloadInfo[] = [];
-    const visible = this.visibleDownloadItems();
-    for (let i = 0; i < visible.length; i++) {
-      if (this.isDownloadSelected(visible[i].gid)) {
-        selected.push(visible[i]);
+    for (let i = 0; i < this.items.length; i++) {
+      if (this.isDownloadSelected(this.items[i].gid)) {
+        selected.push(this.items[i]);
       }
     }
     return selected;
+  }
+
+  private selectAllFinishedDownloads(): void {
+    let selected = '';
+    let count = 0;
+    for (let i = 0; i < this.items.length; i++) {
+      if (this.items[i].state === DownloadState.Finish) {
+        if (selected.length === 0) {
+          selected = this.selectedKey(this.items[i].gid);
+        } else {
+          selected += this.items[i].gid.toString() + '|';
+        }
+        count++;
+      }
+    }
+    if (count <= 0) {
+      this.statusText = 'No downloaded galleries to select';
+      return;
+    }
+    this.selectedDownloadGids = selected;
+    this.downloadActionsExpanded = true;
+    this.statusText = 'Selected ' + count.toString() + ' downloaded galleries';
   }
 
   private downloadCardPreferredWidth(): number {
@@ -927,6 +949,9 @@ export struct DownloadScene {
       }
       await ehDownloadStore.load(context);
       const restored: RestoredDownloadGallery[] = ehDownloadFileStore.restoreDownloadedGalleries(context);
+      this.statusText = 'Rebuilding downloaded metadata...';
+      const metadataResult: DownloadMetadataRestoreResult =
+        await rebuildRestoredDownloadMetadata(context, restored, currentGallerySite());
       let added = 0;
       let updated = 0;
       let migrated = 0;
@@ -952,7 +977,10 @@ export struct DownloadScene {
       }
       await ehDownloadStore.save(context);
       this.statusText = 'Restored ' + added.toString() + ' added, ' + updated.toString() + ' updated, ' +
-        migrated.toString() + ' migrated';
+        migrated.toString() + ' migrated, ' + metadataResult.rebuilt.toString() + ' metadata rebuilt';
+      if (metadataResult.fetched > 0) {
+        this.statusText += ', ' + metadataResult.fetched.toString() + ' fetched';
+      }
       if (!downloadsAccess) {
         this.statusText += '. Downloads access was not granted; scanned app files only';
       }
@@ -1558,6 +1586,9 @@ export struct DownloadScene {
             onRestore: () => {
               this.restoreDownloadedItems();
             },
+            onSelectAll: () => {
+              this.selectAllFinishedDownloads();
+            },
             onDelete: () => {
               this.deleteSelectedDownloads();
             },
@@ -1684,6 +1715,7 @@ struct DownloadToolColumn {
   onStart: () => void = () => {};
   onStop: () => void = () => {};
   onRestore: () => void = () => {};
+  onSelectAll: () => void = () => {};
   onDelete: () => void = () => {};
   onExportZip: () => void = () => {};
 
@@ -1697,7 +1729,7 @@ struct DownloadToolColumn {
     if (!this.expanded) {
       return 0;
     }
-    return this.hasSelection ? 7 : 5;
+    return this.hasSelection ? 8 : 5;
   }
 
   private primaryIndex(): number {
@@ -1759,10 +1791,12 @@ struct DownloadToolColumn {
       this.toggleExpanded();
       return;
     }
-    const baseIndex = this.hasSelection ? index - 2 : index;
+    const baseIndex = this.hasSelection ? index - 3 : index;
     if (this.hasSelection && index === 0) {
-      this.onExportZip();
+      this.onSelectAll();
     } else if (this.hasSelection && index === 1) {
+      this.onExportZip();
+    } else if (this.hasSelection && index === 2) {
       this.onDelete();
     } else if (baseIndex === 0) {
       this.onStatus();
@@ -1790,7 +1824,7 @@ struct DownloadToolColumn {
   }
 
   private baseActionIndex(index: number): number {
-    return this.hasSelection ? index + 2 : index;
+    return this.hasSelection ? index + 3 : index;
   }
 
   build() {
@@ -1799,17 +1833,24 @@ struct DownloadToolColumn {
         Column({ space: 8 }) {
           if (this.hasSelection) {
             ActionBubble({
+              label: uiText('Select all'),
+              symbolIcon: $r('sys.symbol.checkmark_circle'),
+              isEnabled: true,
+              active: this.activeActionIndex === 0,
+              directTap: false
+            })
+            ActionBubble({
               label: uiText('Export'),
               symbolIcon: $r('sys.symbol.archivebox'),
               isEnabled: true,
-              active: this.activeActionIndex === 0,
+              active: this.activeActionIndex === 1,
               directTap: false
             })
             ActionBubble({
               label: uiText('Delete'),
               symbolIcon: $r('sys.symbol.trash'),
               isEnabled: true,
-              active: this.activeActionIndex === 1,
+              active: this.activeActionIndex === 2,
               directTap: false
             })
           }

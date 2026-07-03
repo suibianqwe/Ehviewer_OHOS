@@ -56,7 +56,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'download_list_pagination', value: 'On' },
     { key: 'image_size', value: 'Auto' },
     { key: 'download_origin_image', value: 'Off' },
-    { key: 'download_timeout', value: 'Default' },
+    { key: 'download_timeout', value: '30s' },
     { key: 'download_order_asc', value: 'On' },
     { key: 'pattern_protection', value: 'Off' },
     { key: 'enable_secure', value: 'Off' },
@@ -154,6 +154,9 @@ export class EhSettingsStore {
       }
       if (this.getValue('download_location', 'App files') !== 'Downloads') {
         this.setValue('download_location', 'App files');
+      }
+      if (this.getValue('download_timeout', '30s') === 'Default') {
+        this.setValue('download_timeout', '30s');
       }
     } catch (error) {
       throw new Error(String(error));
