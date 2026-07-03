@@ -54,6 +54,7 @@ import {
   getAbilityContext,
   nextDownloadStatusFilter,
   uiText,
+  uiStatusText,
   uiValue
 } from '../shared/EhShared';
 import {
@@ -75,6 +76,7 @@ import { GalleryListRow, GalleryThumbCard } from './GalleryCards';
 import { ActionBubble, GalleryListScene } from './GalleryScenes';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
+import { BlockingBusyOverlay } from './BlockingBusyOverlay';
 import {
   applyTagSuggestionToKeyword,
   buildSearchSuggestions,
@@ -217,6 +219,8 @@ export struct DownloadScene {
   @State downloadActionsExpanded: boolean = false;
   @State statusHintText: string = '';
   @State statusHintVisible: boolean = false;
+  @State blockingBusyVisible: boolean = false;
+  @State blockingBusyMessage: string = 'Loading...';
   @State downloadJumpPanelVisible: boolean = false;
   @State downloadJumpDraft: string = '1';
   @State downloadJumpPageIndex: number = 0;
@@ -470,6 +474,24 @@ export struct DownloadScene {
     ehDownloadStore.save(context).catch((error: Error) => {
       this.statusText = 'Download save failed: ' + error.message;
     });
+  }
+
+  private showFloatingStatus(message: string): void {
+    this.statusText = message;
+    try {
+      this.getUIContext().getPromptAction().showToast({ message: uiStatusText(message) });
+    } catch (error) {
+    }
+  }
+
+  private showBlockingBusy(message: string): void {
+    this.blockingBusyMessage = message;
+    this.blockingBusyVisible = true;
+  }
+
+  private hideBlockingBusy(): void {
+    this.blockingBusyVisible = false;
+    this.blockingBusyMessage = 'Loading...';
   }
 
   private visibleDownloadItems(): DownloadInfo[] {
@@ -950,6 +972,7 @@ export struct DownloadScene {
       await ehDownloadStore.load(context);
       const restored: RestoredDownloadGallery[] = ehDownloadFileStore.restoreDownloadedGalleries(context);
       this.statusText = 'Rebuilding downloaded metadata...';
+      this.showBlockingBusy('Rebuilding downloaded metadata...');
       const metadataResult: DownloadMetadataRestoreResult =
         await rebuildRestoredDownloadMetadata(context, restored, currentGallerySite());
       let added = 0;
@@ -976,16 +999,19 @@ export struct DownloadScene {
         }
       }
       await ehDownloadStore.save(context);
-      this.statusText = 'Restored ' + added.toString() + ' added, ' + updated.toString() + ' updated, ' +
+      this.hideBlockingBusy();
+      let message = 'Restored ' + added.toString() + ' added, ' + updated.toString() + ' updated, ' +
         migrated.toString() + ' migrated, ' + metadataResult.rebuilt.toString() + ' metadata rebuilt';
       if (metadataResult.fetched > 0) {
-        this.statusText += ', ' + metadataResult.fetched.toString() + ' fetched';
+        message += ', ' + metadataResult.fetched.toString() + ' fetched';
       }
       if (!downloadsAccess) {
-        this.statusText += '. Downloads access was not granted; scanned app files only';
+        message += '. Downloads access was not granted; scanned app files only';
       }
+      this.showFloatingStatus(message);
     }).catch((error: Error) => {
-      this.statusText = 'Restore failed: ' + error.message;
+      this.hideBlockingBusy();
+      this.showFloatingStatus('Restore failed: ' + error.message);
     });
   }
 
@@ -1116,19 +1142,22 @@ export struct DownloadScene {
     this.statusText = 'Exporting ' + selected.length.toString() + ' selected downloads...';
     pickDownloadsOutputPath(context, 'EhViewer_downloads_' + downloadExportTimestamp(new Date()) + '.zip').then((path: string) => {
       if (path.length === 0) {
-        this.statusText = 'Export cancelled';
+        this.showFloatingStatus('Export cancelled');
         return;
       }
+      this.showBlockingBusy('Creating download archive...');
       return ehDownloadFileStore.exportGalleriesZip(context, selected, path);
     }).then((result) => {
+      this.hideBlockingBusy();
       if (result === undefined) {
         return;
       }
       this.clearDownloadSelection();
-      this.statusText = 'Exported ' + result.folders.toString() + ' folders to ' + result.path + ' (' +
-        downloadSizeText(result.bytes) + ')';
+      this.showFloatingStatus('Exported ' + result.folders.toString() + ' folders to ' + result.path + ' (' +
+        downloadSizeText(result.bytes) + ')');
     }).catch((error: Error) => {
-      this.statusText = 'Export failed: ' + error.message;
+      this.hideBlockingBusy();
+      this.showFloatingStatus('Export failed: ' + error.message);
     });
   }
 
@@ -1688,6 +1717,12 @@ export struct DownloadScene {
             y: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - 210) : 360
           })
           .zIndex(21)
+        }
+
+        if (this.blockingBusyVisible) {
+          BlockingBusyOverlay({ message: this.blockingBusyMessage })
+            .zIndex(40)
+            .transition(TransitionEffect.OPACITY.animation({ duration: 140, curve: Curve.EaseOut }))
         }
       }
       .width('100%')

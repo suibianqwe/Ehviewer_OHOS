@@ -634,6 +634,12 @@ export function zhText(text: string): string {
     case 'Information': return '信息';
     case 'Tags': return '标签';
     case 'Loading...': return '正在加载...';
+    case 'Please wait...': return '请稍候...';
+    case 'Migrating downloaded files...': return '正在迁移下载文件...';
+    case 'Rebuilding downloaded metadata...': return '正在重建下载元数据...';
+    case 'Rebuilding imported history metadata...': return '正在重建导入历史元数据...';
+    case 'Creating download archive...': return '正在生成下载压缩包...';
+    case 'Importing Android data...': return '正在导入 Android 数据...';
     case 'Loading tags...': return '正在加载标签...';
     case 'Loading previews...': return '正在加载预览...';
     case 'Loading comments...': return '正在加载评论...';

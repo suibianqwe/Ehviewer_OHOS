@@ -89,6 +89,7 @@ import {
 } from '../shared/EhSelectStyle';
 import { EhBackupBundle, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, uiStatusText, setActiveBackHandler, padTwo, getAbilityContext, downloadSizeText, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, cloneStringOptions, settingMigrationMessage, isValidProxyPortText, formatNetworkDiagnostics, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption, normalizeIdentityAuthenticationOption, normalizeReaderCacheSizeOption } from '../shared/EhShared';
 import { FilterPanel } from './DownloadMigrationScenes';
+import { BlockingBusyOverlay } from './BlockingBusyOverlay';
 import { MyTagsPanel } from './MyTagsPanel';
 import { AppSubToolbar, AppToolbar } from './NavigationComponents';
 import { collectWebCookies, hasLoginCookie, SessionScene, syncCookieHeaderToWebView } from './SessionScene';
@@ -124,6 +125,8 @@ export struct SettingsScene {
   @State panelStack: SettingsPanel[] = [SettingsPanel.Main];
   @State signedIn: boolean = ehCookieStore.hasCookies();
   @State statusText: string = '';
+  @State blockingBusyVisible: boolean = false;
+  @State blockingBusyMessage: string = 'Loading...';
   @State themeName: string = 'Light';
   @State settingEntries: SettingEntry[] = defaultSettingEntries();
   @State optionPickerOpen: boolean = false;
@@ -530,15 +533,18 @@ export struct SettingsScene {
         if (!await this.ensureDownloadLocationAccess(context, target)) {
           return;
         }
+        this.showBlockingBusy('Migrating downloaded files...');
         const result = ehDownloadFileStore.migrateDownloadLocation(context, current, target);
-        this.statusText = 'Migrated downloads: ' + result.files.toString() + ' files, ' +
-          downloadSizeText(result.bytes) + '.';
+        this.hideBlockingBusy();
+        this.showFloatingStatus('Migrated downloads: ' + result.files.toString() + ' files, ' +
+          downloadSizeText(result.bytes) + '.');
       } catch (error) {
-        this.statusText = 'Download migration failed: ' + String(error);
+        this.hideBlockingBusy();
+        this.showFloatingStatus('Download migration failed: ' + String(error));
         return;
       }
     } else {
-      this.statusText = 'Download location switched without migration';
+      this.showFloatingStatus('Download location switched without migration');
     }
     this.commitSettingValue('download_location', target);
   }
@@ -886,6 +892,16 @@ export struct SettingsScene {
     this.showToast(message);
   }
 
+  private showBlockingBusy(message: string): void {
+    this.blockingBusyMessage = message;
+    this.blockingBusyVisible = true;
+  }
+
+  private hideBlockingBusy(): void {
+    this.blockingBusyVisible = false;
+    this.blockingBusyMessage = 'Loading...';
+  }
+
   private showToast(message: string): void {
     try {
       this.getUIContext().getPromptAction().showToast({ message: uiStatusText(message) });
@@ -928,13 +944,16 @@ export struct SettingsScene {
         const bytes = new Uint8Array(buf);
         if (isAndroidDatabaseBackup(bytes)) {
           this.showFloatingStatus('Importing Android data...');
+          this.showBlockingBusy('Importing Android data...');
           importAndroidDatabaseBackup(context, bytes).then((summary: AndroidDataImportSummary) => {
+            this.hideBlockingBusy();
             this.filterRules = ehFilterStore.getRules();
             this.showFloatingStatus('Import complete: Android data (history ' + summary.history +
               ', history metadata ' + summary.historyMetadata + ', fetched ' + summary.historyMetadataFetched +
               ', downloads ' + summary.downloads + ', labels ' + summary.labels + ', filters ' +
               summary.filters + ', searches ' + summary.searches + ')');
           }).catch((error: Error) => {
+            this.hideBlockingBusy();
             this.showFloatingStatus('Import failed: Android data ' + error.message);
           });
           return;
@@ -1035,13 +1054,18 @@ export struct SettingsScene {
             for (let i = 0; i < importedHistory.length; i++) {
               ehHistoryStore.addGallery(importedHistory[i], importedHistoryLimit);
             }
+            this.showBlockingBusy('Rebuilding imported history metadata...');
             return rebuildImportedHistoryMetadata(context, importedHistory, this.currentGallerySite());
           })
             .then((result: DownloadMetadataRestoreResult) => {
+              this.hideBlockingBusy();
               if (result.rebuilt > 0 || result.fetched > 0) {
                 this.showFloatingStatus('Imported history metadata rebuilt: ' + result.rebuilt.toString() +
                   ', fetched ' + result.fetched.toString());
               }
+            }).catch((error: Error) => {
+              this.hideBlockingBusy();
+              throw error;
             }));
         }
 
@@ -1101,6 +1125,7 @@ export struct SettingsScene {
       await ehDownloadStore.load(context);
       const restored: RestoredDownloadGallery[] = ehDownloadFileStore.restoreDownloadedGalleries(context);
       this.statusText = 'Rebuilding downloaded metadata...';
+      this.showBlockingBusy('Rebuilding downloaded metadata...');
       const metadataResult: DownloadMetadataRestoreResult =
         await rebuildRestoredDownloadMetadata(context, restored, this.currentGallerySite());
       let added = 0;
@@ -1130,17 +1155,20 @@ export struct SettingsScene {
         }
       }
       await ehDownloadStore.save(context);
-      this.statusText = 'Restored downloads: ' + added.toString() + ' added, ' + updated.toString() +
+      this.hideBlockingBusy();
+      let message = 'Restored downloads: ' + added.toString() + ' added, ' + updated.toString() +
         ' updated, ' + migrated.toString() + ' migrated, ' + metadataResult.rebuilt.toString() +
         ' metadata rebuilt, ' + downloadSizeText(totalBytes) + '.';
       if (metadataResult.fetched > 0) {
-        this.statusText += ' Fetched ' + metadataResult.fetched.toString() + ' details.';
+        message += ' Fetched ' + metadataResult.fetched.toString() + ' details.';
       }
       if (!downloadsAccess) {
-        this.statusText += ' Downloads access was not granted; scanned app files only.';
+        message += ' Downloads access was not granted; scanned app files only.';
       }
+      this.showFloatingStatus(message);
     }).catch((error: Error) => {
-      this.statusText = 'Restore downloads failed: ' + error.message;
+      this.hideBlockingBusy();
+      this.showFloatingStatus('Restore downloads failed: ' + error.message);
     });
   }
 
@@ -1516,6 +1544,12 @@ export struct SettingsScene {
         })
           .zIndex(30)
           .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
+      }
+
+      if (this.blockingBusyVisible) {
+        BlockingBusyOverlay({ message: this.blockingBusyMessage })
+          .zIndex(60)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 140, curve: Curve.EaseOut }))
       }
     }
     .width('100%')
