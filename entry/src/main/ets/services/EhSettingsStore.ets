@@ -51,7 +51,6 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'ultra_dark_mode', value: 'Off' },
     { key: 'ultra_dark_lightness', value: '50%' },
     { key: 'download_location', value: 'App files' },
-    { key: 'media_scan', value: 'Off' },
     { key: 'download_thread', value: '3' },
     { key: 'preload_image', value: '5' },
     { key: 'download_list_pagination', value: 'On' },

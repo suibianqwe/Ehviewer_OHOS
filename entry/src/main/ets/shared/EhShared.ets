@@ -916,8 +916,6 @@ export function zhText(text: string): string {
     case 'Migrate': return '迁移';
     case 'HarmonyOS file picker/storage mapping for downloaded galleries': return '下载画廊的 HarmonyOS 文件选择器/存储映射';
     case 'App internal storage or public Downloads directory': return '应用内部存储或系统下载目录';
-    case 'Media scan': return '媒体扫描';
-    case 'Expose downloaded images to system media index': return '将下载图片暴露给系统媒体索引';
     case 'Multi-thread download': return '多线程下载';
     case 'Number of images downloaded at the same time': return '同时下载的图片数量';
     case 'Preload image': return '预加载图片';
@@ -2095,7 +2093,6 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
   if (panel === SettingsPanel.Download) {
     return [
       optionSettingsRow('download_location', 'Download location', 'App internal storage or public Downloads directory', entries, ['App files', 'Downloads']),
-      optionSettingsRow('media_scan', 'Media scan', 'Expose downloaded images to system media index', entries, ON_OFF_OPTIONS),
       optionSettingsRow('download_thread', 'Multi-thread download', 'Number of images downloaded at the same time',
         entries, ['1', '2', '3', '4', '5', '8', '10']),
       optionSettingsRow('preload_image', 'Preload image', 'Reader/download prefetch count', entries, ['0', '3', '5', '10', '20']),
