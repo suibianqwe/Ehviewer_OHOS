@@ -1,6 +1,13 @@
-import { FilterRule, FILTER_MODE_TITLE, FILTER_MODE_UPLOADER, FILTER_MODE_TAG, FILTER_MODE_TAG_NAMESPACE } from '../services/EhFilterStore';
+import {
+  FilterRule,
+  FILTER_MODE_RATING,
+  FILTER_MODE_TAG,
+  FILTER_MODE_TAG_NAMESPACE,
+  FILTER_MODE_TITLE,
+  FILTER_MODE_UPLOADER
+} from '../services/EhFilterStore';
 import { uiStatusText, uiText } from '../shared/EhShared';
-import { themeDangerText, themeDividerColor, themeMutedText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSelectedBackgroundLight, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
+import { themeDangerText, themeDividerColor, themeMutedText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSelectedBackgroundLight, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
 import { ArrayDataSource } from '../shared/ListDataSource';
 import { PlaceholderScene } from './GalleryScenes';
 import { SettingsSubToolbar } from './SessionSettingsScenes';
@@ -26,14 +33,28 @@ export struct FilterPanel {
       return uiText('Tag');
     }
     if (mode === FILTER_MODE_TAG_NAMESPACE) {
-      return uiText('Tag:Namespace');
+      return uiText('Namespaced tag');
+    }
+    if (mode === FILTER_MODE_RATING) {
+      return uiText('Rating');
     }
     return uiText('Title');
   }
 
-  private cycleMode(): void {
-    const next = (this.newMode + 1) % 4;
-    this.onNewModeChange(next);
+  private inputPlaceholder(): string {
+    if (this.newMode === FILTER_MODE_UPLOADER) {
+      return uiText('Uploader');
+    }
+    if (this.newMode === FILTER_MODE_TAG) {
+      return uiText('Tag');
+    }
+    if (this.newMode === FILTER_MODE_TAG_NAMESPACE) {
+      return 'female:yuri';
+    }
+    if (this.newMode === FILTER_MODE_RATING) {
+      return '2-5';
+    }
+    return uiText('Title');
   }
 
   build() {
@@ -44,26 +65,56 @@ export struct FilterPanel {
       })
 
       Column() {
-        Row() {
-          TextInput({ text: this.newText, placeholder: uiText('Filter text') })
-            .layoutWeight(1)
-            .height(40)
-            .onChange((value: string) => {
-              this.onNewTextChange(value);
+        Column({ space: 8 }) {
+          Row({ space: 8 }) {
+            FilterModeButton({
+              label: this.filterModeName(FILTER_MODE_TITLE),
+              selected: this.newMode === FILTER_MODE_TITLE,
+              onTap: () => { this.onNewModeChange(FILTER_MODE_TITLE); }
             })
-          Button(this.filterModeName(this.newMode))
-            .height(40)
-            .margin({ left: 8 })
-            .onClick(() => {
-              this.cycleMode();
+            FilterModeButton({
+              label: this.filterModeName(FILTER_MODE_UPLOADER),
+              selected: this.newMode === FILTER_MODE_UPLOADER,
+              onTap: () => { this.onNewModeChange(FILTER_MODE_UPLOADER); }
             })
-          Button(uiText('Add'))
-            .height(40)
-            .margin({ left: 8 })
-            .fontWeight(FontWeight.Bold)
-            .onClick(() => {
-              this.onAdd();
+            FilterModeButton({
+              label: this.filterModeName(FILTER_MODE_TAG),
+              selected: this.newMode === FILTER_MODE_TAG,
+              onTap: () => { this.onNewModeChange(FILTER_MODE_TAG); }
             })
+          }
+          .width('100%')
+
+          Row({ space: 8 }) {
+            FilterModeButton({
+              label: this.filterModeName(FILTER_MODE_TAG_NAMESPACE),
+              selected: this.newMode === FILTER_MODE_TAG_NAMESPACE,
+              onTap: () => { this.onNewModeChange(FILTER_MODE_TAG_NAMESPACE); }
+            })
+            FilterModeButton({
+              label: this.filterModeName(FILTER_MODE_RATING),
+              selected: this.newMode === FILTER_MODE_RATING,
+              onTap: () => { this.onNewModeChange(FILTER_MODE_RATING); }
+            })
+          }
+          .width('100%')
+
+          Row() {
+            TextInput({ text: this.newText, placeholder: this.inputPlaceholder() })
+              .layoutWeight(1)
+              .height(40)
+              .onChange((value: string) => {
+                this.onNewTextChange(value);
+              })
+            Button(uiText('Add'))
+              .height(40)
+              .margin({ left: 8 })
+              .fontWeight(FontWeight.Bold)
+              .onClick(() => {
+                this.onAdd();
+              })
+          }
+          .width('100%')
         }
         .width('100%')
         .padding({ left: 16, right: 16, top: 12, bottom: 4 })
@@ -76,18 +127,13 @@ export struct FilterPanel {
             .width('100%')
         }
 
-        Text(uiText('Mode: tap to cycle �� Title / Uploader / Tag / Tag:Namespace'))
-          .fontSize(11)
-          .fontColor(themeMutedText())
-          .padding({ left: 16, right: 16, bottom: 10 })
-          .width('100%')
       }
       .backgroundColor(themeSurface())
 
       if (this.rules.length === 0) {
         PlaceholderScene({
-          title: 'No filters',
-          detail: 'Add a filter rule above to hide matching galleries from lists.'
+          title: uiText('No filters'),
+          detail: uiText('Add a filter rule above to hide matching galleries from lists.')
         })
       } else {
         List({ space: 0 }) {
@@ -143,5 +189,26 @@ export struct FilterPanel {
     .width('100%')
     .height('100%')
     .backgroundColor(themePageBackground())
+  }
+}
+
+@Component
+struct FilterModeButton {
+  label: string = '';
+  selected: boolean = false;
+  onTap: () => void = () => {};
+
+  build() {
+    Button(this.label)
+      .height(32)
+      .fontSize(12)
+      .fontWeight(this.selected ? FontWeight.Medium : FontWeight.Normal)
+      .fontColor(this.selected ? themeOnPrimaryText() : themeSecondaryText())
+      .backgroundColor(this.selected ? themePrimaryColor() : themeSurfaceVariant())
+      .borderRadius(8)
+      .padding({ left: 12, right: 12 })
+      .onClick(() => {
+        this.onTap();
+      })
   }
 }

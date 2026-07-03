@@ -1,6 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { preferences } from '@kit.ArkData';
-import { GalleryInfo } from '../model/GalleryModels';
+import { GalleryInfo, GalleryTagGroup } from '../model/GalleryModels';
 
 const PREFERENCES_NAME: string = 'ehviewer_filters';
 const VALUES_KEY: string = 'filters';
@@ -9,6 +9,7 @@ export const FILTER_MODE_TITLE: number = 0;
 export const FILTER_MODE_UPLOADER: number = 1;
 export const FILTER_MODE_TAG: number = 2;
 export const FILTER_MODE_TAG_NAMESPACE: number = 3;
+export const FILTER_MODE_RATING: number = 4;
 
 export interface FilterRule {
   id: number;
@@ -33,7 +34,7 @@ export class EhFilterStore {
   }
 
   addRule(mode: number, text: string, enabled: boolean = true): boolean {
-    const normalized = text.trim();
+    const normalized = normalizeRuleText(mode, text);
     if (normalized.length === 0) {
       return false;
     }
@@ -99,10 +100,15 @@ export class EhFilterStore {
       for (let i = 0; i < parsed.length; i++) {
         const item = parsed[i];
         if (typeof item.text === 'string' && item.text.length > 0) {
+          const mode = typeof item.mode === 'number' ? item.mode : FILTER_MODE_TITLE;
+          const normalizedText = normalizeRuleText(mode, item.text);
+          if (normalizedText.length === 0) {
+            continue;
+          }
           const rule: FilterRule = {
             id: typeof item.id === 'number' ? item.id : this.nextId,
-            mode: typeof item.mode === 'number' ? item.mode : FILTER_MODE_TITLE,
-            text: item.text,
+            mode: mode,
+            text: normalizedText,
             enabled: typeof item.enabled === 'boolean' ? item.enabled : true
           };
           this.rules.push(rule);
@@ -144,10 +150,32 @@ function matchesRule(rule: FilterRule, gallery: GalleryInfo): boolean {
   if (rule.mode === FILTER_MODE_TAG_NAMESPACE) {
     return galleryHasTagWithNamespace(gallery, text);
   }
+  if (rule.mode === FILTER_MODE_RATING) {
+    return galleryMatchesRating(gallery, text);
+  }
   return false;
 }
 
+function normalizeRuleText(mode: number, text: string): string {
+  const trimmed = text.replace(/\s+/g, ' ').trim();
+  if (mode === FILTER_MODE_RATING) {
+    const rating = parseRatingThreshold(trimmed);
+    if (rating <= 1 || rating > 5) {
+      return '';
+    }
+    return rating.toString();
+  }
+  if (mode === FILTER_MODE_TAG || mode === FILTER_MODE_TAG_NAMESPACE) {
+    return normalizeTagText(trimmed);
+  }
+  return trimmed;
+}
+
 function galleryHasTag(gallery: GalleryInfo, text: string): boolean {
+  const separator = text.indexOf(':');
+  if (separator > 0) {
+    return galleryHasTagWithNamespace(gallery, text);
+  }
   if (gallery.simpleTags !== undefined) {
     for (let i = 0; i < gallery.simpleTags.length; i++) {
       if (gallery.simpleTags[i].toLowerCase() === text) {
@@ -165,18 +193,83 @@ function galleryHasTag(gallery: GalleryInfo, text: string): boolean {
       }
     }
   }
-  return false;
+  return groupsContainTag(gallery.detailTags, '', text);
 }
 
 function galleryHasTagWithNamespace(gallery: GalleryInfo, text: string): boolean {
+  const separator = text.indexOf(':');
+  const namespace = separator > 0 ? text.substring(0, separator).trim() : '';
+  const tagText = separator > 0 ? text.substring(separator + 1).trim() : text;
+  if (gallery.simpleTags !== undefined) {
+    for (let i = 0; i < gallery.simpleTags.length; i++) {
+      if (normalizeTagText(gallery.simpleTags[i]) === text) {
+        return true;
+      }
+    }
+  }
   if (gallery.tagList !== undefined) {
     for (let i = 0; i < gallery.tagList.length; i++) {
-      if (gallery.tagList[i].toLowerCase() === text) {
+      if (normalizeTagText(gallery.tagList[i]) === text) {
+        return true;
+      }
+    }
+  }
+  if (namespace.length === 0) {
+    return galleryHasTag(gallery, tagText);
+  }
+  return groupsContainTag(gallery.detailTags, namespace, tagText);
+}
+
+function groupsContainTag(groups: GalleryTagGroup[] | undefined, namespace: string, tag: string): boolean {
+  if (groups === undefined) {
+    return false;
+  }
+  const normalizedNamespace = normalizeTagText(namespace);
+  const normalizedTag = normalizeTagText(tag);
+  for (let i = 0; i < groups.length; i++) {
+    const groupNamespace = normalizeTagText(groups[i].namespace);
+    if (normalizedNamespace.length > 0 && groupNamespace !== normalizedNamespace) {
+      continue;
+    }
+    for (let j = 0; j < groups[i].tags.length; j++) {
+      if (normalizeTagText(groups[i].tags[j]) === normalizedTag) {
         return true;
       }
     }
   }
   return false;
+}
+
+function galleryMatchesRating(gallery: GalleryInfo, text: string): boolean {
+  const threshold = parseRatingThreshold(text);
+  if (threshold <= 1 || threshold > 5) {
+    return false;
+  }
+  return gallery.rating < threshold;
+}
+
+function parseRatingThreshold(text: string): number {
+  let valueText = text.trim();
+  if (valueText.startsWith('<=')) {
+    valueText = valueText.substring(2).trim();
+  } else if (valueText.startsWith('>=')) {
+    valueText = valueText.substring(2).trim();
+  } else if (valueText.startsWith('<')) {
+    valueText = valueText.substring(1).trim();
+  } else if (valueText.startsWith('>')) {
+    valueText = valueText.substring(1).trim();
+  } else if (valueText.startsWith('=')) {
+    valueText = valueText.substring(1).trim();
+  }
+  const value = Number.parseFloat(valueText);
+  if (!Number.isFinite(value)) {
+    return -1;
+  }
+  return Math.max(1, Math.min(5, Math.round(value)));
+}
+
+function normalizeTagText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 function cloneRule(rule: FilterRule): FilterRule {

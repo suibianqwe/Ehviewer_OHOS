@@ -655,12 +655,14 @@ export function zhText(text: string): string {
     case 'Uploader': return '上传者';
     case 'Tag': return '标签';
     case 'Tag:Namespace': return '标签:命名空间';
+    case 'Namespaced tag': return '命名空间标签';
     case 'Title': return '标题';
     case 'Add': return '添加';
     case 'Remove': return '删除';
     case 'On': return '开';
     case 'Off': return '关';
     case 'No filters': return '没有过滤规则';
+    case 'Add a filter rule above to hide matching galleries from lists.': return '添加过滤规则后，匹配的画廊会在列表中隐藏。';
     case 'Mode: tap to cycle — Title / Uploader / Tag / Tag:Namespace': return '模式：点击切换 — 标题 / 上传者 / 标签 / 标签:命名空间';
     case 'comments': return '条评论';
     case 'total': return '条';
