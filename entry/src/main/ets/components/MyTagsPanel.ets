@@ -1,3 +1,4 @@
+import { KeyboardAvoidMode } from '@kit.ArkUI';
 import { GallerySite } from '../model/GalleryModels';
 import {
   ehMyTagsService,
@@ -6,7 +7,12 @@ import {
   MyTagsPage
 } from '../services/EhMyTagsService';
 import { ehTagTranslationStore, EhTagSuggestion } from '../services/EhTagTranslationStore';
-import { buildSearchSuggestions, SearchSuggestionItem, SearchSuggestionList } from './GallerySearchScenes';
+import {
+  buildSearchSuggestions,
+  SearchSuggestionItem,
+  SearchSuggestionList,
+  SearchSummaryStrip
+} from './GallerySearchScenes';
 import { uiText } from '../shared/EhShared';
 import {
   themeFieldBackground,
@@ -31,10 +37,40 @@ export struct MyTagsPanel {
   @State hiddenTags: MyTagItem[] = [];
   @State watchedSuggestions: SearchSuggestionItem[] = [];
   @State hiddenSuggestions: SearchSuggestionItem[] = [];
+  @State watchedTagNamespaces: string[] = [];
+  @State hiddenTagNamespaces: string[] = [];
+  @State suggestionRevision: number = 0;
   private page: MyTagsPage | null = null;
+  private previousKeyboardAvoidMode: KeyboardAvoidMode | null = null;
 
   aboutToAppear(): void {
+    this.setKeyboardAvoidance();
     this.loadTags();
+  }
+
+  aboutToDisappear(): void {
+    this.restoreKeyboardAvoidance();
+  }
+
+  private setKeyboardAvoidance(): void {
+    try {
+      const uiContext = this.getUIContext();
+      this.previousKeyboardAvoidMode = uiContext.getKeyboardAvoidMode();
+      uiContext.setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE_WITH_CARET);
+    } catch (_error) {
+      this.previousKeyboardAvoidMode = null;
+    }
+  }
+
+  private restoreKeyboardAvoidance(): void {
+    if (this.previousKeyboardAvoidMode === null) {
+      return;
+    }
+    try {
+      this.getUIContext().setKeyboardAvoidMode(this.previousKeyboardAvoidMode);
+    } catch (_error) {
+    }
+    this.previousKeyboardAvoidMode = null;
   }
 
   private loadTags(): void {
@@ -51,14 +87,6 @@ export struct MyTagsPanel {
     }).finally(() => {
       this.loading = false;
     });
-  }
-
-  private saveWatchedTag(): void {
-    this.saveTag(this.watchedText, MyTagKind.Watched);
-  }
-
-  private saveHiddenTag(): void {
-    this.saveTag(this.hiddenText, MyTagKind.Hidden);
   }
 
   private deleteWatchedTag(tag: MyTagItem): void {
@@ -137,9 +165,11 @@ export struct MyTagsPanel {
       } else {
         this.hiddenSuggestions = [];
       }
+      this.suggestionRevision++;
       return;
     }
-    const suggestions = buildMyTagSuggestions(text, 12);
+    const namespaces = kind === MyTagKind.Watched ? this.watchedTagNamespaces : this.hiddenTagNamespaces;
+    const suggestions = buildMyTagSuggestions(text, 0, namespaces);
     console.info('[MyTags] suggestions input="' + text + '" active="' + activeMyTagText(text) +
       '" count=' + suggestions.length.toString());
     if (kind === MyTagKind.Watched) {
@@ -147,6 +177,40 @@ export struct MyTagsPanel {
     } else {
       this.hiddenSuggestions = cloneSuggestions(suggestions);
     }
+    this.suggestionRevision++;
+  }
+
+  private selectedWatchedTagNamespaceKey(): string {
+    return this.watchedTagNamespaces.slice().sort().join('|');
+  }
+
+  private selectedHiddenTagNamespaceKey(): string {
+    return this.hiddenTagNamespaces.slice().sort().join('|');
+  }
+
+  private toggleWatchedTagNamespace(namespace: string): void {
+    this.watchedTagNamespaces = toggleNamespace(this.watchedTagNamespaces, namespace);
+    this.refreshSuggestions(this.watchedText, MyTagKind.Watched);
+  }
+
+  private toggleHiddenTagNamespace(namespace: string): void {
+    this.hiddenTagNamespaces = toggleNamespace(this.hiddenTagNamespaces, namespace);
+    this.refreshSuggestions(this.hiddenText, MyTagKind.Hidden);
+  }
+
+  private applyWatchedSuggestion(suggestion: SearchSuggestionItem): void {
+    this.saveSuggestion(suggestion, MyTagKind.Watched);
+  }
+
+  private applyHiddenSuggestion(suggestion: SearchSuggestionItem): void {
+    this.saveSuggestion(suggestion, MyTagKind.Hidden);
+  }
+
+  private saveSuggestion(suggestion: SearchSuggestionItem, kind: MyTagKind): void {
+    if (suggestion.kind !== 'tag') {
+      return;
+    }
+    this.saveTag(suggestion.query, kind);
   }
 
   build() {
@@ -159,16 +223,18 @@ export struct MyTagsPanel {
             placeholder: 'Tag name',
             tags: this.watchedTags,
             suggestions: this.watchedSuggestions,
+            selectedTagNamespaces: this.watchedTagNamespaces,
+            selectedTagNamespaceKey: this.selectedWatchedTagNamespaceKey(),
+            revision: this.suggestionRevision,
             loading: this.loading || this.saving,
             onTextChange: (value: string) => {
               this.updateWatchedText(value);
             },
-            onSuggestionSelect: (value: string) => {
-              this.watchedText = value;
-              this.watchedSuggestions = [];
+            onToggleTagNamespace: (namespace: string) => {
+              this.toggleWatchedTagNamespace(namespace);
             },
-            onSave: () => {
-              this.saveWatchedTag();
+            onSuggestionSelect: (suggestion: SearchSuggestionItem) => {
+              this.applyWatchedSuggestion(suggestion);
             },
             onDelete: (tag: MyTagItem) => {
               this.deleteWatchedTag(tag);
@@ -181,23 +247,25 @@ export struct MyTagsPanel {
             placeholder: 'Tag name',
             tags: this.hiddenTags,
             suggestions: this.hiddenSuggestions,
+            selectedTagNamespaces: this.hiddenTagNamespaces,
+            selectedTagNamespaceKey: this.selectedHiddenTagNamespaceKey(),
+            revision: this.suggestionRevision,
             loading: this.loading || this.saving,
             onTextChange: (value: string) => {
               this.updateHiddenText(value);
             },
-            onSuggestionSelect: (value: string) => {
-              this.hiddenText = value;
-              this.hiddenSuggestions = [];
+            onToggleTagNamespace: (namespace: string) => {
+              this.toggleHiddenTagNamespace(namespace);
             },
-            onSave: () => {
-              this.saveHiddenTag();
+            onSuggestionSelect: (suggestion: SearchSuggestionItem) => {
+              this.applyHiddenSuggestion(suggestion);
             },
             onDelete: (tag: MyTagItem) => {
               this.deleteHiddenTag(tag);
             }
           })
         }
-        .padding({ left: 12, right: 12, top: 12, bottom: 20 })
+        .padding({ left: 12, right: 12, top: 12, bottom: 320 })
         .width('100%')
         .alignItems(HorizontalAlign.Start)
         .justifyContent(FlexAlign.Start)
@@ -219,10 +287,13 @@ struct MyTagsColumn {
   @Prop placeholder: string = '';
   @Prop tags: MyTagItem[] = [];
   @Prop suggestions: SearchSuggestionItem[] = [];
+  @Prop selectedTagNamespaces: string[] = [];
+  @Prop selectedTagNamespaceKey: string = '';
+  @Prop revision: number = 0;
   @Prop loading: boolean = false;
   onTextChange: (value: string) => void = (_value: string) => {};
-  onSuggestionSelect: (value: string) => void = (_value: string) => {};
-  onSave: () => void = () => {};
+  onToggleTagNamespace: (namespace: string) => void = (_namespace: string) => {};
+  onSuggestionSelect: (suggestion: SearchSuggestionItem) => void = (_suggestion: SearchSuggestionItem) => {};
   onDelete: (tag: MyTagItem) => void = (_tag: MyTagItem) => {};
 
   build() {
@@ -233,22 +304,20 @@ struct MyTagsColumn {
           .fontWeight(FontWeight.Medium)
           .fontColor(themePrimaryText())
           .layoutWeight(1)
-        Button(uiText('Save'), { type: ButtonType.Normal, stateEffect: true })
-          .fontSize(13)
-          .fontColor(themeOnPrimaryText())
-          .backgroundColor(themePrimaryColor())
-          .borderRadius(14)
-          .height(28)
-          .padding({ left: 12, right: 12 })
-          .enabled(!this.loading && this.text.trim().length > 0)
-          .onClick(() => {
-            this.onSave();
-          })
       }
         .width('100%')
         .alignItems(VerticalAlign.Center)
 
       Column({ space: 8 }) {
+        SearchSummaryStrip({
+          selectedTagNamespaces: this.selectedTagNamespaces,
+          selectedTagNamespaceKey: this.selectedTagNamespaceKey,
+          revision: this.revision,
+          onToggleTagNamespace: (namespace: string) => {
+            this.onToggleTagNamespace(namespace);
+          }
+        })
+
         TextInput({ text: this.text, placeholder: uiText(this.placeholder) })
           .height(38)
           .fontSize(14)
@@ -260,12 +329,15 @@ struct MyTagsColumn {
           .onChange((value: string) => {
             this.onTextChange(value);
           })
+          .onFocus(() => {
+            this.onTextChange(this.text);
+          })
         if (this.suggestions.length > 0) {
           SearchSuggestionList({
             suggestions: this.suggestions,
-            revision: this.suggestions.length + this.text.length,
+            revision: this.revision,
             onSelect: (suggestion: SearchSuggestionItem) => {
-              this.onSuggestionSelect(suggestion.query);
+              this.onSuggestionSelect(suggestion);
             }
           })
           .width('100%')
@@ -305,12 +377,12 @@ struct MyTagsColumn {
 
   private suggestionListHeight(): number {
     if (this.suggestions.length <= 2) {
-      return 52;
+      return 56;
     }
     if (this.suggestions.length <= 6) {
-      return 108;
+      return 154;
     }
-    return 164;
+    return 260;
   }
 }
 
@@ -375,22 +447,22 @@ function cloneSuggestions(suggestions: SearchSuggestionItem[]): SearchSuggestion
 }
 
 function myTagChipLabel(tag: string): string {
-  const colon = tag.indexOf(':');
-  return colon >= 0 && colon < tag.length - 1 ? tag.substring(colon + 1).trim() : tag;
+  return tag.trim().replace(/\s+/g, ' ');
 }
 
-function buildMyTagSuggestions(text: string, limit: number): SearchSuggestionItem[] {
+function buildMyTagSuggestions(text: string, limit: number, namespaces: string[]): SearchSuggestionItem[] {
   const trimmed = text.trim();
   const colon = trimmed.indexOf(':');
   if (colon < 0) {
-    return buildSearchSuggestions(trimmed, limit).filter((item: SearchSuggestionItem) => item.kind === 'tag');
+    return buildSearchSuggestions(trimmed, limit, namespaces).filter((item: SearchSuggestionItem) => item.kind === 'tag');
   }
   const namespace = normalizeMyTagNamespace(trimmed.substring(0, colon));
   const keyword = trimmed.substring(colon + 1).trim();
   if (keyword.length < 2) {
     return [];
   }
-  const tags = ehTagTranslationStore.suggest(keyword, limit, namespace.length > 0 ? [namespace] : []);
+  const selectedNamespaces = namespace.length > 0 ? [namespace] : namespaces;
+  const tags = ehTagTranslationStore.suggest(keyword, limit, selectedNamespaces);
   const result: SearchSuggestionItem[] = [];
   for (let i = 0; i < tags.length; i++) {
     const tag: EhTagSuggestion = tags[i];
@@ -404,6 +476,17 @@ function buildMyTagSuggestions(text: string, limit: number): SearchSuggestionIte
     });
   }
   return result;
+}
+
+function toggleNamespace(values: string[], namespace: string): string[] {
+  const next = values.slice();
+  const index = next.indexOf(namespace);
+  if (index >= 0) {
+    next.splice(index, 1);
+  } else {
+    next.push(namespace);
+  }
+  return next;
 }
 
 function activeMyTagText(text: string): string {
