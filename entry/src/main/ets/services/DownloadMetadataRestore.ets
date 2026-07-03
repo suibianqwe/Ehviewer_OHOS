@@ -43,6 +43,41 @@ export async function rebuildRestoredDownloadMetadata(context: common.UIAbilityC
   return result;
 }
 
+export async function rebuildImportedHistoryMetadata(context: common.UIAbilityContext, imported: GalleryInfo[],
+  site: GallerySite): Promise<DownloadMetadataRestoreResult> {
+  const result: DownloadMetadataRestoreResult = { rebuilt: 0, fetched: 0, failed: 0 };
+  if (imported.length <= 0) {
+    return result;
+  }
+  await ehHistoryStore.ensureLoaded(context);
+  const downloadItems = ehDownloadStore.getItems();
+  const historyItems = ehHistoryStore.getItems();
+  const client = new EhHttpClient();
+
+  for (let i = 0; i < imported.length; i++) {
+    if (imported[i].gid <= 0 || imported[i].token.length === 0) {
+      continue;
+    }
+    let gallery: GalleryInfo = bestLocalMetadata(imported[i], downloadItems, historyItems);
+    if (!hasGalleryTags(gallery)) {
+      const detail = await fetchDetail(client, gallery, site);
+      if (detail !== null) {
+        gallery = mergeGalleryMetadata(detail, gallery);
+        result.fetched++;
+      } else {
+        result.failed++;
+      }
+    }
+    if (ehHistoryStore.updateGallery(gallery)) {
+      result.rebuilt++;
+    } else {
+      result.failed++;
+    }
+  }
+  await ehHistoryStore.save(context);
+  return result;
+}
+
 function bestLocalMetadata(seed: GalleryInfo, downloadItems: DownloadInfo[], historyItems: GalleryInfo[]): GalleryInfo {
   let best: GalleryInfo = seed;
   const download = findGallery(downloadItems, seed.gid);

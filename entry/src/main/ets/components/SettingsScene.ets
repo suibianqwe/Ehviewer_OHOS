@@ -14,7 +14,11 @@ import {
 } from '../services/EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
-import { DownloadMetadataRestoreResult, rebuildRestoredDownloadMetadata } from '../services/DownloadMetadataRestore';
+import {
+  DownloadMetadataRestoreResult,
+  rebuildImportedHistoryMetadata,
+  rebuildRestoredDownloadMetadata
+} from '../services/DownloadMetadataRestore';
 import {
   HISTORY_INFO_SIZE_KEY,
   ehSettingsStore,
@@ -927,6 +931,7 @@ export struct SettingsScene {
           importAndroidDatabaseBackup(context, bytes).then((summary: AndroidDataImportSummary) => {
             this.filterRules = ehFilterStore.getRules();
             this.showFloatingStatus('Import complete: Android data (history ' + summary.history +
+              ', history metadata ' + summary.historyMetadata + ', fetched ' + summary.historyMetadataFetched +
               ', downloads ' + summary.downloads + ', labels ' + summary.labels + ', filters ' +
               summary.filters + ', searches ' + summary.searches + ')');
           }).catch((error: Error) => {
@@ -989,12 +994,16 @@ export struct SettingsScene {
           this.settingsRenderRevision++;
         }
 
+        let importedHistory: GalleryInfo[] = [];
+        let importedHistoryLimit = historyInfoSizeLimitFromValue(ehSettingsStore.getValue(HISTORY_INFO_SIZE_KEY, '100'));
         if (Array.isArray(bundle.history)) {
-          const historyLimit = historyInfoSizeLimitFromValue(ehSettingsStore.getValue(HISTORY_INFO_SIZE_KEY, '100'));
           for (let i = 0; i < bundle.history.length; i++) {
-            ehHistoryStore.addGallery(bundle.history[i] as GalleryInfo, historyLimit);
+            const imported = bundle.history[i] as GalleryInfo;
+            if (typeof imported.gid === 'number' && imported.gid > 0 && typeof imported.token === 'string' &&
+              imported.token.length > 0) {
+              importedHistory.push(imported);
+            }
           }
-          saves.push(ehHistoryStore.save(context));
         }
 
         let downloadsChanged = false;
@@ -1019,6 +1028,21 @@ export struct SettingsScene {
         }
         if (downloadsChanged) {
           saves.push(ehDownloadStore.save(context));
+        }
+
+        if (importedHistory.length > 0) {
+          saves.push(ehHistoryStore.ensureLoaded(context).then(() => {
+            for (let i = 0; i < importedHistory.length; i++) {
+              ehHistoryStore.addGallery(importedHistory[i], importedHistoryLimit);
+            }
+            return rebuildImportedHistoryMetadata(context, importedHistory, this.currentGallerySite());
+          })
+            .then((result: DownloadMetadataRestoreResult) => {
+              if (result.rebuilt > 0 || result.fetched > 0) {
+                this.showFloatingStatus('Imported history metadata rebuilt: ' + result.rebuilt.toString() +
+                  ', fetched ' + result.fetched.toString());
+              }
+            }));
         }
 
         if (Array.isArray(bundle.filterRules)) {

@@ -1,7 +1,8 @@
 import { common } from '@kit.AbilityKit';
 import { relationalStore } from '@kit.ArkData';
 import { fileIo as fs } from '@kit.CoreFileKit';
-import { GalleryCategory, GalleryInfo } from '../model/GalleryModels';
+import { GalleryCategory, GalleryInfo, GallerySite } from '../model/GalleryModels';
+import { DownloadMetadataRestoreResult, rebuildImportedHistoryMetadata } from './DownloadMetadataRestore';
 import { DownloadInfo, DownloadState, ehDownloadStore } from './EhDownloadStore';
 import { ehFilterStore } from './EhFilterStore';
 import { ehHistoryStore } from './EhHistoryStore';
@@ -20,10 +21,17 @@ const ANDROID_DOWNLOAD_STATE_UPDATE: number = 5;
 
 export interface AndroidDataImportSummary {
   history: number;
+  historyMetadata: number;
+  historyMetadataFetched: number;
   downloads: number;
   labels: number;
   filters: number;
   searches: number;
+}
+
+interface AndroidHistoryImportResult {
+  count: number;
+  items: GalleryInfo[];
 }
 
 export function isAndroidDatabaseBackup(data: Uint8Array): boolean {
@@ -56,10 +64,16 @@ export async function importAndroidDatabaseBackup(context: common.UIAbilityConte
     await ehSettingsStore.load(context);
     await ehSearchHistoryStore.load(context);
 
+    const historyResult = await importHistory(store);
+    const labels = await importDownloadLabels(store);
+    const downloads = await importDownloads(store);
+    const historyMetadata = await rebuildImportedHistoryMetadata(context, historyResult.items, currentImportGallerySite());
     const summary: AndroidDataImportSummary = {
-      history: await importHistory(store),
-      labels: await importDownloadLabels(store),
-      downloads: await importDownloads(store),
+      history: historyResult.count,
+      historyMetadata: historyMetadata.rebuilt,
+      historyMetadataFetched: historyMetadata.fetched,
+      labels: labels,
+      downloads: downloads,
       filters: await importFilters(store),
       searches: await importQuickSearch(store)
     };
@@ -83,20 +97,22 @@ export async function importAndroidDatabaseBackup(context: common.UIAbilityConte
   }
 }
 
-async function importHistory(store: relationalStore.RdbStore): Promise<number> {
+async function importHistory(store: relationalStore.RdbStore): Promise<AndroidHistoryImportResult> {
   if (!await tableExists(store, 'HISTORY')) {
-    return 0;
+    return { count: 0, items: [] };
   }
   let count = 0;
+  const items: GalleryInfo[] = [];
   const historyLimit = historyInfoSizeLimitFromValue(ehSettingsStore.getValue(HISTORY_INFO_SIZE_KEY, '100'));
   await queryEach(store, 'SELECT * FROM "HISTORY" ORDER BY "TIME" ASC', (row: relationalStore.ResultSet) => {
     const gallery = readGalleryInfo(row);
     if (gallery.gid > 0 && gallery.token.length > 0) {
       ehHistoryStore.addGallery(gallery, historyLimit);
+      items.push(gallery);
       count++;
     }
   });
-  return count;
+  return { count: count, items: items };
 }
 
 async function importDownloadLabels(store: relationalStore.RdbStore): Promise<number> {
@@ -196,6 +212,10 @@ async function importQuickSearch(store: relationalStore.RdbStore): Promise<numbe
     }
   });
   return count;
+}
+
+function currentImportGallerySite(): GallerySite {
+  return ehSettingsStore.getValue('gallery_site', 'E-Hentai') === 'ExHentai' ? GallerySite.Ex : GallerySite.E;
 }
 
 async function tableExists(store: relationalStore.RdbStore, table: string): Promise<boolean> {

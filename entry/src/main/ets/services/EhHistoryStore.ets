@@ -103,6 +103,20 @@ export class EhHistoryStore {
     this.queueSave();
   }
 
+  updateGallery(gallery: GalleryInfo): boolean {
+    if (gallery.gid <= 0 || gallery.token.length === 0) {
+      return false;
+    }
+    for (let i = 0; i < this.items.length; i++) {
+      if (this.items[i].gid === gallery.gid) {
+        this.items[i] = cloneGalleryInfo(gallery);
+        this.queueSave();
+        return true;
+      }
+    }
+    return false;
+  }
+
   trim(maxSize: number = HISTORY_DEFAULT_MAX_SIZE): void {
     const limit = Math.min(HISTORY_ABSOLUTE_MAX_SIZE, Math.max(1, maxSize));
     if (this.items.length > limit) {
