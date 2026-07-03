@@ -1,5 +1,6 @@
 import { GallerySite } from '../model/GalleryModels';
 import { EhHttpClient, EhHttpResponse } from './EhHttpClient';
+import { CookieDebugSummary, ehCookieStore } from './EhCookieStore';
 import { EhUrl } from './EhUrl';
 
 export enum MyTagKind {
@@ -68,6 +69,7 @@ export class EhMyTagsService {
   private async loadSite(site: GallerySite): Promise<MyTagsPage> {
     const url = this.myTagsUrl(site);
     const response = await this.client.getText(url, url, 0);
+    logMyTagsResponse('load', site, url, response);
     this.ensureOk(response, 'Load My Tags failed');
     const page = parseMyTagsPage(response.body, url, site);
     this.ensureMyTagsPage(page, response.body);
@@ -87,6 +89,7 @@ export class EhMyTagsService {
       method: 'tagsuggest',
       text: query
     }), currentPage.url, originFromUrl(currentPage.url, site));
+    logMyTagsResponse('suggest', currentPage.site, currentPage.apiUrl, response);
     this.ensureOk(response, 'Load tag suggestions failed');
     return parseTagSuggestions(response.body, query);
   }
@@ -104,6 +107,7 @@ export class EhMyTagsService {
     }
     const response = await this.client.postForm(currentPage.url, buildFormBody(fields), currentPage.url,
       originFromUrl(currentPage.url, site));
+    logMyTagsResponse('saveTagset', currentPage.site, currentPage.url, response);
     this.ensureOk(response, 'Save My Tags settings failed');
     const nextPage = parseMyTagsPage(response.body, currentPage.url, currentPage.site);
     this.ensureMyTagsPage(nextPage, response.body);
@@ -140,6 +144,7 @@ export class EhMyTagsService {
       tagweight: parseTagWeight(item.weight)
     });
     const response = await this.client.postJson(page.apiUrl, payload, page.url, originFromUrl(page.url, site));
+    logMyTagsResponse('setTag', page.site, page.apiUrl, response);
     this.ensureOk(response, 'Save My Tags failed');
   }
 
@@ -158,6 +163,7 @@ export class EhMyTagsService {
     }
     fields.push({ key: 'usertag_target', value: '0' });
     const response = await this.client.postForm(url, buildFormBody(fields), url, originFromUrl(url, site));
+    logMyTagsResponse('addTag', page.site, url, response);
     this.ensureOk(response, 'Save My Tags failed');
     const nextPage = parseMyTagsPage(response.body, url, page.site);
     this.ensureMyTagsPage(nextPage, response.body);
@@ -454,6 +460,44 @@ function stringValue(value: Object | undefined): string {
 function originFromUrl(url: string, fallbackSite: GallerySite): string {
   const matched = /^(https?:\/\/[^\/?#]+)/i.exec(url);
   return matched === null ? EhUrl.getReferer(fallbackSite) : matched[1];
+}
+
+function logMyTagsResponse(phase: string, site: GallerySite, url: string, response: EhHttpResponse): void {
+  const body = response.body;
+  const cookie: CookieDebugSummary = ehCookieStore.getCookieDebugSummaryForUrl(url);
+  console.info('[MyTags] phase=' + phase +
+    ' site=' + siteName(site) +
+    ' url=' + url +
+    ' status=' + response.statusCode.toString() +
+    ' bodyLength=' + body.length.toString() +
+    ' title="' + pageTitle(body) + '"' +
+    ' hasForm=' + boolText(body.indexOf('id="usertag_form"') >= 0) +
+    ' hasApiUrl=' + boolText(body.indexOf('var api_url') >= 0) +
+    ' hasApiUid=' + boolText(body.indexOf('var apiuid') >= 0) +
+    ' hasApiKey=' + boolText(body.indexOf('var apikey') >= 0) +
+    ' hasBounceLogin=' + boolText(body.indexOf('bounce_login') >= 0 || body.indexOf('act=Login') >= 0) +
+    ' cookieNames=' + cookie.names.join('|') +
+    ' cookieLength=' + cookie.headerLength.toString() +
+    ' cookieHasLogin=' + boolText(cookie.hasLogin) +
+    ' cookieHasIgneous=' + boolText(cookie.hasIgneous) +
+    ' cookieHasNw=' + boolText(cookie.hasContentWarning) +
+    ' cookieHasUConfig=' + boolText(cookie.hasUConfig));
+}
+
+function siteName(site: GallerySite): string {
+  return site === GallerySite.Ex ? 'ExHentai' : 'E-Hentai';
+}
+
+function boolText(value: boolean): string {
+  return value ? '1' : '0';
+}
+
+function pageTitle(html: string): string {
+  const matched = /<title>([\s\S]*?)<\/title>/i.exec(html);
+  if (matched === null) {
+    return '';
+  }
+  return decodeHtml(stripTags(matched[1])).replace(/\s+/g, ' ').trim();
 }
 
 function buildFormBody(fields: FormField[]): string {

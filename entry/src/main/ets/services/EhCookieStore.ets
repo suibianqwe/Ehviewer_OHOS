@@ -19,6 +19,16 @@ export interface CookieHeaderOptions {
   includeUConfig?: boolean;
 }
 
+export interface CookieDebugSummary {
+  url: string;
+  names: string[];
+  headerLength: number;
+  hasLogin: boolean;
+  hasIgneous: boolean;
+  hasContentWarning: boolean;
+  hasUConfig: boolean;
+}
+
 export class EhCookieStore {
   private cookies: CookieEntry[] = [];
 
@@ -72,6 +82,29 @@ export class EhCookieStore {
       includeContentWarning: includeContentWarning,
       includeUConfig: includeUConfig
     });
+  }
+
+  getCookieDebugSummaryForUrl(url: string, options?: CookieHeaderOptions): CookieDebugSummary {
+    const header = this.getCookieHeaderForUrl(url, options);
+    const names: string[] = [];
+    const pairs = header.split(';');
+    for (let i = 0; i < pairs.length; i++) {
+      const pair = pairs[i].trim();
+      const index = pair.indexOf('=');
+      if (index <= 0) {
+        continue;
+      }
+      names.push(pair.substring(0, index));
+    }
+    return {
+      url: url,
+      names: names,
+      headerLength: header.length,
+      hasLogin: names.indexOf(KEY_IPB_MEMBER_ID) >= 0 && names.indexOf(KEY_IPB_PASS_HASH) >= 0,
+      hasIgneous: names.indexOf('igneous') >= 0,
+      hasContentWarning: names.indexOf(KEY_CONTENT_WARNING) >= 0,
+      hasUConfig: names.indexOf(KEY_UCONFIG) >= 0
+    };
   }
 
   getStoredCookieHeader(): string {

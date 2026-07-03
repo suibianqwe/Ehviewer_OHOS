@@ -143,6 +143,8 @@ export struct MyTagsPanel {
       return;
     }
     const suggestions = buildMyTagSuggestions(text, 12);
+    console.info('[MyTags] suggestions input="' + text + '" active="' + activeMyTagText(text) +
+      '" count=' + suggestions.length.toString());
     if (kind === MyTagKind.Watched) {
       this.watchedSuggestions = cloneSuggestions(suggestions);
     } else {
