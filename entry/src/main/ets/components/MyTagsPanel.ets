@@ -6,6 +6,7 @@ import {
   MyTagsPage,
   MyTagSetOption
 } from '../services/EhMyTagsService';
+import { ehTagTranslationStore, EhTagSuggestion } from '../services/EhTagTranslationStore';
 import { buildSearchSuggestions, SearchSuggestionItem, SearchSuggestionList } from './GallerySearchScenes';
 import { uiStatusText, uiText } from '../shared/EhShared';
 import {
@@ -133,7 +134,7 @@ export struct MyTagsPanel {
 
   private refreshSuggestions(value: string, kind: MyTagKind): void {
     const text = value.trim();
-    if (text.replace(/^.*:/, '').length < 2) {
+    if (activeMyTagText(text).length < 2) {
       if (kind === MyTagKind.Watched) {
         this.watchedSuggestions = [];
       } else {
@@ -141,7 +142,7 @@ export struct MyTagsPanel {
       }
       return;
     }
-    const suggestions = buildSearchSuggestions(text, 12).filter((item: SearchSuggestionItem) => item.kind === 'tag');
+    const suggestions = buildMyTagSuggestions(text, 12);
     if (kind === MyTagKind.Watched) {
       this.watchedSuggestions = cloneSuggestions(suggestions);
     } else {
@@ -496,4 +497,75 @@ function cloneSuggestions(suggestions: SearchSuggestionItem[]): SearchSuggestion
     });
   }
   return result;
+}
+
+function buildMyTagSuggestions(text: string, limit: number): SearchSuggestionItem[] {
+  const trimmed = text.trim();
+  const colon = trimmed.indexOf(':');
+  if (colon < 0) {
+    return buildSearchSuggestions(trimmed, limit).filter((item: SearchSuggestionItem) => item.kind === 'tag');
+  }
+  const namespace = normalizeMyTagNamespace(trimmed.substring(0, colon));
+  const keyword = trimmed.substring(colon + 1).trim();
+  if (keyword.length < 2) {
+    return [];
+  }
+  const tags = ehTagTranslationStore.suggest(keyword, limit, namespace.length > 0 ? [namespace] : []);
+  const result: SearchSuggestionItem[] = [];
+  for (let i = 0; i < tags.length; i++) {
+    const tag: EhTagSuggestion = tags[i];
+    result.push({
+      kind: 'tag',
+      title: tag.translated,
+      subtitle: tag.tag,
+      query: tag.tag,
+      translated: tag.translated,
+      namespace: tag.namespace
+    });
+  }
+  return result;
+}
+
+function activeMyTagText(text: string): string {
+  const trimmed = text.trim();
+  const colon = trimmed.indexOf(':');
+  return colon < 0 ? trimmed : trimmed.substring(colon + 1).trim();
+}
+
+function normalizeMyTagNamespace(namespace: string): string {
+  const value = namespace.trim().toLowerCase();
+  if (value === 'a' || value === 'art' || value === 'artist') {
+    return 'artist';
+  }
+  if (value === 'f' || value === 'female') {
+    return 'female';
+  }
+  if (value === 'm' || value === 'male') {
+    return 'male';
+  }
+  if (value === 'p' || value === 'parody') {
+    return 'parody';
+  }
+  if (value === 'c' || value === 'char' || value === 'character') {
+    return 'character';
+  }
+  if (value === 'g' || value === 'group') {
+    return 'group';
+  }
+  if (value === 'l' || value === 'lang' || value === 'language') {
+    return 'language';
+  }
+  if (value === 'o' || value === 'other') {
+    return 'other';
+  }
+  if (value === 'cos' || value === 'cosplayer') {
+    return 'cosplayer';
+  }
+  if (value === 'loc' || value === 'location') {
+    return 'location';
+  }
+  if (value === 'x' || value === 'mix' || value === 'mixed') {
+    return 'mixed';
+  }
+  return value;
 }

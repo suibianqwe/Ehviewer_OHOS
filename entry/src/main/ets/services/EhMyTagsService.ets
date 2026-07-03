@@ -30,6 +30,7 @@ export interface MyTagSuggestion {
 
 export interface MyTagsPage {
   url: string;
+  site: GallerySite;
   apiUrl: string;
   apiUid: number;
   apiKey: string;
@@ -52,10 +53,23 @@ export class EhMyTagsService {
   private client: EhHttpClient = new EhHttpClient();
 
   async load(site: GallerySite): Promise<MyTagsPage> {
+    try {
+      return await this.loadSite(site);
+    } catch (error) {
+      const fallbackSite = site === GallerySite.Ex ? GallerySite.E : GallerySite.Ex;
+      try {
+        return await this.loadSite(fallbackSite);
+      } catch (fallbackError) {
+        throw new Error(error instanceof Error ? error.message : String(error));
+      }
+    }
+  }
+
+  private async loadSite(site: GallerySite): Promise<MyTagsPage> {
     const url = this.myTagsUrl(site);
     const response = await this.client.getText(url, url, 0);
     this.ensureOk(response, 'Load My Tags failed');
-    const page = parseMyTagsPage(response.body, url);
+    const page = parseMyTagsPage(response.body, url, site);
     this.ensureMyTagsPage(page, response.body);
     return page;
   }
@@ -72,7 +86,7 @@ export class EhMyTagsService {
     const response = await this.client.postJson(currentPage.apiUrl, JSON.stringify({
       method: 'tagsuggest',
       text: query
-    }), currentPage.url, EhUrl.getReferer(site));
+    }), currentPage.url, originFromUrl(currentPage.url, site));
     this.ensureOk(response, 'Load tag suggestions failed');
     return parseTagSuggestions(response.body, query);
   }
@@ -89,9 +103,9 @@ export class EhMyTagsService {
       fields.push({ key: 'tagset_enable', value: 'on' });
     }
     const response = await this.client.postForm(currentPage.url, buildFormBody(fields), currentPage.url,
-      EhUrl.getReferer(site));
+      originFromUrl(currentPage.url, site));
     this.ensureOk(response, 'Save My Tags settings failed');
-    const nextPage = parseMyTagsPage(response.body, currentPage.url);
+    const nextPage = parseMyTagsPage(response.body, currentPage.url, currentPage.site);
     this.ensureMyTagsPage(nextPage, response.body);
     return nextPage;
   }
@@ -105,9 +119,9 @@ export class EhMyTagsService {
     const existing = findTag(currentPage.all, normalizedTag);
     if (existing !== null) {
       await this.setExistingTagKind(site, currentPage, existing, kind);
-      return this.load(site);
+      return this.load(currentPage.site);
     }
-    return this.addTag(site, normalizedTag, kind);
+    return this.addTag(site, currentPage, normalizedTag, kind);
   }
 
   private async setExistingTagKind(site: GallerySite, page: MyTagsPage, item: MyTagItem,
@@ -125,12 +139,12 @@ export class EhMyTagsService {
       tagcolor: item.color,
       tagweight: parseTagWeight(item.weight)
     });
-    const response = await this.client.postJson(page.apiUrl, payload, page.url, EhUrl.getReferer(site));
+    const response = await this.client.postJson(page.apiUrl, payload, page.url, originFromUrl(page.url, site));
     this.ensureOk(response, 'Save My Tags failed');
   }
 
-  private async addTag(site: GallerySite, tag: string, kind: MyTagKind): Promise<MyTagsPage> {
-    const url = this.myTagsUrl(site);
+  private async addTag(site: GallerySite, page: MyTagsPage, tag: string, kind: MyTagKind): Promise<MyTagsPage> {
+    const url = page.url.length > 0 ? page.url : this.myTagsUrl(site);
     const fields: FormField[] = [
       { key: 'usertag_action', value: 'add' },
       { key: 'tagname_new', value: tag },
@@ -143,11 +157,11 @@ export class EhMyTagsService {
       fields.push({ key: 'taghide_new', value: 'on' });
     }
     fields.push({ key: 'usertag_target', value: '0' });
-    const response = await this.client.postForm(url, buildFormBody(fields), url, EhUrl.getReferer(site));
+    const response = await this.client.postForm(url, buildFormBody(fields), url, originFromUrl(url, site));
     this.ensureOk(response, 'Save My Tags failed');
-    const page = parseMyTagsPage(response.body, url);
-    this.ensureMyTagsPage(page, response.body);
-    return page;
+    const nextPage = parseMyTagsPage(response.body, url, page.site);
+    this.ensureMyTagsPage(nextPage, response.body);
+    return nextPage;
   }
 
   private myTagsUrl(site: GallerySite): string {
@@ -179,7 +193,7 @@ export class EhMyTagsService {
 
 export const ehMyTagsService: EhMyTagsService = new EhMyTagsService();
 
-export function parseMyTagsPage(html: string, url: string): MyTagsPage {
+export function parseMyTagsPage(html: string, url: string, site: GallerySite = GallerySite.E): MyTagsPage {
   const all = parseUserTags(html);
   const watched: MyTagItem[] = [];
   const hidden: MyTagItem[] = [];
@@ -193,6 +207,7 @@ export function parseMyTagsPage(html: string, url: string): MyTagsPage {
   }
   return {
     url: url,
+    site: site,
     apiUrl: matchStringVariable(html, 'api_url'),
     apiUid: matchNumberVariable(html, 'apiuid'),
     apiKey: matchStringVariable(html, 'apikey'),
@@ -434,6 +449,11 @@ function stripTags(html: string): string {
 
 function stringValue(value: Object | undefined): string {
   return typeof value === 'string' ? value : '';
+}
+
+function originFromUrl(url: string, fallbackSite: GallerySite): string {
+  const matched = /^(https?:\/\/[^\/?#]+)/i.exec(url);
+  return matched === null ? EhUrl.getReferer(fallbackSite) : matched[1];
 }
 
 function buildFormBody(fields: FormField[]): string {
