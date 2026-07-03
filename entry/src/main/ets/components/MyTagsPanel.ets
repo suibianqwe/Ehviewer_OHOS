@@ -4,9 +4,9 @@ import {
   MyTagItem,
   MyTagKind,
   MyTagsPage,
-  MyTagSetOption,
-  MyTagSuggestion
+  MyTagSetOption
 } from '../services/EhMyTagsService';
+import { buildSearchSuggestions, SearchSuggestionItem, SearchSuggestionList } from './GallerySearchScenes';
 import { uiStatusText, uiText } from '../shared/EhShared';
 import {
   themeFieldBackground,
@@ -34,11 +34,9 @@ export struct MyTagsPanel {
   @State tagsets: MyTagSetOption[] = [];
   @State watchedTags: MyTagItem[] = [];
   @State hiddenTags: MyTagItem[] = [];
-  @State watchedSuggestions: MyTagSuggestion[] = [];
-  @State hiddenSuggestions: MyTagSuggestion[] = [];
+  @State watchedSuggestions: SearchSuggestionItem[] = [];
+  @State hiddenSuggestions: SearchSuggestionItem[] = [];
   private page: MyTagsPage | null = null;
-  private watchedSuggestVersion: number = 0;
-  private hiddenSuggestVersion: number = 0;
 
   aboutToAppear(): void {
     this.loadTags();
@@ -135,38 +133,20 @@ export struct MyTagsPanel {
 
   private refreshSuggestions(value: string, kind: MyTagKind): void {
     const text = value.trim();
-    if (text.replace(/^.*:/, '').length < 2 || this.page === null) {
+    if (text.replace(/^.*:/, '').length < 2) {
       if (kind === MyTagKind.Watched) {
         this.watchedSuggestions = [];
-        this.watchedSuggestVersion++;
       } else {
         this.hiddenSuggestions = [];
-        this.hiddenSuggestVersion++;
       }
       return;
     }
-    const version = kind === MyTagKind.Watched ? ++this.watchedSuggestVersion : ++this.hiddenSuggestVersion;
-    setTimeout(() => {
-      if (kind === MyTagKind.Watched && version !== this.watchedSuggestVersion) {
-        return;
-      }
-      if (kind === MyTagKind.Hidden && version !== this.hiddenSuggestVersion) {
-        return;
-      }
-      ehMyTagsService.suggestTags(this.site, this.page, text).then((suggestions: MyTagSuggestion[]) => {
-        if (kind === MyTagKind.Watched && version === this.watchedSuggestVersion) {
-          this.watchedSuggestions = cloneSuggestions(suggestions);
-        } else if (kind === MyTagKind.Hidden && version === this.hiddenSuggestVersion) {
-          this.hiddenSuggestions = cloneSuggestions(suggestions);
-        }
-      }).catch(() => {
-        if (kind === MyTagKind.Watched && version === this.watchedSuggestVersion) {
-          this.watchedSuggestions = [];
-        } else if (kind === MyTagKind.Hidden && version === this.hiddenSuggestVersion) {
-          this.hiddenSuggestions = [];
-        }
-      });
-    }, 220);
+    const suggestions = buildSearchSuggestions(text, 12).filter((item: SearchSuggestionItem) => item.kind === 'tag');
+    if (kind === MyTagKind.Watched) {
+      this.watchedSuggestions = cloneSuggestions(suggestions);
+    } else {
+      this.hiddenSuggestions = cloneSuggestions(suggestions);
+    }
   }
 
   build() {
@@ -282,7 +262,7 @@ struct MyTagsColumn {
   text: string = '';
   placeholder: string = '';
   tags: MyTagItem[] = [];
-  suggestions: MyTagSuggestion[] = [];
+  suggestions: SearchSuggestionItem[] = [];
   loading: boolean = false;
   onTextChange: (value: string) => void = (_value: string) => {};
   onSuggestionSelect: (value: string) => void = (_value: string) => {};
@@ -316,17 +296,15 @@ struct MyTagsColumn {
             this.onTextChange(value);
           })
         if (this.suggestions.length > 0) {
-          Column({ space: 4 }) {
-            ForEach(this.suggestions, (suggestion: MyTagSuggestion) => {
-              MyTagSuggestionRow({
-                suggestion: suggestion,
-                onSelect: (value: string) => {
-                  this.onSuggestionSelect(value);
-                }
-              })
-            }, (suggestion: MyTagSuggestion) => suggestion.tag)
-          }
+          SearchSuggestionList({
+            suggestions: this.suggestions,
+            revision: this.suggestions.length + this.text.length,
+            onSelect: (suggestion: SearchSuggestionItem) => {
+              this.onSuggestionSelect(suggestion.query);
+            }
+          })
           .width('100%')
+          .height(this.suggestionListHeight())
         }
         Button(uiText('Save'), { type: ButtonType.Normal, stateEffect: true })
           .fontSize(13)
@@ -360,6 +338,16 @@ struct MyTagsColumn {
     .width('100%')
     .backgroundColor(themeSurface())
     .borderRadius(6)
+  }
+
+  private suggestionListHeight(): number {
+    if (this.suggestions.length <= 2) {
+      return 52;
+    }
+    if (this.suggestions.length <= 6) {
+      return 108;
+    }
+    return 164;
   }
 }
 
@@ -443,41 +431,6 @@ struct MyTagsetSettingsCard {
 }
 
 @Component
-struct MyTagSuggestionRow {
-  suggestion: MyTagSuggestion = { tag: '', display: '' };
-  onSelect: (value: string) => void = (_value: string) => {};
-
-  build() {
-    Button({ type: ButtonType.Normal, stateEffect: true }) {
-      Column({ space: 1 }) {
-        Text(this.suggestion.display)
-          .fontSize(12)
-          .fontColor(themePrimaryText())
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-        if (this.suggestion.display !== this.suggestion.tag) {
-          Text(this.suggestion.tag)
-            .fontSize(11)
-            .fontColor(themeSecondaryText())
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-      }
-      .width('100%')
-      .alignItems(HorizontalAlign.Start)
-    }
-    .width('100%')
-    .height(38)
-    .padding({ left: 8, right: 8 })
-    .backgroundColor(themeSurfaceVariant())
-    .borderRadius(5)
-    .onClick(() => {
-      this.onSelect(this.suggestion.tag);
-    })
-  }
-}
-
-@Component
 struct MyTagRow {
   tag: MyTagItem = { id: 0, tag: '', watched: false, hidden: false, color: '', weight: '10' };
 
@@ -530,12 +483,16 @@ function cloneTagsets(tagsets: MyTagSetOption[]): MyTagSetOption[] {
   return result;
 }
 
-function cloneSuggestions(suggestions: MyTagSuggestion[]): MyTagSuggestion[] {
-  const result: MyTagSuggestion[] = [];
+function cloneSuggestions(suggestions: SearchSuggestionItem[]): SearchSuggestionItem[] {
+  const result: SearchSuggestionItem[] = [];
   for (let i = 0; i < suggestions.length; i++) {
     result.push({
-      tag: suggestions[i].tag,
-      display: suggestions[i].display
+      kind: suggestions[i].kind,
+      title: suggestions[i].title,
+      subtitle: suggestions[i].subtitle,
+      query: suggestions[i].query,
+      translated: suggestions[i].translated,
+      namespace: suggestions[i].namespace
     });
   }
   return result;

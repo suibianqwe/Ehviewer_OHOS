@@ -55,7 +55,9 @@ export class EhMyTagsService {
     const url = this.myTagsUrl(site);
     const response = await this.client.getText(url, url, 0);
     this.ensureOk(response, 'Load My Tags failed');
-    return parseMyTagsPage(response.body, url);
+    const page = parseMyTagsPage(response.body, url);
+    this.ensureMyTagsPage(page, response.body);
+    return page;
   }
 
   async suggestTags(site: GallerySite, page: MyTagsPage | null, text: string): Promise<MyTagSuggestion[]> {
@@ -89,7 +91,9 @@ export class EhMyTagsService {
     const response = await this.client.postForm(currentPage.url, buildFormBody(fields), currentPage.url,
       EhUrl.getReferer(site));
     this.ensureOk(response, 'Save My Tags settings failed');
-    return parseMyTagsPage(response.body, currentPage.url);
+    const nextPage = parseMyTagsPage(response.body, currentPage.url);
+    this.ensureMyTagsPage(nextPage, response.body);
+    return nextPage;
   }
 
   async saveTag(site: GallerySite, page: MyTagsPage | null, tag: string, kind: MyTagKind): Promise<MyTagsPage> {
@@ -138,9 +142,12 @@ export class EhMyTagsService {
     } else {
       fields.push({ key: 'taghide_new', value: 'on' });
     }
+    fields.push({ key: 'usertag_target', value: '0' });
     const response = await this.client.postForm(url, buildFormBody(fields), url, EhUrl.getReferer(site));
     this.ensureOk(response, 'Save My Tags failed');
-    return parseMyTagsPage(response.body, url);
+    const page = parseMyTagsPage(response.body, url);
+    this.ensureMyTagsPage(page, response.body);
+    return page;
   }
 
   private myTagsUrl(site: GallerySite): string {
@@ -155,6 +162,18 @@ export class EhMyTagsService {
     if (pageError.length > 0) {
       throw new Error(prefix + ': ' + pageError);
     }
+  }
+
+  private ensureMyTagsPage(page: MyTagsPage, body: string): void {
+    if (page.apiUrl.length > 0 && page.apiUid > 0 && page.apiKey.length > 0 &&
+      body.indexOf('id="usertag_form"') >= 0) {
+      return;
+    }
+    if (body.indexOf('bounce_login') >= 0 || body.indexOf('act=Login') >= 0 ||
+      body.indexOf('You are not currently logged in') >= 0) {
+      throw new Error('My Tags page requires a valid signed-in session');
+    }
+    throw new Error('Cannot parse My Tags page');
   }
 }
 
