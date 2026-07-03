@@ -6,9 +6,15 @@ import {
   GalleryInfo,
   GalleryRoute
 } from '../model/GalleryModels';
-import { ehDownloadFileStore, RestoredDownloadGallery } from '../services/EhDownloadFileStore';
+import {
+  DOWNLOAD_LOCATION_APP_FILES,
+  DOWNLOAD_LOCATION_DOWNLOADS,
+  ehDownloadFileStore,
+  RestoredDownloadGallery
+} from '../services/EhDownloadFileStore';
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { DownloadInfo, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
+import { ehSettingsStore } from '../services/EhSettingsStore';
 import {
   confirmCellularNetworkWarningForSession,
   shouldConfirmCellularNetworkOperation
@@ -96,8 +102,27 @@ async function pickDownloadsOutputPath(context: common.UIAbilityContext, fileNam
   return new fileUri.FileUri(result[0] + '/' + sanitizeExportFileName(fileName)).path;
 }
 
+async function pickDownloadDirectoryRoot(context: common.UIAbilityContext): Promise<string> {
+  try {
+    const saveOptions = new picker.DocumentSaveOptions();
+    saveOptions.pickerMode = picker.DocumentPickerMode.DOWNLOAD;
+    const documentPicker = new picker.DocumentViewPicker(context);
+    const result = await documentPicker.save(saveOptions);
+    if (result.length === 0 || result[0].length === 0) {
+      return '';
+    }
+    return new fileUri.FileUri(result[0]).path;
+  } catch (error) {
+    return '';
+  }
+}
+
 function sanitizeExportFileName(fileName: string): string {
   return fileName.replace(/[\\/:*?"<>|]/g, '_');
+}
+
+function normalizeDownloadSceneLocation(value: string): string {
+  return value === DOWNLOAD_LOCATION_DOWNLOADS ? DOWNLOAD_LOCATION_DOWNLOADS : DOWNLOAD_LOCATION_APP_FILES;
 }
 
 function downloadExportTimestamp(now: Date): string {
@@ -891,23 +916,63 @@ export struct DownloadScene {
       this.statusText = 'Restore needs app context';
       return;
     }
-    const restored: RestoredDownloadGallery[] = ehDownloadFileStore.restoreDownloadedGalleries(context);
-    let added = 0;
-    for (let i = 0; i < restored.length; i++) {
-      if (!ehDownloadStore.contains(restored[i].gallery.gid)) {
+    const currentLocation = normalizeDownloadSceneLocation(ehSettingsStore.getValue('download_location',
+      DOWNLOAD_LOCATION_APP_FILES));
+    this.statusText = currentLocation === DOWNLOAD_LOCATION_APP_FILES ? 'Preparing public Downloads access...' :
+      'Scanning downloaded folders...';
+    Promise.resolve().then(async () => {
+      let downloadsAccess = true;
+      if (currentLocation === DOWNLOAD_LOCATION_APP_FILES) {
+        downloadsAccess = await this.ensurePublicDownloadAccess(context);
+      }
+      await ehDownloadStore.load(context);
+      const restored: RestoredDownloadGallery[] = ehDownloadFileStore.restoreDownloadedGalleries(context);
+      let added = 0;
+      let updated = 0;
+      let migrated = 0;
+      for (let i = 0; i < restored.length; i++) {
+        const existed = ehDownloadStore.contains(restored[i].gallery.gid);
         const item = ehDownloadStore.addGallery(restored[i].gallery, '');
         if (item !== null) {
-          ehDownloadStore.setState(item.gid, restored[i].finished >= restored[i].total && restored[i].total > 0 ?
+          const total = Math.max(restored[i].total, restored[i].finished);
+          ehDownloadStore.setState(item.gid, total > 0 && restored[i].finished >= total ?
             DownloadState.Finish : DownloadState.None);
-          ehDownloadStore.setProgress(item.gid, restored[i].finished, restored[i].total,
+          ehDownloadStore.setProgress(item.gid, restored[i].finished, total,
             restored[i].finished * DOWNLOAD_PAGE_PROGRESS_SCALE);
           ehDownloadStore.setStorage(item.gid, restored[i].directory, restored[i].fileSize);
-          added++;
+          if (restored[i].migrated === true) {
+            migrated++;
+          }
+          if (existed) {
+            updated++;
+          } else {
+            added++;
+          }
         }
       }
+      await ehDownloadStore.save(context);
+      this.statusText = 'Restored ' + added.toString() + ' added, ' + updated.toString() + ' updated, ' +
+        migrated.toString() + ' migrated';
+      if (!downloadsAccess) {
+        this.statusText += '. Downloads access was not granted; scanned app files only';
+      }
+    }).catch((error: Error) => {
+      this.statusText = 'Restore failed: ' + error.message;
+    });
+  }
+
+  private async ensurePublicDownloadAccess(context: common.UIAbilityContext): Promise<boolean> {
+    if (ehDownloadFileStore.canUseLocation(context, DOWNLOAD_LOCATION_DOWNLOADS)) {
+      return true;
     }
-    this.statusText = 'Restored ' + added.toString() + '/' + restored.length.toString() + ' downloaded galleries';
-    this.persistDownloads();
+    const pickedRoot = await pickDownloadDirectoryRoot(context);
+    if (pickedRoot.length > 0) {
+      ehDownloadFileStore.rememberPublicDownloadRoot(pickedRoot + '/EhViewer');
+      if (ehDownloadFileStore.canUseLocation(context, DOWNLOAD_LOCATION_DOWNLOADS)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private cycleItemState(item: DownloadInfo): void {

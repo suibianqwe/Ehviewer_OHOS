@@ -37,9 +37,11 @@ interface RestoredGalleryData {
 export interface RestoredDownloadGallery {
   gallery: GalleryInfo;
   directory: string;
+  sourceDirectory?: string;
   fileSize: number;
   finished: number;
   total: number;
+  migrated?: boolean;
 }
 
 export interface DownloadDirectoryScanResult {
@@ -276,27 +278,11 @@ export class EhDownloadFileStore {
   }
 
   restoreDownloadedGalleries(context: common.UIAbilityContext): RestoredDownloadGallery[] {
-    const root = this.downloadRoot(context);
-    const restored: RestoredDownloadGallery[] = [];
-    try {
-      const names = fs.listFileSync(root);
-      for (let i = 0; i < names.length; i++) {
-        const directory = root + '/' + names[i];
-        const restoredGallery = readRestoredGallery(directory, names[i]);
-        if (restoredGallery === null) {
-          continue;
-        }
-        restored.push({
-          gallery: restoredGallery.gallery,
-          directory: directory,
-          fileSize: this.directorySizeByPath(directory),
-          finished: countImageFiles(directory),
-          total: Math.max(0, restoredGallery.total)
-        });
-      }
-    } catch (error) {
+    const currentLocation = normalizeDownloadLocation(ehSettingsStore.getValue('download_location', DOWNLOAD_LOCATION_APP_FILES));
+    if (currentLocation === DOWNLOAD_LOCATION_APP_FILES) {
+      return this.restoreAppFileDownloads(context);
     }
-    return restored;
+    return this.scanRestoredDownloadRoot(this.downloadRoot(context));
   }
 
   removeGalleryDirectory(context: common.UIAbilityContext, gallery: GalleryInfo): DownloadDirectoryScanResult {
@@ -361,6 +347,105 @@ export class EhDownloadFileStore {
       return '';
     }
   }
+
+  private restoreAppFileDownloads(context: common.UIAbilityContext): RestoredDownloadGallery[] {
+    const appRoot = this.appDownloadRoot(context);
+    ensureDirectory(appRoot);
+    const appItems = this.scanRestoredDownloadRoot(appRoot);
+    const publicItems = this.scanPublicDownloadedGalleries(context);
+    if (publicItems.length <= 0) {
+      return appItems;
+    }
+
+    const merged: RestoredDownloadGallery[] = [];
+    for (let i = 0; i < appItems.length; i++) {
+      merged.push(appItems[i]);
+    }
+
+    for (let i = 0; i < publicItems.length; i++) {
+      this.mergePublicDownloadIntoApp(appRoot, merged, publicItems[i]);
+    }
+    return merged;
+  }
+
+  private scanPublicDownloadedGalleries(context: common.UIAbilityContext): RestoredDownloadGallery[] {
+    try {
+      const publicRoot = this.publicDownloadRoot(context);
+      return this.scanRestoredDownloadRoot(publicRoot);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  private mergePublicDownloadIntoApp(appRoot: string, appItems: RestoredDownloadGallery[],
+    publicItem: RestoredDownloadGallery): void {
+    const existingIndex = restoredIndexByGid(appItems, publicItem.gallery.gid);
+    if (existingIndex >= 0 && appItems[existingIndex].fileSize >= publicItem.fileSize) {
+      removeDirectoryTree(publicItem.directory);
+      return;
+    }
+
+    const target = uniqueChildPath(appRoot, pathBaseName(publicItem.directory));
+
+    const copied = copyDirectoryTree(publicItem.directory, target);
+    if (copied.files <= 0) {
+      return;
+    }
+    removeDirectoryTree(publicItem.directory);
+    if (existingIndex >= 0) {
+      removeDirectoryTree(appItems[existingIndex].directory);
+    }
+    const migrated = this.restoredItemFromDirectory(target, true, publicItem.directory);
+    if (migrated === null) {
+      return;
+    }
+    if (existingIndex >= 0) {
+      appItems[existingIndex] = migrated;
+    } else {
+      appItems.push(migrated);
+    }
+  }
+
+  private scanRestoredDownloadRoot(root: string): RestoredDownloadGallery[] {
+    const restored: RestoredDownloadGallery[] = [];
+    try {
+      const names = fs.listFileSync(root);
+      for (let i = 0; i < names.length; i++) {
+        const item = this.restoredItemFromDirectory(root + '/' + names[i], false, '');
+        if (item !== null) {
+          restored.push(item);
+        }
+      }
+    } catch (error) {
+    }
+    return restored;
+  }
+
+  private restoredItemFromDirectory(directory: string, migrated: boolean,
+    sourceDirectory: string): RestoredDownloadGallery | null {
+    const restoredGallery = readRestoredGallery(directory, pathBaseName(directory));
+    if (restoredGallery === null) {
+      return null;
+    }
+    return {
+      gallery: restoredGallery.gallery,
+      directory: directory,
+      sourceDirectory: sourceDirectory.length > 0 ? sourceDirectory : undefined,
+      fileSize: this.directorySizeByPath(directory),
+      finished: countImageFiles(directory),
+      total: Math.max(0, restoredGallery.total),
+      migrated: migrated
+    };
+  }
+}
+
+function restoredIndexByGid(items: RestoredDownloadGallery[], gid: number): number {
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].gallery.gid === gid) {
+      return i;
+    }
+  }
+  return -1;
 }
 
 function scanRedundantDownloadDirectories(root: string, keepGids: number[], shouldRemove: boolean): DownloadDirectoryScanResult {

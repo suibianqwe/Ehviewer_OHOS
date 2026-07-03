@@ -1064,11 +1064,20 @@ export struct SettingsScene {
       this.statusText = 'Restore download items needs an ability context';
       return;
     }
-    this.statusText = 'Scanning downloaded folders...';
-    ehDownloadStore.load(context).then(() => {
+    const currentLocation = normalizeSettingsDownloadLocation(ehSettingsStore.getValue('download_location',
+      DOWNLOAD_LOCATION_APP_FILES));
+    this.statusText = currentLocation === DOWNLOAD_LOCATION_APP_FILES ? 'Preparing public Downloads access...' :
+      'Scanning downloaded folders...';
+    Promise.resolve().then(async () => {
+      let downloadsAccess = true;
+      if (currentLocation === DOWNLOAD_LOCATION_APP_FILES) {
+        downloadsAccess = await this.ensureDownloadLocationAccess(context, DOWNLOAD_LOCATION_DOWNLOADS);
+      }
+      await ehDownloadStore.load(context);
       const restored: RestoredDownloadGallery[] = ehDownloadFileStore.restoreDownloadedGalleries(context);
       let added = 0;
       let updated = 0;
+      let migrated = 0;
       let totalBytes = 0;
       for (let i = 0; i < restored.length; i++) {
         const item = restored[i];
@@ -1081,6 +1090,9 @@ export struct SettingsScene {
           ehDownloadStore.setState(item.gallery.gid,
             total > 0 && item.finished >= total ? DownloadState.Finish : DownloadState.None);
           totalBytes += item.fileSize;
+          if (item.migrated === true) {
+            migrated++;
+          }
           if (existed) {
             updated++;
           } else {
@@ -1088,10 +1100,12 @@ export struct SettingsScene {
           }
         }
       }
-      return ehDownloadStore.save(context).then(() => {
-        this.statusText = 'Restored downloads: ' + added.toString() + ' added, ' + updated.toString() +
-          ' updated, ' + downloadSizeText(totalBytes) + '.';
-      });
+      await ehDownloadStore.save(context);
+      this.statusText = 'Restored downloads: ' + added.toString() + ' added, ' + updated.toString() +
+        ' updated, ' + migrated.toString() + ' migrated, ' + downloadSizeText(totalBytes) + '.';
+      if (!downloadsAccess) {
+        this.statusText += ' Downloads access was not granted; scanned app files only.';
+      }
     }).catch((error: Error) => {
       this.statusText = 'Restore downloads failed: ' + error.message;
     });
