@@ -309,15 +309,6 @@ struct MyTagsColumn {
         .alignItems(VerticalAlign.Center)
 
       Column({ space: 8 }) {
-        SearchSummaryStrip({
-          selectedTagNamespaces: this.selectedTagNamespaces,
-          selectedTagNamespaceKey: this.selectedTagNamespaceKey,
-          revision: this.revision,
-          onToggleTagNamespace: (namespace: string) => {
-            this.onToggleTagNamespace(namespace);
-          }
-        })
-
         TextInput({ text: this.text, placeholder: uiText(this.placeholder) })
           .height(38)
           .fontSize(14)
@@ -332,6 +323,16 @@ struct MyTagsColumn {
           .onFocus(() => {
             this.onTextChange(this.text);
           })
+        if (this.hasSearchText()) {
+          SearchSummaryStrip({
+            selectedTagNamespaces: this.selectedTagNamespaces,
+            selectedTagNamespaceKey: this.selectedTagNamespaceKey,
+            revision: this.revision,
+            onToggleTagNamespace: (namespace: string) => {
+              this.onToggleTagNamespace(namespace);
+            }
+          })
+        }
         if (this.suggestions.length > 0) {
           SearchSuggestionList({
             suggestions: this.suggestions,
@@ -373,6 +374,10 @@ struct MyTagsColumn {
     .width('100%')
     .backgroundColor(themeSurface())
     .borderRadius(6)
+  }
+
+  private hasSearchText(): boolean {
+    return this.text.trim().length > 0;
   }
 
   private suggestionListHeight(): number {
