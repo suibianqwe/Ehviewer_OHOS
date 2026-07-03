@@ -260,13 +260,13 @@ export struct MyTagsPanel {
 
 @Component
 struct MyTagsColumn {
-  title: string = '';
-  summary: string = '';
-  text: string = '';
-  placeholder: string = '';
-  tags: MyTagItem[] = [];
-  suggestions: SearchSuggestionItem[] = [];
-  loading: boolean = false;
+  @Prop title: string = '';
+  @Prop summary: string = '';
+  @Prop text: string = '';
+  @Prop placeholder: string = '';
+  @Prop tags: MyTagItem[] = [];
+  @Prop suggestions: SearchSuggestionItem[] = [];
+  @Prop loading: boolean = false;
   onTextChange: (value: string) => void = (_value: string) => {};
   onSuggestionSelect: (value: string) => void = (_value: string) => {};
   onSave: () => void = () => {};
@@ -356,11 +356,11 @@ struct MyTagsColumn {
 
 @Component
 struct MyTagsetSettingsCard {
-  name: string = '';
-  color: string = '';
-  tagsetEnabled: boolean = true;
-  tagsets: MyTagSetOption[] = [];
-  loading: boolean = false;
+  @Prop name: string = '';
+  @Prop color: string = '';
+  @Prop tagsetEnabled: boolean = true;
+  @Prop tagsets: MyTagSetOption[] = [];
+  @Prop loading: boolean = false;
   onColorChange: (value: string) => void = (_value: string) => {};
   onEnabledChange: (value: boolean) => void = (_value: boolean) => {};
   onSave: () => void = () => {};
@@ -435,7 +435,7 @@ struct MyTagsetSettingsCard {
 
 @Component
 struct MyTagRow {
-  tag: MyTagItem = { id: 0, tag: '', watched: false, hidden: false, color: '', weight: '10' };
+  @Prop tag: MyTagItem = { id: 0, tag: '', watched: false, hidden: false, color: '', weight: '10' };
 
   build() {
     Row() {
