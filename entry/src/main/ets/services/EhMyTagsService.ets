@@ -384,14 +384,20 @@ function matchTagPreviewTitle(block: string, id: number): string {
 }
 
 function isInputChecked(block: string, id: string): boolean {
-  const re = new RegExp('id="' + escapeRegExp(id) + '"[^>]*checked', 'i');
-  return re.test(block);
+  const tag = matchInputTag(block, id);
+  return /(^|\s)checked(\s|=|\/|>|$)/i.test(tag);
 }
 
 function matchInputValue(block: string, id: string): string {
-  const re = new RegExp('id="' + escapeRegExp(id) + '"[^>]*value="([^"]*)"', 'i');
-  const matched = re.exec(block);
+  const tag = matchInputTag(block, id);
+  const matched = /value="([^"]*)"/i.exec(tag);
   return matched === null ? '' : decodeHtml(matched[1]);
+}
+
+function matchInputTag(block: string, id: string): string {
+  const re = new RegExp('<input\\b[^>]*id="' + escapeRegExp(id) + '"[^>]*>', 'i');
+  const matched = re.exec(block);
+  return matched === null ? '' : matched[0];
 }
 
 function findTag(tags: MyTagItem[], tag: string): MyTagItem | null {
