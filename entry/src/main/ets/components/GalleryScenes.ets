@@ -24,7 +24,6 @@ import {
 import { LocalGallerySearchOptions } from '../services/LocalGallerySearch';
 import {
   applyAppChromeImmersiveMode,
-  EMBEDDED_READER_ACTIVE_KEY,
   isEmbeddedReaderActive,
   leaveEmbeddedReaderFullscreen,
   mainContentWidthFallbackVp,
@@ -393,7 +392,7 @@ export struct GalleryListScene {
   @State imageSearchShowExpunged: boolean = false;
   @State searchSubmitted: boolean = false;
   @State showDetail: boolean = false;
-  @StorageLink(EMBEDDED_READER_ACTIVE_KEY) showReader: boolean = false;
+  @State showReader: boolean = false;
   private readerClosing: boolean = false;
   @State restoreDetailWithFade: boolean = false;
   @State detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();

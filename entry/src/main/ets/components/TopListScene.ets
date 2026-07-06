@@ -10,7 +10,6 @@ import {
 } from '../services/GalleryDetailModule';
 import {
   applyAppChromeImmersiveMode,
-  EMBEDDED_READER_ACTIVE_KEY,
   isEmbeddedReaderActive,
   leaveEmbeddedReaderFullscreen
 } from '../services/EhWindowImmersive';
@@ -98,7 +97,7 @@ export struct TopListScene {
   @State galleryUseForcedMode: boolean = false;
   @State galleryForcedMode: ListMode = ListMode.Normal;
   @State showDetail: boolean = false;
-  @StorageLink(EMBEDDED_READER_ACTIVE_KEY) showReader: boolean = false;
+  @State showReader: boolean = false;
   private readerClosing: boolean = false;
   @State restoreDetailWithFade: boolean = false;
   @State detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();

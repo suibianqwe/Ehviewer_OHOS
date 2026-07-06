@@ -74,8 +74,11 @@ export default class ReaderAbility extends UIAbility {
 
   private updateSystemColorMode(colorMode: ConfigurationConstant.ColorMode | undefined): void {
     const normalized = colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK ? EH_SYSTEM_COLOR_MODE_DARK : 0;
+    const previous = AppStorage.get<number>(EH_SYSTEM_COLOR_MODE_KEY);
     AppStorage.setOrCreate<number>(EH_SYSTEM_COLOR_MODE_KEY, normalized);
-    notifyThemeChanged();
+    if (previous !== undefined && previous !== normalized) {
+      notifyThemeChanged();
+    }
   }
 
   private ensureReaderWindow(stage: window.WindowStage): window.Window | undefined {

@@ -31,7 +31,6 @@ import {
 } from '../services/GalleryDetailModule';
 import {
   applyAppChromeImmersiveMode,
-  EMBEDDED_READER_ACTIVE_KEY,
   isEmbeddedReaderActive,
   leaveEmbeddedReaderFullscreen,
   mainContentWidthFallbackVp,
@@ -202,7 +201,7 @@ export struct DownloadScene {
   @State detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();
   @State detail: GalleryDetail = createEmptyDetail();
   @State detailRequestUrl: string = '';
-  @StorageLink(EMBEDDED_READER_ACTIVE_KEY) showReader: boolean = false;
+  @State showReader: boolean = false;
   private readerClosing: boolean = false;
   @State restoreDetailWithFade: boolean = false;
   @State showTagSearch: boolean = false;
