@@ -59,6 +59,9 @@ export struct GalleryDetailOverlayScene {
   onLoadMorePreviews: () => void = () => {};
   onDetailScrollUpdate: (offset: number) => void = () => {};
   onTagSearch: (namespace: string, tag: string) => void = (_namespace: string, _tag: string) => {};
+  onVoteTag: (fullTag: string, vote: number) => void = (_fullTag: string, _vote: number) => {};
+  onAddTag: (fullTag: string) => void = (_fullTag: string) => {};
+  onShowTagDefinition: (fullTag: string) => void = (_fullTag: string) => {};
 
   build() {
     if (this.showComments) {
@@ -107,7 +110,10 @@ export struct GalleryDetailOverlayScene {
         onLoadMorePreviews: this.onLoadMorePreviews,
         initialDetailScrollOffset: this.initialDetailScrollOffset,
         onDetailScrollUpdate: this.onDetailScrollUpdate,
-        onTagSearch: this.onTagSearch
+        onTagSearch: this.onTagSearch,
+        onVoteTag: this.onVoteTag,
+        onAddTag: this.onAddTag,
+        onShowTagDefinition: this.onShowTagDefinition
       })
     }
   }
@@ -151,6 +157,9 @@ export struct GalleryDetailScene {
   initialDetailScrollOffset: number = 0;
   onDetailScrollUpdate: (offset: number) => void = () => {};
   onTagSearch: (namespace: string, tag: string) => void = (_namespace: string, _tag: string) => {};
+  onVoteTag: (fullTag: string, vote: number) => void = (_fullTag: string, _vote: number) => {};
+  onAddTag: (fullTag: string) => void = (_fullTag: string) => {};
+  onShowTagDefinition: (fullTag: string) => void = (_fullTag: string) => {};
   private detailScroller: Scroller = new Scroller();
   @State showRatingDialog: boolean = false;
   @State pendingRating: number = 0;
@@ -242,7 +251,10 @@ export struct GalleryDetailScene {
             DetailTags({
               tags: this.detail.tags,
               isDetailLoaded: this.isDetailLoaded,
-              onTagSearch: this.onTagSearch
+              onTagSearch: this.onTagSearch,
+              onVoteTag: this.onVoteTag,
+              onAddTag: this.onAddTag,
+              onShowTagDefinition: this.onShowTagDefinition
             })
           }
           .reuseId('detail-tags')

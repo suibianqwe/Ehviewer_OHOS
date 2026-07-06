@@ -1,4 +1,4 @@
-import { GalleryCategory, GalleryComment, GalleryDetail, GalleryPreview, GalleryTagGroup } from '../model/GalleryModels';
+import { GalleryCategory, GalleryComment, GalleryDetail, GalleryPreview, GalleryTagGroup, GalleryTagInfo } from '../model/GalleryModels';
 
 const DETAIL_PATTERN: RegExp =
   /var\s+gid\s*=\s*(\d+);[\s\S]*?var\s+token\s*=\s*["']([a-f0-9]+)["'];[\s\S]*?var\s+apiuid\s*=\s*([-\d]+);[\s\S]*?var\s+apikey\s*=\s*["']([a-f0-9]+)["'];/i;
@@ -185,23 +185,56 @@ function parseTagGroups(body: string): GalleryTagGroup[] {
   while (row !== null) {
     const namespace = /<td[^>]+class=["']tc["'][^>]*>([\s\S]*?):<\/td>/i.exec(row[0]);
     if (namespace !== null) {
+      const namespaceText = cleanText(namespace[1]);
       const tags: string[] = [];
-      const tagPattern = /<a[^>]+id=["']ta_[^"']+["'][^>]*>([\s\S]*?)<\/a>/gi;
+      const tagInfos: GalleryTagInfo[] = [];
+      const tagPattern = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
       let tag: RegExpExecArray | null = tagPattern.exec(row[0]);
       while (tag !== null) {
-        const text = trimTranslatedTag(cleanText(tag[1]));
+        const attrs = tag[1];
+        if (attrs.indexOf('ta_') < 0) {
+          tag = tagPattern.exec(row[0]);
+          continue;
+        }
+        const text = trimTranslatedTag(cleanText(tag[2]));
         if (text.length > 0) {
           tags.push(text);
+          const info = parseTagInfo(namespaceText, text, attrs);
+          if (info !== null) {
+            tagInfos.push(info);
+          }
         }
         tag = tagPattern.exec(row[0]);
       }
       if (tags.length > 0) {
-        groups.push({ namespace: cleanText(namespace[1]), tags: tags });
+        groups.push({ namespace: namespaceText, tags: tags, tagInfos: tagInfos.length > 0 ? tagInfos : undefined });
       }
     }
     row = rowPattern.exec(tagBlock);
   }
   return groups;
+}
+
+function parseTagInfo(namespace: string, tag: string, attrs: string): GalleryTagInfo | null {
+  const vote = /toggle_tagmenu\((\d+),\s*['"]([^'"]+)['"]/i.exec(attrs);
+  if (vote === null) {
+    return null;
+  }
+  const className = matchAttribute(attrs, 'class');
+  return {
+    id: parseIntSafe(vote[1], 0),
+    namespace: namespace,
+    tag: tag,
+    fullTag: decodeHtml(vote[2]).trim(),
+    voteUpEd: className.indexOf('tup') >= 0,
+    voteDownEd: className.indexOf('tdn') >= 0
+  };
+}
+
+function matchAttribute(attrs: string, name: string): string {
+  const pattern = new RegExp("(?:^|\\s)" + name + "=[\"']([^\"']*)[\"']", 'i');
+  const match = pattern.exec(attrs);
+  return match === null ? '' : decodeHtml(match[1]);
 }
 
 function parseComments(body: string): GalleryComment[] {

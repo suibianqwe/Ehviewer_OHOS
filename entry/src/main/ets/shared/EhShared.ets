@@ -1,7 +1,7 @@
 ﻿import { common } from '@kit.AbilityKit';
 import { i18n } from '@kit.LocalizationKit';
 import { fileIo as fs, fileUri } from '@kit.CoreFileKit';
-import { GalleryCategory, GalleryComment, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite, GalleryTagGroup, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
+import { GalleryCategory, GalleryComment, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite, GalleryTagGroup, GalleryTagInfo, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
 import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
@@ -631,9 +631,15 @@ export function zhText(text: string): string {
     case 'No tag filter': return '不过滤标签';
     case 'From page': return '起始页';
     case 'To page': return '结束页';
-    case 'Information': return '信息';
-    case 'Tags': return '标签';
-    case 'Loading...': return '正在加载...';
+      case 'Information': return '信息';
+      case 'Tags': return '标签';
+      case 'Enter new tag': return '输入新标签';
+      case 'Show Tagged Galleries': return '显示含此标签的画廊';
+      case 'Show Tag Definition': return '显示标签定义';
+      case 'Tag vote submitted': return '标签投票已提交';
+      case 'Tag vote requires gallery API key': return '标签投票需要已加载的画廊会话';
+      case 'Tag definition unavailable': return '标签定义不可用';
+      case 'Loading...': return '正在加载...';
     case 'Please wait...': return '请稍候...';
     case 'Migrating downloaded files...': return '正在迁移下载文件...';
     case 'Rebuilding downloaded metadata...': return '正在重建下载元数据...';
@@ -1381,7 +1387,26 @@ function cloneGalleryTagGroups(groups: GalleryTagGroup[]): GalleryTagGroup[] {
   for (let i = 0; i < groups.length; i++) {
     result.push({
       namespace: groups[i].namespace,
-      tags: cloneRequiredStringArray(groups[i].tags)
+      tags: cloneRequiredStringArray(groups[i].tags),
+      tagInfos: cloneGalleryTagInfos(groups[i].tagInfos)
+    });
+  }
+  return result;
+}
+
+function cloneGalleryTagInfos(infos: GalleryTagInfo[] | undefined): GalleryTagInfo[] | undefined {
+  if (infos === undefined) {
+    return undefined;
+  }
+  const result: GalleryTagInfo[] = [];
+  for (let i = 0; i < infos.length; i++) {
+    result.push({
+      id: infos[i].id,
+      namespace: infos[i].namespace,
+      tag: infos[i].tag,
+      fullTag: infos[i].fullTag,
+      voteUpEd: infos[i].voteUpEd,
+      voteDownEd: infos[i].voteDownEd
     });
   }
   return result;

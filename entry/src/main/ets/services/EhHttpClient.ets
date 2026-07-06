@@ -166,6 +166,15 @@ export interface VoteCommentResult {
   expectedVote: number;
 }
 
+export interface VoteTagResult {
+  ok: boolean;
+  statusCode: number;
+  message: string;
+  fullTag: string;
+  vote: number;
+  redirectedUrl: string;
+}
+
 export interface HathArchiveListLoadResult {
   ok: boolean;
   url: string;
@@ -1106,7 +1115,7 @@ export class EhHttpClient {
   }
 
   async voteComment(gid: number, token: string, apiUid: number, apiKey: string, commentId: string, vote: number,
-    site: GallerySite = GallerySite.E): Promise<VoteCommentResult> {
+      site: GallerySite = GallerySite.E): Promise<VoteCommentResult> {
     const commentIdNumber = Number.parseInt(commentId);
     if (Number.isNaN(commentIdNumber) || commentIdNumber <= 0) {
       return {
@@ -1119,6 +1128,7 @@ export class EhHttpClient {
         expectedVote: vote
       };
     }
+
     const payload = JSON.stringify({
       method: 'votecomment',
       apiuid: apiUid,
@@ -1174,6 +1184,64 @@ export class EhHttpClient {
         score: 0,
         vote: 0,
         expectedVote: vote
+      };
+    }
+  }
+
+  async voteGalleryTag(gid: number, token: string, apiUid: number, apiKey: string, fullTag: string, vote: number,
+    site: GallerySite = GallerySite.E): Promise<VoteTagResult> {
+    const tag = fullTag.trim();
+    if (tag.length === 0) {
+      return {
+        ok: false,
+        statusCode: 0,
+        message: 'Tag is empty',
+        fullTag: tag,
+        vote: vote,
+        redirectedUrl: ''
+      };
+    }
+    const payload = JSON.stringify({
+      method: 'taggallery',
+      apiuid: apiUid,
+      apikey: apiKey,
+      gid: gid,
+      token: token,
+      tags: tag,
+      vote: vote
+    });
+    const url = EhUrl.getApiUrl(site);
+    const referer = EhUrl.getGalleryDetailUrl(gid, token, 0, false, site);
+    const origin = EhUrl.getHost(site);
+    try {
+      const response = await this.postJson(url, payload, referer, origin);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return {
+          ok: false,
+          statusCode: response.statusCode,
+          message: httpStatusMessage(response.statusCode, response.body),
+          fullTag: tag,
+          vote: vote,
+          redirectedUrl: ''
+        };
+      }
+      const parsed = parseVoteTagResponse(response.body);
+      return {
+        ok: parsed.ok,
+        statusCode: response.statusCode,
+        message: parsed.message.length > 0 ? parsed.message : 'Tag vote submitted',
+        fullTag: tag,
+        vote: vote,
+        redirectedUrl: parsed.redirectedUrl
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        statusCode: 0,
+        message: networkErrorMessage(error),
+        fullTag: tag,
+        vote: vote,
+        redirectedUrl: ''
       };
     }
   }
@@ -1919,6 +1987,12 @@ interface VoteCommentParsed {
   vote: number;
 }
 
+interface VoteTagParsed {
+  ok: boolean;
+  message: string;
+  redirectedUrl: string;
+}
+
 function parseRateGalleryResponse(body: string, fallbackRating: number): RateGalleryParsed {
   try {
     const obj = JSON.parse(body) as Record<string, Object>;
@@ -1950,6 +2024,27 @@ function parseVoteCommentResponse(body: string, expectedVote: number): VoteComme
     return { ok: true, message: '', commentId: id, score: score, vote: vote };
   } catch (error) {
     return { ok: false, message: galleryListBodyDiagnostic(body), commentId: '', score: 0, vote: expectedVote };
+  }
+}
+
+function parseVoteTagResponse(body: string): VoteTagParsed {
+  try {
+    const obj = JSON.parse(body) as Record<string, Object>;
+    const error = obj['error'];
+    if (typeof error === 'string' && error.length > 0) {
+      return { ok: false, message: error, redirectedUrl: '' };
+    }
+    const redirect = obj['redirect'];
+    const tagpane = obj['tagpane'];
+    if (typeof redirect === 'string' && redirect.length > 0) {
+      return { ok: true, message: 'Tag vote submitted', redirectedUrl: redirect };
+    }
+    if (typeof tagpane === 'string') {
+      return { ok: true, message: 'Tag vote submitted', redirectedUrl: '' };
+    }
+    return { ok: true, message: 'Tag vote submitted', redirectedUrl: '' };
+  } catch (error) {
+    return { ok: false, message: galleryListBodyDiagnostic(body), redirectedUrl: '' };
   }
 }
 

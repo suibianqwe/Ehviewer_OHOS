@@ -8,11 +8,13 @@ import {
   ArchiverDownloadResult,
   ArchiverLoadResult,
   EhHttpClient,
+  GalleryDetailLoadResult,
   HathArchiveListLoadResult,
   HathArchiveSubmitResult,
   RateGalleryResult,
   ToggleFavoriteResult,
-  VoteCommentResult
+  VoteCommentResult,
+  VoteTagResult
 } from '../services/EhHttpClient';
 import { EhUrl } from '../services/EhUrl';
 import {
@@ -761,6 +763,87 @@ export struct GalleryDetailHostScene {
     }
   }
 
+  private voteDetailTag(fullTag: string, vote: number): void {
+    if (!this.detailLoaded || this.detail.apiUid < 0 || this.detail.apiKey.length === 0) {
+      this.detailStatus = 'Tag vote requires gallery API key';
+      this.showToast(this.detailStatus);
+      this.renderVersion++;
+      return;
+    }
+    this.detailStatus = vote > 0 ? 'Submitting tag vote up...' : 'Submitting tag vote down...';
+    this.renderVersion++;
+    this.client.voteGalleryTag(this.detail.gid, this.detail.token, this.detail.apiUid, this.detail.apiKey, fullTag, vote,
+      this.detailLink.site).then((result: VoteTagResult) => {
+      if (!result.ok) {
+        this.detailStatus = 'Tag vote failed: ' + result.message;
+        this.showToast(this.detailStatus);
+        this.renderVersion++;
+        return;
+      }
+      this.detailStatus = result.message;
+      this.showToast('Tag vote submitted');
+      this.reloadCurrentDetailAfterTagChange();
+    }).catch((error: Error) => {
+      this.detailStatus = 'Tag vote failed: ' + error.message;
+      this.showToast(this.detailStatus);
+      this.renderVersion++;
+    });
+  }
+
+  private addDetailTag(fullTag: string): void {
+    this.voteDetailTag(fullTag, 1);
+  }
+
+  private reloadCurrentDetailAfterTagChange(): void {
+    const requestGid = this.detail.gid;
+    const referer = this.detailRequestUrl.length > 0 ? this.detailRequestUrl : this.detailLink.referer;
+    this.client.loadGalleryDetail(this.detail.gid, this.detail.token, 0, this.detailLink.site, referer)
+      .then((result: GalleryDetailLoadResult) => {
+        if (this.detail.gid !== requestGid || result.detail === null) {
+          this.renderVersion++;
+          return;
+        }
+        if (!result.ok) {
+          this.detailStatus = 'Tag refresh failed: ' + result.message;
+          this.renderVersion++;
+          return;
+        }
+        const next = cloneGalleryDetail(result.detail);
+        next.previewSet = cloneGalleryPreviews(this.detail.previewSet);
+        next.previewPages = Math.max(next.previewPages, this.detail.previewPages);
+        this.detail = next;
+        this.onDetailLoaded(this.detail);
+        this.renderVersion++;
+      }).catch((error: Error) => {
+        this.detailStatus = 'Tag refresh failed: ' + error.message;
+        this.renderVersion++;
+      });
+  }
+
+  private openTagDefinition(fullTag: string): void {
+    const name = fullTag.replace(/^[a-z]+:\s*/i, '').trim();
+    if (name.length === 0) {
+      return;
+    }
+    const context = getAbilityContext();
+    if (context === undefined) {
+      this.detailStatus = 'Tag definition unavailable';
+      this.renderVersion++;
+      return;
+    }
+    context.startAbility({
+      action: 'ohos.want.action.viewData',
+      entities: ['entity.system.browsable'],
+      uri: 'https://ehwiki.org/wiki/' + encodeURIComponent(name).replace(/%20/g, '_'),
+      parameters: {
+        'ohos.ability.params.showDefaultPicker': true
+      }
+    }).catch((error: Error) => {
+      this.detailStatus = 'Tag definition failed: ' + error.message;
+      this.renderVersion++;
+    });
+  }
+
   private async loadNextDetailPreviewPage(): Promise<void> {
     if (this.previewJumpLoading) {
       return;
@@ -899,7 +982,10 @@ export struct GalleryDetailHostScene {
           this.loadNextDetailPreviewPage();
         },
         onDetailScrollUpdate: this.onDetailScrollUpdate,
-        onTagSearch: (namespace: string, tag: string) => { this.openTagSearch(namespace, tag); }
+        onTagSearch: (namespace: string, tag: string) => { this.openTagSearch(namespace, tag); },
+        onVoteTag: (fullTag: string, vote: number) => { this.voteDetailTag(fullTag, vote); },
+        onAddTag: (fullTag: string) => { this.addDetailTag(fullTag); },
+        onShowTagDefinition: (fullTag: string) => { this.openTagDefinition(fullTag); }
       })
 
       if (this.commentGalleryLink.gid > 0) {

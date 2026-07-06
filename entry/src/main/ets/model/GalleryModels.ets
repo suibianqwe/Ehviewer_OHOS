@@ -43,6 +43,16 @@ export interface GalleryDetail extends GalleryInfo {
 export interface GalleryTagGroup {
   namespace: string;
   tags: string[];
+  tagInfos?: GalleryTagInfo[];
+}
+
+export interface GalleryTagInfo {
+  id: number;
+  namespace: string;
+  tag: string;
+  fullTag: string;
+  voteUpEd?: boolean;
+  voteDownEd?: boolean;
 }
 
 export interface GalleryComment {
