@@ -359,11 +359,11 @@ export struct GalleryThumb {
           .width('100%')
           .height('100%')
           .objectFit(ImageFit.Cover)
+          .syncLoad(false)
           .borderRadius(this.radiusValue)
           .onError(() => {
             this.loadFailed = true;
           })
-          .transition(TransitionEffect.OPACITY.animation({ duration: 200, curve: Curve.EaseOut }))
       } else {
         LoadingProgress()
           .width(32)

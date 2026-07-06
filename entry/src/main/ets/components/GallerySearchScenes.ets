@@ -418,6 +418,8 @@ struct SearchSuggestionTile {
       Column({ space: 1 }) {
         Text(this.suggestion.kind === 'history' ? uiText(this.suggestion.title) : this.suggestion.title)
           .fontSize(17)
+          .height(22)
+          .lineHeight(22)
           .fontWeight(FontWeight.Medium)
           .fontColor(themePrimaryText())
           .maxLines(1)
@@ -425,6 +427,8 @@ struct SearchSuggestionTile {
         if (this.suggestion.subtitle.length > 0) {
           Text(this.suggestion.subtitle)
             .fontSize(13)
+            .height(16)
+            .lineHeight(16)
             .fontColor(themeSecondaryText())
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })

@@ -80,6 +80,16 @@ export interface SettingsHeaderItem {
   summary: string;
 }
 
+interface ThumbnailReadyDelivery {
+  path: string;
+  onReady: (path: string) => void;
+}
+
+const THUMBNAIL_READY_BATCH_SIZE: number = 2;
+const THUMBNAIL_READY_BATCH_DELAY_MS: number = 16;
+const THUMBNAIL_READY_QUEUE: ThumbnailReadyDelivery[] = [];
+let thumbnailReadyScheduled: boolean = false;
+
 export interface SettingsRowItem {
   key?: string;
   title: string;
@@ -2625,6 +2635,34 @@ export function readerPageImageCacheKey(page: GalleryPage, original: boolean = f
   return page.pageUrl + (original ? '#origin' : '#image');
 }
 
+function enqueueThumbnailReady(path: string, onReady: (path: string) => void): void {
+  THUMBNAIL_READY_QUEUE.push({ path: path, onReady: onReady });
+  scheduleThumbnailReadyDelivery();
+}
+
+function scheduleThumbnailReadyDelivery(): void {
+  if (thumbnailReadyScheduled) {
+    return;
+  }
+  thumbnailReadyScheduled = true;
+  setTimeout(() => {
+    thumbnailReadyScheduled = false;
+    const count = Math.min(THUMBNAIL_READY_BATCH_SIZE, THUMBNAIL_READY_QUEUE.length);
+    for (let i = 0; i < count; i++) {
+      const item = THUMBNAIL_READY_QUEUE.shift();
+      if (item !== undefined) {
+        try {
+          item.onReady(item.path);
+        } catch (error) {
+        }
+      }
+    }
+    if (THUMBNAIL_READY_QUEUE.length > 0) {
+      scheduleThumbnailReadyDelivery();
+    }
+  }, THUMBNAIL_READY_BATCH_DELAY_MS);
+}
+
 export function cacheThumbnailImage(url: string, onReady: (path: string) => void, onError?: () => void): void {
   const context = getAbilityContext();
   if (context === undefined || url.length === 0) {
@@ -2636,13 +2674,13 @@ export function cacheThumbnailImage(url: string, onReady: (path: string) => void
 
   const existing = readerImageCache.getCachedPath(context, url);
   if (existing.length > 0) {
-    onReady(existing);
+    enqueueThumbnailReady(existing, onReady);
     return;
   }
 
   readerImageCache.ensureCached(context, url, EhUrl.getReferer(currentGallerySite())).then((path: string) => {
     if (path.length > 0) {
-      onReady(path);
+      enqueueThumbnailReady(path, onReady);
     } else if (onError !== undefined) {
       onError();
     }
@@ -2665,13 +2703,13 @@ export function cachePreviewThumbnail(preview: GalleryPreview, onReady: (path: s
 
   const existing = previewThumbnailCache.getCroppedPath(context, preview);
   if (existing.length > 0) {
-    onReady(existing);
+    enqueueThumbnailReady(existing, onReady);
     return;
   }
 
   previewThumbnailCache.ensureCropped(context, preview, EhUrl.getReferer(currentGallerySite())).then((path: string) => {
     if (path.length > 0) {
-      onReady(path);
+      enqueueThumbnailReady(path, onReady);
     } else if (onError !== undefined) {
       onError();
     }

@@ -390,7 +390,7 @@ export struct PreviewThumb {
           .width('100%')
           .height('100%')
           .objectFit(ImageFit.Cover)
-          .syncLoad(true)
+          .syncLoad(false)
           .onError(() => {
             this.loadFailed = true;
           })
