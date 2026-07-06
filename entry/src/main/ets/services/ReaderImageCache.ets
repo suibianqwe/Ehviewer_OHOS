@@ -33,7 +33,10 @@ const IMAGE_TOTAL_TIMEOUT_MARGIN_MS: number = 30000;
 const IMAGE_MIN_EXPECTED_SPEED_BYTES_PER_SECOND: number = 64 * 1024;
 const IMAGE_UNKNOWN_TOTAL_TIMEOUT_MS: number = 5 * 60 * 1000;
 const IMAGE_MAX_TOTAL_TIMEOUT_MS: number = 10 * 60 * 1000;
+const IMAGE_CACHE_PRUNE_DELAY_MS: number = 5000;
 let activeImageDownloads: number = 0;
+let pruneScheduled: boolean = false;
+let pendingPruneContext: common.UIAbilityContext | null = null;
 
 interface CachedImageFile {
   path: string;
@@ -175,13 +178,29 @@ export class ReaderImageCache {
     ], readerImageCacheLimitBytes(), protectedPath);
   }
 
+  schedulePrune(context: common.UIAbilityContext): void {
+    pendingPruneContext = context;
+    if (pruneScheduled) {
+      return;
+    }
+    pruneScheduled = true;
+    setTimeout(() => {
+      pruneScheduled = false;
+      const target = pendingPruneContext;
+      pendingPruneContext = null;
+      if (target !== null) {
+        this.prune(target);
+      }
+    }, IMAGE_CACHE_PRUNE_DELAY_MS);
+  }
+
   private async download(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
     priority: boolean, onProgress?: ImageDownloadProgressCallback, options?: ImageDownloadOptions): Promise<string> {
     ensureDirectory(readerImageCacheDirectory(context));
     await acquireImageSlot(priority);
     try {
       await this.downloadWithRetry(context, imageUrl, referer, path, onProgress, options);
-      this.prune(context, path);
+      this.schedulePrune(context);
       return path;
     } finally {
       releaseImageSlot();

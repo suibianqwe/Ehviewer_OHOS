@@ -85,8 +85,8 @@ interface ThumbnailReadyDelivery {
   onReady: (path: string) => void;
 }
 
-const THUMBNAIL_READY_BATCH_SIZE: number = 2;
-const THUMBNAIL_READY_BATCH_DELAY_MS: number = 16;
+const THUMBNAIL_READY_BATCH_SIZE: number = 1;
+const THUMBNAIL_READY_BATCH_DELAY_MS: number = 48;
 const THUMBNAIL_READY_QUEUE: ThumbnailReadyDelivery[] = [];
 let thumbnailReadyScheduled: boolean = false;
 
