@@ -1,12 +1,16 @@
 ﻿import { GalleryDetail, GalleryPreview } from '../model/GalleryModels';
 import { GalleryComment } from '../model/GalleryModels';
+import { GalleryTagInfo } from '../model/GalleryModels';
 import { ArchiveOption, ArchiverInfo, ArchiverOption, HathArchiveList } from '../model/GalleryModels';
-import { STATUS_BAR_HEIGHT_KEY, createEmptyDetail, galleryDisplayTitle, uiText } from '../shared/EhShared';
+import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
+import { STATUS_BAR_HEIGHT_KEY, createEmptyDetail, galleryDisplayTitle, shouldUseChineseUi, uiText } from '../shared/EhShared';
 import { themePageBackground, themeScrimColor } from '../shared/EhTheme';
 import {
   themeDividerColor,
+  themeInactiveActionText,
   themePrimaryText,
   themeSecondaryText,
+  themeShadowColor,
   themeSurface,
   themeSurfaceVariant
 } from '../shared/EhTheme';
@@ -165,6 +169,8 @@ export struct GalleryDetailScene {
   @State pendingRating: number = 0;
   @State previewJumpPanelVisible: boolean = false;
   @State previewJumpPageIndex: number = 0;
+  @State tagVotePanelVisible: boolean = false;
+  @State tagVoteTarget: GalleryTagInfo = createEmptyTagInfo();
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
 
   private statusBarVp(): number {
@@ -204,6 +210,33 @@ export struct GalleryDetailScene {
     if (total > 1) {
       this.onJumpPreviewPage(target);
     }
+  }
+
+  private openTagVotePanel(info: GalleryTagInfo): void {
+    this.tagVoteTarget = cloneTagInfo(info);
+    this.tagVotePanelVisible = true;
+  }
+
+  private closeTagVotePanel(): void {
+    this.tagVotePanelVisible = false;
+  }
+
+  private submitTagVote(vote: number): void {
+    const fullTag = this.tagVoteTarget.fullTag;
+    this.tagVotePanelVisible = false;
+    this.onVoteTag(fullTag, vote);
+  }
+
+  private showTaggedGalleries(): void {
+    const tag = cloneTagInfo(this.tagVoteTarget);
+    this.tagVotePanelVisible = false;
+    this.onTagSearch(tag.namespace, tag.tag);
+  }
+
+  private showTagDefinition(): void {
+    const fullTag = this.tagVoteTarget.fullTag;
+    this.tagVotePanelVisible = false;
+    this.onShowTagDefinition(fullTag);
   }
 
   build() {
@@ -253,9 +286,10 @@ export struct GalleryDetailScene {
               tags: this.detail.tags,
               isDetailLoaded: this.isDetailLoaded,
               onTagSearch: this.onTagSearch,
-              onVoteTag: this.onVoteTag,
               onAddTag: this.onAddTag,
-              onShowTagDefinition: this.onShowTagDefinition
+              onOpenTagVote: (info: GalleryTagInfo) => {
+                this.openTagVotePanel(info);
+              }
             })
           }
           .reuseId('detail-tags')
@@ -338,6 +372,25 @@ export struct GalleryDetailScene {
         .zIndex(12)
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
       }
+      if (this.tagVotePanelVisible) {
+        TagVoteOverlay({
+          tag: this.tagVoteTarget,
+          onDismiss: () => {
+            this.closeTagVotePanel();
+          },
+          onVote: (vote: number) => {
+            this.submitTagVote(vote);
+          },
+          onShowTaggedGalleries: () => {
+            this.showTaggedGalleries();
+          },
+          onShowTagDefinition: () => {
+            this.showTagDefinition();
+          }
+        })
+        .zIndex(14)
+        .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }))
+      }
       if (this.archivePanelVisible) {
         ArchiveOptionsOverlay({
           mode: this.archivePanelMode,
@@ -355,6 +408,221 @@ export struct GalleryDetailScene {
     .height('100%')
     .backgroundColor(themePageBackground())
   }
+}
+
+@Component
+struct TagVoteOverlay {
+  tag: GalleryTagInfo = createEmptyTagInfo();
+  onDismiss: () => void = () => {};
+  onVote: (vote: number) => void = (_vote: number) => {};
+  onShowTaggedGalleries: () => void = () => {};
+  onShowTagDefinition: () => void = () => {};
+
+  private translatedTitle(): string {
+    return translatedTagLabel(this.tag);
+  }
+
+  private showTranslatedTitle(): boolean {
+    return shouldUseChineseUi() && this.translatedTitle().length > 0 && this.translatedTitle() !== this.tag.tag;
+  }
+
+  build() {
+    Stack({ alignContent: Alignment.Center }) {
+      Column() {}
+        .width('100%')
+        .height('100%')
+        .backgroundColor(themeScrimColor())
+        .onClick(() => {
+          this.onDismiss();
+        })
+
+      Column({ space: 14 }) {
+        Row() {
+          Column({ space: 3 }) {
+            Text(this.showTranslatedTitle() ? this.translatedTitle() : this.tag.fullTag)
+              .fontSize(17)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(themePrimaryText())
+              .maxLines(2)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .width('100%')
+            if (this.showTranslatedTitle()) {
+              Text(this.tag.fullTag)
+                .fontSize(13)
+                .fontColor(themeSecondaryText())
+                .maxLines(2)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .width('100%')
+            }
+          }
+          .layoutWeight(1)
+
+          Button({ type: ButtonType.Normal, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.xmark'))
+              .fontSize(18)
+              .fontColor([themeSecondaryText()])
+          }
+          .width(34)
+          .height(34)
+          .padding(0)
+          .borderRadius(17)
+          .backgroundColor(themeSurfaceVariant())
+          .onClick(() => {
+            this.onDismiss();
+          })
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Top)
+
+        Row({ space: 10 }) {
+          TagVoteWideButton({
+            symbolIcon: $r('sys.symbol.arrow_up_circle'),
+            label: 'Vote+',
+            enabledValue: this.tag.id > 0,
+            selected: this.tag.voteUpEd === true,
+            accentColor: '#0A8F5A',
+            selectedBackground: '#E8F6EF',
+            onClickAction: () => {
+              this.onVote(1);
+            }
+          })
+          .layoutWeight(1)
+          TagVoteWideButton({
+            symbolIcon: $r('sys.symbol.arrow_down_circle'),
+            label: 'Vote-',
+            enabledValue: this.tag.id > 0,
+            selected: this.tag.voteDownEd === true,
+            accentColor: '#C43C3C',
+            selectedBackground: '#FDECEC',
+            onClickAction: () => {
+              this.onVote(-1);
+            }
+          })
+          .layoutWeight(1)
+        }
+        .width('100%')
+
+        TagActionButton({
+          label: 'Show Tagged Galleries',
+          symbolIcon: $r('sys.symbol.square_grid_2x2'),
+          onTap: this.onShowTaggedGalleries
+        })
+        TagActionButton({
+          label: 'Show Tag Definition',
+          symbolIcon: $r('sys.symbol.book'),
+          onTap: this.onShowTagDefinition
+        })
+      }
+      .width('86%')
+      .constraintSize({ maxWidth: 440 })
+      .padding(16)
+      .backgroundColor(themeSurface())
+      .borderRadius(8)
+      .shadow({ radius: 18, color: themeShadowColor(), offsetX: 0, offsetY: 4 })
+      .transition(TransitionEffect.OPACITY
+        .combine(TransitionEffect.scale({ x: 0.96, y: 0.96 }))
+        .animation({ duration: 180, curve: Curve.EaseOut }))
+    }
+    .width('100%')
+    .height('100%')
+  }
+}
+
+@Component
+struct TagVoteWideButton {
+  symbolIcon: Resource = $r('sys.symbol.arrow_up_circle');
+  label: string = '';
+  enabledValue: boolean = false;
+  selected: boolean = false;
+  accentColor: string = '#0A8F5A';
+  selectedBackground: string = '#E8F6EF';
+  onClickAction: () => void = () => {};
+
+  build() {
+    Button({ type: ButtonType.Normal, stateEffect: true }) {
+      Row({ space: 8 }) {
+        SymbolGlyph(this.symbolIcon)
+          .fontSize(22)
+          .fontColor([this.enabledValue ? this.accentColor : themeInactiveActionText()])
+        Text(this.label)
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.enabledValue ? themePrimaryText() : themeInactiveActionText())
+      }
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
+      .width('100%')
+    }
+    .width('100%')
+    .height(44)
+    .padding(0)
+    .backgroundColor(this.selected ? this.selectedBackground : themeSurfaceVariant())
+    .border({
+      width: this.selected ? 1.2 : 0,
+      color: this.selected ? this.accentColor : Color.Transparent
+    })
+    .borderRadius(6)
+    .enabled(this.enabledValue)
+    .opacity(this.enabledValue ? 1 : 0.56)
+    .onClick(() => {
+      this.onClickAction();
+    })
+  }
+}
+
+@Component
+struct TagActionButton {
+  label: string = '';
+  symbolIcon: Resource = $r('sys.symbol.square_grid_2x2');
+  onTap: () => void = () => {};
+
+  build() {
+    Button({ type: ButtonType.Normal, stateEffect: true }) {
+      Row({ space: 8 }) {
+        SymbolGlyph(this.symbolIcon)
+          .fontSize(18)
+          .fontColor([themeSecondaryText()])
+        Text(uiText(this.label))
+          .fontSize(14)
+          .fontColor(themePrimaryText())
+          .layoutWeight(1)
+          .textAlign(TextAlign.Start)
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+    }
+    .width('100%')
+    .height(40)
+    .padding({ left: 10, right: 10 })
+    .backgroundColor(themeSurfaceVariant())
+    .borderRadius(6)
+    .onClick(() => {
+      this.onTap();
+    })
+  }
+}
+
+function createEmptyTagInfo(): GalleryTagInfo {
+  return { id: 0, namespace: '', tag: '', fullTag: '' };
+}
+
+function cloneTagInfo(info: GalleryTagInfo): GalleryTagInfo {
+  return {
+    id: info.id,
+    namespace: info.namespace,
+    tag: info.tag,
+    fullTag: info.fullTag,
+    voteUpEd: info.voteUpEd,
+    voteDownEd: info.voteDownEd
+  };
+}
+
+function translatedTagLabel(info: GalleryTagInfo): string {
+  if (!shouldUseChineseUi()) {
+    return '';
+  }
+  const translated = ehTagTranslationStore.translate(info.namespace, info.tag);
+  return translated.length > 0 ? translated : '';
 }
 
 @Component

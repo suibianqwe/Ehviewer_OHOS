@@ -6,14 +6,11 @@ import {
   themeOnPrimaryText,
   themePrimaryColor,
   themePrimaryText,
-  themeScrimColor,
   themeSecondaryText,
-  themeShadowColor,
   themeSurface,
   themeSurfaceVariant,
   themeTertiaryText
 } from '../../shared/EhTheme';
-import { CommentVoteButton } from './CommentComponents';
 import {
   buildSearchSuggestions,
   SearchSuggestionItem,
@@ -27,9 +24,8 @@ export struct DetailTags {
   @Prop @Watch('onExternalDataChange') tags: GalleryTagGroup[] = [];
   @Prop @Watch('onExternalDataChange') isDetailLoaded: boolean = false;
   onTagSearch: (namespace: string, tag: string) => void = (_namespace: string, _tag: string) => {};
-  onVoteTag: (fullTag: string, vote: number) => void = (_fullTag: string, _vote: number) => {};
   onAddTag: (fullTag: string) => void = (_fullTag: string) => {};
-  onShowTagDefinition: (fullTag: string) => void = (_fullTag: string) => {};
+  onOpenTagVote: (info: GalleryTagInfo) => void = (_info: GalleryTagInfo) => {};
   @State visibleTags: GalleryTagGroup[] = [];
   @State tagRevision: number = 0;
   @State editMode: boolean = false;
@@ -37,8 +33,6 @@ export struct DetailTags {
   @State suggestions: SearchSuggestionItem[] = [];
   @State selectedTagNamespaces: string[] = [];
   @State suggestionRevision: number = 0;
-  @State selectedTag: GalleryTagInfo = createEmptyTagInfo();
-  @State showVotePanel: boolean = false;
 
   aboutToAppear(): void {
     this.syncExternalData();
@@ -52,7 +46,6 @@ export struct DetailTags {
     this.visibleTags = cloneTagGroups(this.tags);
     this.tagRevision++;
     if (!this.isDetailLoaded) {
-      this.showVotePanel = false;
       this.suggestions = [];
     }
   }
@@ -67,7 +60,6 @@ export struct DetailTags {
       if (!value) {
         this.addTagText = '';
         this.suggestions = [];
-        this.showVotePanel = false;
       }
     });
   }
@@ -120,13 +112,11 @@ export struct DetailTags {
       this.onTagSearch(info.namespace, info.tag);
       return;
     }
-    this.selectedTag = cloneTagInfo(info);
-    this.showVotePanel = true;
+    this.onOpenTagVote(cloneTagInfo(info));
   }
 
   build() {
-    Stack() {
-      Column() {
+    Column() {
         Row() {
           Text(uiText('Tags'))
             .fontSize(15)
@@ -246,30 +236,6 @@ export struct DetailTags {
       .width('100%')
       .padding(16)
       .backgroundColor(themeSurface())
-
-      if (this.showVotePanel) {
-        TagVoteOverlay({
-          tag: this.selectedTag,
-          onDismiss: () => {
-            this.showVotePanel = false;
-          },
-          onVote: (vote: number) => {
-            this.showVotePanel = false;
-            this.onVoteTag(this.selectedTag.fullTag, vote);
-          },
-          onShowTaggedGalleries: () => {
-            this.showVotePanel = false;
-            this.onTagSearch(this.selectedTag.namespace, this.selectedTag.tag);
-          },
-          onShowTagDefinition: () => {
-            this.showVotePanel = false;
-            this.onShowTagDefinition(this.selectedTag.fullTag);
-          }
-        })
-        .zIndex(8)
-        .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }))
-      }
-    }
     .width('100%')
   }
 
@@ -353,130 +319,6 @@ export struct TagGroupRow {
     }
     .width('100%')
   }
-}
-
-@Component
-struct TagVoteOverlay {
-  tag: GalleryTagInfo = createEmptyTagInfo();
-  onDismiss: () => void = () => {};
-  onVote: (vote: number) => void = (_vote: number) => {};
-  onShowTaggedGalleries: () => void = () => {};
-  onShowTagDefinition: () => void = () => {};
-
-  build() {
-    Stack({ alignContent: Alignment.Center }) {
-      Column() {}
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(() => {
-          this.onDismiss();
-        })
-      Column({ space: 12 }) {
-        Row() {
-          Text(this.tag.fullTag)
-            .fontSize(16)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(themePrimaryText())
-            .layoutWeight(1)
-            .maxLines(2)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-          Button({ type: ButtonType.Normal, stateEffect: true }) {
-            SymbolGlyph($r('sys.symbol.xmark'))
-              .fontSize(18)
-              .fontColor([themeSecondaryText()])
-          }
-          .width(34)
-          .height(34)
-          .padding(0)
-          .borderRadius(17)
-          .backgroundColor(themeSurfaceVariant())
-          .onClick(() => {
-            this.onDismiss();
-          })
-        }
-        .width('100%')
-
-        Row({ space: 10 }) {
-          CommentVoteButton({
-            symbolIcon: $r('sys.symbol.arrow_up_circle'),
-            enabledValue: this.tag.id > 0,
-            selected: this.tag.voteUpEd === true,
-            onClickAction: () => {
-              this.onVote(1);
-            }
-          })
-          CommentVoteButton({
-            symbolIcon: $r('sys.symbol.arrow_down_circle'),
-            enabledValue: this.tag.id > 0,
-            selected: this.tag.voteDownEd === true,
-            onClickAction: () => {
-              this.onVote(-1);
-            }
-          })
-        }
-        .width('100%')
-
-        TagActionButton({
-          label: 'Show Tagged Galleries',
-          symbolIcon: $r('sys.symbol.square_grid_2x2'),
-          onTap: this.onShowTaggedGalleries
-        })
-        TagActionButton({
-          label: 'Show Tag Definition',
-          symbolIcon: $r('sys.symbol.book'),
-          onTap: this.onShowTagDefinition
-        })
-      }
-      .width('82%')
-      .constraintSize({ maxWidth: 420 })
-      .padding(16)
-      .backgroundColor(themeSurface())
-      .borderRadius(8)
-      .shadow({ radius: 16, color: themeShadowColor(), offsetX: 0, offsetY: 4 })
-      .transition(TransitionEffect.OPACITY
-        .combine(TransitionEffect.scale({ x: 0.96, y: 0.96 }))
-        .animation({ duration: 180, curve: Curve.EaseOut }))
-    }
-    .width('100%')
-    .height('100%')
-  }
-}
-
-@Component
-struct TagActionButton {
-  label: string = '';
-  symbolIcon: Resource = $r('sys.symbol.square_grid_2x2');
-  onTap: () => void = () => {};
-
-  build() {
-    Button({ type: ButtonType.Normal, stateEffect: true }) {
-      Row({ space: 8 }) {
-        SymbolGlyph(this.symbolIcon)
-          .fontSize(18)
-          .fontColor([themePrimaryColor()])
-        Text(uiText(this.label))
-          .fontSize(14)
-          .fontColor(themePrimaryText())
-          .layoutWeight(1)
-          .textAlign(TextAlign.Start)
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-    }
-    .width('100%')
-    .height(40)
-    .padding({ left: 10, right: 10 })
-    .backgroundColor(themeSurfaceVariant())
-    .borderRadius(6)
-    .onClick(() => {
-      this.onTap();
-    })
-  }
-}
-
-function createEmptyTagInfo(): GalleryTagInfo {
-  return { id: 0, namespace: '', tag: '', fullTag: '' };
 }
 
 function cloneTagGroups(groups: GalleryTagGroup[]): GalleryTagGroup[] {
