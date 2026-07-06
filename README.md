@@ -46,9 +46,9 @@
 请在 [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases) 中下载最新的 `.hap` 安装包。  
 推荐使用 [小白调试助手](https://github.com/likuai2010/auto-installer) 安装。
 
-当前版本：`0.4.3`
+当前版本：`0.4.4`
 
-最新安装包：[`EhViewer_OHOS_0.4.3.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.4.3/EhViewer_OHOS_0.4.3.hap)
+最新安装包：[`EhViewer_OHOS_0.4.4.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.4.4/EhViewer_OHOS_0.4.4.hap)
 发布包类型：未签名 HAP  
 目标API：`6.1.1(24)`  
 兼容API：`6.1.0.31(23)`  
@@ -62,6 +62,16 @@
 - 阅读：支持内嵌/独立阅读器、连续阅读、缩放、方向适配、进度控制和本地下载优先读取。
 - 下载：支持任务暂停/继续/删除、多线程下载、本地阅读、恢复本地下载和导出压缩包。
 - 设置：支持主题、语言、启动页、过滤规则、代理/Hosts/域名前置、隐私防护和身份验证。
+
+## 0.4.4 重点变化
+
+- 移除鸿蒙不可用的媒体扫描设置和相关接口。
+- 恢复下载项时始终扫描下载文件夹，支持迁移应用文件目录并合并重复漫画。
+- 重建下载项、导入历史和恢复本地下载时补全漫画元数据，历史缺失数据会从服务器抓取。
+- 重建元数据、生成压缩包、迁移下载文件等耗时操作增加阻断式加载提示和完成提示。
+- 完善本地过滤，支持标签、上传者和评分过滤，并限制作用于主页、订阅和热门页。
+- 优化过滤页面交互，使用页签、标签联想和高级搜索同款评分组件。
+- 修复横屏进入竖屏阅读器、退出阅读器和折叠屏形态变化后的方向残留问题。
 
 ## 0.4.3 重点变化
 
