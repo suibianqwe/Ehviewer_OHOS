@@ -249,6 +249,7 @@ export struct GalleryDetailScene {
           .reuseId('detail-actions')
           ListItem() {
             DetailTags({
+              renderVersion: this.renderVersion,
               tags: this.detail.tags,
               isDetailLoaded: this.isDetailLoaded,
               onTagSearch: this.onTagSearch,

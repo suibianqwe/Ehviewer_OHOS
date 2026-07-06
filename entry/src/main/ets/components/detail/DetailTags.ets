@@ -23,12 +23,15 @@ import {
 
 @Component
 export struct DetailTags {
-  @Prop tags: GalleryTagGroup[] = [];
-  @Prop isDetailLoaded: boolean = false;
+  @Prop @Watch('onExternalDataChange') renderVersion: number = 0;
+  @Prop @Watch('onExternalDataChange') tags: GalleryTagGroup[] = [];
+  @Prop @Watch('onExternalDataChange') isDetailLoaded: boolean = false;
   onTagSearch: (namespace: string, tag: string) => void = (_namespace: string, _tag: string) => {};
   onVoteTag: (fullTag: string, vote: number) => void = (_fullTag: string, _vote: number) => {};
   onAddTag: (fullTag: string) => void = (_fullTag: string) => {};
   onShowTagDefinition: (fullTag: string) => void = (_fullTag: string) => {};
+  @State visibleTags: GalleryTagGroup[] = [];
+  @State tagRevision: number = 0;
   @State editMode: boolean = false;
   @State addTagText: string = '';
   @State suggestions: SearchSuggestionItem[] = [];
@@ -36,6 +39,23 @@ export struct DetailTags {
   @State suggestionRevision: number = 0;
   @State selectedTag: GalleryTagInfo = createEmptyTagInfo();
   @State showVotePanel: boolean = false;
+
+  aboutToAppear(): void {
+    this.syncExternalData();
+  }
+
+  private onExternalDataChange(): void {
+    this.syncExternalData();
+  }
+
+  private syncExternalData(): void {
+    this.visibleTags = cloneTagGroups(this.tags);
+    this.tagRevision++;
+    if (!this.isDetailLoaded) {
+      this.showVotePanel = false;
+      this.suggestions = [];
+    }
+  }
 
   private selectedNamespaceKey(): string {
     return this.selectedTagNamespaces.slice().sort().join('|');
@@ -136,22 +156,23 @@ export struct DetailTags {
             .fontSize(12)
             .fontColor(themeSecondaryText())
             .margin({ top: 8 })
-        } else if (this.tags.length === 0) {
+        } else if (this.visibleTags.length === 0) {
           Text(uiText('No tags parsed'))
             .fontSize(12)
             .fontColor(themeSecondaryText())
             .margin({ top: 8 })
         } else {
           Column({ space: 4 }) {
-            ForEach(this.tags, (group: GalleryTagGroup) => {
+            ForEach(this.visibleTags, (group: GalleryTagGroup) => {
               TagGroupRow({
+                tagRevision: this.tagRevision,
                 group: group,
                 editMode: this.editMode,
                 onSelectTag: (info: GalleryTagInfo) => {
                   this.selectTag(info);
                 }
               })
-            }, (group: GalleryTagGroup) => group.namespace)
+            }, (group: GalleryTagGroup) => group.namespace + ':' + this.tagRevision.toString())
           }
           .width('100%')
           .margin({ top: 8 })
@@ -265,7 +286,8 @@ export struct DetailTags {
 
 @Component
 export struct TagGroupRow {
-  group: GalleryTagGroup = { namespace: '', tags: [] };
+  @Prop tagRevision: number = 0;
+  @Prop group: GalleryTagGroup = { namespace: '', tags: [] };
   @Prop editMode: boolean = false;
   onSelectTag: (info: GalleryTagInfo) => void = (_info: GalleryTagInfo) => {};
 
@@ -455,6 +477,29 @@ struct TagActionButton {
 
 function createEmptyTagInfo(): GalleryTagInfo {
   return { id: 0, namespace: '', tag: '', fullTag: '' };
+}
+
+function cloneTagGroups(groups: GalleryTagGroup[]): GalleryTagGroup[] {
+  const result: GalleryTagGroup[] = [];
+  for (let i = 0; i < groups.length; i++) {
+    result.push({
+      namespace: groups[i].namespace,
+      tags: groups[i].tags.slice(),
+      tagInfos: cloneTagInfoList(groups[i].tagInfos)
+    });
+  }
+  return result;
+}
+
+function cloneTagInfoList(infos: GalleryTagInfo[] | undefined): GalleryTagInfo[] | undefined {
+  if (infos === undefined) {
+    return undefined;
+  }
+  const result: GalleryTagInfo[] = [];
+  for (let i = 0; i < infos.length; i++) {
+    result.push(cloneTagInfo(infos[i]));
+  }
+  return result;
 }
 
 function cloneTagInfo(info: GalleryTagInfo): GalleryTagInfo {
