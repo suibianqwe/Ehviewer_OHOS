@@ -216,12 +216,15 @@ export struct GalleryDetailHostScene {
     };
   }
 
-  private loadDetailFromLink(): void {
+  private loadDetailFromLink(done?: () => void): void {
     if (this.detailLink.gid <= 0 || this.detailLink.token.length === 0) {
       this.detail = createEmptyDetail();
       this.detailStatus = 'No gallery loaded';
       this.detailLoaded = false;
       this.renderVersion++;
+      if (done !== undefined) {
+        done();
+      }
       return;
     }
     const navigationState = this.restoreNavigationState();
@@ -245,12 +248,18 @@ export struct GalleryDetailHostScene {
     this.renderVersion++;
     loadGalleryDetailModule(this.client, this.detailLink).then((result: GalleryDetailModuleLoadResult) => {
       if (this.detailLink.gid !== requestGid || this.detail.gid !== requestGid) {
+        if (done !== undefined) {
+          done();
+        }
         return;
       }
       if (!result.ok) {
         this.detailRequestUrl = result.url;
         this.detailStatus = result.statusText;
         this.renderVersion++;
+        if (done !== undefined) {
+          done();
+        }
         return;
       }
       this.detail = result.detail;
@@ -265,12 +274,24 @@ export struct GalleryDetailHostScene {
       saveGalleryToHistory(this.detail);
       this.onDetailLoaded(this.detail);
       this.renderVersion++;
+      if (done !== undefined) {
+        done();
+      }
     }).catch((error: Error) => {
       if (this.detailLink.gid === requestGid && this.detail.gid === requestGid) {
         this.detailStatus = 'Detail load failed: ' + error.message;
         this.renderVersion++;
       }
+      if (done !== undefined) {
+        done();
+      }
     });
+  }
+
+  private refreshCurrentDetail(done: () => void): void {
+    this.detailStatus = 'Refreshing detail...';
+    this.renderVersion++;
+    this.loadDetailFromLink(done);
   }
 
   private refreshDetailDownloadText(): void {
@@ -980,6 +1001,9 @@ export struct GalleryDetailHostScene {
         onSelectHathOption: (option: ArchiveOption) => { this.submitHathOption(option); },
         onLoadMorePreviews: () => {
           this.loadNextDetailPreviewPage();
+        },
+        onRefreshDetail: (done: () => void) => {
+          this.refreshCurrentDetail(done);
         },
         onDetailScrollUpdate: this.onDetailScrollUpdate,
         onTagSearch: (namespace: string, tag: string) => { this.openTagSearch(namespace, tag); },

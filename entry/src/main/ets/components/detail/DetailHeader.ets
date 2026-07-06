@@ -1,14 +1,10 @@
 ﻿import { GalleryDetail } from '../../model/GalleryModels';
 import { createEmptyDetail, detailTitleFontSize, detailTitleMaxLines, galleryDisplayTitle, galleryThumbHeight, galleryThumbWidth, uiStatusText, uiText } from '../../shared/EhShared';
 import {
-  themeAccentBackground,
   themeDangerBackground,
   themeDangerText,
   themeInfoBackground,
   themeInfoText,
-  themeOnAccentText,
-  themeOnPrimaryActionBackground,
-  themeOnPrimaryActionStrongBackground,
   themeOnPrimarySecondaryText,
   themeOnPrimaryText,
   themePrimaryColor
@@ -23,7 +19,7 @@ export struct DetailHeader {
 
   build() {
     Column() {
-      Row() {
+      Row({ space: 10 }) {
         GalleryThumb({
           url: this.detail.thumb === undefined ? '' : this.detail.thumb,
           widthValue: galleryThumbWidth(),
@@ -57,10 +53,6 @@ export struct DetailHeader {
           onTap: this.onDownload
         })
           .layoutWeight(1)
-        Column()
-          .width(1)
-          .height(32)
-          .backgroundColor(themeOnPrimaryActionStrongBackground())
         HeaderActionButton({
           symbolIcon: $r('sys.symbol.play_fill'),
           text: uiText('Read'),
@@ -70,11 +62,7 @@ export struct DetailHeader {
           .layoutWeight(1)
       }
       .width('100%')
-      .height(56)
       .margin({ top: 16 })
-      .padding(4)
-      .backgroundColor(themeOnPrimaryActionBackground())
-      .borderRadius(6)
     }
     .width('100%')
     .padding(16)
@@ -100,23 +88,41 @@ export struct HeaderActionButton {
   onTap: () => void = () => {};
   @State pressed: boolean = false;
 
+  private buttonBackground(): string {
+    return this.accent ? '#FFD34D' : '#FFFFFF';
+  }
+
+  private contentColor(): string {
+    return this.accent ? '#111827' : themePrimaryColor();
+  }
+
   build() {
     Row() {
       SymbolGlyph(this.symbolIcon)
         .fontSize(22)
-        .fontColor([this.accent ? themeOnAccentText() : themeOnPrimaryText()])
+        .fontColor([this.contentColor()])
       Text(this.text)
         .fontSize(14)
         .fontWeight(FontWeight.Bold)
-        .fontColor(this.accent ? themeOnAccentText() : themeOnPrimaryText())
+        .fontColor(this.contentColor())
         .margin({ left: 10 })
     }
     .justifyContent(FlexAlign.Center)
     .alignItems(VerticalAlign.Center)
-    .height(48)
+    .height(52)
     .width('100%')
-    .backgroundColor(this.accent ? themeAccentBackground() : themeOnPrimaryActionStrongBackground())
-    .borderRadius(4)
+    .backgroundColor(this.buttonBackground())
+    .borderRadius(26)
+    .border({
+      width: this.accent ? 0 : 1,
+      color: this.accent ? '#FFD34D' : '#FFFFFF'
+    })
+    .shadow({
+      radius: this.pressed ? 2 : 6,
+      color: '#22000000',
+      offsetX: 0,
+      offsetY: this.pressed ? 1 : 2
+    })
     .scale({ x: this.pressed ? 0.96 : 1, y: this.pressed ? 0.96 : 1 })
     .animation({ duration: 120, curve: Curve.EaseOut })
     .onTouch((event: TouchEvent) => {

@@ -61,6 +61,7 @@ export struct GalleryDetailOverlayScene {
   onSelectArchiverOption: (option: ArchiverOption) => void = (_option: ArchiverOption) => {};
   onSelectHathOption: (option: ArchiveOption) => void = (_option: ArchiveOption) => {};
   onLoadMorePreviews: () => void = () => {};
+  onRefreshDetail: (done: () => void) => void = (_done: () => void) => {};
   onDetailScrollUpdate: (offset: number) => void = () => {};
   onTagSearch: (namespace: string, tag: string) => void = (_namespace: string, _tag: string) => {};
   onVoteTag: (fullTag: string, vote: number) => void = (_fullTag: string, _vote: number) => {};
@@ -112,6 +113,7 @@ export struct GalleryDetailOverlayScene {
         onSelectArchiverOption: this.onSelectArchiverOption,
         onSelectHathOption: this.onSelectHathOption,
         onLoadMorePreviews: this.onLoadMorePreviews,
+        onRefreshDetail: this.onRefreshDetail,
         initialDetailScrollOffset: this.initialDetailScrollOffset,
         onDetailScrollUpdate: this.onDetailScrollUpdate,
         onTagSearch: this.onTagSearch,
@@ -158,6 +160,7 @@ export struct GalleryDetailScene {
   onSelectArchiverOption: (option: ArchiverOption) => void = (_option: ArchiverOption) => {};
   onSelectHathOption: (option: ArchiveOption) => void = (_option: ArchiveOption) => {};
   onLoadMorePreviews: () => void = () => {};
+  onRefreshDetail: (done: () => void) => void = (_done: () => void) => {};
   initialDetailScrollOffset: number = 0;
   onDetailScrollUpdate: (offset: number) => void = () => {};
   onTagSearch: (namespace: string, tag: string) => void = (_namespace: string, _tag: string) => {};
@@ -169,6 +172,7 @@ export struct GalleryDetailScene {
   @State pendingRating: number = 0;
   @State previewJumpPanelVisible: boolean = false;
   @State previewJumpPageIndex: number = 0;
+  @State detailRefreshing: boolean = false;
   @State tagVotePanelVisible: boolean = false;
   @State tagVoteTarget: GalleryTagInfo = createEmptyTagInfo();
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
@@ -248,90 +252,103 @@ export struct GalleryDetailScene {
           onBack: this.onBack
         })
 
-        List({ space: 0, scroller: this.detailScroller }) {
-          ListItem() {
-            DetailHeader({
-              detail: this.detail,
-              downloadText: this.downloadText,
-              onDownload: this.onDownload,
-              onRead: this.onRead
-            })
+        Refresh({ refreshing: $$this.detailRefreshing }) {
+          List({ space: 0, scroller: this.detailScroller }) {
+            ListItem() {
+              DetailHeader({
+                detail: this.detail,
+                downloadText: this.downloadText,
+                onDownload: this.onDownload,
+                onRead: this.onRead
+              })
+            }
+            .reuseId('detail-header')
+            ListItem() {
+              DetailInfoBlock({ detail: this.detail, requestUrl: this.requestUrl, isDetailLoaded: this.isDetailLoaded })
+            }
+            .reuseId('detail-info')
+            ListItem() {
+              DetailActions({
+                detail: this.detail,
+                isDetailLoaded: this.isDetailLoaded,
+                isFavorited: this.isFavorited,
+                onFavorite: this.onFavorite,
+                onShare: this.onShare,
+                onRate: () => {
+                  this.startRating();
+                },
+                onTorrent: this.onTorrent,
+                onArchive: this.onArchive,
+                onHath: this.onHath,
+                onSimilar: this.onSimilar,
+                onSearchCover: this.onSearchCover
+              })
+            }
+            .reuseId('detail-actions')
+            ListItem() {
+              DetailTags({
+                renderVersion: this.renderVersion,
+                tags: this.detail.tags,
+                isDetailLoaded: this.isDetailLoaded,
+                onTagSearch: this.onTagSearch,
+                onAddTag: this.onAddTag,
+                onOpenTagVote: (info: GalleryTagInfo) => {
+                  this.openTagVotePanel(info);
+                }
+              })
+            }
+            .reuseId('detail-tags')
+            ListItem() {
+              DetailComments({
+                comments: this.detail.comments,
+                isDetailLoaded: this.isDetailLoaded,
+                onComments: this.onComments,
+                onVoteComment: this.onVoteComment,
+                onOpenGalleryLink: this.onOpenCommentGalleryLink
+              })
+            }
+            .reuseId('detail-comments')
+            ListItem() {
+              DetailPreviews({
+                previews: this.detail.previewSet,
+                previewPages: this.detail.previewPages,
+                totalPages: this.previewJumpTotalPages(),
+                isDetailLoaded: this.isDetailLoaded,
+                onSelectPreview: this.onSelectPreview,
+                onOpenJumpPanel: () => {
+                  this.openPreviewJumpPanel();
+                }
+              })
+            }
+            .reuseId('detail-previews')
           }
-          .reuseId('detail-header')
-          ListItem() {
-            DetailInfoBlock({ detail: this.detail, requestUrl: this.requestUrl, isDetailLoaded: this.isDetailLoaded })
-          }
-          .reuseId('detail-info')
-          ListItem() {
-            DetailActions({
-              detail: this.detail,
-              isDetailLoaded: this.isDetailLoaded,
-              isFavorited: this.isFavorited,
-              onFavorite: this.onFavorite,
-              onShare: this.onShare,
-              onRate: () => {
-                this.startRating();
-              },
-              onTorrent: this.onTorrent,
-              onArchive: this.onArchive,
-              onHath: this.onHath,
-              onSimilar: this.onSimilar,
-              onSearchCover: this.onSearchCover
-            })
-          }
-          .reuseId('detail-actions')
-          ListItem() {
-            DetailTags({
-              renderVersion: this.renderVersion,
-              tags: this.detail.tags,
-              isDetailLoaded: this.isDetailLoaded,
-              onTagSearch: this.onTagSearch,
-              onAddTag: this.onAddTag,
-              onOpenTagVote: (info: GalleryTagInfo) => {
-                this.openTagVotePanel(info);
-              }
-            })
-          }
-          .reuseId('detail-tags')
-          ListItem() {
-            DetailComments({
-              comments: this.detail.comments,
-              isDetailLoaded: this.isDetailLoaded,
-              onComments: this.onComments,
-              onVoteComment: this.onVoteComment,
-              onOpenGalleryLink: this.onOpenCommentGalleryLink
-            })
-          }
-          .reuseId('detail-comments')
-          ListItem() {
-            DetailPreviews({
-              previews: this.detail.previewSet,
-              previewPages: this.detail.previewPages,
-              totalPages: this.previewJumpTotalPages(),
-              isDetailLoaded: this.isDetailLoaded,
-              onSelectPreview: this.onSelectPreview,
-              onOpenJumpPanel: () => {
-                this.openPreviewJumpPanel();
-              }
-            })
-          }
-          .reuseId('detail-previews')
+          .width('100%')
+          .height('100%')
+          .backgroundColor(themePageBackground())
+          .cachedCount(3)
+          .onAppear(() => {
+            if (this.initialDetailScrollOffset > 0) {
+              this.detailScroller.scrollTo({ xOffset: 0, yOffset: this.initialDetailScrollOffset });
+            }
+          })
+          .onScrollStop(() => {
+            this.onDetailScrollUpdate(this.detailScroller.currentOffset().yOffset);
+          })
+          .onReachEnd(() => {
+            this.onLoadMorePreviews();
+          })
         }
         .width('100%')
         .height('100%')
         .layoutWeight(1)
         .backgroundColor(themePageBackground())
-        .cachedCount(3)
-        .onAppear(() => {
-          if (this.initialDetailScrollOffset > 0) {
-            this.detailScroller.scrollTo({ xOffset: 0, yOffset: this.initialDetailScrollOffset });
-          }
-        })
-        .onScrollStop(() => {
-          this.onDetailScrollUpdate(this.detailScroller.currentOffset().yOffset);
-        })
-        .onReachEnd(() => {
-          this.onLoadMorePreviews();
+        .refreshOffset(64)
+        .pullToRefresh(true)
+        .onRefreshing(() => {
+          this.detailRefreshing = true;
+          this.onRefreshDetail(() => {
+            this.detailRefreshing = false;
+          });
         })
       }
       .width('100%')
