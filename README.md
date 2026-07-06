@@ -48,9 +48,9 @@
 请在 [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases) 中下载最新的 `.hap` 安装包。  
 推荐使用 [小白调试助手](https://github.com/likuai2010/auto-installer) 安装。
 
-当前版本：`0.4.4`
+当前版本：`0.4.5`
 
-最新安装包：[`EhViewer_OHOS_0.4.4.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.4.4/EhViewer_OHOS_0.4.4.hap)
+最新安装包：[`EhViewer_OHOS_0.4.5.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.4.5/EhViewer_OHOS_0.4.5.hap)
 发布包类型：未签名 HAP  
 目标API：`6.1.1(24)`  
 兼容API：`6.1.0.31(23)`  
@@ -64,6 +64,16 @@
 - 阅读：支持内嵌/独立阅读器、连续阅读、缩放、方向适配、进度控制和本地下载优先读取。
 - 下载：支持任务暂停/继续/删除、多线程下载、本地阅读、恢复本地下载和导出压缩包。
 - 设置：支持主题、语言、启动页、过滤规则、代理/Hosts/域名前置、隐私防护和身份验证。
+
+## 0.4.5 重点变化
+
+- 详情页新增标签编辑模式，支持添加标签、标签联想、标签投票、查看含标签画廊和标签定义。
+- 优化标签联想布局，修复标签中文名行高不稳定导致的显示挤压。
+- 优化缩略图加载完成后的显示节奏，降低画廊和详情缩略图显示时的卡顿。
+- 图片缓存清理改为应用启动后统一执行，避免图片下载完成时反复扫描缓存目录。
+- 修复下载设置中预加载图片数量不按设置生效的问题。
+- 修复图片分辨率设置未作用于阅读和下载图片页请求的问题，并按分辨率区分页缓存。
+- 完善下载原图设置与图片分辨率设置的协同逻辑。
 
 ## 0.4.4 重点变化
 
