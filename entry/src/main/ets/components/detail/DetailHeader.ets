@@ -1,5 +1,5 @@
 ﻿import { GalleryDetail } from '../../model/GalleryModels';
-import { createEmptyDetail, detailTitleFontSize, detailTitleMaxLines, galleryDisplayTitle, galleryThumbHeight, galleryThumbWidth, uiStatusText, uiText } from '../../shared/EhShared';
+import { createEmptyDetail, detailTitleFontSize, detailTitleMaxLines, galleryDisplayTitle, uiStatusText, uiText } from '../../shared/EhShared';
 import {
   themeDangerBackground,
   themeDangerText,
@@ -22,8 +22,8 @@ export struct DetailHeader {
       Row({ space: 10 }) {
         GalleryThumb({
           url: this.detail.thumb === undefined ? '' : this.detail.thumb,
-          widthValue: galleryThumbWidth(),
-          heightValue: galleryThumbHeight()
+          widthValue: this.detailThumbWidth(),
+          heightValue: this.detailThumbHeight()
         })
         Column() {
           Text(galleryDisplayTitle(this.detail))
@@ -77,6 +77,21 @@ export struct DetailHeader {
       return $r('sys.symbol.pause_fill');
     }
     return $r('sys.symbol.save');
+  }
+
+  private detailThumbHeight(): number {
+    const maxLines = detailTitleMaxLines();
+    if (maxLines <= 3) {
+      return 160;
+    }
+    if (maxLines >= 6) {
+      return 188;
+    }
+    return 176;
+  }
+
+  private detailThumbWidth(): number {
+    return Math.round(this.detailThumbHeight() * 0.73);
   }
 }
 
