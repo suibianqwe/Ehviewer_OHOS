@@ -7,6 +7,9 @@ import {
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
+  themeSelectedBackgroundLight,
+  themeSelectedIndicatorColor,
+  themeSelectedText,
   themeSurface,
   themeSurfaceVariant,
   themeTertiaryText
@@ -278,6 +281,14 @@ export struct TagGroupRow {
     };
   }
 
+  private tagBackgroundColor(): string {
+    return this.editMode ? themeSelectedBackgroundLight() : themeSurfaceVariant();
+  }
+
+  private tagTextColor(): string {
+    return this.editMode ? themeSelectedText() : themePrimaryText();
+  }
+
   build() {
     Row() {
       Text(this.group.namespace)
@@ -291,17 +302,17 @@ export struct TagGroupRow {
               if (this.editMode) {
                 SymbolGlyph($r('sys.symbol.arrow_up_circle'))
                   .fontSize(12)
-                  .fontColor([themePrimaryColor()])
+                  .fontColor([themeSelectedIndicatorColor()])
               }
               Text(this.tagLabel(tag))
                 .fontSize(12)
-                .fontColor(themePrimaryText())
+                .fontColor(this.tagTextColor())
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
             }
           }
           .height(26)
-          .backgroundColor(this.editMode ? '#E4F3F8' : themeSurfaceVariant())
+          .backgroundColor(this.tagBackgroundColor())
           .borderRadius(4)
           .padding({ left: 8, right: 8 })
           .margin({ right: 6, bottom: 6 })
