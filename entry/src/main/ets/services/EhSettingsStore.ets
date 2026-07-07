@@ -67,6 +67,9 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'proxy', value: 'System' },
     { key: 'proxy_host', value: '' },
     { key: 'proxy_port', value: '' },
+    { key: 'proxy_username', value: '' },
+    { key: 'proxy_password', value: '' },
+    { key: 'proxy_exclusion_list', value: '' },
     { key: 'built_in_hosts', value: 'On' },
     { key: 'built_ex_hosts', value: 'On' },
     { key: 'dns_over_https', value: 'Off' },
@@ -75,7 +78,8 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'close_auto_updates', value: 'Off' },
     { key: 'network_defaults_20260612', value: 'Applied' },
     { key: 'network_runtime_20260613', value: 'Applied' },
-    { key: 'network_proxy_20260613', value: 'Applied' }
+    { key: 'network_proxy_20260613', value: 'Applied' },
+    { key: 'network_proxy_20260707', value: 'Applied' }
   ];
 }
 
@@ -122,6 +126,7 @@ export class EhSettingsStore {
       let hasNetworkMigration = false;
       let hasRuntimeMigration = false;
       let hasProxyMigration = false;
+      let hasProxyApi24Migration = false;
       for (let i = 0; i < parsed.length; i++) {
         const item = parsed[i];
         if (typeof item.key === 'string' && typeof item.value === 'string') {
@@ -133,6 +138,9 @@ export class EhSettingsStore {
           }
           if (item.key === 'network_proxy_20260613') {
             hasProxyMigration = true;
+          }
+          if (item.key === 'network_proxy_20260707') {
+            hasProxyApi24Migration = true;
           }
           this.setValue(item.key, item.value);
         }
@@ -151,6 +159,12 @@ export class EhSettingsStore {
           this.setValue('proxy', 'System');
         }
         this.setValue('network_proxy_20260613', 'Applied');
+      }
+      if (!hasProxyApi24Migration) {
+        if (this.getValue('proxy', 'System') === 'SOCKS') {
+          this.setValue('proxy', 'HTTP');
+        }
+        this.setValue('network_proxy_20260707', 'Applied');
       }
       if (this.getValue('download_location', 'App files') !== 'Downloads') {
         this.setValue('download_location', 'App files');

@@ -88,7 +88,7 @@ import {
   themedSelectSelectedOptionBackground,
   themedSelectSelectedOptionText
 } from '../shared/EhSelectStyle';
-import { EhBackupBundle, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, uiStatusText, setActiveBackHandler, padTwo, getAbilityContext, downloadSizeText, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, cloneStringOptions, settingMigrationMessage, isValidProxyPortText, formatNetworkDiagnostics, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption, normalizeIdentityAuthenticationOption, normalizeReaderCacheSizeOption } from '../shared/EhShared';
+import { EhBackupBundle, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, uiStatusText, setActiveBackHandler, padTwo, getAbilityContext, downloadSizeText, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, cloneStringOptions, settingMigrationMessage, isValidProxyHostText, isValidProxyPortText, normalizeProxyOption, formatNetworkDiagnostics, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption, normalizeIdentityAuthenticationOption, normalizeReaderCacheSizeOption } from '../shared/EhShared';
 import { FilterPanel } from './DownloadMigrationScenes';
 import { BlockingBusyOverlay } from './BlockingBusyOverlay';
 import { MyTagsPanel } from './MyTagsPanel';
@@ -328,6 +328,10 @@ export struct SettingsScene {
   }
 
   private commitSettingValue(key: string, value: string): void {
+    if (key === 'proxy_host' && !isValidProxyHostText(value)) {
+      this.statusText = 'Invalid proxy host: ' + value;
+      return;
+    }
     if (key === 'proxy_port' && value.length > 0 && !isValidProxyPortText(value)) {
       this.statusText = 'Invalid proxy port: ' + value;
       return;
@@ -379,8 +383,9 @@ export struct SettingsScene {
       if (key === HISTORY_INFO_SIZE_KEY) {
         ehHistoryStore.trim(historyInfoSizeLimitFromValue(normalizedValue));
       }
-      this.statusText = isNetworkSettingKey(key) ? 'Saved network setting in memory: ' + key + ' = ' + normalizedValue +
-        '. Refresh Homepage or run Network diagnostics.' : 'Saved in memory: ' + key + ' = ' + normalizedValue;
+      const displayValue = settingDisplayValueForStatus(key, normalizedValue);
+      this.statusText = isNetworkSettingKey(key) ? 'Saved network setting in memory: ' + key + ' = ' + displayValue +
+        '. Refresh Homepage or run Network diagnostics.' : 'Saved in memory: ' + key + ' = ' + displayValue;
       return;
     }
     let cachePrune: CachePruneResult | null = null;
@@ -395,8 +400,9 @@ export struct SettingsScene {
       }).catch(() => {});
     }
     ehSettingsStore.save(context).then(() => {
-      this.statusText = isNetworkSettingKey(key) ? 'Saved network setting: ' + key + ' = ' + normalizedValue +
-        '. Refresh Homepage or run Network diagnostics.' : 'Saved: ' + key + ' = ' + normalizedValue;
+      const displayValue = settingDisplayValueForStatus(key, normalizedValue);
+      this.statusText = isNetworkSettingKey(key) ? 'Saved network setting: ' + key + ' = ' + displayValue +
+        '. Refresh Homepage or run Network diagnostics.' : 'Saved: ' + key + ' = ' + displayValue;
       if (key === 'theme' || key === 'follow_system_dark_mode') {
         this.statusText = 'Theme refreshed';
       }
@@ -431,6 +437,18 @@ export struct SettingsScene {
     }
     if (key === 'theme' && ehSettingsStore.getValue('follow_system_dark_mode', 'Off') === 'On') {
       return value === 'Black' ? 'Black' : 'Dark';
+    }
+    if (key === 'proxy') {
+      return normalizeProxyOption(value);
+    }
+    if (key === 'proxy_host') {
+      return value.trim();
+    }
+    if (key === 'proxy_port') {
+      return value.trim();
+    }
+    if (key === 'proxy_exclusion_list') {
+      return normalizeProxyExclusionListText(value);
     }
     return value;
   }
@@ -1298,8 +1316,7 @@ export struct SettingsScene {
     lines.push('Version: ' + EH_APP_VERSION_NAME + ' (' + EH_APP_VERSION_CODE.toString() + ')');
     lines.push('Target: ' + EH_TARGET_PLATFORM);
     lines.push('Gallery site: ' + ehSettingsStore.getValue('gallery_site', 'E-Hentai'));
-    lines.push('Proxy: ' + ehSettingsStore.getValue('proxy', 'System') + ' ' +
-      ehSettingsStore.getValue('proxy_host', '') + ':' + ehSettingsStore.getValue('proxy_port', ''));
+    lines.push('Proxy: ' + proxyDiagnosticText());
     lines.push('Built-in hosts: ' + ehSettingsStore.getValue('built_in_hosts', 'Off'));
     lines.push('Built EX hosts: ' + ehSettingsStore.getValue('built_ex_hosts', 'Off'));
     lines.push('Domain fronting: ' + ehSettingsStore.getValue('domain_fronting', 'On'));
@@ -2035,6 +2052,7 @@ export struct SettingsStaticRow {
           TextInput({ text: this.row.value, placeholder: this.row.summary })
             .width(150)
             .height(38)
+            .type(this.row.key === 'proxy_password' ? InputType.Password : InputType.Normal)
             .fontSize(13)
             .fontColor(themePrimaryText())
             .placeholderColor(themeSecondaryText())
@@ -2042,7 +2060,7 @@ export struct SettingsStaticRow {
             .margin({ left: 12 })
             .onChange((value: string) => {
               if (this.row.key !== undefined) {
-                this.onTextChange(this.row.key, value.trim());
+                this.onTextChange(this.row.key, this.row.key === 'proxy_password' ? value : value.trim());
               }
             })
         } else if (this.row.type === 'switch') {
@@ -2276,8 +2294,47 @@ function settingsRowRenderKey(row: SettingsRowItem): string {
 }
 
 function isNetworkSettingKey(key: string): boolean {
-  return key === 'proxy' || key === 'proxy_host' || key === 'proxy_port' || key === 'built_in_hosts' ||
+  return key === 'proxy' || key === 'proxy_host' || key === 'proxy_port' || key === 'proxy_username' ||
+    key === 'proxy_password' || key === 'proxy_exclusion_list' || key === 'built_in_hosts' ||
     key === 'built_ex_hosts' || key === 'dns_over_https' || key === 'domain_fronting' ||
     key === 'auto_direct_connection' || key === 'gallery_site';
+}
+
+function normalizeProxyExclusionListText(value: string): string {
+  const parts = value.split(',');
+  const result: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const item = parts[i].trim();
+    if (item.length > 0 && result.indexOf(item) < 0) {
+      result.push(item);
+    }
+  }
+  return result.join(',');
+}
+
+function proxyDiagnosticText(): string {
+  const proxy = normalizeProxyOption(ehSettingsStore.getValue('proxy', 'System'));
+  if (proxy !== 'HTTP') {
+    return proxy;
+  }
+  const host = ehSettingsStore.getValue('proxy_host', '').trim();
+  const port = ehSettingsStore.getValue('proxy_port', '').trim();
+  const username = ehSettingsStore.getValue('proxy_username', '').trim();
+  const exclusions = ehSettingsStore.getValue('proxy_exclusion_list', '').trim();
+  let text = 'HTTP ' + (host.length > 0 ? host : '(missing host)') + ':' + (port.length > 0 ? port : '(missing port)');
+  if (username.length > 0) {
+    text += ' user=' + username + ' password=***';
+  }
+  if (exclusions.length > 0) {
+    text += ' exclusions=' + exclusions;
+  }
+  return text;
+}
+
+function settingDisplayValueForStatus(key: string, value: string): string {
+  if (key === 'proxy_password' && value.length > 0) {
+    return '***';
+  }
+  return value;
 }
 

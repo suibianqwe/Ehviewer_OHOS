@@ -315,11 +315,18 @@ function proxyOption(): boolean | http.HttpProxy {
     const host = ehSettingsStore.getValue('proxy_host', '').trim();
     const port = parseProxyPort(ehSettingsStore.getValue('proxy_port', ''));
     if (host.length > 0 && isValidPort(port)) {
-      return {
+      const proxy: http.HttpProxy = {
         host: host,
         port: port,
-        exclusionList: []
+        exclusionList: parseProxyExclusionList(ehSettingsStore.getValue('proxy_exclusion_list', ''))
       };
+      const username = ehSettingsStore.getValue('proxy_username', '').trim();
+      const password = ehSettingsStore.getValue('proxy_password', '');
+      if (username.length > 0) {
+        proxy.username = username;
+        proxy.password = password;
+      }
+      return proxy;
     }
   }
   return proxyType === 'System';
@@ -798,8 +805,7 @@ function directProbeKeyValue(): string {
   if (ehSettingsStore.getValue('auto_direct_connection', 'On') !== 'On') {
     return 'Off';
   }
-  return ehSettingsStore.getValue('gallery_site', 'E-Hentai') + ':' + ehSettingsStore.getValue('proxy', 'System') + ':' +
-    ehSettingsStore.getValue('proxy_host', '') + ':' + ehSettingsStore.getValue('proxy_port', '');
+  return ehSettingsStore.getValue('gallery_site', 'E-Hentai') + ':' + proxySettingsKey();
 }
 
 function selectedGalleryHost(): string {
@@ -854,9 +860,7 @@ function frontingBenchmarkKey(): string {
   }
   return ehSettingsStore.getValue('built_in_hosts', 'Off') + ':' +
     ehSettingsStore.getValue('built_ex_hosts', 'Off') + ':' +
-    ehSettingsStore.getValue('proxy', 'System') + ':' +
-    ehSettingsStore.getValue('proxy_host', '') + ':' +
-    ehSettingsStore.getValue('proxy_port', '');
+    proxySettingsKey();
 }
 
 function requestHost(url: string): string {
@@ -923,6 +927,35 @@ function parseProxyPort(value: string): number {
 
 function isValidPort(port: number): boolean {
   return port > 0 && port <= 65535;
+}
+
+function parseProxyExclusionList(value: string): string[] {
+  const result: string[] = [];
+  const parts = value.split(',');
+  for (let i = 0; i < parts.length; i++) {
+    const item = parts[i].trim();
+    if (item.length > 0 && result.indexOf(item) < 0) {
+      result.push(item);
+    }
+  }
+  return result;
+}
+
+function proxySettingsKey(): string {
+  return ehSettingsStore.getValue('proxy', 'System') + ':' +
+    ehSettingsStore.getValue('proxy_host', '') + ':' +
+    ehSettingsStore.getValue('proxy_port', '') + ':' +
+    ehSettingsStore.getValue('proxy_username', '') + ':' +
+    hashText(ehSettingsStore.getValue('proxy_password', '')) + ':' +
+    ehSettingsStore.getValue('proxy_exclusion_list', '');
+}
+
+function hashText(value: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash ^ value.charCodeAt(i)) * 16777619;
+  }
+  return value.length.toString() + '-' + (hash >>> 0).toString(16);
 }
 
 async function applyHostRules(key: string): Promise<void> {

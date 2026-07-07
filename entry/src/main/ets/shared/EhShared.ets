@@ -453,6 +453,12 @@ export function uiStatusText(text: string): string {
   if (text.indexOf('Export picker failed: ') === 0) {
     return '导出文件选择失败：' + text.substring('Export picker failed: '.length);
   }
+  if (text.indexOf('Invalid proxy host: ') === 0) {
+    return '代理主机无效：' + text.substring('Invalid proxy host: '.length);
+  }
+  if (text.indexOf('Invalid proxy port: ') === 0) {
+    return '代理端口无效：' + text.substring('Invalid proxy port: '.length);
+  }
   if (text.indexOf('Export load failed: ') === 0) {
     return '导出读取数据失败：' + text.substring('Export load failed: '.length);
   }
@@ -992,6 +998,17 @@ export function zhText(text: string): string {
     case 'Reader cache budget': return '阅读器缓存容量';
     case 'Language override': return '语言覆盖设置';
     case 'System proxy or direct connection': return '系统代理或直连';
+    case 'System proxy, direct connection or HTTP proxy': return '系统代理、直连或 HTTP 代理';
+    case 'Proxy host': return '代理主机';
+    case 'Host or IP address for custom proxy': return '自定义代理的主机名或 IP 地址';
+    case 'Host or IP address for HTTP proxy': return 'HTTP 代理的主机名或 IP 地址';
+    case 'Proxy port': return '代理端口';
+    case 'Proxy username': return '代理用户名';
+    case 'Optional proxy authentication username': return '可选的代理认证用户名';
+    case 'Proxy password': return '代理密码';
+    case 'Optional proxy authentication password': return '可选的代理认证密码';
+    case 'Proxy exclusions': return '代理排除列表';
+    case 'Comma-separated hosts that should bypass the proxy': return '用英文逗号分隔不走代理的主机';
     case 'Test E, EX, forums and repo connectivity with current settings': return '按当前设置测试 E、EX、论坛和仓库连通性';
     case 'Force bundled host overrides; leave Off for normal Cloudflare DNS': return '强制使用内置 host；正常 Cloudflare DNS 请保持关闭';
     case 'Force bundled ExHentai host overrides; leave Off unless your network needs them': return '强制使用内置 ExHentai host；仅在网络需要时开启';
@@ -2173,13 +2190,16 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('read_cache_size', 'Read cache size', 'Reader cache budget', entries,
         ['160 MB', '320 MB', '640 MB', '1 GB', '2 GB']),
       optionSettingsRow('app_language', 'App language', 'Language override', entries, ['System', 'English', 'zh-CN']),
-      optionSettingsRow('proxy', 'Proxy', 'System proxy or direct connection', entries, ['System', 'Off', 'HTTP', 'SOCKS']),
+      optionSettingsRow('proxy', 'Proxy', 'System proxy, direct connection or HTTP proxy', entries, ['System', 'Off', 'HTTP']),
       staticSettingsRow('network_diagnostics', 'Network diagnostics', 'Test E, EX, forums and repo connectivity with current settings', 'Run', 'action'),
     ];
     const proxyType = settingEntryValue(entries, 'proxy', 'System');
     if (proxyType === 'HTTP' || proxyType === 'SOCKS') {
-      rows.push(textSettingsRow('proxy_host', 'Proxy host', 'Host or IP address for custom proxy', entries, '127.0.0.1'));
+      rows.push(textSettingsRow('proxy_host', 'Proxy host', 'Host or IP address for HTTP proxy', entries, '127.0.0.1'));
       rows.push(textSettingsRow('proxy_port', 'Proxy port', '1-65535', entries, '8080'));
+      rows.push(textSettingsRow('proxy_username', 'Proxy username', 'Optional proxy authentication username', entries, ''));
+      rows.push(textSettingsRow('proxy_password', 'Proxy password', 'Optional proxy authentication password', entries, ''));
+      rows.push(textSettingsRow('proxy_exclusion_list', 'Proxy exclusions', 'Comma-separated hosts that should bypass the proxy', entries, 'localhost,127.0.0.1'));
     }
     rows.push(optionSettingsRow('built_in_hosts', 'Built-in hosts', 'Force bundled host overrides; leave Off for normal Cloudflare DNS', entries, ON_OFF_OPTIONS));
     rows.push(optionSettingsRow('built_ex_hosts', 'Built EX hosts', 'Force bundled ExHentai host overrides; leave Off unless your network needs them', entries, ON_OFF_OPTIONS));
@@ -2463,6 +2483,27 @@ export function settingMigrationMessage(key: string): string {
 export function isValidProxyPortText(value: string): boolean {
   const port = Number.parseInt(value);
   return !Number.isNaN(port) && port > 0 && port <= 65535 && port.toString() === value.trim();
+}
+
+export function normalizeProxyOption(value: string): string {
+  if (value === 'Off' || value === 'HTTP') {
+    return value;
+  }
+  if (value === 'SOCKS') {
+    return 'HTTP';
+  }
+  return 'System';
+}
+
+export function isValidProxyHostText(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return true;
+  }
+  if (trimmed.length > 255) {
+    return false;
+  }
+  return /^[A-Za-z0-9.\-_:]+$/.test(trimmed);
 }
 
 export function formatNetworkDiagnostics(results: NetworkDiagnosticResult[]): string {
