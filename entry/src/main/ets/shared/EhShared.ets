@@ -565,6 +565,10 @@ export function uiPageText(prefix: string, page: number): string {
 }
 
 export function zhText(text: string): string {
+  const favoriteSlotMatch = /^Favorites\s+(\d+)$/.exec(text);
+  if (favoriteSlotMatch !== null) {
+    return '收藏夹 ' + favoriteSlotMatch[1];
+  }
   if (text.endsWith(' stars and up')) {
     return text.replace(' stars and up', ' 星以上');
   }
@@ -575,6 +579,16 @@ export function zhText(text: string): string {
     case 'Top Lists': return '排行';
     case 'Favourite': return '收藏';
     case 'Favorites': return '收藏';
+    case 'All favorites': return '全部收藏';
+    case 'Favorite folders': return '收藏夹';
+    case 'Local Favorites': return '本地收藏';
+    case 'Add to favorites': return '添加到收藏';
+    case 'Choose favorite collection': return '选择收藏夹';
+    case 'Adding to local favorites...': return '正在添加到本地收藏...';
+    case 'Added to local favorites': return '已添加到本地收藏';
+    case 'Removing from local favorites...': return '正在移出本地收藏...';
+    case 'Removed from local favorites': return '已移出本地收藏';
+    case 'Local favorites unavailable': return '本地收藏不可用';
     case 'History': return '历史';
     case 'Downloads': return '下载';
     case 'Download': return '下载';

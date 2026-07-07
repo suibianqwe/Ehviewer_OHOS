@@ -4,6 +4,7 @@ import { ArchiveOption, ArchiverInfo, ArchiverOption, GalleryComment, GalleryDet
 import { confirmCellularNetworkWarningForSession, shouldConfirmCellularNetworkOperation } from '../services/EhCellularNetworkGuard';
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { DownloadInfo, ehDownloadStore } from '../services/EhDownloadStore';
+import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
 import {
   ArchiverDownloadResult,
   ArchiverLoadResult,
@@ -243,6 +244,7 @@ export struct GalleryDetailHostScene {
     this.detailDownloadText = detailDownloadButtonText(this.detailLink.gid);
     this.detailLoaded = false;
     this.optimisticFavorite = this.detail.favoriteSlot >= 0;
+    this.syncLocalFavoriteState();
     this.favoriteBusy = false;
     const requestGid = this.detailLink.gid;
     this.renderVersion++;
@@ -269,6 +271,7 @@ export struct GalleryDetailHostScene {
       this.detailLoaded = true;
       this.previewPageSize = seedPreviewMap(this.previewMap, this.detail.previewSet, this.previewPageSize);
       this.optimisticFavorite = this.detail.isFavorited;
+      this.syncLocalFavoriteState();
       refreshDetailDownloadItem(this.detail);
       this.detailDownloadText = detailDownloadButtonText(this.detail.gid);
       saveGalleryToHistory(this.detail);
@@ -515,31 +518,139 @@ export struct GalleryDetailHostScene {
       return;
     }
     const wasFavorited = this.detail.isFavorited;
-    this.detailStatus = wasFavorited ? 'Removing from favorites...' : 'Adding to favorites...';
+    if (!wasFavorited) {
+      this.showAddFavoriteDialog();
+      return;
+    }
+    if (this.detail.favoriteSlot === -1) {
+      this.favoriteBusy = true;
+      this.detailStatus = 'Removing from local favorites...';
+      this.optimisticFavorite = false;
+      this.applyDetailFavoriteState(false, -2);
+      this.renderVersion++;
+      this.removeLocalFavoriteIfNeeded();
+      this.detailStatus = 'Removed from local favorites';
+      this.favoriteBusy = false;
+      this.renderVersion++;
+      return;
+    }
+    this.detailStatus = 'Removing from favorites...';
     this.favoriteBusy = true;
-    this.optimisticFavorite = !wasFavorited;
-    this.applyDetailFavoriteState(this.optimisticFavorite);
+    this.optimisticFavorite = false;
+    this.applyDetailFavoriteState(false, -2);
     this.renderVersion++;
+    this.removeLocalFavoriteIfNeeded();
     this.client.toggleFavorite(this.detail.gid, this.detail.token, wasFavorited, this.detailLink.site)
       .then((result: ToggleFavoriteResult) => {
         this.detailStatus = result.message;
         this.optimisticFavorite = result.ok ? result.nowFavorited : wasFavorited;
-        this.applyDetailFavoriteState(this.optimisticFavorite);
+        this.applyDetailFavoriteState(this.optimisticFavorite, this.optimisticFavorite ? 0 : -2);
         this.favoriteBusy = false;
         this.renderVersion++;
       }).catch((error: Error) => {
         this.detailStatus = 'Favorite failed: ' + error.message;
         this.optimisticFavorite = wasFavorited;
-        this.applyDetailFavoriteState(wasFavorited);
+        this.applyDetailFavoriteState(wasFavorited, wasFavorited ? Math.max(0, this.detail.favoriteSlot) : -2);
         this.favoriteBusy = false;
         this.renderVersion++;
       });
   }
 
-  private applyDetailFavoriteState(isFavorited: boolean): void {
+  private showAddFavoriteDialog(): void {
+    this.getUIContext().getPromptAction().showDialog({
+      title: uiText('Add to favorites'),
+      message: uiText('Choose favorite collection'),
+      buttons: [
+        { text: uiText('Local Favorites'), color: themePrimaryColor() },
+        { text: uiText('Favorites 0'), color: themePrimaryColor() },
+        { text: uiText('Cancel'), color: themeSecondaryText() }
+      ]
+    }).then((data) => {
+      if (data.index === 0) {
+        this.addLocalFavorite();
+      } else if (data.index === 1) {
+        this.addCloudFavorite();
+      }
+    }).catch(() => {});
+  }
+
+  private addLocalFavorite(): void {
+    const context = getAbilityContext();
+    if (context === undefined) {
+      this.detailStatus = 'Local favorites unavailable';
+      this.renderVersion++;
+      return;
+    }
+    this.favoriteBusy = true;
+    this.detailStatus = 'Adding to local favorites...';
+    this.renderVersion++;
+    ehLocalFavoritesStore.ensureLoaded(context).then(() => {
+      ehLocalFavoritesStore.addGallery(this.detail);
+      this.optimisticFavorite = true;
+      this.applyDetailFavoriteState(true, -1);
+      this.detailStatus = 'Added to local favorites';
+      this.favoriteBusy = false;
+      this.renderVersion++;
+    }).catch((error: Error) => {
+      this.detailStatus = 'Favorite failed: ' + error.message;
+      this.favoriteBusy = false;
+      this.renderVersion++;
+    });
+  }
+
+  private addCloudFavorite(): void {
+    this.detailStatus = 'Adding to favorites...';
+    this.favoriteBusy = true;
+    this.optimisticFavorite = true;
+    this.applyDetailFavoriteState(true, 0);
+    this.renderVersion++;
+    this.client.toggleFavorite(this.detail.gid, this.detail.token, false, this.detailLink.site)
+      .then((result: ToggleFavoriteResult) => {
+        this.detailStatus = result.message;
+        this.optimisticFavorite = result.ok ? result.nowFavorited : false;
+        this.applyDetailFavoriteState(this.optimisticFavorite, this.optimisticFavorite ? 0 : -2);
+        this.favoriteBusy = false;
+        this.renderVersion++;
+      }).catch((error: Error) => {
+        this.detailStatus = 'Favorite failed: ' + error.message;
+        this.optimisticFavorite = false;
+        this.applyDetailFavoriteState(false, -2);
+        this.favoriteBusy = false;
+        this.renderVersion++;
+      });
+  }
+
+  private removeLocalFavoriteIfNeeded(): void {
+    const context = getAbilityContext();
+    if (context === undefined) {
+      return;
+    }
+    ehLocalFavoritesStore.ensureLoaded(context).then(() => {
+      ehLocalFavoritesStore.removeGallery(this.detail.gid);
+    }).catch(() => {});
+  }
+
+  private syncLocalFavoriteState(): void {
+    const context = getAbilityContext();
+    if (context === undefined || this.detail.gid <= 0) {
+      return;
+    }
+    const targetGid = this.detail.gid;
+    ehLocalFavoritesStore.ensureLoaded(context).then(() => {
+      if (this.detail.gid !== targetGid || !ehLocalFavoritesStore.contains(targetGid)) {
+        return;
+      }
+      this.applyDetailFavoriteState(true, -1);
+      this.optimisticFavorite = true;
+      this.renderVersion++;
+    }).catch(() => {});
+  }
+
+  private applyDetailFavoriteState(isFavorited: boolean, favoriteSlot: number): void {
     const nextDetail = cloneGalleryDetail(this.detail);
     nextDetail.isFavorited = isFavorited;
-    nextDetail.favoriteSlot = isFavorited ? Math.max(0, nextDetail.favoriteSlot) : -2;
+    nextDetail.favoriteSlot = isFavorited ? favoriteSlot : -2;
+    nextDetail.favoriteName = favoriteSlot === -1 ? undefined : nextDetail.favoriteName;
     this.detail = nextDetail;
   }
 

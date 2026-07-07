@@ -12,6 +12,7 @@ import {
 import { DEFAULT_ADVANCE_SEARCH, EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder, buildJumpSeekUrl } from '../services/EhUrl';
 import { ehFilterStore } from '../services/EhFilterStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
+import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { DetailSearchRequest } from '../services/GalleryDetailActionSupport';
 import {
@@ -21,6 +22,7 @@ import {
   GalleryDetailLink,
   initialDetailForLink
 } from '../services/GalleryDetailModule';
+import { FavoriteCategoryInfo } from '../services/GalleryListParser';
 import { LocalGallerySearchOptions } from '../services/LocalGallerySearch';
 import {
   applyAppChromeImmersiveMode,
@@ -42,8 +44,12 @@ import {
   themePrimaryText,
   themeScrimColor,
   themeSecondaryText,
+  themeSelectedBackground,
+  themeSelectedBackgroundLight,
+  themeSelectedText,
   themeShadowColor,
   themeSurface,
+  themeSurfaceVariant,
   themeTertiaryText,
   themeTransparentColor
 } from '../shared/EhTheme';
@@ -126,6 +132,8 @@ interface GalleryListSceneCache {
   nextUrl: string;
   resultCount: string;
   galleries: GalleryInfo[];
+  favoriteCat: number;
+  favoriteCategories: FavoriteCategoryInfo[];
   hasFirstRefresh: boolean;
   filterActive: boolean;
   accountFilterEnabled: boolean;
@@ -183,6 +191,7 @@ interface GalleryListNavigationCache {
 
 const galleryListSceneCache: Map<string, GalleryListSceneCache> = new Map();
 const galleryListNavigationCache: Map<string, GalleryListNavigationCache> = new Map();
+let recentFavoriteCat: number = FavListUrlBuilder.FAV_CAT_ALL;
 const ACCOUNT_DEFAULT_FILTER_DISABLE_FLAGS: number = 0x100 | 0x200 | 0x400;
 const IMAGE_SEARCH_FILE_SUFFIXES: string[] = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
 
@@ -228,6 +237,18 @@ function cloneSearchResultDraft(draft: SearchResultDraft): SearchResultDraft {
     imageOnlySearchCovers: draft.imageOnlySearchCovers,
     imageShowExpunged: draft.imageShowExpunged
   };
+}
+
+function cloneFavoriteCategories(categories: FavoriteCategoryInfo[]): FavoriteCategoryInfo[] {
+  const cloned: FavoriteCategoryInfo[] = [];
+  for (let i = 0; i < categories.length; i++) {
+    cloned.push({
+      favCat: categories[i].favCat,
+      name: categories[i].name,
+      count: categories[i].count
+    });
+  }
+  return cloned;
 }
 
 function cloneGalleryDetailLink(link: GalleryDetailLink): GalleryDetailLink {
@@ -312,6 +333,192 @@ export { HotGalleryScene } from './HotGalleryScene';
 
 export { FavoriteGalleryScene } from './FavoriteGalleryScene';
 
+interface FavoriteCategoryOption {
+  favCat: number;
+  name: string;
+  count: number;
+}
+
+function favoriteCategoryOptions(categories: FavoriteCategoryInfo[]): FavoriteCategoryOption[] {
+  const options: FavoriteCategoryOption[] = [];
+  let total = 0;
+  for (let i = 0; i < categories.length; i++) {
+    total += Math.max(0, categories[i].count);
+  }
+  options.push({
+    favCat: FavListUrlBuilder.FAV_CAT_LOCAL,
+    name: 'Local Favorites',
+    count: -1
+  });
+  options.push({
+    favCat: FavListUrlBuilder.FAV_CAT_ALL,
+    name: 'All favorites',
+    count: categories.length > 0 ? total : -1
+  });
+  for (let i = 0; i < 10; i++) {
+    const parsed = findFavoriteCategory(i, categories);
+    options.push({
+      favCat: i,
+      name: parsed === null ? 'Favorites ' + i.toString() : parsed.name,
+      count: parsed === null ? -1 : parsed.count
+    });
+  }
+  return options;
+}
+
+function findFavoriteCategory(favCat: number, categories: FavoriteCategoryInfo[]): FavoriteCategoryInfo | null {
+  for (let i = 0; i < categories.length; i++) {
+    if (categories[i].favCat === favCat) {
+      return categories[i];
+    }
+  }
+  return null;
+}
+
+function favoriteCategoryName(favCat: number, categories: FavoriteCategoryInfo[]): string {
+  if (favCat === FavListUrlBuilder.FAV_CAT_ALL) {
+    return 'Favourite';
+  }
+  if (favCat === FavListUrlBuilder.FAV_CAT_LOCAL) {
+    return 'Local Favorites';
+  }
+  const parsed = findFavoriteCategory(favCat, categories);
+  return parsed === null ? 'Favorites ' + favCat.toString() : parsed.name;
+}
+
+function favoriteCategoryCountText(count: number): string {
+  return count >= 0 ? count.toString() : '';
+}
+
+@Component
+struct FavoriteCategoryDrawer {
+  @Prop statusBarHeight: number = 0;
+  @Prop selectedFavCat: number = FavListUrlBuilder.FAV_CAT_ALL;
+  @Prop categories: FavoriteCategoryInfo[] = [];
+  onSelect: (favCat: number) => void = (_favCat: number) => {};
+  onClose: () => void = () => {};
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+
+  private options(): FavoriteCategoryOption[] {
+    return favoriteCategoryOptions(this.categories);
+  }
+
+  build() {
+    Column() {
+      Column()
+        .width('100%')
+        .height(this.statusBarHeight)
+        .backgroundColor(themePrimaryColor())
+
+      Row() {
+        Text(uiText('Favorite folders'))
+          .fontSize(19)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(themeOnPrimaryText())
+          .layoutWeight(1)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r('sys.symbol.xmark'))
+            .fontSize(20)
+            .fontColor([themeOnPrimaryText()])
+        }
+        .width(40)
+        .height(40)
+        .backgroundColor(themeOnPrimaryActionBackground())
+        .onClick(() => {
+          this.onClose();
+        })
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 18, right: 12 })
+      .backgroundColor(themePrimaryColor())
+      .alignItems(VerticalAlign.Center)
+
+      List() {
+        ForEach(this.options(), (item: FavoriteCategoryOption) => {
+          ListItem() {
+            FavoriteCategoryDrawerRow({
+              item: item,
+              selected: item.favCat === this.selectedFavCat,
+              onTap: () => {
+                this.onSelect(item.favCat);
+              }
+            })
+          }
+          .reuseId('favorite-category-drawer-row')
+        }, (item: FavoriteCategoryOption) => item.favCat.toString() + ':' + item.name + ':' + item.count.toString())
+      }
+      .width('100%')
+      .height('100%')
+      .layoutWeight(1)
+      .cachedCount(4)
+    }
+    .width(288)
+    .height('100%')
+    .backgroundColor(themeSurface())
+  }
+}
+
+@Component
+struct FavoriteCategoryDrawerRow {
+  item: FavoriteCategoryOption = { favCat: FavListUrlBuilder.FAV_CAT_ALL, name: 'All favorites', count: -1 };
+  selected: boolean = false;
+  onTap: () => void = () => {};
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+
+  build() {
+    Row() {
+      Column() {
+        SymbolGlyph(this.item.favCat === FavListUrlBuilder.FAV_CAT_ALL ? $r('sys.symbol.heart') : $r('sys.symbol.folder'))
+          .fontSize(21)
+          .fontColor([this.selected ? themeSelectedText() : themeSecondaryText()])
+      }
+      .width(40)
+      .height(40)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+      .borderRadius(10)
+      .backgroundColor(this.selected ? themeSelectedBackgroundLight() : themeSurfaceVariant())
+
+      Column() {
+        Text(uiText(this.item.name))
+          .fontSize(15)
+          .fontWeight(this.selected ? FontWeight.Medium : FontWeight.Normal)
+          .fontColor(this.selected ? themeSelectedText() : themePrimaryText())
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+        if (this.item.count >= 0) {
+          Text(favoriteCategoryCountText(this.item.count))
+            .fontSize(12)
+            .fontColor(themeSecondaryText())
+            .margin({ top: 2 })
+        }
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+      .margin({ left: 12 })
+
+      if (this.selected) {
+        SymbolGlyph($r('sys.symbol.checkmark'))
+          .fontSize(20)
+          .fontColor([themeSelectedText()])
+      }
+    }
+    .width('100%')
+    .height(62)
+    .padding({ left: 14, right: 16 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor(this.selected ? themeSelectedBackground() : themeTransparentColor())
+    .onClick(() => {
+      this.onTap();
+    })
+  }
+}
+
 @Component
 export struct GalleryListScene {
   private client: EhHttpClient = new EhHttpClient();
@@ -369,6 +576,8 @@ export struct GalleryListScene {
   @State nextUrl: string = '';
   @State resultCount: string = '';
   @State galleries: GalleryInfo[] = [];
+  @State favoriteCat: number = FavListUrlBuilder.FAV_CAT_ALL;
+  @State favoriteCategories: FavoriteCategoryInfo[] = [];
   @State hasFirstRefresh: boolean = false;
   @State scrollResetVersion: number = 0;
   @State fabExpanded: boolean = false;
@@ -430,14 +639,16 @@ export struct GalleryListScene {
       this.initialSearchMode.toString() + '|' + this.initialSearchCategory.toString() + '|' +
       (this.initialAdvancedSearchEnabled ? '1' : '0') + '|' + this.initialAdvanceSearch.toString() + '|' +
       this.initialMinRating.toString() + '|' + this.initialPageFrom.toString() + '|' + this.initialPageTo.toString() +
-      '|' + (this.accountFilterEnabled ? 'account-filter-on' : 'account-filter-off');
+      '|' + (this.accountFilterEnabled ? 'account-filter-on' : 'account-filter-off') + '|favcat=' +
+      (this.sourceRoute === GalleryRoute.Favorites ? this.favoriteCat.toString() : 'na');
   }
 
   private navigationCacheKey(): string {
     const mode = this.useForcedMode ? this.forcedMode.toString() : listModeForRoute(this.sourceRoute).toString();
     return this.sourceRoute.toString() + '|' + this.listMode + '|' + mode + '|' + this.follow + '|' +
       this.initialKeyword + '|' + (this.isSearchResultScene ? 'search-result' : 'root') + '|' +
-      (this.useLocalProvider ? 'local' : 'remote');
+      (this.useLocalProvider ? 'local' : 'remote') + '|favcat=' +
+      (this.sourceRoute === GalleryRoute.Favorites ? this.favoriteCat.toString() : 'na');
   }
 
   private restoreListCache(): boolean {
@@ -457,6 +668,8 @@ export struct GalleryListScene {
     this.nextUrl = cache.nextUrl;
     this.resultCount = cache.resultCount;
     this.galleries = cloneGalleryInfos(cache.galleries);
+    this.favoriteCat = cache.favoriteCat;
+    this.favoriteCategories = cloneFavoriteCategories(cache.favoriteCategories);
     this.hasFirstRefresh = cache.hasFirstRefresh;
     this.filterActive = this.isSearchResultScene ? false : cache.filterActive;
     this.accountFilterEnabled = cache.accountFilterEnabled !== false;
@@ -509,6 +722,8 @@ export struct GalleryListScene {
       nextUrl: this.nextUrl,
       resultCount: this.resultCount,
       galleries: cloneGalleryInfos(this.galleries),
+      favoriteCat: this.favoriteCat,
+      favoriteCategories: cloneFavoriteCategories(this.favoriteCategories),
       hasFirstRefresh: this.hasFirstRefresh,
       filterActive: this.filterActive,
       accountFilterEnabled: this.accountFilterEnabled,
@@ -577,6 +792,9 @@ export struct GalleryListScene {
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
+    if (this.sourceRoute === GalleryRoute.Favorites) {
+      this.favoriteCat = recentFavoriteCat;
+    }
     if (!this.restoreListCache()) {
       this.keyword = this.initialKeyword.length > 0 ? this.initialKeyword : defaultKeywordForRoute(this.sourceRoute);
       this.searchMode = this.initialSearchMode;
@@ -753,6 +971,7 @@ export struct GalleryListScene {
     request.then((result: GalleryListLoadResult) => {
       this.requestUrl = result.url;
       this.galleries = this.visibleRemoteGalleries(result.galleries);
+      this.updateFavoriteCategories(result.favoriteCategories);
       this.statusText = result.ok ? result.message : galleryListFailureMessage(result, this.activeSite);
       this.totalPages = result.pages;
       this.nextUrl = result.nextUrl;
@@ -801,6 +1020,7 @@ export struct GalleryListScene {
     this.client.loadGalleryListUrl(absoluteUrl, this.activeSite, this.includeAccountUConfig()).then((result: GalleryListLoadResult) => {
       this.requestUrl = result.url;
       this.galleries = this.visibleRemoteGalleries(result.galleries);
+      this.updateFavoriteCategories(result.favoriteCategories);
       this.statusText = result.ok ? result.message : galleryListFailureMessage(result, this.activeSite);
       this.totalPages = result.pages;
       this.nextUrl = result.nextUrl;
@@ -898,6 +1118,7 @@ export struct GalleryListScene {
     request.then((result: GalleryListLoadResult) => {
       this.requestUrl = result.url;
       const newGalleries = this.visibleRemoteGalleries(result.galleries);
+      this.updateFavoriteCategories(result.favoriteCategories);
       if (newGalleries.length === 0) {
         // Empty page = reached the end even if we don't know total
         this.statusText = uiText('All pages loaded');
@@ -1008,6 +1229,13 @@ export struct GalleryListScene {
     return this.shouldApplyLocalGalleryFilters() ? applyGalleryFilters(cloned) : cloned;
   }
 
+  private updateFavoriteCategories(categories: FavoriteCategoryInfo[] | undefined): void {
+    if (this.sourceRoute !== GalleryRoute.Favorites || categories === undefined || categories.length === 0) {
+      return;
+    }
+    this.favoriteCategories = cloneFavoriteCategories(categories);
+  }
+
   private shouldApplyLocalGalleryFilters(): boolean {
     return !this.isSearchResultScene && !this.useLocalProvider && this.accountFilterEnabled &&
       localGalleryFilterRoute(this.sourceRoute);
@@ -1017,9 +1245,13 @@ export struct GalleryListScene {
     const requestKeyword = searchKeywordForRequest(this.keyword);
     const hasSearchTags = searchTagTokens(this.keyword).length > 0;
     if (this.sourceRoute === GalleryRoute.Favorites) {
+      if (this.favoriteCat === FavListUrlBuilder.FAV_CAT_LOCAL) {
+        return this.loadLocalFavoritePage(requestKeyword, pageIndex);
+      }
       const builder = new FavListUrlBuilder();
       builder.keyword = requestKeyword;
       builder.index = pageIndex;
+      builder.favCat = this.favoriteCat;
       this.requestUrl = builder.build(site);
       return this.client.loadFavoritesList(builder, site);
     }
@@ -1054,6 +1286,42 @@ export struct GalleryListScene {
     }
     this.requestUrl = builder.build(site);
     return this.client.loadGalleryList(builder, site, this.includeAccountUConfig());
+  }
+
+  private async loadLocalFavoritePage(keyword: string, pageIndex: number): Promise<GalleryListLoadResult> {
+    const context = getAbilityContext();
+    if (context === undefined) {
+      return {
+        ok: false,
+        url: 'local:favorites',
+        statusCode: 0,
+        message: 'Local favorites unavailable',
+        pages: 0,
+        nextPage: -1,
+        nextUrl: '',
+        resultCount: '',
+        galleries: [],
+        favoriteCategories: this.favoriteCategories
+      };
+    }
+    await ehLocalFavoritesStore.ensureLoaded(context);
+    const pageSize = 25;
+    const all = ehLocalFavoritesStore.getItems(keyword);
+    const start = Math.max(0, pageIndex) * pageSize;
+    const page = all.slice(start, Math.min(all.length, start + pageSize));
+    const pages = all.length === 0 ? 0 : Math.ceil(all.length / pageSize);
+    return {
+      ok: page.length > 0,
+      url: 'local:favorites',
+      statusCode: 200,
+      message: page.length > 0 ? 'Parsed ' + page.length.toString() + ' galleries' : 'No results',
+      pages: pages,
+      nextPage: pageIndex + 1 < pages ? pageIndex + 1 : -1,
+      nextUrl: '',
+      resultCount: all.length.toString() + ' local favorites',
+      galleries: page,
+      favoriteCategories: this.favoriteCategories
+    };
   }
 
   private includeAccountUConfig(): boolean {
@@ -1176,6 +1444,24 @@ export struct GalleryListScene {
 
   private rememberSearchKeyword(keyword: string): void {
     recordSearchHistory(keyword);
+  }
+
+  private changeFavoriteCat(favCat: number): void {
+    if (this.sourceRoute !== GalleryRoute.Favorites || favCat === this.favoriteCat) {
+      return;
+    }
+    this.favoriteCat = favCat;
+    recentFavoriteCat = favCat;
+    this.hasFirstRefresh = true;
+    this.resetListScroll();
+    this.loadListPage(0, false);
+  }
+
+  private favoriteSceneTitle(): string {
+    if (this.sourceRoute !== GalleryRoute.Favorites || this.favoriteCat === FavListUrlBuilder.FAV_CAT_ALL) {
+      return gallerySearchTitle(this.sourceRoute, this.keyword, this.filterActive);
+    }
+    return favoriteCategoryName(this.favoriteCat, this.favoriteCategories);
   }
 
   private openSearchScene(): void {
@@ -1535,9 +1821,12 @@ export struct GalleryListScene {
             listMode: this.listMode,
             keyword: this.keyword,
             searchTitle: this.useLocalProvider && this.keyword.trim().length === 0 ? this.sceneTitle :
-              gallerySearchTitle(this.sourceRoute, this.keyword, this.filterActive),
+              this.favoriteSceneTitle(),
             actionsExpanded: this.fabExpanded,
             filterActive: this.filterActive,
+            showFavoriteButton: this.sourceRoute === GalleryRoute.Favorites && !this.isSearchResultScene,
+            favoriteCat: this.favoriteCat,
+            favoriteCategories: this.favoriteCategories,
             accountFilterEnabled: this.accountFilterEnabled,
             searchFilterEnabled: this.searchFilterEnabled,
             showSearchButton: (routeUsesKeyword(this.sourceRoute) || this.useLocalProvider) && !this.isSearchResultScene,
@@ -1575,6 +1864,9 @@ export struct GalleryListScene {
               }
             },
             onSearchFocus: () => {
+            },
+            onFavoriteCatChange: (favCat: number) => {
+              this.changeFavoriteCat(favCat);
             },
             onSearchModeChange: (mode: ListMode) => {
               if (mode === this.searchMode) {
@@ -2114,6 +2406,9 @@ export struct GalleryListContent {
   @Prop searchTitle: string = '';
   @Prop actionsExpanded: boolean = false;
   @Prop filterActive: boolean = false;
+  @Prop showFavoriteButton: boolean = false;
+  @Prop favoriteCat: number = FavListUrlBuilder.FAV_CAT_ALL;
+  @Prop favoriteCategories: FavoriteCategoryInfo[] = [];
   @Prop accountFilterEnabled: boolean = true;
   @Prop searchFilterEnabled: boolean = true;
   @Prop showSearchButton: boolean = false;
@@ -2140,6 +2435,8 @@ export struct GalleryListContent {
   onKeywordChange: (value: string) => void = () => {
   };
   onSearchFocus: () => void = () => {
+  };
+  onFavoriteCatChange: (favCat: number) => void = (_favCat: number) => {
   };
   onSearchModeChange: (mode: ListMode) => void = (_mode: ListMode) => {
   };
@@ -2208,10 +2505,14 @@ export struct GalleryListContent {
   private restoredScroll: boolean = false;
   @State private contentOpacity: number = 1;
   @State toolbarOffsetY: number = 0;
+  @State favoriteDrawerVisible: boolean = false;
+  @State favoriteDrawerOffsetX: number = 288;
+  @State favoriteDrawerOverlayOpacity: number = 0;
   private toolbarRestoring: boolean = false;
   private galleryRowsDataSource: ArrayDataSource<GalleryInfo[]> = new ArrayDataSource<GalleryInfo[]>([]);
   private galleryRowStructureKeys: string[] = [];
   private barHeight: number = 56; // matches EhNavBar body height
+  private readonly FAVORITE_DRAWER_WIDTH: number = 288;
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
 
   onScrollReset(): void {
@@ -2233,6 +2534,50 @@ export struct GalleryListContent {
 
   private statusBarVp(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx);
+  }
+
+  private favoriteDrawerLeft(): number {
+    const width = this.contentWidth > 0 ? this.contentWidth :
+      mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value));
+    return Math.max(0, width - this.FAVORITE_DRAWER_WIDTH);
+  }
+
+  private openFavoriteDrawer(): void {
+    if (!this.showFavoriteButton || this.favoriteDrawerVisible) {
+      return;
+    }
+    this.favoriteDrawerVisible = true;
+    this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseOut }, () => {
+      this.favoriteDrawerOffsetX = 0;
+      this.favoriteDrawerOverlayOpacity = 0.45;
+    });
+  }
+
+  private closeFavoriteDrawer(): void {
+    if (!this.favoriteDrawerVisible) {
+      return;
+    }
+    this.getUIContext().animateTo({ duration: 200, curve: Curve.EaseIn }, () => {
+      this.favoriteDrawerOffsetX = this.FAVORITE_DRAWER_WIDTH;
+      this.favoriteDrawerOverlayOpacity = 0;
+    });
+    setTimeout(() => {
+      if (this.favoriteDrawerOffsetX > this.FAVORITE_DRAWER_WIDTH - 40) {
+        this.favoriteDrawerVisible = false;
+      }
+    }, 220);
+  }
+
+  private handleOpenFavoriteDrawerPan(event: GestureEvent | undefined): void {
+    if (!this.showFavoriteButton || this.favoriteDrawerVisible || event === undefined) {
+      return;
+    }
+    const distanceX = event.offsetX;
+    const distanceY = Math.abs(event.offsetY);
+    const velocityX = event.velocityX;
+    if (distanceX < -72 && distanceY < Math.max(48, Math.abs(distanceX) * 0.7) && velocityX <= 80) {
+      this.openFavoriteDrawer();
+    }
   }
 
   aboutToAppear(): void {
@@ -2964,6 +3309,35 @@ export struct GalleryListContent {
         }
       })
 
+      if (this.favoriteDrawerVisible) {
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor(themeScrimColor())
+          .opacity(this.favoriteDrawerOverlayOpacity)
+          .onClick(() => {
+            this.closeFavoriteDrawer();
+          })
+          .zIndex(15)
+
+        FavoriteCategoryDrawer({
+          statusBarHeight: this.statusBarVp(),
+          selectedFavCat: this.favoriteCat,
+          categories: this.favoriteCategories,
+          onSelect: (favCat: number) => {
+            this.closeFavoriteDrawer();
+            this.onFavoriteCatChange(favCat);
+          },
+          onClose: () => {
+            this.closeFavoriteDrawer();
+          }
+        })
+          .position({ x: this.favoriteDrawerLeft(), y: 0 })
+          .translate({ x: this.favoriteDrawerOffsetX })
+          .zIndex(16)
+          .shadow({ radius: 32, color: themeShadowColor(), offsetX: -8, offsetY: 0 })
+      }
+
       // FAB 悬浮按钮
       Column() {
         QuickActionColumn({
@@ -3226,6 +3600,7 @@ export struct GalleryListContent {
             keyword: this.keyword,
             filterActive: this.filterActive,
             showSearchButton: this.showSearchButton,
+            showFavoriteButton: this.showFavoriteButton,
             showRefreshButton: false,
             showBackButton: this.showBackButton,
             translateY: this.toolbarOffsetY,
@@ -3237,6 +3612,9 @@ export struct GalleryListContent {
             },
             onSearch: () => {
               this.onSearch();
+            },
+            onFavoriteButton: () => {
+              this.openFavoriteDrawer();
             },
             onKeywordChange: (v: string) => {
               this.onKeywordChange(v);
@@ -3252,6 +3630,12 @@ export struct GalleryListContent {
     .width('100%')
     .height('100%')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+    .gesture(
+      PanGesture({ fingers: 1, direction: PanDirection.Left, distance: 28 })
+        .onActionEnd((event: GestureEvent | undefined) => {
+          this.handleOpenFavoriteDrawerPan(event);
+        })
+    )
   }
 
   // 把 galleries 按列数分组成行数组

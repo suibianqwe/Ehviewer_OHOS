@@ -241,6 +241,7 @@ export struct EhNavBar {
   @Prop filterActive: boolean = false;
   @Prop showClear: boolean = false;
   @Prop canClear: boolean = false;
+  @Prop showFavoriteButton: boolean = false;
   @Prop showSearchButton: boolean = false;
   @Prop showRefreshButton: boolean = true;
   @Prop showBackButton: boolean = false;
@@ -252,6 +253,7 @@ export struct EhNavBar {
   onSearch: () => void = () => {};
   onSearchFocus: () => void = () => {};
   onAdvanced: () => void = () => {};
+  onFavoriteButton: () => void = () => {};
   onKeywordChange: (value: string) => void = () => {};
   onRefresh: () => void = () => {};
   onClear: () => void = () => {};
@@ -386,6 +388,20 @@ export struct EhNavBar {
             .flexShrink(0)
             .margin({ left: 6 })
             .onClick(() => { this.onRefresh(); })
+          }
+
+          if (this.showFavoriteButton) {
+            Button({ type: ButtonType.Circle, stateEffect: true }) {
+              SymbolGlyph($r('sys.symbol.folder'))
+                .fontSize(20)
+                .fontColor([themeOnPrimaryText()])
+            }
+            .width(40)
+            .height(40)
+            .backgroundColor(themeOnPrimaryActionBackground())
+            .flexShrink(0)
+            .margin({ left: 6 })
+            .onClick(() => { this.onFavoriteButton(); })
           }
 
           if (this.showSearchButton) {
@@ -623,6 +639,7 @@ export struct FloatingToolbarHost {
   @Prop showRefreshButton: boolean = true;
   @Prop showBackButton: boolean = false;
   @Prop searchShowsAdvancedButton: boolean = false;
+  @Prop showFavoriteButton: boolean = false;
   @Prop toolbarOffsetY: number = 0;
   @Prop toolbarHeight: number = 62;
   @BuilderParam content: () => void = this.EmptyContent;
@@ -632,6 +649,7 @@ export struct FloatingToolbarHost {
   onSearch: () => void = () => {};
   onSearchFocus: () => void = () => {};
   onAdvanced: () => void = () => {};
+  onFavoriteButton: () => void = () => {};
   onRefresh: () => void = () => {};
   onClear: () => void = () => {};
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
@@ -664,9 +682,11 @@ export struct FloatingToolbarHost {
           showRefreshButton: this.showRefreshButton,
           showBackButton: this.showBackButton,
           searchShowsAdvancedButton: this.searchShowsAdvancedButton,
+          showFavoriteButton: this.showFavoriteButton,
           onKeywordChange: this.onKeywordChange,
           onSearchFocus: this.onSearchFocus,
           onAdvanced: this.onAdvanced,
+          onFavoriteButton: this.onFavoriteButton,
           onMenu: this.onMenu,
           onBack: this.onBack,
           onSearch: this.onSearch,

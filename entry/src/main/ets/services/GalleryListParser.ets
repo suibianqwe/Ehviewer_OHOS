@@ -17,7 +17,14 @@ export interface GalleryListParseResult {
   nextUrl: string;
   resultCount: string;
   galleries: GalleryInfo[];
+  favoriteCategories: FavoriteCategoryInfo[];
   warning: string;
+}
+
+export interface FavoriteCategoryInfo {
+  favCat: number;
+  name: string;
+  count: number;
 }
 
 const DETAIL_LINK_PATTERN: RegExp = /(?:https?:\/\/(?:e-hentai\.org|exhentai\.org))?\/g\/(\d+)\/([A-Za-z0-9]+)\//;
@@ -58,6 +65,7 @@ export function parseGalleryList(body: string): GalleryListParseResult {
     nextUrl: parseNextUrl(body),
     resultCount: parseResultCount(body),
     galleries: galleries,
+    favoriteCategories: parseFavoriteCategories(body),
     warning: galleries.length === 0 ? parseWarning(body) : ''
   };
 }
@@ -570,6 +578,30 @@ function childDivs(source: string): string[] {
     }
     result.push(block);
     index = absoluteStart + block.length;
+  }
+  return result;
+}
+
+function parseFavoriteCategories(body: string): FavoriteCategoryInfo[] {
+  const result: FavoriteCategoryInfo[] = [];
+  const pattern = /<div\b[^>]*class=["'][^"']*\bfp\b[^"']*["'][^>]*>/gi;
+  let match: RegExpExecArray | null = pattern.exec(body);
+  while (match !== null && result.length < 10) {
+    const block = findFirstTagBlock(body.substring(match.index), 'div');
+    const children = childDivs(block);
+    if (children.length >= 3) {
+      const name = cleanText(children[2]);
+      const count = parseIntSafe(cleanText(children[0]), 0);
+      if (name.length > 0) {
+        result.push({
+          favCat: result.length,
+          name: name,
+          count: count
+        });
+      }
+    }
+    pattern.lastIndex = match.index + Math.max(block.length, match[0].length);
+    match = pattern.exec(body);
   }
   return result;
 }

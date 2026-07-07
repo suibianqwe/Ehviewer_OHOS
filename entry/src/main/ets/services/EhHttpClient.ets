@@ -15,7 +15,7 @@ import { ehCookieStore } from './EhCookieStore';
 import { EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder } from './EhUrl';
 import { GalleryDetailParseResult, parseGalleryDetail } from './GalleryDetailParser';
 import { mergeGalleryApiMetadata } from './GalleryApiParser';
-import { GalleryListParseResult, parseGalleryList } from './GalleryListParser';
+import { FavoriteCategoryInfo, GalleryListParseResult, parseGalleryList } from './GalleryListParser';
 import { GalleryPageApiParseResult, parseGalleryPageApi } from './GalleryPageApiParser';
 import { GalleryPageParseResult, parseGalleryPage } from './GalleryPageParser';
 import { GalleryPageUrlInfo, parseGalleryPageUrl } from './GalleryPageUrlParser';
@@ -112,6 +112,7 @@ export interface GalleryListLoadResult {
   nextUrl: string;
   resultCount: string;
   galleries: GalleryInfo[];
+  favoriteCategories?: FavoriteCategoryInfo[];
 }
 
 export interface GalleryDetailLoadResult {
@@ -691,7 +692,8 @@ export class EhHttpClient {
         nextPage: parsed.nextPage,
         nextUrl: parsed.nextUrl,
         resultCount: parsed.resultCount,
-        galleries: parsed.galleries
+        galleries: parsed.galleries,
+        favoriteCategories: parsed.favoriteCategories
       };
     } catch (error) {
       return {
