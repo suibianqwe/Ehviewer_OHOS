@@ -60,7 +60,17 @@ import {
   saveGalleryToHistory,
   uiText
 } from '../shared/EhShared';
-import { themePrimaryColor, themeSecondaryText } from '../shared/EhTheme';
+import {
+  themeDividerColor,
+  themeFieldBackground,
+  themePrimaryColor,
+  themePrimaryText,
+  themeScrimColor,
+  themeSecondaryText,
+  themeShadowColor,
+  themeSurface,
+  themeSurfaceVariant
+} from '../shared/EhTheme';
 import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
 
 interface DetailHostNavigationState {
@@ -69,6 +79,145 @@ interface DetailHostNavigationState {
 }
 
 const detailHostNavigationCache: Map<string, DetailHostNavigationState> = new Map<string, DetailHostNavigationState>();
+const DEFAULT_FAV_SLOT_SETTING_KEY: string = 'default_fav_slot';
+const DEFAULT_FAV_SLOT_ASK: string = 'Ask';
+
+interface FavoriteSlotOption {
+  slot: number;
+  label: string;
+}
+
+function favoriteSlotOptions(): FavoriteSlotOption[] {
+  const options: FavoriteSlotOption[] = [{ slot: -1, label: 'Local Favorites' }];
+  for (let i = 0; i < 10; i++) {
+    options.push({ slot: i, label: 'Favorites ' + i.toString() });
+  }
+  return options;
+}
+
+function parseDefaultFavoriteSlot(value: string): number | null {
+  if (value === DEFAULT_FAV_SLOT_ASK || value.length === 0) {
+    return null;
+  }
+  const parsed = Number.parseInt(value);
+  if (Number.isNaN(parsed) || parsed < -1 || parsed > 9) {
+    return null;
+  }
+  return parsed;
+}
+
+@Component
+struct AddFavoriteDialog {
+  @Prop remember: boolean = false;
+  onRememberChange: (remember: boolean) => void = (_remember: boolean) => {};
+  onSelect: (slot: number) => void = (_slot: number) => {};
+  onClose: () => void = () => {};
+
+  build() {
+    Stack({ alignContent: Alignment.Center }) {
+      Column()
+        .width('100%')
+        .height('100%')
+        .backgroundColor(themeScrimColor())
+        .onClick(() => {
+          this.onClose();
+        })
+
+      Column() {
+        Row() {
+          Text(uiText('Add to favorites'))
+            .fontSize(19)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(themePrimaryText())
+            .layoutWeight(1)
+
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.xmark'))
+              .fontSize(20)
+              .fontColor([themePrimaryText()])
+          }
+          .width(40)
+          .height(40)
+          .backgroundColor(themeFieldBackground())
+          .onClick(() => {
+            this.onClose();
+          })
+        }
+        .width('100%')
+        .height(56)
+        .padding({ left: 18, right: 12 })
+        .alignItems(VerticalAlign.Center)
+
+        Divider().color(themeDividerColor()).strokeWidth(0.5)
+
+        List() {
+          ForEach(favoriteSlotOptions(), (item: FavoriteSlotOption) => {
+            ListItem() {
+              Row() {
+                Column() {
+                  SymbolGlyph(item.slot === -1 ? $r('sys.symbol.heart') : $r('sys.symbol.folder'))
+                    .fontSize(21)
+                    .fontColor([themePrimaryColor()])
+                }
+                .width(38)
+                .height(38)
+                .borderRadius(9)
+                .justifyContent(FlexAlign.Center)
+                .alignItems(HorizontalAlign.Center)
+                .backgroundColor(themeSurfaceVariant())
+
+                Text(uiText(item.label))
+                  .fontSize(15)
+                  .fontColor(themePrimaryText())
+                  .layoutWeight(1)
+                  .margin({ left: 12 })
+              }
+              .width('100%')
+              .height(52)
+              .padding({ left: 18, right: 18 })
+              .onClick(() => {
+                this.onSelect(item.slot);
+              })
+            }
+          }, (item: FavoriteSlotOption) => item.slot.toString())
+        }
+        .height(52 * 11)
+        .width('100%')
+
+        Divider().color(themeDividerColor()).strokeWidth(0.5)
+
+        Row() {
+          Checkbox()
+            .select(this.remember)
+            .selectedColor(themePrimaryColor())
+            .onChange((value: boolean) => {
+              this.onRememberChange(value);
+            })
+
+          Text(uiText('Remember favorite collection'))
+            .fontSize(14)
+            .fontColor(themeSecondaryText())
+            .margin({ left: 8 })
+            .layoutWeight(1)
+        }
+        .width('100%')
+        .height(54)
+        .padding({ left: 18, right: 18 })
+        .alignItems(VerticalAlign.Center)
+        .onClick(() => {
+          this.onRememberChange(!this.remember);
+        })
+      }
+      .width('86%')
+      .constraintSize({ maxWidth: 420 })
+      .backgroundColor(themeSurface())
+      .borderRadius(10)
+      .shadow({ radius: 24, color: themeShadowColor(), offsetX: 0, offsetY: 8 })
+    }
+    .width('100%')
+    .height('100%')
+  }
+}
 
 function detailHostCacheKey(link: GalleryDetailLink): string {
   return link.site.toString() + '|' + link.gid.toString() + '|' + link.token + '|' + link.url;
@@ -151,6 +300,8 @@ export struct GalleryDetailHostScene {
   @State detailDownloadText: string = 'Download';
   @State optimisticFavorite: boolean = false;
   @State favoriteBusy: boolean = false;
+  @State addFavoriteDialogVisible: boolean = false;
+  @State rememberFavoriteSlot: boolean = false;
   @State archivePanelVisible: boolean = false;
   @State archivePanelMode: string = '';
   @State archivePanelStatus: string = '';
@@ -557,21 +708,33 @@ export struct GalleryDetailHostScene {
   }
 
   private showAddFavoriteDialog(): void {
-    this.getUIContext().getPromptAction().showDialog({
-      title: uiText('Add to favorites'),
-      message: uiText('Choose favorite collection'),
-      buttons: [
-        { text: uiText('Local Favorites'), color: themePrimaryColor() },
-        { text: uiText('Favorites 0'), color: themePrimaryColor() },
-        { text: uiText('Cancel'), color: themeSecondaryText() }
-      ]
-    }).then((data) => {
-      if (data.index === 0) {
-        this.addLocalFavorite();
-      } else if (data.index === 1) {
-        this.addCloudFavorite();
-      }
-    }).catch(() => {});
+    const defaultSlot = parseDefaultFavoriteSlot(ehSettingsStore.getValue(DEFAULT_FAV_SLOT_SETTING_KEY,
+      DEFAULT_FAV_SLOT_ASK));
+    if (defaultSlot !== null) {
+      this.addFavoriteToSlot(defaultSlot);
+      return;
+    }
+    this.rememberFavoriteSlot = false;
+    this.addFavoriteDialogVisible = true;
+    this.renderVersion++;
+  }
+
+  private selectFavoriteSlot(slot: number): void {
+    this.addFavoriteDialogVisible = false;
+    if (this.rememberFavoriteSlot) {
+      ehSettingsStore.setValue(DEFAULT_FAV_SLOT_SETTING_KEY, slot.toString());
+    } else {
+      ehSettingsStore.setValue(DEFAULT_FAV_SLOT_SETTING_KEY, DEFAULT_FAV_SLOT_ASK);
+    }
+    this.addFavoriteToSlot(slot);
+  }
+
+  private addFavoriteToSlot(slot: number): void {
+    if (slot === -1) {
+      this.addLocalFavorite();
+    } else {
+      this.addCloudFavorite(Math.max(0, Math.min(9, slot)));
+    }
   }
 
   private addLocalFavorite(): void {
@@ -598,17 +761,17 @@ export struct GalleryDetailHostScene {
     });
   }
 
-  private addCloudFavorite(): void {
+  private addCloudFavorite(slot: number): void {
     this.detailStatus = 'Adding to favorites...';
     this.favoriteBusy = true;
     this.optimisticFavorite = true;
-    this.applyDetailFavoriteState(true, 0);
+    this.applyDetailFavoriteState(true, slot);
     this.renderVersion++;
-    this.client.toggleFavorite(this.detail.gid, this.detail.token, false, this.detailLink.site)
+    this.client.toggleFavorite(this.detail.gid, this.detail.token, false, this.detailLink.site, slot)
       .then((result: ToggleFavoriteResult) => {
         this.detailStatus = result.message;
         this.optimisticFavorite = result.ok ? result.nowFavorited : false;
-        this.applyDetailFavoriteState(this.optimisticFavorite, this.optimisticFavorite ? 0 : -2);
+        this.applyDetailFavoriteState(this.optimisticFavorite, this.optimisticFavorite ? slot : -2);
         this.favoriteBusy = false;
         this.renderVersion++;
       }).catch((error: Error) => {
@@ -1137,6 +1300,25 @@ export struct GalleryDetailHostScene {
         })
         .transition(TransitionEffect.move(TransitionEdge.END).animation({ duration: 220, curve: Curve.EaseOut }))
         .zIndex(20)
+      }
+
+      if (this.addFavoriteDialogVisible) {
+        AddFavoriteDialog({
+          remember: this.rememberFavoriteSlot,
+          onRememberChange: (remember: boolean) => {
+            this.rememberFavoriteSlot = remember;
+            this.renderVersion++;
+          },
+          onSelect: (slot: number) => {
+            this.selectFavoriteSlot(slot);
+          },
+          onClose: () => {
+            this.addFavoriteDialogVisible = false;
+            this.renderVersion++;
+          }
+        })
+          .zIndex(40)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }))
       }
     }
     .width('100%')

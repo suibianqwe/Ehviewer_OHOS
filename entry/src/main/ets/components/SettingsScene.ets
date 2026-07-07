@@ -963,8 +963,8 @@ export struct SettingsScene {
             this.filterRules = ehFilterStore.getRules();
             this.showFloatingStatus('Import complete: Android data (history ' + summary.history +
               ', history metadata ' + summary.historyMetadata + ', fetched ' + summary.historyMetadataFetched +
-              ', downloads ' + summary.downloads + ', labels ' + summary.labels + ', filters ' +
-              summary.filters + ', searches ' + summary.searches + ')');
+              ', downloads ' + summary.downloads + ', local favorites ' + summary.localFavorites +
+              ', labels ' + summary.labels + ', filters ' + summary.filters + ', searches ' + summary.searches + ')');
           }).catch((error: Error) => {
             this.hideBlockingBusy();
             this.showFloatingStatus('Import failed: Android data ' + error.message);

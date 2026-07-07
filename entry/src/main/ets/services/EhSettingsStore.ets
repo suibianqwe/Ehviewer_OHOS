@@ -29,6 +29,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'thumb_size', value: 'Medium' },
     { key: HISTORY_INFO_SIZE_KEY, value: DEFAULT_HISTORY_INFO_SIZE },
     { key: 'show_jpn_title', value: 'Off' },
+    { key: 'default_fav_slot', value: 'Ask' },
     { key: 'show_gallery_pages', value: 'Off' },
     { key: 'show_tag_translations', value: 'On' },
     { key: 'show_eh_limits', value: 'On' },

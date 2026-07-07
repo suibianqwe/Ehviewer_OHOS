@@ -562,8 +562,8 @@ export class EhHttpClient {
   }
 
   async toggleFavorite(gid: number, token: string, isFavorited: boolean,
-    site: GallerySite = GallerySite.E): Promise<ToggleFavoriteResult> {
-    const favcat = isFavorited ? 'favdel' : '0';
+    site: GallerySite = GallerySite.E, addFavCat: number = 0): Promise<ToggleFavoriteResult> {
+    const favcat = isFavorited ? 'favdel' : Math.max(0, Math.min(9, addFavCat)).toString();
     const form = buildFormBody([
       { key: 'favcat', value: favcat },
       { key: 'favnote', value: '' },

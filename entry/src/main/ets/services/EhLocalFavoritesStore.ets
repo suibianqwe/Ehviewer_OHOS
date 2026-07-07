@@ -83,12 +83,29 @@ export class EhLocalFavoritesStore {
     if (gallery.gid <= 0 || gallery.token.length === 0) {
       return;
     }
+    this.putGallery(gallery, Date.now(), true);
+  }
+
+  importGallery(gallery: GalleryInfo, time: number): boolean {
+    if (gallery.gid <= 0 || gallery.token.length === 0) {
+      return false;
+    }
+    this.putGallery(gallery, time, false);
+    return true;
+  }
+
+  async save(context: common.UIAbilityContext): Promise<void> {
+    this.context = context;
+    await this.saveSnapshot(context, this.snapshot());
+  }
+
+  private putGallery(gallery: GalleryInfo, time: number, queueSave: boolean): void {
     const nextGallery = cloneLocalFavoriteGallery(gallery);
     nextGallery.favoriteSlot = -1;
     nextGallery.favoriteName = undefined;
     const nextEntry: LocalFavoriteEntry = {
       gallery: nextGallery,
-      time: Date.now()
+      time: time
     };
     const next: LocalFavoriteEntry[] = [nextEntry];
     for (let i = 0; i < this.items.length; i++) {
@@ -96,8 +113,11 @@ export class EhLocalFavoritesStore {
         next.push(cloneLocalFavoriteEntry(this.items[i]));
       }
     }
+    next.sort((left: LocalFavoriteEntry, right: LocalFavoriteEntry): number => right.time - left.time);
     this.items = next;
-    this.queueSave();
+    if (queueSave) {
+      this.queueSave();
+    }
   }
 
   removeGallery(gid: number): void {
@@ -142,14 +162,26 @@ export class EhLocalFavoritesStore {
     if (context === undefined) {
       return;
     }
-    const snapshot = this.items.map((entry: LocalFavoriteEntry): StoredLocalFavoriteInfo => {
+    const snapshot = this.snapshot();
+    this.saveChain = this.saveChain.then(async () => {
+      await this.saveSnapshot(context, snapshot);
+    }).catch(() => {});
+  }
+
+  private snapshot(): StoredLocalFavoriteInfo[] {
+    return this.items.map((entry: LocalFavoriteEntry): StoredLocalFavoriteInfo => {
       return galleryToStoredLocalFavorite(entry.gallery, entry.time);
     });
-    this.saveChain = this.saveChain.then(async () => {
+  }
+
+  private async saveSnapshot(context: common.UIAbilityContext, snapshot: StoredLocalFavoriteInfo[]): Promise<void> {
+    try {
       const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
       await prefs.put(VALUES_KEY, JSON.stringify(snapshot));
       await prefs.flush();
-    }).catch(() => {});
+    } catch (error) {
+      throw new Error(String(error));
+    }
   }
 
   private findIndex(gid: number): number {

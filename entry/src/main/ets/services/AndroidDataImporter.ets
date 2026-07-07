@@ -6,6 +6,7 @@ import { rebuildImportedHistoryMetadata } from './DownloadMetadataRestore';
 import { DownloadInfo, DownloadState, ehDownloadStore } from './EhDownloadStore';
 import { ehFilterStore } from './EhFilterStore';
 import { ehHistoryStore } from './EhHistoryStore';
+import { ehLocalFavoritesStore } from './EhLocalFavoritesStore';
 import { HISTORY_INFO_SIZE_KEY, ehSettingsStore, historyInfoSizeLimitFromValue } from './EhSettingsStore';
 import { ehSearchHistoryStore } from './EhSearchHistoryStore';
 
@@ -24,6 +25,7 @@ export interface AndroidDataImportSummary {
   historyMetadata: number;
   historyMetadataFetched: number;
   downloads: number;
+  localFavorites: number;
   labels: number;
   filters: number;
   searches: number;
@@ -61,12 +63,14 @@ export async function importAndroidDatabaseBackup(context: common.UIAbilityConte
     await ehHistoryStore.load(context);
     await ehDownloadStore.load(context);
     await ehFilterStore.load(context);
+    await ehLocalFavoritesStore.ensureLoaded(context);
     await ehSettingsStore.load(context);
     await ehSearchHistoryStore.load(context);
 
     const historyResult = await importHistory(store);
     const labels = await importDownloadLabels(store);
     const downloads = await importDownloads(store);
+    const localFavorites = await importLocalFavorites(store);
     const historyMetadata = await rebuildImportedHistoryMetadata(context, historyResult.items, currentImportGallerySite());
     const summary: AndroidDataImportSummary = {
       history: historyResult.count,
@@ -74,6 +78,7 @@ export async function importAndroidDatabaseBackup(context: common.UIAbilityConte
       historyMetadataFetched: historyMetadata.fetched,
       labels: labels,
       downloads: downloads,
+      localFavorites: localFavorites,
       filters: await importFilters(store),
       searches: await importQuickSearch(store)
     };
@@ -81,7 +86,8 @@ export async function importAndroidDatabaseBackup(context: common.UIAbilityConte
     await Promise.all([
       ehHistoryStore.save(context),
       ehDownloadStore.save(context),
-      ehFilterStore.save(context)
+      ehFilterStore.save(context),
+      ehLocalFavoritesStore.save(context)
     ]);
     return summary;
   } catch (error) {
@@ -177,6 +183,48 @@ async function importDownloads(store: relationalStore.RdbStore): Promise<number>
       fileSize: -1
     };
     if (ehDownloadStore.importDownload(item)) {
+      count++;
+    }
+  });
+  return count;
+}
+
+async function importLocalFavorites(store: relationalStore.RdbStore): Promise<number> {
+  if (await tableExists(store, 'LOCAL_FAVORITES')) {
+    return importLocalFavoritesFromTable(store, 'LOCAL_FAVORITES');
+  }
+  if (await tableExists(store, 'local_favourite')) {
+    return importLegacyLocalFavorites(store);
+  }
+  return 0;
+}
+
+async function importLocalFavoritesFromTable(store: relationalStore.RdbStore, table: string): Promise<number> {
+  let count = 0;
+  await queryEach(store, 'SELECT * FROM "' + table + '" ORDER BY "TIME" ASC', (row: relationalStore.ResultSet) => {
+    const gallery = readGalleryInfo(row);
+    if (gallery.gid <= 0 || gallery.token.length === 0) {
+      return;
+    }
+    gallery.favoriteSlot = -1;
+    gallery.favoriteName = undefined;
+    if (ehLocalFavoritesStore.importGallery(gallery, getNumberColumn(row, 'TIME', Date.now()))) {
+      count++;
+    }
+  });
+  return count;
+}
+
+async function importLegacyLocalFavorites(store: relationalStore.RdbStore): Promise<number> {
+  let count = 0;
+  await queryEach(store, 'SELECT * FROM "local_favourite"', (row: relationalStore.ResultSet) => {
+    const gallery = readGalleryInfo(row);
+    if (gallery.gid <= 0 || gallery.token.length === 0) {
+      return;
+    }
+    gallery.favoriteSlot = -1;
+    gallery.favoriteName = undefined;
+    if (ehLocalFavoritesStore.importGallery(gallery, getNumberColumn(row, 'TIME', Date.now()))) {
       count++;
     }
   });
