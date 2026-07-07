@@ -81,6 +81,8 @@ interface DetailHostNavigationState {
 const detailHostNavigationCache: Map<string, DetailHostNavigationState> = new Map<string, DetailHostNavigationState>();
 const DEFAULT_FAV_SLOT_SETTING_KEY: string = 'default_fav_slot';
 const DEFAULT_FAV_SLOT_ASK: string = 'Ask';
+const FAVORITE_SLOT_ROW_HEIGHT: number = 52;
+const FAVORITE_SLOT_PANEL_CHROME_HEIGHT: number = 112;
 
 interface FavoriteSlotOption {
   slot: number;
@@ -113,6 +115,16 @@ struct AddFavoriteDialog {
   onRememberChange: (remember: boolean) => void = (_remember: boolean) => {};
   onSelect: (slot: number) => void = (_slot: number) => {};
   onClose: () => void = () => {};
+
+  private listHeight(): number {
+    const contentHeight = favoriteSlotOptions().length * FAVORITE_SLOT_ROW_HEIGHT;
+    const availableHeight = Math.max(160, this.panelMaxHeight - FAVORITE_SLOT_PANEL_CHROME_HEIGHT);
+    return Math.min(contentHeight, availableHeight);
+  }
+
+  private panelHeight(): number {
+    return this.listHeight() + FAVORITE_SLOT_PANEL_CHROME_HEIGHT;
+  }
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
@@ -183,9 +195,7 @@ struct AddFavoriteDialog {
           }, (item: FavoriteSlotOption) => item.slot.toString())
         }
         .width('100%')
-        .height(Math.max(220, this.panelMaxHeight - 112))
-        .layoutWeight(1)
-        .constraintSize({ maxHeight: Math.max(220, this.panelMaxHeight - 112) })
+        .height(this.listHeight())
 
         Divider().color(themeDividerColor()).strokeWidth(0.5)
 
@@ -211,8 +221,9 @@ struct AddFavoriteDialog {
           this.onRememberChange(!this.remember);
         })
       }
-      .width('86%')
-      .constraintSize({ maxWidth: 420, maxHeight: this.panelMaxHeight })
+      .width('78%')
+      .height(this.panelHeight())
+      .constraintSize({ maxWidth: 360, minWidth: 280, maxHeight: this.panelMaxHeight })
       .backgroundColor(themeSurface())
       .borderRadius(10)
       .shadow({ radius: 24, color: themeShadowColor(), offsetX: 0, offsetY: 8 })
@@ -725,9 +736,9 @@ export struct GalleryDetailHostScene {
 
   private addFavoriteDialogMaxHeight(): number {
     if (this.viewportHeight <= 0) {
-      return 680;
+      return 620;
     }
-    return Math.max(320, this.viewportHeight - 48);
+    return Math.max(280, this.viewportHeight - 96);
   }
 
   private selectFavoriteSlot(slot: number): void {

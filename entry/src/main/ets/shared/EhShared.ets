@@ -585,6 +585,7 @@ export function zhText(text: string): string {
     case 'Favorite folders': return '收藏夹';
     case 'Local Favorites': return '本地收藏';
     case 'Add to favorites': return '添加到收藏';
+    case 'Remember favorite collection': return '记住收藏夹';
     case 'Choose favorite collection': return '选择收藏夹';
     case 'Adding to local favorites...': return '正在添加到本地收藏...';
     case 'Added to local favorites': return '已添加到本地收藏';
