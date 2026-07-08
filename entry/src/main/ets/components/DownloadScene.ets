@@ -154,6 +154,7 @@ interface DownloadNavigationCache {
   tagSearchTitle: string;
   tagSearchKeyword: string;
   tagSearchMode: ListMode;
+  tagSearchCategory?: number;
   tagSearchImagePath: string;
   tagSearchImageUseSimilarity: boolean;
   tagSearchImageOnlyCovers: boolean;
@@ -208,6 +209,7 @@ export struct DownloadScene {
   @State tagSearchTitle: string = 'Search';
   @State tagSearchKeyword: string = '';
   @State tagSearchMode: ListMode = ListMode.Tag;
+  @State tagSearchCategory: number = GalleryCategory.None;
   @State tagSearchImagePath: string = '';
   @State tagSearchImageUseSimilarity: boolean = false;
   @State tagSearchImageOnlyCovers: boolean = false;
@@ -317,6 +319,7 @@ export struct DownloadScene {
     this.tagSearchTitle = 'Search';
     this.tagSearchKeyword = '';
     this.tagSearchMode = ListMode.Tag;
+    this.tagSearchCategory = GalleryCategory.None;
     this.tagSearchImagePath = '';
     this.tagSearchImageUseSimilarity = false;
     this.tagSearchImageOnlyCovers = false;
@@ -351,6 +354,7 @@ export struct DownloadScene {
     this.tagSearchTitle = cache.tagSearchTitle;
     this.tagSearchKeyword = cache.tagSearchKeyword;
     this.tagSearchMode = cache.tagSearchMode;
+    this.tagSearchCategory = cache.tagSearchCategory === undefined ? GalleryCategory.None : cache.tagSearchCategory;
     this.tagSearchImagePath = cache.tagSearchImagePath;
     this.tagSearchImageUseSimilarity = cache.tagSearchImageUseSimilarity;
     this.tagSearchImageOnlyCovers = cache.tagSearchImageOnlyCovers;
@@ -368,6 +372,7 @@ export struct DownloadScene {
       tagSearchTitle: this.tagSearchTitle,
       tagSearchKeyword: this.tagSearchKeyword,
       tagSearchMode: this.tagSearchMode,
+      tagSearchCategory: this.tagSearchCategory,
       tagSearchImagePath: this.tagSearchImagePath,
       tagSearchImageUseSimilarity: this.tagSearchImageUseSimilarity,
       tagSearchImageOnlyCovers: this.tagSearchImageOnlyCovers,
@@ -1185,6 +1190,7 @@ export struct DownloadScene {
     this.tagSearchTitle = 'Search';
     this.tagSearchKeyword = '';
     this.tagSearchMode = ListMode.Tag;
+    this.tagSearchCategory = GalleryCategory.None;
     this.tagSearchImagePath = '';
     this.tagSearchImageUseSimilarity = false;
     this.tagSearchImageOnlyCovers = false;
@@ -1199,6 +1205,7 @@ export struct DownloadScene {
     this.tagSearchTitle = request.title;
     this.tagSearchKeyword = request.keyword;
     this.tagSearchMode = request.mode;
+    this.tagSearchCategory = request.category;
     this.tagSearchImagePath = request.imagePath;
     this.tagSearchImageUseSimilarity = request.useSimilarityScan;
     this.tagSearchImageOnlyCovers = request.onlySearchCovers;
@@ -1293,7 +1300,7 @@ export struct DownloadScene {
         sourceRoute: GalleryRoute.Home,
         initialKeyword: this.tagSearchKeyword,
         initialSearchMode: this.tagSearchMode,
-        initialSearchCategory: GalleryCategory.None,
+        initialSearchCategory: this.tagSearchCategory,
         initialAdvancedSearchEnabled: false,
         initialAdvanceSearch: DEFAULT_ADVANCE_SEARCH,
         initialSearchSubmitted: true,

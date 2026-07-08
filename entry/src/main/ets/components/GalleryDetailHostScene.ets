@@ -20,9 +20,11 @@ import {
 import { EhUrl } from '../services/EhUrl';
 import {
   archiveUnavailableReason,
+  createCategorySearchRequest,
   createCoverSearchRequest,
   createSimilarGallerySearch,
   createTagSearchRequest,
+  createUploaderSearchRequest,
   DetailSearchRequest,
   detailArchiveReferer,
   detailCoverCacheKey
@@ -50,6 +52,7 @@ import { ehSettingsStore } from '../services/EhSettingsStore';
 import {
   cloneGalleryDetail,
   cloneGalleryPreviews,
+  categoryName,
   createEmptyDetail,
   createEmptyPage,
   getAbilityContext,
@@ -493,6 +496,7 @@ export struct GalleryDetailHostScene {
     if (!this.detailLoaded || this.detail.comments.length === 0) {
       return;
     }
+    this.showInfo = false;
     this.showComments = true;
     this.saveNavigationState();
     this.renderVersion++;
@@ -1017,6 +1021,19 @@ export struct GalleryDetailHostScene {
     }
   }
 
+  private openUploaderGalleryList(): void {
+    const uploader = this.detail.uploader === undefined ? '' : this.detail.uploader;
+    const request = createUploaderSearchRequest(uploader);
+    if (request !== null) {
+      this.onOpenSearch(request);
+    }
+  }
+
+  private openCategoryGalleryList(): void {
+    const request = createCategorySearchRequest(this.detail.category, categoryName(this.detail.category));
+    this.onOpenSearch(request);
+  }
+
   private openCoverSearch(): void {
     const context = getAbilityContext();
     const thumb = this.detail.thumb === undefined ? '' : this.detail.thumb;
@@ -1291,6 +1308,8 @@ export struct GalleryDetailHostScene {
         },
         onDownload: () => { this.toggleDownloadDetail(); },
         onRead: () => { this.readDetail(); },
+        onUploaderSearch: () => { this.openUploaderGalleryList(); },
+        onCategorySearch: () => { this.openCategoryGalleryList(); },
         onSelectPreview: (preview: GalleryPreview) => {
           const item = findDetailDownloadItem(this.detail.gid);
           if (item !== null) {

@@ -47,6 +47,8 @@ export struct GalleryDetailOverlayScene {
   onCloseComments: () => void = () => {};
   onDownload: () => void = () => {};
   onRead: () => void = () => {};
+  onUploaderSearch: () => void = () => {};
+  onCategorySearch: () => void = () => {};
   onSelectPreview: (preview: GalleryPreview) => void = () => {};
   onJumpPreviewPage: (pageIndex: number) => void = (_pageIndex: number) => {};
   onComments: () => void = () => {};
@@ -77,23 +79,7 @@ export struct GalleryDetailOverlayScene {
   }
 
   build() {
-    if (this.showInfo) {
-      GalleryInfoScene({
-        detail: this.detail,
-        requestUrl: this.requestUrl,
-        statusBarHeight: this.statusBarVp(),
-        onBack: this.onCloseInfo
-      })
-    } else if (this.showComments) {
-      CommentsScene({
-        renderVersion: this.renderVersion,
-        comments: this.detail.comments,
-        galleryTitle: galleryDisplayTitle(this.detail),
-        onBack: this.onCloseComments,
-        onVoteComment: this.onVoteComment,
-        onOpenGalleryLink: this.onOpenCommentGalleryLink
-      })
-    } else {
+    Stack() {
       GalleryDetailScene({
         renderVersion: this.renderVersion,
         detail: this.detail,
@@ -113,6 +99,8 @@ export struct GalleryDetailOverlayScene {
         onCloseInfo: this.onCloseInfo,
         onDownload: this.onDownload,
         onRead: this.onRead,
+        onUploaderSearch: this.onUploaderSearch,
+        onCategorySearch: this.onCategorySearch,
         onSelectPreview: this.onSelectPreview,
         onJumpPreviewPage: this.onJumpPreviewPage,
         onComments: this.onComments,
@@ -138,7 +126,37 @@ export struct GalleryDetailOverlayScene {
         onAddTag: this.onAddTag,
         onShowTagDefinition: this.onShowTagDefinition
       })
+
+      if (this.showInfo) {
+        GalleryInfoScene({
+          detail: this.detail,
+          requestUrl: this.requestUrl,
+          statusBarHeight: this.statusBarVp(),
+          onBack: this.onCloseInfo
+        })
+        .zIndex(18)
+        .transition(TransitionEffect.asymmetric(
+          TransitionEffect.move(TransitionEdge.END).animation({ duration: 240, curve: Curve.EaseOut }),
+          TransitionEffect.move(TransitionEdge.END).animation({ duration: 200, curve: Curve.EaseIn })))
+      }
+
+      if (this.showComments) {
+        CommentsScene({
+          renderVersion: this.renderVersion,
+          comments: this.detail.comments,
+          galleryTitle: galleryDisplayTitle(this.detail),
+          onBack: this.onCloseComments,
+          onVoteComment: this.onVoteComment,
+          onOpenGalleryLink: this.onOpenCommentGalleryLink
+        })
+        .zIndex(16)
+        .transition(TransitionEffect.asymmetric(
+          TransitionEffect.move(TransitionEdge.END).animation({ duration: 240, curve: Curve.EaseOut }),
+          TransitionEffect.move(TransitionEdge.END).animation({ duration: 200, curve: Curve.EaseIn })))
+      }
     }
+    .width('100%')
+    .height('100%')
   }
 }
 
@@ -162,6 +180,8 @@ export struct GalleryDetailScene {
   onCloseInfo: () => void = () => {};
   onDownload: () => void = () => {};
   onRead: () => void = () => {};
+  onUploaderSearch: () => void = () => {};
+  onCategorySearch: () => void = () => {};
   onSelectPreview: (preview: GalleryPreview) => void = () => {};
   onJumpPreviewPage: (pageIndex: number) => void = (_pageIndex: number) => {};
   onComments: () => void = () => {};
@@ -278,7 +298,9 @@ export struct GalleryDetailScene {
                 detail: this.detail,
                 downloadText: this.downloadText,
                 onDownload: this.onDownload,
-                onRead: this.onRead
+                onRead: this.onRead,
+                onUploaderSearch: this.onUploaderSearch,
+                onCategorySearch: this.onCategorySearch
               })
             }
             .reuseId('detail-header')
@@ -400,7 +422,9 @@ export struct GalleryDetailScene {
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
         .padding(24)
-          .backgroundColor(themeScrimColor())
+        .backgroundColor(themeScrimColor())
+        .zIndex(10)
+        .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
       }
       if (this.previewJumpPanelVisible) {
         DetailPreviewJumpOverlay({
@@ -443,6 +467,8 @@ export struct GalleryDetailScene {
           onSelectArchiverOption: this.onSelectArchiverOption,
           onSelectHathOption: this.onSelectHathOption
         })
+        .zIndex(13)
+        .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
       }
     }
     .width('100%')

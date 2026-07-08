@@ -1,5 +1,14 @@
 ﻿import { GalleryDetail } from '../../model/GalleryModels';
-import { createEmptyDetail, detailTitleFontSize, detailTitleMaxLines, galleryDisplayTitle, uiStatusText, uiText } from '../../shared/EhShared';
+import {
+  categoryColor,
+  categoryName,
+  createEmptyDetail,
+  detailTitleFontSize,
+  detailTitleMaxLines,
+  galleryDisplayTitle,
+  uiStatusText,
+  uiText
+} from '../../shared/EhShared';
 import {
   themeDangerBackground,
   themeDangerText,
@@ -9,7 +18,7 @@ import {
   themeOnPrimaryText,
   themePrimaryColor
 } from '../../shared/EhTheme';
-import { CategoryBadge, GalleryThumb } from '../GalleryCards';
+import { GalleryThumb } from '../GalleryCards';
 import { copyTextToClipboard } from './DetailInfo';
 @Component
 export struct DetailHeader {
@@ -17,6 +26,8 @@ export struct DetailHeader {
   @Prop downloadText: string = 'Download';
   onDownload: () => void = () => {};
   onRead: () => void = () => {};
+  onUploaderSearch: () => void = () => {};
+  onCategorySearch: () => void = () => {};
 
   build() {
     Column() {
@@ -38,10 +49,17 @@ export struct DetailHeader {
             })
           Text(this.detail.uploader === undefined || this.detail.uploader.length === 0 ? uiText('unknown uploader') :
             this.detail.uploader)
-            .fontSize(12)
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
             .fontColor(themeOnPrimarySecondaryText())
             .margin({ top: 8 })
-          CategoryBadge({ category: this.detail.category })
+            .onClick(() => {
+              this.onUploaderSearch();
+            })
+          DetailCategoryBadge({
+            category: this.detail.category,
+            onTap: this.onCategorySearch
+          })
             .margin({ top: 12 })
 
           Row({ space: 12 }) {
@@ -96,6 +114,26 @@ export struct DetailHeader {
 
   private detailThumbWidth(): number {
     return Math.round(this.detailThumbHeight() * 0.73);
+  }
+}
+
+@Component
+struct DetailCategoryBadge {
+  @Prop category: number = 0;
+  onTap: () => void = () => {};
+
+  build() {
+    Text(categoryName(this.category))
+      .fontSize(14)
+      .fontWeight(FontWeight.Bold)
+      .fontColor(Color.White)
+      .height(28)
+      .padding({ left: 11, right: 11, top: 3, bottom: 3 })
+      .backgroundColor(categoryColor(this.category))
+      .borderRadius(5)
+      .onClick(() => {
+        this.onTap();
+      })
   }
 }
 

@@ -1,10 +1,11 @@
-import { GalleryDetail, GallerySite, GalleryTagGroup } from '../model/GalleryModels';
+import { GalleryCategory, GalleryDetail, GallerySite, GalleryTagGroup } from '../model/GalleryModels';
 import { EhUrl, ListMode } from './EhUrl';
 
 export interface DetailSearchRequest {
   title: string;
   keyword: string;
   mode: ListMode;
+  category: number;
   imagePath: string;
   useSimilarityScan: boolean;
   onlySearchCovers: boolean;
@@ -42,6 +43,7 @@ export function createCoverSearchRequest(imagePath: string): DetailSearchRequest
     title: 'Search cover',
     keyword: '',
     mode: ListMode.ImageSearch,
+    category: GalleryCategory.None,
     imagePath: imagePath,
     useSimilarityScan: true,
     onlySearchCovers: false,
@@ -54,6 +56,28 @@ export function createKeywordSearchRequest(keyword: string, mode: ListMode, titl
     title: title.length > 0 ? title : 'Search',
     keyword: keyword,
     mode: mode,
+    category: GalleryCategory.None,
+    imagePath: '',
+    useSimilarityScan: false,
+    onlySearchCovers: false,
+    showExpunged: false
+  };
+}
+
+export function createUploaderSearchRequest(uploader: string): DetailSearchRequest | null {
+  const value = uploader.trim();
+  if (value.length === 0) {
+    return null;
+  }
+  return createKeywordSearchRequest(value, ListMode.Uploader, value);
+}
+
+export function createCategorySearchRequest(category: number, title: string): DetailSearchRequest {
+  return {
+    title: title.length > 0 ? title : 'Search',
+    keyword: '',
+    mode: ListMode.Normal,
+    category: category,
     imagePath: '',
     useSimilarityScan: false,
     onlySearchCovers: false,

@@ -794,8 +794,9 @@ export function zhText(text: string): string {
     case 'Rating': return '评分';
     case 'Favorited': return '已收藏';
     case 'Favorite': return '收藏';
-    case 'Archive': return '归档';
-    case 'Archive -': return '归档 -';
+    case 'Archive': return '存档';
+    case 'Archive -': return '存档 -';
+    case 'Save Archive': return '存档';
     case 'Similar': return '相似画廊';
     case 'Search cover': return '搜索封面';
     case 'No H@H archives': return '没有可用的 H@H 档案';

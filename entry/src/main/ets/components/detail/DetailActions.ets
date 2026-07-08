@@ -62,7 +62,7 @@ export struct DetailActions {
           })
           DetailActionItem({
             symbolIcon: $r('sys.symbol.archivebox'),
-            label: uiText('Archive'),
+            label: uiText('Save Archive'),
             isActive: this.isDetailLoaded && this.detail.archiveUrl.length > 0,
             onTap: this.onArchive
           })

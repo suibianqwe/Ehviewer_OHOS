@@ -2540,7 +2540,7 @@ export struct GalleryListScene {
     this.searchResultDraft = {
       keyword: request.keyword,
       mode: request.mode,
-      category: GalleryCategory.None,
+      category: request.category,
       advancedEnabled: false,
       advanceSearch: DEFAULT_ADVANCE_SEARCH,
       minRating: -1,
