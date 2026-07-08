@@ -74,6 +74,7 @@ import {
 import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
 
 interface DetailHostNavigationState {
+  showInfo: boolean;
   showComments: boolean;
   commentGalleryLink: GalleryDetailLink;
 }
@@ -305,6 +306,7 @@ export struct GalleryDetailHostScene {
   private unregisterDetailBackHandler: () => void = () => {};
   private cellularWarningDialogOpen: boolean = false;
   @State renderVersion: number = 0;
+  @State showInfo: boolean = false;
   @State showComments: boolean = false;
   @State detail: GalleryDetail = createEmptyDetail();
   @State visiblePreviews: GalleryPreview[] = [];
@@ -350,6 +352,12 @@ export struct GalleryDetailHostScene {
       this.renderVersion++;
       return true;
     }
+    if (this.showInfo) {
+      this.showInfo = false;
+      this.saveNavigationState();
+      this.renderVersion++;
+      return true;
+    }
     if (this.showComments) {
       this.showComments = false;
       this.saveNavigationState();
@@ -364,6 +372,7 @@ export struct GalleryDetailHostScene {
       return;
     }
     detailHostNavigationCache.set(detailHostCacheKey(this.detailLink), {
+      showInfo: this.showInfo,
       showComments: this.showComments,
       commentGalleryLink: cloneDetailHostLink(this.commentGalleryLink)
     });
@@ -373,11 +382,13 @@ export struct GalleryDetailHostScene {
     const saved = detailHostNavigationCache.get(detailHostCacheKey(this.detailLink));
     if (saved === undefined) {
       return {
+        showInfo: false,
         showComments: false,
         commentGalleryLink: createEmptyGalleryDetailLink()
       };
     }
     return {
+      showInfo: saved.showInfo === true,
       showComments: saved.showComments,
       commentGalleryLink: cloneDetailHostLink(saved.commentGalleryLink)
     };
@@ -402,6 +413,7 @@ export struct GalleryDetailHostScene {
     this.previewJumpSerial++;
     this.previewJumpLoading = false;
     this.visiblePreviews = [];
+    this.showInfo = navigationState.showInfo;
     this.showComments = navigationState.showComments;
     this.commentGalleryLink = navigationState.commentGalleryLink;
     this.detail = initialDetailForLink(this.detailLink);
@@ -1244,6 +1256,7 @@ export struct GalleryDetailHostScene {
     Stack() {
       GalleryDetailOverlayScene({
         renderVersion: this.renderVersion,
+        showInfo: this.showInfo,
         showComments: this.showComments,
         detail: this.displayDetail(),
         isDetailLoaded: this.detailLoaded,
@@ -1259,6 +1272,17 @@ export struct GalleryDetailHostScene {
         hathArchiveList: this.hathArchiveList,
         initialDetailScrollOffset: this.initialDetailScrollOffset,
         onBack: this.onBack,
+        onShowInfo: () => {
+          this.showInfo = true;
+          this.showComments = false;
+          this.saveNavigationState();
+          this.renderVersion++;
+        },
+        onCloseInfo: () => {
+          this.showInfo = false;
+          this.saveNavigationState();
+          this.renderVersion++;
+        },
         onCloseComments: () => {
           this.commentGalleryLink = createEmptyGalleryDetailLink();
           this.showComments = false;

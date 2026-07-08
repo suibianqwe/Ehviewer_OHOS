@@ -10,6 +10,7 @@ import {
   themePrimaryColor
 } from '../../shared/EhTheme';
 import { CategoryBadge, GalleryThumb } from '../GalleryCards';
+import { copyTextToClipboard } from './DetailInfo';
 @Component
 export struct DetailHeader {
   @Prop detail: GalleryDetail = createEmptyDetail();
@@ -32,6 +33,9 @@ export struct DetailHeader {
             .fontColor(themeOnPrimaryText())
             .maxLines(detailTitleMaxLines())
             .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .onClick(() => {
+              copyTextToClipboard(galleryDisplayTitle(this.detail), this.getUIContext());
+            })
           Text(this.detail.uploader === undefined || this.detail.uploader.length === 0 ? uiText('unknown uploader') :
             this.detail.uploader)
             .fontSize(12)

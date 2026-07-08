@@ -17,7 +17,7 @@ import {
 import { EhSubNavBar } from './NavigationComponents';
 import { CommentsScene } from './ReaderScenes';
 import { DetailHeader } from './detail/DetailHeader';
-import { DetailInfoBlock } from './detail/DetailInfo';
+import { DetailInfoBlock, GalleryInfoScene } from './detail/DetailInfo';
 import { DetailActions, RatingPanel } from './detail/DetailActions';
 import { DetailTags } from './detail/DetailTags';
 import { DetailPreviews, DetailPreviewJumpOverlay } from './detail/DetailPreviews';
@@ -26,6 +26,7 @@ import { DetailComments } from './detail/DetailComments';
 @Component
 export struct GalleryDetailOverlayScene {
   @Prop renderVersion: number = 0;
+  @Prop showInfo: boolean = false;
   @Prop showComments: boolean = false;
   @Prop detail: GalleryDetail = createEmptyDetail();
   @Prop isDetailLoaded: boolean = false;
@@ -41,6 +42,8 @@ export struct GalleryDetailOverlayScene {
   @Prop hathArchiveList: HathArchiveList = { formParamOr: '', options: [] };
   initialDetailScrollOffset: number = 0;
   onBack: () => void = () => {};
+  onShowInfo: () => void = () => {};
+  onCloseInfo: () => void = () => {};
   onCloseComments: () => void = () => {};
   onDownload: () => void = () => {};
   onRead: () => void = () => {};
@@ -67,9 +70,21 @@ export struct GalleryDetailOverlayScene {
   onVoteTag: (fullTag: string, vote: number) => void = (_fullTag: string, _vote: number) => {};
   onAddTag: (fullTag: string) => void = (_fullTag: string) => {};
   onShowTagDefinition: (fullTag: string) => void = (_fullTag: string) => {};
+  @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
+
+  private statusBarVp(): number {
+    return this.getUIContext().px2vp(this.statusBarHeightPx);
+  }
 
   build() {
-    if (this.showComments) {
+    if (this.showInfo) {
+      GalleryInfoScene({
+        detail: this.detail,
+        requestUrl: this.requestUrl,
+        statusBarHeight: this.statusBarVp(),
+        onBack: this.onCloseInfo
+      })
+    } else if (this.showComments) {
       CommentsScene({
         renderVersion: this.renderVersion,
         comments: this.detail.comments,
@@ -94,6 +109,8 @@ export struct GalleryDetailOverlayScene {
         archiverInfo: this.archiverInfo,
         hathArchiveList: this.hathArchiveList,
         onBack: this.onBack,
+        onShowInfo: this.onShowInfo,
+        onCloseInfo: this.onCloseInfo,
         onDownload: this.onDownload,
         onRead: this.onRead,
         onSelectPreview: this.onSelectPreview,
@@ -141,6 +158,8 @@ export struct GalleryDetailScene {
   @Prop archiverInfo: ArchiverInfo = { funds: '', options: [] };
   @Prop hathArchiveList: HathArchiveList = { formParamOr: '', options: [] };
   onBack: () => void = () => {};
+  onShowInfo: () => void = () => {};
+  onCloseInfo: () => void = () => {};
   onDownload: () => void = () => {};
   onRead: () => void = () => {};
   onSelectPreview: (preview: GalleryPreview) => void = () => {};
@@ -264,7 +283,12 @@ export struct GalleryDetailScene {
             }
             .reuseId('detail-header')
             ListItem() {
-              DetailInfoBlock({ detail: this.detail, requestUrl: this.requestUrl, isDetailLoaded: this.isDetailLoaded })
+              DetailInfoBlock({
+                detail: this.detail,
+                requestUrl: this.requestUrl,
+                isDetailLoaded: this.isDetailLoaded,
+                onMoreInfo: this.onShowInfo
+              })
             }
             .reuseId('detail-info')
             ListItem() {
