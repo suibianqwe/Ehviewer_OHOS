@@ -581,6 +581,9 @@ export function uiStatusText(text: string): string {
   if (text === 'Bookmark removed') {
     return '已删除书签';
   }
+  if (text === 'Bookmark updated') {
+    return '书签已更新';
+  }
   return uiText(text);
 }
 
@@ -600,16 +603,22 @@ export function zhText(text: string): string {
     case 'Homepage': return '主页';
     case 'Subscription': return '订阅';
     case 'What\'s Hot': return '热门';
+    case 'Whats Hot': return '热门';
     case 'Top Lists': return '排行';
     case 'Favourite': return '收藏';
     case 'Favorites': return '收藏';
     case 'All favorites': return '全部收藏';
     case 'Favorite folders': return '收藏夹';
     case 'Bookmarks': return '书签栏';
+    case 'Bookmark settings': return '书签设置';
     case 'Add bookmark': return '添加书签';
     case 'Bookmark name': return '书签名称';
     case 'No bookmarks': return '这里是书签栏';
     case 'Tap plus to bookmark the current gallery list': return '点击“+”添加当前画廊列表状态';
+    case 'All site': return '全站';
+    case 'Filter Off': return '过滤关闭';
+    case 'Move up': return '上移';
+    case 'Move down': return '下移';
     case 'Local Favorites': return '本地收藏';
     case 'Add to favorites': return '添加到收藏';
     case 'Remember favorite collection': return '记住收藏夹';

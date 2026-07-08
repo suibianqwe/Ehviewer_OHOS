@@ -1,6 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { preferences } from '@kit.ArkData';
-import { GalleryCategory } from '../model/GalleryModels';
+import { GalleryCategory, GalleryRoute } from '../model/GalleryModels';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from './EhUrl';
 
 const PREFERENCES_NAME: string = 'ehviewer_bookmarks';
@@ -16,6 +16,8 @@ export interface SearchBookmarkBackupInfo {
   minRating?: number;
   pageFrom?: number;
   pageTo?: number;
+  filterEnabled?: boolean;
+  location?: string;
   time?: number;
 }
 
@@ -29,6 +31,8 @@ export interface SearchBookmarkInfo {
   minRating: number;
   pageFrom: number;
   pageTo: number;
+  filterEnabled: boolean;
+  location: GalleryRoute;
   time: number;
 }
 
@@ -110,8 +114,63 @@ export class EhBookmarkStore {
     this.queueSave();
   }
 
+  renameBookmark(id: string, name: string): boolean {
+    const trimmed = name.trim();
+    if (trimmed.length === 0) {
+      return false;
+    }
+    const next = cloneBookmarks(this.items);
+    for (let i = 0; i < next.length; i++) {
+      if (next[i].id !== id && next[i].name === trimmed) {
+        return false;
+      }
+    }
+    let changed = false;
+    for (let i = 0; i < next.length; i++) {
+      if (next[i].id === id) {
+        next[i].name = trimmed;
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) {
+      return false;
+    }
+    this.items = next;
+    this.queueSave();
+    return true;
+  }
+
+  moveBookmark(id: string, delta: number): boolean {
+    const next = cloneBookmarks(this.items);
+    let index = -1;
+    for (let i = 0; i < next.length; i++) {
+      if (next[i].id === id) {
+        index = i;
+        break;
+      }
+    }
+    if (index < 0) {
+      return false;
+    }
+    const target = Math.max(0, Math.min(next.length - 1, index + delta));
+    if (target === index) {
+      return false;
+    }
+    const moving = next.splice(index, 1)[0];
+    next.splice(target, 0, moving);
+    const now = Date.now();
+    for (let i = 0; i < next.length; i++) {
+      next[i].time = now + i;
+    }
+    this.items = next;
+    this.queueSave();
+    return true;
+  }
+
   createBookmark(name: string, mode: ListMode, category: number, keyword: string, advanceSearch: number,
-    minRating: number, pageFrom: number, pageTo: number): SearchBookmarkInfo {
+    minRating: number, pageFrom: number, pageTo: number, filterEnabled: boolean = true,
+    location: GalleryRoute = GalleryRoute.Home): SearchBookmarkInfo {
     return {
       id: 'bookmark_' + Date.now().toString() + '_' + Math.floor(Math.random() * 100000).toString(),
       name: name,
@@ -122,6 +181,8 @@ export class EhBookmarkStore {
       minRating: minRating,
       pageFrom: pageFrom,
       pageTo: pageTo,
+      filterEnabled: filterEnabled,
+      location: normalizeBookmarkLocation(location),
       time: Date.now()
     };
   }
@@ -229,6 +290,9 @@ function backupToBookmark(stored: SearchBookmarkBackupInfo): SearchBookmarkInfo 
   const minRating = typeof stored.minRating === 'number' ? stored.minRating as number : -1;
   const pageFrom = typeof stored.pageFrom === 'number' ? stored.pageFrom as number : -1;
   const pageTo = typeof stored.pageTo === 'number' ? stored.pageTo as number : -1;
+  const filterEnabled = typeof stored.filterEnabled === 'boolean' ? stored.filterEnabled as boolean : true;
+  const location = normalizeBookmarkLocation(typeof stored.location === 'string' ? stored.location as string :
+    locationForMode(mode));
   const fallbackName = defaultBookmarkName(mode, category, keyword, advanceSearch, minRating, pageFrom, pageTo);
   const name = typeof stored.name === 'string' && stored.name.trim().length > 0 ? stored.name.trim() : fallbackName;
   return normalizeBookmark({
@@ -243,6 +307,8 @@ function backupToBookmark(stored: SearchBookmarkBackupInfo): SearchBookmarkInfo 
     minRating: minRating,
     pageFrom: pageFrom,
     pageTo: pageTo,
+    filterEnabled: filterEnabled,
+    location: location,
     time: typeof stored.time === 'number' ? stored.time as number : Date.now()
   });
 }
@@ -261,6 +327,8 @@ function normalizeBookmark(bookmark: SearchBookmarkInfo): SearchBookmarkInfo | n
     minRating: typeof bookmark.minRating === 'number' ? bookmark.minRating : -1,
     pageFrom: typeof bookmark.pageFrom === 'number' ? bookmark.pageFrom : -1,
     pageTo: typeof bookmark.pageTo === 'number' ? bookmark.pageTo : -1,
+    filterEnabled: bookmark.filterEnabled !== false,
+    location: normalizeBookmarkLocation(bookmark.location),
     time: typeof bookmark.time === 'number' ? bookmark.time : Date.now()
   };
 }
@@ -284,6 +352,8 @@ function bookmarkToBackup(item: SearchBookmarkInfo): SearchBookmarkBackupInfo {
     minRating: item.minRating,
     pageFrom: item.pageFrom,
     pageTo: item.pageTo,
+    filterEnabled: item.filterEnabled,
+    location: item.location,
     time: item.time
   };
 }
@@ -307,6 +377,8 @@ function cloneBookmark(item: SearchBookmarkInfo): SearchBookmarkInfo {
     minRating: item.minRating,
     pageFrom: item.pageFrom,
     pageTo: item.pageTo,
+    filterEnabled: item.filterEnabled,
+    location: item.location,
     time: item.time
   };
 }
@@ -323,7 +395,28 @@ function bookmarkListHasEquivalent(items: SearchBookmarkInfo[], bookmark: Search
 function bookmarksEquivalent(left: SearchBookmarkInfo, right: SearchBookmarkInfo): boolean {
   return left.mode === right.mode && left.category === right.category && left.keyword === right.keyword &&
     left.advanceSearch === right.advanceSearch && left.minRating === right.minRating &&
-    left.pageFrom === right.pageFrom && left.pageTo === right.pageTo;
+    left.pageFrom === right.pageFrom && left.pageTo === right.pageTo &&
+    left.filterEnabled === right.filterEnabled && left.location === right.location;
+}
+
+function normalizeBookmarkLocation(location: GalleryRoute | string): GalleryRoute {
+  if (location === GalleryRoute.Subscription || location === 'subscription') {
+    return GalleryRoute.Subscription;
+  }
+  if (location === GalleryRoute.WhatsHot || location === 'whats_hot') {
+    return GalleryRoute.WhatsHot;
+  }
+  return GalleryRoute.Home;
+}
+
+function locationForMode(mode: number): GalleryRoute {
+  if (mode === ListMode.Subscription) {
+    return GalleryRoute.Subscription;
+  }
+  if (mode === ListMode.WhatsHot) {
+    return GalleryRoute.WhatsHot;
+  }
+  return GalleryRoute.Home;
 }
 
 function uniqueBookmarkName(name: string, existing: SearchBookmarkInfo[]): string {

@@ -572,8 +572,18 @@ function bookmarkModeLabel(mode: ListMode): string {
   return 'Search';
 }
 
+function bookmarkLocationLabel(route: GalleryRoute): string {
+  if (route === GalleryRoute.Subscription) {
+    return 'Subscription';
+  }
+  if (route === GalleryRoute.WhatsHot) {
+    return 'Whats Hot';
+  }
+  return 'All site';
+}
+
 function bookmarkSummary(item: SearchBookmarkInfo): string {
-  const parts: string[] = [uiText(bookmarkModeLabel(item.mode))];
+  const parts: string[] = [uiText(bookmarkLocationLabel(item.location)), uiText(bookmarkModeLabel(item.mode))];
   if (item.keyword.length > 0) {
     parts.push(item.keyword);
   }
@@ -582,6 +592,9 @@ function bookmarkSummary(item: SearchBookmarkInfo): string {
   }
   if (item.advanceSearch !== -1 || item.minRating !== -1 || item.pageFrom !== -1 || item.pageTo !== -1) {
     parts.push(uiText('Advanced'));
+  }
+  if (!item.filterEnabled) {
+    parts.push(uiText('Filter Off'));
   }
   return parts.join(' · ');
 }
@@ -593,6 +606,7 @@ struct SearchBookmarkDrawer {
   onSelect: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
   onAdd: () => void = () => {};
   onDelete: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
+  onSettings: () => void = () => {};
   onClose: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
@@ -611,6 +625,19 @@ struct SearchBookmarkDrawer {
           .layoutWeight(1)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r('sys.symbol.gearshape'))
+            .fontSize(20)
+            .fontColor([themeOnPrimaryText()])
+        }
+        .width(40)
+        .height(40)
+        .backgroundColor(themeOnPrimaryActionBackground())
+        .margin({ right: 6 })
+        .onClick(() => {
+          this.onSettings();
+        })
 
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.plus'))
@@ -703,6 +730,8 @@ struct SearchBookmarkDrawerRow {
     minRating: -1,
     pageFrom: -1,
     pageTo: -1,
+    filterEnabled: true,
+    location: GalleryRoute.Home,
     time: 0
   };
   onTap: () => void = () => {};
@@ -763,6 +792,233 @@ struct SearchBookmarkDrawerRow {
     .padding({ left: 14, right: 12 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor(themeTransparentColor())
+  }
+}
+
+@Component
+struct SearchBookmarkManagerScene {
+  @Prop bookmarks: SearchBookmarkInfo[] = [];
+  @Prop statusBarHeight: number = 0;
+  onBack: () => void = () => {};
+  onRename: (bookmark: SearchBookmarkInfo, name: string) => void = (_bookmark: SearchBookmarkInfo, _name: string) => {};
+  onMove: (bookmark: SearchBookmarkInfo, delta: number) => void = (_bookmark: SearchBookmarkInfo, _delta: number) => {};
+  onDelete: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+
+  build() {
+    Column() {
+      Column()
+        .width('100%')
+        .height(this.statusBarHeight)
+        .backgroundColor(themePrimaryColor())
+
+      Row() {
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r('sys.symbol.chevron_left'))
+            .fontSize(22)
+            .fontColor([themeOnPrimaryText()])
+        }
+        .width(40)
+        .height(40)
+        .backgroundColor(themeOnPrimaryActionBackground())
+        .onClick(() => {
+          this.onBack();
+        })
+
+        Text(uiText('Bookmark settings'))
+          .fontSize(19)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(themeOnPrimaryText())
+          .layoutWeight(1)
+          .margin({ left: 12 })
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 12, right: 12 })
+      .backgroundColor(themePrimaryColor())
+      .alignItems(VerticalAlign.Center)
+
+      if (this.bookmarks.length === 0) {
+        Column({ space: 8 }) {
+          SymbolGlyph($r('sys.symbol.bookmark'))
+            .fontSize(34)
+            .fontColor([themeTertiaryText()])
+          Text(uiText('No bookmarks'))
+            .fontSize(16)
+            .fontColor(themeSecondaryText())
+        }
+        .width('100%')
+        .height('100%')
+        .layoutWeight(1)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
+      } else {
+        List() {
+          ForEach(this.bookmarks, (item: SearchBookmarkInfo, index: number) => {
+            ListItem() {
+              SearchBookmarkManagerRow({
+                item: item,
+                index: index,
+                total: this.bookmarks.length,
+                onRename: (bookmark: SearchBookmarkInfo, name: string) => {
+                  this.onRename(bookmark, name);
+                },
+                onMove: (bookmark: SearchBookmarkInfo, delta: number) => {
+                  this.onMove(bookmark, delta);
+                },
+                onDelete: (bookmark: SearchBookmarkInfo) => {
+                  this.onDelete(bookmark);
+                }
+              })
+            }
+            .reuseId('search-bookmark-manager-row')
+          }, (item: SearchBookmarkInfo, index: number) => item.id + ':' + item.name + ':' + index.toString())
+        }
+        .width('100%')
+        .layoutWeight(1)
+        .padding({ top: 8, bottom: 12 })
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor(themePageBackground())
+  }
+}
+
+@Component
+struct SearchBookmarkManagerRow {
+  @Prop @Watch('onItemChanged') item: SearchBookmarkInfo = {
+    id: '',
+    name: '',
+    mode: ListMode.Normal,
+    category: GalleryCategory.None,
+    keyword: '',
+    advanceSearch: -1,
+    minRating: -1,
+    pageFrom: -1,
+    pageTo: -1,
+    filterEnabled: true,
+    location: GalleryRoute.Home,
+    time: 0
+  };
+  @Prop index: number = 0;
+  @Prop total: number = 0;
+  onRename: (bookmark: SearchBookmarkInfo, name: string) => void = (_bookmark: SearchBookmarkInfo, _name: string) => {};
+  onMove: (bookmark: SearchBookmarkInfo, delta: number) => void = (_bookmark: SearchBookmarkInfo, _delta: number) => {};
+  onDelete: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
+  @State draftName: string = '';
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+
+  aboutToAppear(): void {
+    this.draftName = this.item.name;
+  }
+
+  onItemChanged(): void {
+    this.draftName = this.item.name;
+  }
+
+  build() {
+    Column({ space: 8 }) {
+      Row({ space: 8 }) {
+        TextInput({ text: this.draftName, placeholder: uiText('Bookmark name') })
+          .height(38)
+          .layoutWeight(1)
+          .fontSize(14)
+          .fontColor(themePrimaryText())
+          .backgroundColor(themeFieldBackground())
+          .borderRadius(6)
+          .padding({ left: 10, right: 10 })
+          .onChange((value: string) => {
+            this.draftName = value;
+          })
+          .onSubmit(() => {
+            this.onRename(this.item, this.draftName);
+          })
+
+        Button(uiText('Save'))
+          .height(38)
+          .width(64)
+          .fontSize(13)
+          .fontColor(themeOnPrimaryText())
+          .backgroundColor(themePrimaryColor())
+          .borderRadius(19)
+          .onClick(() => {
+            this.onRename(this.item, this.draftName);
+          })
+      }
+      .width('100%')
+
+      Text(bookmarkSummary(this.item))
+        .fontSize(12)
+        .fontColor(themeSecondaryText())
+        .maxLines(2)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .width('100%')
+
+      Row({ space: 8 }) {
+        Button({ type: ButtonType.Normal, stateEffect: true }) {
+          Row() {
+            SymbolGlyph($r('sys.symbol.arrow_up_circle'))
+              .fontSize(18)
+              .fontColor([this.index > 0 ? themePrimaryColor() : themeTertiaryText()])
+            Text(uiText('Move up'))
+              .fontSize(13)
+              .fontColor(this.index > 0 ? themePrimaryText() : themeTertiaryText())
+              .margin({ left: 6 })
+          }
+          .justifyContent(FlexAlign.Center)
+          .width('100%')
+        }
+        .height(36)
+        .layoutWeight(1)
+        .enabled(this.index > 0)
+        .backgroundColor(themeSurfaceVariant())
+        .borderRadius(18)
+        .onClick(() => {
+          this.onMove(this.item, -1);
+        })
+
+        Button({ type: ButtonType.Normal, stateEffect: true }) {
+          Row() {
+            SymbolGlyph($r('sys.symbol.arrow_down_circle'))
+              .fontSize(18)
+              .fontColor([this.index + 1 < this.total ? themePrimaryColor() : themeTertiaryText()])
+            Text(uiText('Move down'))
+              .fontSize(13)
+              .fontColor(this.index + 1 < this.total ? themePrimaryText() : themeTertiaryText())
+              .margin({ left: 6 })
+          }
+          .justifyContent(FlexAlign.Center)
+          .width('100%')
+        }
+        .height(36)
+        .layoutWeight(1)
+        .enabled(this.index + 1 < this.total)
+        .backgroundColor(themeSurfaceVariant())
+        .borderRadius(18)
+        .onClick(() => {
+          this.onMove(this.item, 1);
+        })
+
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r('sys.symbol.trash'))
+            .fontSize(18)
+            .fontColor([themeDangerText()])
+        }
+        .width(38)
+        .height(38)
+        .backgroundColor(themeSurfaceVariant())
+        .onClick(() => {
+          this.onDelete(this.item);
+        })
+      }
+      .width('100%')
+    }
+    .width('100%')
+    .padding(12)
+    .margin({ left: 10, right: 10, bottom: 8 })
+    .backgroundColor(themeSurface())
+    .borderRadius(8)
   }
 }
 
@@ -860,6 +1116,7 @@ export struct GalleryListScene {
   @State cardActionGallery: GalleryInfo = createEmptyGallery();
   @State searchBookmarks: SearchBookmarkInfo[] = [];
   @State addBookmarkDialogVisible: boolean = false;
+  @State showBookmarkManager: boolean = false;
   @State addBookmarkName: string = '';
   @State addBookmarkDraft: SearchBookmarkInfo = {
     id: '',
@@ -871,6 +1128,8 @@ export struct GalleryListScene {
     minRating: -1,
     pageFrom: -1,
     pageTo: -1,
+    filterEnabled: true,
+    location: GalleryRoute.Home,
     time: 0
   };
   @State renderVersion: number = 0;
@@ -1134,6 +1393,10 @@ export struct GalleryListScene {
       this.closeCardActions();
       return true;
     }
+    if (this.showBookmarkManager) {
+      this.closeBookmarkManager();
+      return true;
+    }
     if (this.showReader) {
       this.closeReader();
       return true;
@@ -1174,6 +1437,8 @@ export struct GalleryListScene {
     this.detailScrollOffset = 0;
     this.cardActionVisible = false;
     this.cardActionGallery = createEmptyGallery();
+    this.showBookmarkManager = false;
+    this.addBookmarkDialogVisible = false;
     this.showSearchResultScene = false;
     this.searchResultDraft = createEmptySearchResultDraft();
     this.localSearchBarVisible = false;
@@ -1699,7 +1964,33 @@ export struct GalleryListScene {
   }
 
   private canUseBookmarks(): boolean {
-    return !this.useLocalProvider;
+    return !this.useLocalProvider && this.sourceRoute !== GalleryRoute.Favorites &&
+      (this.sourceRoute === GalleryRoute.Home || this.sourceRoute === GalleryRoute.Subscription ||
+        this.sourceRoute === GalleryRoute.WhatsHot);
+  }
+
+  private currentBookmarkLocation(): GalleryRoute {
+    if (this.sourceRoute === GalleryRoute.Subscription) {
+      return GalleryRoute.Subscription;
+    }
+    if (this.sourceRoute === GalleryRoute.WhatsHot) {
+      return GalleryRoute.WhatsHot;
+    }
+    return GalleryRoute.Home;
+  }
+
+  private currentBookmarkMode(): ListMode {
+    const requestKeyword = searchKeywordForRequest(this.keyword);
+    const hasSearchTags = searchTagTokens(this.keyword).length > 0;
+    if (hasSearchTags) {
+      return ListMode.Normal;
+    }
+    const routeMode = this.useForcedMode ? this.forcedMode : listModeForRoute(this.currentBookmarkLocation());
+    return this.searchModeForRoute(routeMode, requestKeyword);
+  }
+
+  private currentBookmarkFilterEnabled(): boolean {
+    return this.isSearchResultScene ? this.searchFilterEnabled : this.accountFilterEnabled;
   }
 
   private openAddBookmarkDialog(): void {
@@ -1710,10 +2001,12 @@ export struct GalleryListScene {
       this.statusText = 'Cannot bookmark image search';
       return;
     }
-    const name = defaultBookmarkName(this.searchMode, this.searchCategory, this.keyword, this.advancedSearchEnabled ?
+    const bookmarkMode = this.currentBookmarkMode();
+    const name = defaultBookmarkName(bookmarkMode, this.searchCategory, this.keyword, this.advancedSearchEnabled ?
       this.advanceSearch : -1, this.minRating, this.pageFrom, this.pageTo);
-    const draft = ehBookmarkStore.createBookmark(name, this.searchMode, this.searchCategory, this.keyword,
-      this.advancedSearchEnabled ? this.advanceSearch : -1, this.minRating, this.pageFrom, this.pageTo);
+    const draft = ehBookmarkStore.createBookmark(name, bookmarkMode, this.searchCategory, this.keyword,
+      this.advancedSearchEnabled ? this.advanceSearch : -1, this.minRating, this.pageFrom, this.pageTo,
+      this.currentBookmarkFilterEnabled(), this.currentBookmarkLocation());
     if (ehBookmarkStore.hasEquivalent(draft)) {
       this.statusText = 'Duplicate bookmark';
       return;
@@ -1735,7 +2028,8 @@ export struct GalleryListScene {
     }
     const bookmark = ehBookmarkStore.createBookmark(name, this.addBookmarkDraft.mode, this.addBookmarkDraft.category,
       this.addBookmarkDraft.keyword, this.addBookmarkDraft.advanceSearch, this.addBookmarkDraft.minRating,
-      this.addBookmarkDraft.pageFrom, this.addBookmarkDraft.pageTo);
+      this.addBookmarkDraft.pageFrom, this.addBookmarkDraft.pageTo, this.addBookmarkDraft.filterEnabled,
+      this.addBookmarkDraft.location);
     if (!ehBookmarkStore.addBookmark(bookmark)) {
       this.statusText = 'Duplicate bookmark';
       return;
@@ -1751,6 +2045,31 @@ export struct GalleryListScene {
     this.statusText = 'Bookmark removed';
   }
 
+  private openBookmarkManager(): void {
+    this.refreshSearchBookmarks();
+    this.showBookmarkManager = true;
+  }
+
+  private closeBookmarkManager(): void {
+    this.showBookmarkManager = false;
+  }
+
+  private renameSearchBookmark(bookmark: SearchBookmarkInfo, name: string): void {
+    if (!ehBookmarkStore.renameBookmark(bookmark.id, name)) {
+      this.statusText = name.trim().length === 0 ? 'Bookmark name is empty' : 'Duplicate bookmark name';
+      return;
+    }
+    this.refreshSearchBookmarks();
+    this.statusText = 'Bookmark updated';
+  }
+
+  private moveSearchBookmark(bookmark: SearchBookmarkInfo, delta: number): void {
+    if (ehBookmarkStore.moveBookmark(bookmark.id, delta)) {
+      this.refreshSearchBookmarks();
+      this.statusText = 'Bookmark updated';
+    }
+  }
+
   private openSearchBookmark(bookmark: SearchBookmarkInfo): void {
     const draft: SearchResultDraft = {
       keyword: bookmark.keyword,
@@ -1763,10 +2082,10 @@ export struct GalleryListScene {
       pageFrom: bookmark.pageFrom,
       pageTo: bookmark.pageTo,
       filterActive: false,
-      searchFilterEnabled: true,
+      searchFilterEnabled: bookmark.filterEnabled,
       searchAdvancedPanelOpened: bookmark.advanceSearch !== -1 || bookmark.minRating !== -1,
       submitted: true,
-      sourceRoute: GalleryRoute.Home,
+      sourceRoute: bookmark.location,
       imagePath: '',
       imageUseSimilarityScan: false,
       imageOnlySearchCovers: false,
@@ -1789,6 +2108,7 @@ export struct GalleryListScene {
     this.minRating = draft.minRating;
     this.pageFrom = draft.pageFrom;
     this.pageTo = draft.pageTo;
+    this.searchFilterEnabled = draft.searchFilterEnabled;
     this.searchAdvancedPanelOpened = draft.searchAdvancedPanelOpened;
     this.searchSubmitted = true;
     this.hasFirstRefresh = true;
@@ -2300,6 +2620,9 @@ export struct GalleryListScene {
             onBookmarkDrawerOpen: () => {
               this.refreshSearchBookmarks();
             },
+            onBookmarkSettings: () => {
+              this.openBookmarkManager();
+            },
             onAddBookmark: () => {
               this.openAddBookmarkDialog();
             },
@@ -2444,6 +2767,31 @@ export struct GalleryListScene {
               updateGalleryListScrollCache(this.cacheKey(), this.listScrollOffset);
             }
           })
+
+          if (this.showBookmarkManager) {
+            SearchBookmarkManagerScene({
+              bookmarks: this.searchBookmarks,
+              statusBarHeight: 0,
+              onBack: () => {
+                this.closeBookmarkManager();
+              },
+              onRename: (bookmark: SearchBookmarkInfo, name: string) => {
+                this.renameSearchBookmark(bookmark, name);
+              },
+              onMove: (bookmark: SearchBookmarkInfo, delta: number) => {
+                this.moveSearchBookmark(bookmark, delta);
+              },
+              onDelete: (bookmark: SearchBookmarkInfo) => {
+                this.removeSearchBookmark(bookmark);
+              }
+            })
+              .width('100%')
+              .height('100%')
+              .transition(TransitionEffect.asymmetric(
+                TransitionEffect.move(TransitionEdge.END).animation({ duration: 260, curve: Curve.EaseOut }),
+                TransitionEffect.move(TransitionEdge.END).animation({ duration: 220, curve: Curve.EaseIn })))
+              .zIndex(29)
+          }
 
           if (this.addBookmarkDialogVisible) {
             Column()
@@ -2976,6 +3324,8 @@ export struct GalleryListContent {
   onFavoriteDrawerOpen: () => void = () => {
   };
   onBookmarkDrawerOpen: () => void = () => {
+  };
+  onBookmarkSettings: () => void = () => {
   };
   onAddBookmark: () => void = () => {
   };
@@ -3717,9 +4067,6 @@ export struct GalleryListContent {
           SymbolGlyph($r('sys.symbol.clock'))
             .fontSize(28)
             .fontColor([themePlaceholderColor()])
-          Text(uiText('Search history'))
-            .fontSize(15)
-            .fontColor(themeSecondaryText())
           Text(uiText('Search history appears before typing; tag tips appear while typing'))
             .fontSize(12)
             .fontColor(themeTertiaryText())
@@ -3919,6 +4266,12 @@ export struct GalleryListContent {
           .onClick(() => {
             this.closeFavoriteDrawer();
           })
+          .gesture(
+            PanGesture({ fingers: 1, direction: PanDirection.Right, distance: 28 })
+              .onActionEnd(() => {
+                this.closeFavoriteDrawer();
+              })
+          )
           .zIndex(15)
 
         FavoriteCategoryDrawer({
@@ -3933,11 +4286,17 @@ export struct GalleryListContent {
           onClose: () => {
             this.closeFavoriteDrawer();
           }
-        })
+          })
           .position({ x: this.favoriteDrawerLeft(), y: 0 })
           .translate({ x: this.favoriteDrawerOffsetX })
           .zIndex(16)
           .shadow({ radius: 32, color: themeShadowColor(), offsetX: -8, offsetY: 0 })
+          .gesture(
+            PanGesture({ fingers: 1, direction: PanDirection.Right, distance: 28 })
+              .onActionEnd(() => {
+                this.closeFavoriteDrawer();
+              })
+          )
       }
 
       if (this.bookmarkDrawerVisible) {
@@ -3949,6 +4308,12 @@ export struct GalleryListContent {
           .onClick(() => {
             this.closeBookmarkDrawer();
           })
+          .gesture(
+            PanGesture({ fingers: 1, direction: PanDirection.Right, distance: 28 })
+              .onActionEnd(() => {
+                this.closeBookmarkDrawer();
+              })
+          )
           .zIndex(17)
 
         SearchBookmarkDrawer({
@@ -3962,6 +4327,10 @@ export struct GalleryListContent {
             this.closeBookmarkDrawer();
             this.onAddBookmark();
           },
+          onSettings: () => {
+            this.closeBookmarkDrawer();
+            this.onBookmarkSettings();
+          },
           onDelete: (bookmark: SearchBookmarkInfo) => {
             this.onDeleteBookmark(bookmark);
           },
@@ -3973,6 +4342,12 @@ export struct GalleryListContent {
           .translate({ x: this.bookmarkDrawerOffsetX })
           .zIndex(18)
           .shadow({ radius: 32, color: themeShadowColor(), offsetX: -8, offsetY: 0 })
+          .gesture(
+            PanGesture({ fingers: 1, direction: PanDirection.Right, distance: 28 })
+              .onActionEnd(() => {
+                this.closeBookmarkDrawer();
+              })
+          )
       }
 
       // FAB 悬浮按钮

@@ -221,7 +221,7 @@ export function buildSearchSuggestions(keyword: string, limit: number = 0,
       next.push({
         kind: 'history',
         title: history,
-        subtitle: 'Search history',
+        subtitle: '',
         query: history
       });
     }
@@ -322,8 +322,18 @@ export struct SearchSuggestionList {
   }
 
   private columnCount(): number {
+    const historyCards = this.suggestions.length > 0 && this.suggestions[0].kind === 'history';
     if (this.contentWidth <= 0) {
       return 1;
+    }
+    if (historyCards) {
+      if (this.contentWidth < 760) {
+        return 1;
+      }
+      if (this.contentWidth < 1180) {
+        return 2;
+      }
+      return 3;
     }
     if (this.contentWidth < 320) {
       return 1;
