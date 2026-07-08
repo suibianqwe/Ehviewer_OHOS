@@ -891,6 +891,7 @@ struct SearchBookmarkManagerScene {
         .height('100%')
         .layoutWeight(1)
         .padding({ left: 10, right: 10 })
+        .clip(false)
       }
     }
     .width('100%')
@@ -4412,6 +4413,7 @@ export struct GalleryListContent {
           canJump: this.canJump,
           canRandom: this.canRandom,
           canImageSearch: !this.useLocalSearchBar,
+          canBookmark: this.showBookmarkButton,
           onToggle: this.onToggleActions,
           onFilter: this.onFilter,
           onJump: () => {
@@ -4421,6 +4423,9 @@ export struct GalleryListContent {
           onRandom: this.onRandom,
           onImageSearch: () => {
             this.openImageSearchPanel();
+          },
+          onBookmark: () => {
+            this.onAddBookmark();
           }
         })
       }

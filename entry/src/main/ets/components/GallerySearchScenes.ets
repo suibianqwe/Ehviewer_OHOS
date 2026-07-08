@@ -812,12 +812,14 @@ export struct QuickActionColumn {
   @Prop canJump: boolean = false;
   @Prop canRandom: boolean = false;
   @Prop canImageSearch: boolean = false;
+  @Prop canBookmark: boolean = false;
   onToggle: () => void = () => {};
   onFilter: () => void = () => {};
   onJump: () => void = () => {};
   onRefresh: () => void = () => {};
   onRandom: () => void = () => {};
   onImageSearch: () => void = () => {};
+  onBookmark: () => void = () => {};
   @State activeActionIndex: number = -1;
 
   private toggleExpanded(): void {
@@ -830,7 +832,7 @@ export struct QuickActionColumn {
     if (!this.expanded) {
       return 0;
     }
-    return this.canImageSearch ? 5 : 4;
+    return this.randomActionIndex() + 1;
   }
 
   private primaryIndex(): number {
@@ -843,6 +845,18 @@ export struct QuickActionColumn {
       return 0;
     }
     return count * ACTION_BUBBLE_SIZE + (count - 1) * ACTION_BUBBLE_GAP;
+  }
+
+  private bookmarkActionIndex(): number {
+    return this.canBookmark ? 3 : -1;
+  }
+
+  private imageSearchActionIndex(): number {
+    return this.canImageSearch ? 3 + (this.canBookmark ? 1 : 0) : -1;
+  }
+
+  private randomActionIndex(): number {
+    return 3 + (this.canBookmark ? 1 : 0) + (this.canImageSearch ? 1 : 0);
   }
 
   private hitActionIndex(y: number): number {
@@ -901,9 +915,11 @@ export struct QuickActionColumn {
       this.onJump();
     } else if (index === 2) {
       this.onRefresh();
-    } else if (index === 3 && this.canImageSearch) {
+    } else if (index === this.bookmarkActionIndex()) {
+      this.onBookmark();
+    } else if (index === this.imageSearchActionIndex()) {
       this.onImageSearch();
-    } else if (index === (this.canImageSearch ? 4 : 3) && this.canRandom) {
+    } else if (index === this.randomActionIndex() && this.canRandom) {
       this.onRandom();
     }
   }
@@ -947,12 +963,21 @@ export struct QuickActionColumn {
             active: this.activeActionIndex === 2,
             directTap: false
           })
+          if (this.canBookmark) {
+            ActionBubble({
+              label: uiText('Add bookmark'),
+              symbolIcon: $r('sys.symbol.bookmark'),
+              isEnabled: true,
+              active: this.activeActionIndex === this.bookmarkActionIndex(),
+              directTap: false
+            })
+          }
           if (this.canImageSearch) {
             ActionBubble({
               label: uiText('Image search'),
               symbolIcon: $r('sys.symbol.magnifyingglass'),
               isEnabled: true,
-              active: this.activeActionIndex === 3,
+              active: this.activeActionIndex === this.imageSearchActionIndex(),
               directTap: false
             })
           }
@@ -960,7 +985,7 @@ export struct QuickActionColumn {
             label: uiText('Random'),
             symbolIcon: $r('sys.symbol.play_fill'),
             isEnabled: this.canRandom,
-            active: this.activeActionIndex === (this.canImageSearch ? 4 : 3),
+            active: this.activeActionIndex === this.randomActionIndex(),
             directTap: false
           })
         }
