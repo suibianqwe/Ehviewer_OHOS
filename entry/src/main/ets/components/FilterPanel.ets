@@ -6,7 +6,8 @@ import {
   FILTER_MODE_TITLE,
   FILTER_MODE_UPLOADER
 } from '../services/EhFilterStore';
-import { uiText } from '../shared/EhShared';
+import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
+import { shouldUseChineseUi, uiText } from '../shared/EhShared';
 import {
   themeDangerText,
   themeDividerColor,
@@ -140,6 +141,20 @@ export struct FilterPanel {
       }
     }
     return 1;
+  }
+
+  private ruleDisplayText(rule: FilterRule): string {
+    if (rule.mode === FILTER_MODE_RATING) {
+      const value = Number.parseInt(rule.text);
+      if (!Number.isNaN(value) && value > 1) {
+        return shouldUseChineseUi() ? value.toString() + '星以下' : 'Below ' + value.toString() + ' stars';
+      }
+      return rule.text;
+    }
+    if (rule.mode === FILTER_MODE_TAG || rule.mode === FILTER_MODE_TAG_NAMESPACE) {
+      return formatTagRuleText(rule.text);
+    }
+    return rule.text;
   }
 
   private updateDraftText(value: string): void {
@@ -324,6 +339,7 @@ export struct FilterPanel {
           FilterRuleCard({
             rule: rule,
             modeLabel: this.filterModeName(rule.mode),
+            displayText: this.ruleDisplayText(rule),
             onToggle: () => {
               this.onToggle(rule.id);
             },
@@ -344,13 +360,19 @@ export struct FilterPanel {
         onBack: this.onBack
       })
 
+      Column() {
+        this.editorCard()
+      }
+      .width('100%')
+      .padding({ left: 14, right: 14, top: 14, bottom: 10 })
+      .backgroundColor(themePageBackground())
+
       Scroll() {
-        Column({ space: 14 }) {
-          this.editorCard()
+        Column() {
           this.rulesContent()
         }
         .width('100%')
-        .padding({ left: 14, right: 14, top: 14, bottom: 24 })
+        .padding({ left: 14, right: 14, top: 4, bottom: 24 })
       }
       .layoutWeight(1)
       .width('100%')
@@ -387,13 +409,14 @@ struct FilterModeTab {
 struct FilterRuleCard {
   @Prop rule: FilterRule = { id: 0, mode: FILTER_MODE_TITLE, text: '', enabled: true };
   @Prop modeLabel: string = '';
+  @Prop displayText: string = '';
   onToggle: () => void = () => {};
   onRemove: () => void = () => {};
 
   build() {
     Row({ space: 10 }) {
       Column({ space: 5 }) {
-        Text(this.rule.text)
+        Text(this.displayText.length > 0 ? this.displayText : this.rule.text)
           .fontSize(15)
           .fontWeight(this.rule.enabled ? FontWeight.Medium : FontWeight.Normal)
           .fontColor(this.rule.enabled ? themePrimaryText() : themeMutedText())
@@ -505,4 +528,37 @@ function activeFilterTagText(text: string): string {
   const trimmed = text.trim();
   const colon = trimmed.indexOf(':');
   return colon < 0 ? trimmed : trimmed.substring(colon + 1).trim();
+}
+
+function formatTagRuleText(text: string): string {
+  const original = text.trim();
+  if (original.length === 0 || !shouldUseChineseUi()) {
+    return original;
+  }
+  const parts = splitFilterTagText(original);
+  const translated = ehTagTranslationStore.translate(parts.namespace, parts.tag);
+  const fallback = translated.length > 0 ? translated : ehTagTranslationStore.translate('', parts.tag);
+  if (fallback.length === 0) {
+    return original;
+  }
+  return fallback + ' (' + original + ')';
+}
+
+interface FilterTagParts {
+  namespace: string;
+  tag: string;
+}
+
+function splitFilterTagText(text: string): FilterTagParts {
+  const colon = text.indexOf(':');
+  if (colon > 0 && colon < text.length - 1) {
+    return {
+      namespace: text.substring(0, colon).trim(),
+      tag: text.substring(colon + 1).trim()
+    };
+  }
+  return {
+    namespace: '',
+    tag: text.trim()
+  };
 }
