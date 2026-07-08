@@ -141,24 +141,17 @@ export class EhBookmarkStore {
     return true;
   }
 
-  moveBookmark(id: string, delta: number): boolean {
+  moveBookmarkToIndex(from: number, to: number): boolean {
     const next = cloneBookmarks(this.items);
-    let index = -1;
-    for (let i = 0; i < next.length; i++) {
-      if (next[i].id === id) {
-        index = i;
-        break;
-      }
-    }
-    if (index < 0) {
+    if (from < 0 || from >= next.length || to < 0 || to >= next.length || from === to) {
       return false;
     }
-    const target = Math.max(0, Math.min(next.length - 1, index + delta));
-    if (target === index) {
+    const removed = next.splice(from, 1);
+    if (removed.length === 0) {
       return false;
     }
-    const moving = next.splice(index, 1)[0];
-    next.splice(target, 0, moving);
+    const moving = removed[0];
+    next.splice(to, 0, moving);
     const now = Date.now();
     for (let i = 0; i < next.length; i++) {
       next[i].time = now + i;

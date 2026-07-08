@@ -4,7 +4,7 @@ import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { systemShare } from '@kit.ShareKit';
 import { KeyCode } from '@ohos.multimodalInput.keyCode';
 import { ALL_CATEGORY, GalleryCategory, GalleryDetail, GalleryInfo, GalleryRoute, GallerySite } from '../model/GalleryModels';
-import { SearchBookmarkInfo, defaultBookmarkName, ehBookmarkStore } from '../services/EhBookmarkStore';
+import { SearchBookmarkInfo, ehBookmarkStore } from '../services/EhBookmarkStore';
 import { ehCookieStore } from '../services/EhCookieStore';
 import {
   EhHttpClient,
@@ -15,6 +15,7 @@ import { ehFilterStore } from '../services/EhFilterStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
+import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { DetailSearchRequest } from '../services/GalleryDetailActionSupport';
 import {
   createGalleryDetailLink,
@@ -97,6 +98,7 @@ import {
   effectiveListSite,
   galleryListFailureMessage,
   galleryListMode,
+  categoryName,
   galleryDisplayTitle,
   galleryThumbWidth,
   galleryThumbHeight,
@@ -801,7 +803,7 @@ struct SearchBookmarkManagerScene {
   @Prop statusBarHeight: number = 0;
   onBack: () => void = () => {};
   onRename: (bookmark: SearchBookmarkInfo, name: string) => void = (_bookmark: SearchBookmarkInfo, _name: string) => {};
-  onMove: (bookmark: SearchBookmarkInfo, delta: number) => void = (_bookmark: SearchBookmarkInfo, _delta: number) => {};
+  onMoveIndex: (from: number, to: number) => void = (_from: number, _to: number) => {};
   onDelete: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
@@ -863,9 +865,6 @@ struct SearchBookmarkManagerScene {
                 onRename: (bookmark: SearchBookmarkInfo, name: string) => {
                   this.onRename(bookmark, name);
                 },
-                onMove: (bookmark: SearchBookmarkInfo, delta: number) => {
-                  this.onMove(bookmark, delta);
-                },
                 onDelete: (bookmark: SearchBookmarkInfo) => {
                   this.onDelete(bookmark);
                 }
@@ -873,10 +872,13 @@ struct SearchBookmarkManagerScene {
             }
             .reuseId('search-bookmark-manager-row')
           }, (item: SearchBookmarkInfo, index: number) => item.id + ':' + item.name + ':' + index.toString())
+            .onMove((from: number, to: number) => {
+              this.onMoveIndex(from, to);
+            })
         }
         .width('100%')
         .layoutWeight(1)
-        .padding({ top: 8, bottom: 12 })
+        .padding({ left: 10, right: 10, top: 8, bottom: 12 })
       }
     }
     .width('100%')
@@ -904,7 +906,6 @@ struct SearchBookmarkManagerRow {
   @Prop index: number = 0;
   @Prop total: number = 0;
   onRename: (bookmark: SearchBookmarkInfo, name: string) => void = (_bookmark: SearchBookmarkInfo, _name: string) => {};
-  onMove: (bookmark: SearchBookmarkInfo, delta: number) => void = (_bookmark: SearchBookmarkInfo, _delta: number) => {};
   onDelete: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
   @State draftName: string = '';
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
@@ -918,8 +919,20 @@ struct SearchBookmarkManagerRow {
   }
 
   build() {
-    Column({ space: 8 }) {
+    Column({ space: 6 }) {
       Row({ space: 8 }) {
+        Column() {
+          Text('≡')
+            .fontSize(22)
+            .fontColor(themeSecondaryText())
+        }
+        .width(36)
+        .height(38)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
+        .backgroundColor(themeSurfaceVariant())
+        .borderRadius(19)
+
         TextInput({ text: this.draftName, placeholder: uiText('Bookmark name') })
           .height(38)
           .layoutWeight(1)
@@ -930,75 +943,11 @@ struct SearchBookmarkManagerRow {
           .padding({ left: 10, right: 10 })
           .onChange((value: string) => {
             this.draftName = value;
+            this.onRename(this.item, value);
           })
           .onSubmit(() => {
             this.onRename(this.item, this.draftName);
           })
-
-        Button(uiText('Save'))
-          .height(38)
-          .width(64)
-          .fontSize(13)
-          .fontColor(themeOnPrimaryText())
-          .backgroundColor(themePrimaryColor())
-          .borderRadius(19)
-          .onClick(() => {
-            this.onRename(this.item, this.draftName);
-          })
-      }
-      .width('100%')
-
-      Text(bookmarkSummary(this.item))
-        .fontSize(12)
-        .fontColor(themeSecondaryText())
-        .maxLines(2)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .width('100%')
-
-      Row({ space: 8 }) {
-        Button({ type: ButtonType.Normal, stateEffect: true }) {
-          Row() {
-            SymbolGlyph($r('sys.symbol.arrow_up_circle'))
-              .fontSize(18)
-              .fontColor([this.index > 0 ? themePrimaryColor() : themeTertiaryText()])
-            Text(uiText('Move up'))
-              .fontSize(13)
-              .fontColor(this.index > 0 ? themePrimaryText() : themeTertiaryText())
-              .margin({ left: 6 })
-          }
-          .justifyContent(FlexAlign.Center)
-          .width('100%')
-        }
-        .height(36)
-        .layoutWeight(1)
-        .enabled(this.index > 0)
-        .backgroundColor(themeSurfaceVariant())
-        .borderRadius(18)
-        .onClick(() => {
-          this.onMove(this.item, -1);
-        })
-
-        Button({ type: ButtonType.Normal, stateEffect: true }) {
-          Row() {
-            SymbolGlyph($r('sys.symbol.arrow_down_circle'))
-              .fontSize(18)
-              .fontColor([this.index + 1 < this.total ? themePrimaryColor() : themeTertiaryText()])
-            Text(uiText('Move down'))
-              .fontSize(13)
-              .fontColor(this.index + 1 < this.total ? themePrimaryText() : themeTertiaryText())
-              .margin({ left: 6 })
-          }
-          .justifyContent(FlexAlign.Center)
-          .width('100%')
-        }
-        .height(36)
-        .layoutWeight(1)
-        .enabled(this.index + 1 < this.total)
-        .backgroundColor(themeSurfaceVariant())
-        .borderRadius(18)
-        .onClick(() => {
-          this.onMove(this.item, 1);
-        })
 
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.trash'))
@@ -1013,10 +962,18 @@ struct SearchBookmarkManagerRow {
         })
       }
       .width('100%')
+
+      Text(bookmarkSummary(this.item))
+        .fontSize(12)
+        .fontColor(themeSecondaryText())
+        .maxLines(2)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .width('100%')
+
     }
     .width('100%')
     .padding(12)
-    .margin({ left: 10, right: 10, bottom: 8 })
+    .margin({ bottom: 8 })
     .backgroundColor(themeSurface())
     .borderRadius(8)
   }
@@ -1136,6 +1093,7 @@ export struct GalleryListScene {
   @State isLoadingMore: boolean = false;
   @State appendExhausted: boolean = false;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+  @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
   private listScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
   private navigationCacheSuppressed: boolean = false;
@@ -1310,6 +1268,10 @@ export struct GalleryListScene {
 
   private syncAccountFilterSetting(): void {
     this.accountFilterEnabled = ehSettingsStore.getValue('use_account_default_filter', 'On') !== 'Off';
+  }
+
+  private galleryStatusBarVp(): number {
+    return this.getUIContext().px2vp(this.statusBarHeightPx);
   }
 
   aboutToAppear(): void {
@@ -1993,6 +1955,68 @@ export struct GalleryListScene {
     return this.isSearchResultScene ? this.searchFilterEnabled : this.accountFilterEnabled;
   }
 
+  private currentBookmarkCategory(mode: ListMode): number {
+    return this.requestCategoryForMode(mode);
+  }
+
+  private currentBookmarkDefaultName(mode: ListMode, category: number): string {
+    const translatedKeyword = this.translatedBookmarkKeyword(this.keyword);
+    if (translatedKeyword.length > 0) {
+      return translatedKeyword;
+    }
+    if (mode === ListMode.Subscription && category === GalleryCategory.None && !this.advancedSearchEnabled) {
+      return uiText('Subscription');
+    }
+    if (mode === ListMode.WhatsHot) {
+      return uiText('Whats Hot');
+    }
+    if (category !== GalleryCategory.None && category !== ALL_CATEGORY) {
+      return categoryName(category);
+    }
+    return uiText('Homepage');
+  }
+
+  private translatedBookmarkKeyword(keyword: string): string {
+    const parts: string[] = [];
+    const tokens = searchTagTokens(keyword);
+    for (let i = 0; i < tokens.length; i++) {
+      const name = this.translatedBookmarkTag(tokens[i]);
+      if (name.length > 0) {
+        parts.push(name);
+      }
+    }
+    const text = searchKeywordWithoutTagTokens(keyword).replace(/\$/g, ' ').replace(/\s+/g, ' ').trim();
+    if (text.length > 0) {
+      parts.push(text);
+    }
+    if (tokens.length === 0 && parts.length === 0) {
+      const fallback = keyword.replace(/\$/g, ' ').replace(/\s+/g, ' ').trim();
+      if (fallback.length > 0) {
+        parts.push(fallback);
+      }
+    }
+    return parts.join(' ').replace(/\s+/g, ' ').trim();
+  }
+
+  private translatedBookmarkTag(token: string): string {
+    let value = token.trim();
+    if (value.endsWith('$')) {
+      value = value.substring(0, value.length - 1).trim();
+    }
+    const colon = value.indexOf(':');
+    let namespace = '';
+    let tag = value;
+    if (colon > 0 && colon < value.length - 1) {
+      namespace = value.substring(0, colon).trim();
+      tag = value.substring(colon + 1).trim();
+    }
+    const translated = ehTagTranslationStore.translate(namespace, tag);
+    if (translated.length > 0) {
+      return translated;
+    }
+    return searchTagTokenLabel(token).replace(/_/g, ' ').replace(/\$/g, ' ').trim();
+  }
+
   private openAddBookmarkDialog(): void {
     if (!this.canUseBookmarks()) {
       return;
@@ -2002,9 +2026,9 @@ export struct GalleryListScene {
       return;
     }
     const bookmarkMode = this.currentBookmarkMode();
-    const name = defaultBookmarkName(bookmarkMode, this.searchCategory, this.keyword, this.advancedSearchEnabled ?
-      this.advanceSearch : -1, this.minRating, this.pageFrom, this.pageTo);
-    const draft = ehBookmarkStore.createBookmark(name, bookmarkMode, this.searchCategory, this.keyword,
+    const bookmarkCategory = this.currentBookmarkCategory(bookmarkMode);
+    const name = this.currentBookmarkDefaultName(bookmarkMode, bookmarkCategory);
+    const draft = ehBookmarkStore.createBookmark(name, bookmarkMode, bookmarkCategory, this.keyword,
       this.advancedSearchEnabled ? this.advanceSearch : -1, this.minRating, this.pageFrom, this.pageTo,
       this.currentBookmarkFilterEnabled(), this.currentBookmarkLocation());
     if (ehBookmarkStore.hasEquivalent(draft)) {
@@ -2063,8 +2087,8 @@ export struct GalleryListScene {
     this.statusText = 'Bookmark updated';
   }
 
-  private moveSearchBookmark(bookmark: SearchBookmarkInfo, delta: number): void {
-    if (ehBookmarkStore.moveBookmark(bookmark.id, delta)) {
+  private moveSearchBookmarkToIndex(from: number, to: number): void {
+    if (ehBookmarkStore.moveBookmarkToIndex(from, to)) {
       this.refreshSearchBookmarks();
       this.statusText = 'Bookmark updated';
     }
@@ -2771,15 +2795,15 @@ export struct GalleryListScene {
           if (this.showBookmarkManager) {
             SearchBookmarkManagerScene({
               bookmarks: this.searchBookmarks,
-              statusBarHeight: 0,
+              statusBarHeight: this.galleryStatusBarVp(),
               onBack: () => {
                 this.closeBookmarkManager();
               },
               onRename: (bookmark: SearchBookmarkInfo, name: string) => {
                 this.renameSearchBookmark(bookmark, name);
               },
-              onMove: (bookmark: SearchBookmarkInfo, delta: number) => {
-                this.moveSearchBookmark(bookmark, delta);
+              onMoveIndex: (from: number, to: number) => {
+                this.moveSearchBookmarkToIndex(from, to);
               },
               onDelete: (bookmark: SearchBookmarkInfo) => {
                 this.removeSearchBookmark(bookmark);
@@ -2794,94 +2818,94 @@ export struct GalleryListScene {
           }
 
           if (this.addBookmarkDialogVisible) {
-            Column()
-              .width('100%')
-              .height('100%')
-              .backgroundColor(themeScrimColor())
-              .onClick(() => {
-                this.addBookmarkDialogVisible = false;
-              })
-              .zIndex(30)
-
-            Column({ space: 12 }) {
-              Row() {
-                Text(uiText('Add bookmark'))
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(themePrimaryText())
-                  .layoutWeight(1)
-                Button({ type: ButtonType.Circle, stateEffect: true }) {
-                  SymbolGlyph($r('sys.symbol.xmark'))
-                    .fontSize(20)
-                    .fontColor([themePrimaryText()])
-                }
-                .width(38)
-                .height(38)
-                .backgroundColor(themeSurfaceVariant())
+            Stack({ alignContent: Alignment.Center }) {
+              Column()
+                .width('100%')
+                .height('100%')
+                .backgroundColor(themeScrimColor())
                 .onClick(() => {
                   this.addBookmarkDialogVisible = false;
                 })
-              }
-              .width('100%')
-              .alignItems(VerticalAlign.Center)
 
-              TextInput({ text: this.addBookmarkName, placeholder: uiText('Bookmark name') })
-                .height(42)
-                .width('100%')
-                .fontSize(15)
-                .fontColor(themePrimaryText())
-                .backgroundColor(themeFieldBackground())
-                .borderRadius(6)
-                .padding({ left: 12, right: 12 })
-                .onChange((value: string) => {
-                  this.addBookmarkName = value;
-                })
-                .onSubmit(() => {
-                  this.confirmAddBookmark();
-                })
-
-              Text(bookmarkSummary(this.addBookmarkDraft))
-                .fontSize(12)
-                .fontColor(themeSecondaryText())
-                .width('100%')
-                .maxLines(2)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-              Row({ space: 10 }) {
-                Button(uiText('Cancel'))
-                  .height(40)
-                  .layoutWeight(1)
-                  .fontSize(14)
-                  .fontColor(themePrimaryText())
+              Column({ space: 12 }) {
+                Row() {
+                  Text(uiText('Add bookmark'))
+                    .fontSize(18)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor(themePrimaryText())
+                    .layoutWeight(1)
+                  Button({ type: ButtonType.Circle, stateEffect: true }) {
+                    SymbolGlyph($r('sys.symbol.xmark'))
+                      .fontSize(20)
+                      .fontColor([themePrimaryText()])
+                  }
+                  .width(38)
+                  .height(38)
                   .backgroundColor(themeSurfaceVariant())
-                  .borderRadius(20)
                   .onClick(() => {
                     this.addBookmarkDialogVisible = false;
                   })
-                Button(uiText('Save'))
-                  .height(40)
-                  .layoutWeight(1)
-                  .fontSize(14)
-                  .fontColor(themeOnPrimaryText())
-                  .backgroundColor(themePrimaryColor())
-                  .borderRadius(20)
-                  .onClick(() => {
+                }
+                .width('100%')
+                .alignItems(VerticalAlign.Center)
+
+                TextInput({ text: this.addBookmarkName, placeholder: uiText('Bookmark name') })
+                  .height(42)
+                  .width('100%')
+                  .fontSize(15)
+                  .fontColor(themePrimaryText())
+                  .backgroundColor(themeFieldBackground())
+                  .borderRadius(6)
+                  .padding({ left: 12, right: 12 })
+                  .onChange((value: string) => {
+                    this.addBookmarkName = value;
+                  })
+                  .onSubmit(() => {
                     this.confirmAddBookmark();
                   })
+
+                Text(bookmarkSummary(this.addBookmarkDraft))
+                  .fontSize(12)
+                  .fontColor(themeSecondaryText())
+                  .width('100%')
+                  .maxLines(2)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+                Row({ space: 10 }) {
+                  Button(uiText('Cancel'))
+                    .height(40)
+                    .layoutWeight(1)
+                    .fontSize(14)
+                    .fontColor(themePrimaryText())
+                    .backgroundColor(themeSurfaceVariant())
+                    .borderRadius(20)
+                    .onClick(() => {
+                      this.addBookmarkDialogVisible = false;
+                    })
+                  Button(uiText('Save'))
+                    .height(40)
+                    .layoutWeight(1)
+                    .fontSize(14)
+                    .fontColor(themeOnPrimaryText())
+                    .backgroundColor(themePrimaryColor())
+                    .borderRadius(20)
+                    .onClick(() => {
+                      this.confirmAddBookmark();
+                    })
+                }
+                .width('100%')
               }
-              .width('100%')
+              .width('72%')
+              .constraintSize({ maxWidth: 340, minWidth: 280 })
+              .padding(18)
+              .backgroundColor(themeSurface())
+              .borderRadius(10)
+              .shadow({ radius: 22, color: themeShadowColor(), offsetY: 8 })
+              .onClick(() => {})
             }
-            .width('78%')
-            .constraintSize({ maxWidth: 360 })
-            .padding(18)
-            .backgroundColor(themeSurface())
-            .borderRadius(10)
-            .shadow({ radius: 22, color: themeShadowColor(), offsetY: 8 })
-            .position({
-              x: mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value)) * 0.11,
-              y: 126
-            })
-            .zIndex(31)
+              .width('100%')
+              .height('100%')
+              .zIndex(30)
           }
 
           if (this.showDetail) {
