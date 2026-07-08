@@ -1378,27 +1378,33 @@ export struct SettingsScene {
     });
   }
 
-  private addFilterRule(): void {
-    const text = this.filterNewText.trim();
+  private addFilterRule(mode: number, draftText: string): boolean {
+    const text = draftText.trim();
     if (text.length === 0) {
       this.statusText = 'Enter a filter text first';
-      return;
+      this.showToast(this.statusText);
+      return false;
     }
-    const added = ehFilterStore.addRule(this.filterNewMode, text);
+    const added = ehFilterStore.addRule(mode, text);
     if (!added) {
       this.statusText = 'Rule already exists: ' + text;
-      return;
+      this.showToast(this.statusText);
+      return false;
     }
     this.filterRules = ehFilterStore.getRules();
     this.filterNewText = '';
+    this.filterNewMode = mode;
     this.statusText = 'Filter rule added: ' + text;
+    this.showToast(this.statusText);
     this.saveFilterRules();
+    return true;
   }
 
   private removeFilterRule(id: number): void {
     ehFilterStore.removeRule(id);
     this.filterRules = ehFilterStore.getRules();
     this.statusText = 'Filter rule removed';
+    this.showToast(this.statusText);
     this.saveFilterRules();
   }
 
@@ -1422,6 +1428,7 @@ export struct SettingsScene {
       this.statusText = 'Filter rule removed';
     }
     this.filterRules = ehFilterStore.getRules();
+    this.showToast(this.statusText);
     this.saveFilterRules();
   }
 
@@ -1482,18 +1489,14 @@ export struct SettingsScene {
           rules: this.filterRules,
           newText: this.filterNewText,
           newMode: this.filterNewMode,
-          statusText: this.statusText,
           onBack: () => {
             this.closePanel();
-          },
-          onNewTextChange: (text: string) => {
-            this.filterNewText = text;
           },
           onNewModeChange: (mode: number) => {
             this.filterNewMode = mode;
           },
-          onAdd: () => {
-            this.addFilterRule();
+          onAddText: (mode: number, text: string): boolean => {
+            return this.addFilterRule(mode, text);
           },
           onRatingSelect: (level: number) => {
             this.setRatingFilterRule(level);
