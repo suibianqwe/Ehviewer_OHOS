@@ -554,10 +554,10 @@ struct FavoriteCategoryDrawerRow {
 
 function bookmarkModeLabel(mode: ListMode): string {
   if (mode === ListMode.Uploader) {
-    return 'Uploader';
+    return 'Specify uploader';
   }
   if (mode === ListMode.Tag) {
-    return 'Tag';
+    return 'Specify tag';
   }
   if (mode === ListMode.Subscription) {
     return 'Subscription';
@@ -571,7 +571,7 @@ function bookmarkModeLabel(mode: ListMode): string {
   if (mode === ListMode.TopList) {
     return 'Toplists';
   }
-  return 'Search';
+  return 'General';
 }
 
 function bookmarkLocationLabel(route: GalleryRoute): string {

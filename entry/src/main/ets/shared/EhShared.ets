@@ -699,6 +699,7 @@ export function zhText(text: string): string {
     case 'Search galleries': return '搜索画廊';
     case 'Search downloads': return '搜索下载';
     case 'Advanced': return '高级';
+    case 'General': return '一般';
     case 'Privacy': return '隐私';
     case 'About': return '关于';
     case 'Advanced search': return '高级搜索';
