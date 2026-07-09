@@ -87,6 +87,19 @@ import { MyTagsPanel } from './MyTagsPanel';
 import { AppSubToolbar, AppToolbar } from './NavigationComponents';
 import { collectWebCookies, hasLoginCookie, SessionScene, syncCookieHeaderToWebView } from './SessionScene';
 import { UpdatePromptOverlay } from './UpdatePromptOverlay';
+import {
+  areaDimensionToVp,
+  saveSplitPaneRatio,
+  SPLIT_PANE_BREAKPOINT,
+  SPLIT_PANE_RATIO_REVISION_KEY,
+  splitPaneCurrentRatio,
+  SplitPaneDivider,
+  splitPaneListWidth,
+  splitPaneModeEnabled,
+  splitPaneRatioForWidth,
+  splitPaneSideWidth,
+  splitPaneWidthFromDrag
+} from './SplitPaneSupport';
 
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
 const DIAGNOSTIC_LOG_TAG: string = 'SettingsScene';
@@ -137,11 +150,16 @@ export struct SettingsScene {
   @State filterNewText: string = '';
   @State filterNewMode: number = FILTER_MODE_TITLE;
   @State settingsRenderRevision: number = 0;
+  @State sceneContentWidth: number = 0;
+  @State splitListRatio: number = splitPaneCurrentRatio();
+  @State splitDragging: boolean = false;
   @State updateDialogVisible: boolean = false;
   @State updateCurrentVersion: string = '';
   @State updateRelease: ReleaseInfo | null = null;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+  @StorageProp(SPLIT_PANE_RATIO_REVISION_KEY) @Watch('onSplitPaneRatioRevisionChange') splitPaneRatioRevision: number = 0;
   private client: EhHttpClient = new EhHttpClient();
+  private splitDragStartWidth: number = 0;
   @Prop @Watch('onResetVersionChanged') resetVersion: number = 0;
   onMenu: () => void = () => {};
   onSignedIn: () => void = () => {};
@@ -287,6 +305,46 @@ export struct SettingsScene {
       }
     }
     return SettingsPanel.Main;
+  }
+
+  private updateSceneContentWidth(width: number): void {
+    const normalized = Math.floor(width);
+    if (normalized <= 0 || Number.isNaN(normalized) || Math.abs(this.sceneContentWidth - normalized) < 1) {
+      return;
+    }
+    this.sceneContentWidth = normalized;
+  }
+
+  onSplitPaneRatioRevisionChange(): void {
+    if (!this.splitDragging) {
+      this.splitListRatio = splitPaneCurrentRatio();
+    }
+  }
+
+  private useSplitLayout(): boolean {
+    return splitPaneModeEnabled() && this.sceneContentWidth >= SPLIT_PANE_BREAKPOINT &&
+      this.settingsDetailLayerPanel() !== SettingsPanel.Main;
+  }
+
+  private splitListPaneWidth(): number {
+    return splitPaneListWidth(this.sceneContentWidth, this.splitListRatio);
+  }
+
+  private splitSidePaneWidth(): number {
+    if (!this.useSplitLayout()) {
+      return this.sceneContentWidth > 0 ? this.sceneContentWidth : 0;
+    }
+    return splitPaneSideWidth(this.sceneContentWidth, this.splitListPaneWidth());
+  }
+
+  private updateSplitPaneByOffset(offsetX: number): void {
+    const targetWidth = splitPaneWidthFromDrag(this.sceneContentWidth, this.splitDragStartWidth, offsetX);
+    this.splitListRatio = splitPaneRatioForWidth(this.sceneContentWidth, targetWidth);
+  }
+
+  private finishSplitPaneDrag(): void {
+    this.splitDragging = false;
+    saveSplitPaneRatio(this.splitListRatio);
   }
 
   private currentGallerySite(): GallerySite {
@@ -1444,6 +1502,26 @@ export struct SettingsScene {
           this.openPanel(panel);
         }
       })
+        .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
+        .height('100%')
+        .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
+
+      if (this.useSplitLayout()) {
+        SplitPaneDivider({
+          x: this.splitListPaneWidth(),
+          dragging: this.splitDragging,
+          onSplitDragStart: () => {
+            this.splitDragging = true;
+            this.splitDragStartWidth = this.splitListPaneWidth();
+          },
+          onSplitDragUpdate: (offsetX: number) => {
+            this.updateSplitPaneByOffset(offsetX);
+          },
+          onSplitDragEnd: () => {
+            this.finishSplitPaneDrag();
+          }
+        })
+      }
 
       // Ordinary settings panels stay underneath deeper panels. This keeps EH/Advanced
       // visually fixed while account session, web config, filters, or migration slide over it.
@@ -1470,6 +1548,11 @@ export struct SettingsScene {
             this.saveSettingValue(key, value);
           }
         })
+          .width(this.useSplitLayout() ? this.splitSidePaneWidth() : '100%')
+          .height('100%')
+          .translate({ x: this.useSplitLayout() ? this.splitListPaneWidth() + 1 : 0 })
+          .zIndex(5)
+          .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
           .transition(TransitionEffect.asymmetric(
             TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }),
             TransitionEffect.move(TransitionEdge.END).animation({ duration: 240, curve: Curve.EaseIn })))
@@ -1626,6 +1709,9 @@ export struct SettingsScene {
     }
     .width('100%')
     .height('100%')
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      this.updateSceneContentWidth(areaDimensionToVp(newArea.width, (value: number) => this.getUIContext().px2vp(value)));
+    })
   }
 }
 

@@ -69,7 +69,6 @@ import {
   themeSurface,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { ArrayDataSource } from '../shared/ListDataSource';
 import { FloatingToolbarHost } from './NavigationComponents';
 import { GalleryListRow, GalleryThumbCard } from './GalleryCards';
 import { ActionBubble, GalleryListScene } from './GalleryScenes';
@@ -85,6 +84,19 @@ import {
   SearchSuggestionList,
   SearchSummaryStrip
 } from './GallerySearchScenes';
+import {
+  areaDimensionToVp,
+  saveSplitPaneRatio,
+  SPLIT_PANE_BREAKPOINT,
+  SPLIT_PANE_RATIO_REVISION_KEY,
+  splitPaneCurrentRatio,
+  SplitPaneDivider,
+  splitPaneListWidth,
+  splitPaneModeEnabled,
+  splitPaneRatioForWidth,
+  splitPaneSideWidth,
+  splitPaneWidthFromDrag
+} from './SplitPaneSupport';
 
 function normalizeSceneScrollOffset(offset: number): number {
   if (offset <= 1 || Number.isNaN(offset)) {
@@ -221,6 +233,9 @@ export struct DownloadScene {
   @State tagSearchImageOnlyCovers: boolean = false;
   @State tagSearchImageShowExpunged: boolean = false;
   @State downloadContentWidth: number = 0;
+  @State sceneContentWidth: number = 0;
+  @State splitListRatio: number = splitPaneCurrentRatio();
+  @State splitDragging: boolean = false;
   @State selectedDownloadGids: string = '';
   @State toolbarOffsetY: number = 0;
   @State downloadActionsExpanded: boolean = false;
@@ -234,12 +249,12 @@ export struct DownloadScene {
   @State viewportHeight: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
+  @StorageProp(SPLIT_PANE_RATIO_REVISION_KEY) @Watch('onSplitPaneRatioRevisionChange') splitPaneRatioRevision: number = 0;
   private downloadScroller: Scroller = new Scroller();
+  private splitDragStartWidth: number = 0;
   private downloadScrollOffset: number = 0;
   private toolbarRestoring: boolean = false;
   private cellularWarningDialogOpen: boolean = false;
-  private downloadRowsDataSource: ArrayDataSource<DownloadRowData> = new ArrayDataSource<DownloadRowData>([]);
-  private downloadRowStructureKeys: string[] = [];
   private downloadCardStates: Map<number, DownloadCardState> = new Map<number, DownloadCardState>();
 
   aboutToAppear(): void {
@@ -801,7 +816,6 @@ export struct DownloadScene {
     }
     this.downloadContentWidth = normalizedWidth;
     rememberMainContentWidthVp(normalizedWidth);
-    this.refreshDownloadRows();
   }
 
   private syncDownloadContentWidthFromWindow(): void {
@@ -809,6 +823,52 @@ export struct DownloadScene {
       return;
     }
     this.updateDownloadContentWidth(mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value)));
+  }
+
+  private updateSceneContentWidth(width: number): void {
+    const normalized = Math.floor(width);
+    if (normalized <= 0 || Number.isNaN(normalized) || Math.abs(this.sceneContentWidth - normalized) < 1) {
+      return;
+    }
+    this.sceneContentWidth = normalized;
+  }
+
+  onSplitPaneRatioRevisionChange(): void {
+    if (!this.splitDragging) {
+      this.splitListRatio = splitPaneCurrentRatio();
+    }
+  }
+
+  private useSplitLayout(): boolean {
+    return splitPaneModeEnabled() && this.availableSceneWidth() >= SPLIT_PANE_BREAKPOINT &&
+      this.showDetail && !this.showReader && !this.showTagSearch;
+  }
+
+  private availableSceneWidth(): number {
+    return this.sceneContentWidth > 0 ? this.sceneContentWidth :
+      mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value));
+  }
+
+  private splitListPaneWidth(): number {
+    return splitPaneListWidth(this.availableSceneWidth(), this.splitListRatio);
+  }
+
+  private splitSidePaneWidth(): number {
+    if (!this.useSplitLayout()) {
+      return this.availableSceneWidth();
+    }
+    return splitPaneSideWidth(this.availableSceneWidth(), this.splitListPaneWidth());
+  }
+
+  private updateSplitPaneByOffset(offsetX: number): void {
+    const sceneWidth = this.availableSceneWidth();
+    const targetWidth = splitPaneWidthFromDrag(sceneWidth, this.splitDragStartWidth, offsetX);
+    this.splitListRatio = splitPaneRatioForWidth(sceneWidth, targetWidth);
+  }
+
+  private finishSplitPaneDrag(): void {
+    this.splitDragging = false;
+    saveSplitPaneRatio(this.splitListRatio);
   }
 
   private buildDownloadRows(): DownloadRowData[] {
@@ -827,57 +887,8 @@ export struct DownloadScene {
     return rows;
   }
 
-  private downloadRowsSource(): ArrayDataSource<DownloadRowData> {
-    return this.downloadRowsDataSource;
-  }
-
   private refreshDownloadRows(): void {
-    const rows = this.buildDownloadRows();
-    const newKeys: string[] = [];
-    for (let i = 0; i < rows.length; i++) {
-      newKeys.push(rows[i].key);
-    }
-
-    const prevCount = this.downloadRowStructureKeys.length;
-    const newCount = rows.length;
-
-    // 纯追加：已有行结构不变，只在末尾新增 → 精确通知，避免全量 reload 闪烁
-    if (newCount > prevCount && prevCount > 0) {
-      let isAppend = true;
-      for (let i = 0; i < prevCount; i++) {
-        if (newKeys[i] !== this.downloadRowStructureKeys[i]) {
-          isAppend = false;
-          break;
-        }
-      }
-      if (isAppend) {
-        this.syncDownloadCardStates();
-        this.downloadRowStructureKeys = newKeys;
-        for (let i = prevCount; i < newCount; i++) {
-          this.downloadRowsDataSource.appendAndNotify(rows[i]);
-        }
-        return;
-      }
-    }
-
-    // 全量刷新
-    let structureChanged = newCount !== prevCount;
-    for (let i = 0; i < newCount && !structureChanged; i++) {
-      if (newKeys[i] !== this.downloadRowStructureKeys[i]) {
-        structureChanged = true;
-      }
-    }
     this.syncDownloadCardStates();
-    this.downloadRowsDataSource.replaceItems(rows);
-    if (structureChanged) {
-      this.downloadRowStructureKeys = newKeys;
-      this.downloadRowsDataSource.notifyReload();
-      return;
-    }
-    this.downloadRowStructureKeys = newKeys;
-    for (let i = 0; i < newCount; i++) {
-      this.downloadRowsDataSource.notifyChange(i);
-    }
   }
 
   private downloadRowKey(rowIndex: number, row: DownloadInfo[]): string {
@@ -1336,7 +1347,7 @@ export struct DownloadScene {
           this.closeEmbeddedReader();
         }
       })
-    } else if (this.showDetail) {
+    } else if (this.showDetail && !this.useSplitLayout()) {
       GalleryDetailHostScene({
         detailLink: this.detailLink,
         listRequestUrl: '',
@@ -1437,7 +1448,7 @@ export struct DownloadScene {
                   .width('100%')
                   .backgroundColor(Color.Transparent)
               }
-              LazyForEach(this.downloadRowsSource(), (row: DownloadRowData) => {
+              ForEach(this.buildDownloadRows(), (row: DownloadRowData) => {
                 ListItem() {
                   Row() {
                     ForEach(row.items, (item: DownloadInfo, colIndex: number) => {
@@ -1488,8 +1499,7 @@ export struct DownloadScene {
                       .width(this.downloadCardWidth())
                       .margin({ right: colIndex < row.items.length - 1 ? this.downloadCardGap() : 0 })
                       .animation({ duration: 220, curve: Curve.EaseOut })
-                    }, (item: DownloadInfo, colIndex: number) => row.index.toString() + ':' + colIndex.toString() +
-                      ':' + item.gid.toString())
+                    }, (item: DownloadInfo, _colIndex: number) => item.gid.toString())
                   }
                   .width('100%')
                   .justifyContent(FlexAlign.Start)
@@ -1528,8 +1538,9 @@ export struct DownloadScene {
             })
           }
         }
-        .width('100%')
+        .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
         .height('100%')
+        .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
         .onAreaChange((_oldArea: Area, newArea: Area) => {
           this.updateDownloadContentWidth(newArea.width as number);
           const height = newArea.height as number;
@@ -1537,6 +1548,50 @@ export struct DownloadScene {
             this.viewportHeight = height;
           }
         })
+
+        if (this.useSplitLayout()) {
+          SplitPaneDivider({
+            x: this.splitListPaneWidth(),
+            dragging: this.splitDragging,
+            onSplitDragStart: () => {
+              this.splitDragging = true;
+              this.splitDragStartWidth = this.splitListPaneWidth();
+            },
+            onSplitDragUpdate: (offsetX: number) => {
+              this.updateSplitPaneByOffset(offsetX);
+            },
+            onSplitDragEnd: () => {
+              this.finishSplitPaneDrag();
+            }
+          })
+
+          GalleryDetailHostScene({
+            detailLink: this.detailLink,
+            listRequestUrl: '',
+            onBack: () => {
+              this.closeDetail();
+            },
+            onShowEmbeddedReader: () => {
+              this.showReader = true;
+            },
+            onOpenSearch: (request: DetailSearchRequest) => {
+              this.openRemoteSearch(request);
+            },
+            onDetailLoaded: (detail: GalleryDetail) => {
+              this.detail = detail;
+              ehDownloadStore.updateGallery(detail);
+              this.persistDownloads();
+            }
+          })
+            .width(this.splitSidePaneWidth())
+            .height('100%')
+            .translate({ x: this.splitListPaneWidth() + 1 })
+            .zIndex(5)
+            .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
+            .transition(this.restoreDetailWithFade ?
+              TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
+              TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }))
+        }
 
         if (this.advancedPanelVisible) {
           Column()
@@ -1743,6 +1798,9 @@ export struct DownloadScene {
       .width('100%')
       .height('100%')
       .backgroundColor(themePageBackground())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.updateSceneContentWidth(areaDimensionToVp(newArea.width, (value: number) => this.getUIContext().px2vp(value)));
+      })
       .transition(TransitionEffect.asymmetric(
         TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }),
         TransitionEffect.OPACITY.animation({ duration: 1, delay: 300, curve: Curve.Linear })))

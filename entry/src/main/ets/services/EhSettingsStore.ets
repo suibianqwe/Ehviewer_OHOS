@@ -33,6 +33,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'show_gallery_pages', value: 'Off' },
     { key: 'show_tag_translations', value: 'On' },
     { key: 'split_screen_mode', value: 'On' },
+    { key: 'split_screen_ratio', value: '0.42' },
     { key: 'show_eh_limits', value: 'On' },
     { key: 'cellular_network_warning', value: 'Off' },
     { key: 'screen_rotation', value: 'Default' },

@@ -55,11 +55,23 @@ import {
   themeTertiaryText,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { ArrayDataSource } from '../shared/ListDataSource';
 import { EhNavBar } from '../components/NavigationComponents';
 import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard } from './GalleryCards';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
+import {
+  areaDimensionToVp,
+  saveSplitPaneRatio,
+  SPLIT_PANE_BREAKPOINT,
+  SPLIT_PANE_RATIO_REVISION_KEY,
+  splitPaneCurrentRatio,
+  SplitPaneDivider,
+  splitPaneListWidth,
+  splitPaneModeEnabled,
+  splitPaneRatioForWidth,
+  splitPaneSideWidth,
+  splitPaneWidthFromDrag
+} from './SplitPaneSupport';
 import {
   addSearchTagToken,
   buildSearchSuggestions,
@@ -1133,6 +1145,9 @@ export struct GalleryListScene {
   @State showDetail: boolean = false;
   @State showReader: boolean = false;
   @State sceneContentWidth: number = 0;
+  @State splitListRatio: number = splitPaneCurrentRatio();
+  @State splitDragging: boolean = false;
+  private splitDragStartWidth: number = 0;
   private readerClosing: boolean = false;
   @State restoreDetailWithFade: boolean = false;
   @State detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();
@@ -1164,6 +1179,7 @@ export struct GalleryListScene {
   @State appendExhausted: boolean = false;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
+  @StorageProp(SPLIT_PANE_RATIO_REVISION_KEY) @Watch('onSplitPaneRatioRevisionChange') splitPaneRatioRevision: number = 0;
   private listScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
   private navigationCacheSuppressed: boolean = false;
@@ -2633,27 +2649,39 @@ export struct GalleryListScene {
     this.sceneContentWidth = normalized;
   }
 
-  private splitScreenSettingEnabled(): boolean {
-    return ehSettingsStore.getValue('split_screen_mode', 'On') === 'On';
+  onSplitPaneRatioRevisionChange(): void {
+    if (!this.splitDragging) {
+      this.splitListRatio = splitPaneCurrentRatio();
+    }
   }
 
   private useSplitLayout(): boolean {
-    return !this.isSearchResultScene && this.splitScreenSettingEnabled() && this.sceneContentWidth >= 840 &&
+    return !this.isSearchResultScene && splitPaneModeEnabled() && this.sceneContentWidth >= SPLIT_PANE_BREAKPOINT &&
       this.showDetail && !this.showReader;
   }
 
   private splitListPaneWidth(): number {
-    if (this.sceneContentWidth <= 0) {
-      return 420;
-    }
-    return Math.max(380, Math.min(620, Math.floor(this.sceneContentWidth * 0.42)));
+    return splitPaneListWidth(this.sceneContentWidth, this.splitListRatio);
   }
 
   private splitSidePaneWidth(): number {
     if (!this.useSplitLayout()) {
       return this.sceneContentWidth > 0 ? this.sceneContentWidth : 0;
     }
-    return Math.max(360, this.sceneContentWidth - this.splitListPaneWidth() - 1);
+    return splitPaneSideWidth(this.sceneContentWidth, this.splitListPaneWidth());
+  }
+
+  private updateSplitPaneByOffset(offsetX: number): void {
+    if (this.sceneContentWidth <= 0) {
+      return;
+    }
+    const targetWidth = splitPaneWidthFromDrag(this.sceneContentWidth, this.splitDragStartWidth, offsetX);
+    this.splitListRatio = splitPaneRatioForWidth(this.sceneContentWidth, targetWidth);
+  }
+
+  private finishSplitPaneDrag(): void {
+    this.splitDragging = false;
+    saveSplitPaneRatio(this.splitListRatio);
   }
 
   build() {
@@ -2907,6 +2935,10 @@ export struct GalleryListScene {
           })
             .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
             .height('100%')
+            .animation({
+              duration: this.splitDragging ? 0 : 220,
+              curve: Curve.EaseOut
+            })
 
           if (this.showBookmarkManager) {
             SearchBookmarkManagerScene({
@@ -3025,12 +3057,20 @@ export struct GalleryListScene {
           }
 
           if (this.useSplitLayout()) {
-            Column()
-              .width(1)
-              .height('100%')
-              .backgroundColor(themeSurfaceVariant())
-              .translate({ x: this.splitListPaneWidth() })
-              .zIndex(4)
+            SplitPaneDivider({
+              x: this.splitListPaneWidth(),
+              dragging: this.splitDragging,
+              onSplitDragStart: () => {
+                this.splitDragging = true;
+                this.splitDragStartWidth = this.splitListPaneWidth();
+              },
+              onSplitDragUpdate: (offsetX: number) => {
+                this.updateSplitPaneByOffset(offsetX);
+              },
+              onSplitDragEnd: () => {
+                this.finishSplitPaneDrag();
+              }
+            })
           }
 
           if (this.showDetail) {
@@ -3058,6 +3098,10 @@ export struct GalleryListScene {
               .height('100%')
               .translate({ x: this.useSplitLayout() ? this.splitListPaneWidth() + 1 : 0 })
               .zIndex(5)
+              .animation({
+                duration: this.splitDragging ? 0 : 220,
+                curve: Curve.EaseOut
+              })
               .transition(this.restoreDetailWithFade ?
                 TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
                 TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }))
@@ -3093,18 +3137,6 @@ export struct GalleryListScene {
       this.updateSceneContentWidth(areaDimensionToVp(newArea.width, (value: number) => this.getUIContext().px2vp(value)));
     })
   }
-}
-
-function areaDimensionToVp(value: Length, px2vp: (value: number) => number): number {
-  const text = value.toString();
-  const parsed = Number.parseFloat(text);
-  if (Number.isNaN(parsed)) {
-    return 0;
-  }
-  if (text.indexOf('px') > 0) {
-    return px2vp(parsed);
-  }
-  return parsed;
 }
 
 
@@ -3573,8 +3605,6 @@ export struct GalleryListContent {
   @State bookmarkDrawerOffsetX: number = 288;
   @State bookmarkDrawerOverlayOpacity: number = 0;
   private toolbarRestoring: boolean = false;
-  private galleryRowsDataSource: ArrayDataSource<GalleryRowData> = new ArrayDataSource<GalleryRowData>([]);
-  private galleryRowStructureKeys: string[] = [];
   private barHeight: number = 56; // matches EhNavBar body height
   private readonly FAVORITE_DRAWER_WIDTH: number = 288;
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
@@ -3593,7 +3623,6 @@ export struct GalleryListContent {
   }
 
   onGalleriesChanged(): void {
-    this.refreshGalleryRows();
   }
 
   private statusBarVp(): number {
@@ -3666,7 +3695,6 @@ export struct GalleryListContent {
   aboutToAppear(): void {
     setActiveBackHandler(() => this.handleContentBack());
     this.syncContentWidthFromWindow();
-    this.refreshGalleryRows();
     this.syncPageJumpDraft();
     this.refreshSearchSuggestions();
     if (this.initialScrollOffset > 0) {
@@ -3674,7 +3702,6 @@ export struct GalleryListContent {
     }
     setTimeout(() => {
       this.syncContentWidthFromWindow();
-      this.refreshGalleryRows();
     }, 0);
   }
 
@@ -3983,7 +4010,6 @@ export struct GalleryListContent {
     }
     this.contentWidth = normalizedWidth;
     rememberMainContentWidthVp(normalizedWidth);
-    this.refreshGalleryRows();
   }
 
   private selectedSearchTagTokens(): string[] {
@@ -4304,7 +4330,7 @@ export struct GalleryListContent {
                 this.onSelectGallery(gallery);
               })
           }
-        }, (gallery: GalleryInfo, colIndex: number) => this.galleryCardKey(row.index, gallery, colIndex))
+        }, (gallery: GalleryInfo, _colIndex: number) => this.galleryCardKey(gallery))
       }
       .width('100%')
       .padding({ left: this.galleryContentPadding(), right: this.galleryContentPadding() })
@@ -4313,7 +4339,6 @@ export struct GalleryListContent {
     }
     .margin({ bottom: this.galleryCardGap() })
     .reuseId('gallery-row-' + this.galleryColumnCount().toString())
-    .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
   }
 
   build() {
@@ -4340,7 +4365,7 @@ export struct GalleryListContent {
               ListItem()
                 .margin({ bottom: this.galleryCardGap() })
               // Group gallery cards into rows with galleryColumnCount() items per row.
-              LazyForEach(this.galleryRowsSource(), (row: GalleryRowData) => {
+              ForEach(this.buildRows(), (row: GalleryRowData) => {
                 this.galleryRow(row)
               }, (row: GalleryRowData) => row.key)
 
@@ -4828,66 +4853,19 @@ export struct GalleryListContent {
       const rowIndex = Math.floor(i / cols);
       rows.push({
         index: rowIndex,
-        key: cols.toString() + ':' + rowIndex.toString() + ':' + this.galleryRowKey(rowIndex, items),
+        key: cols.toString() + ':' + rowIndex.toString() + ':' + this.galleryRowKey(items),
         items: items
       });
     }
     return rows;
   }
 
-  private galleryRowsSource(): ArrayDataSource<GalleryRowData> {
-    return this.galleryRowsDataSource;
+  private galleryRowKey(row: GalleryInfo[]): string {
+    return row.map((gallery: GalleryInfo) => this.galleryCardKey(gallery)).join('-');
   }
 
-  private refreshGalleryRows(): void {
-    const rows = this.buildRows();
-    const newKeys: string[] = [];
-    for (let i = 0; i < rows.length; i++) {
-      newKeys.push(rows[i].key);
-    }
-
-    const prevCount = this.galleryRowStructureKeys.length;
-    const newCount = rows.length;
-
-    // 纯追加场景（load-more）：已有行没变化，仅末尾新增 → 逐行 appendAndNotify，不触发全量 reload
-    if (newCount > prevCount && prevCount > 0) {
-      let isAppend = true;
-      for (let i = 0; i < prevCount; i++) {
-        if (newKeys[i] !== this.galleryRowStructureKeys[i]) {
-          isAppend = false;
-          break;
-        }
-      }
-      if (isAppend) {
-        this.galleryRowStructureKeys = newKeys;
-        for (let i = prevCount; i < newCount; i++) {
-          this.galleryRowsDataSource.appendAndNotify(rows[i]);
-        }
-        return;
-      }
-    }
-
-    // Other cases, such as first load, refresh, or column-count changes: replace all rows.
-    let structureChanged = newCount !== prevCount;
-    for (let i = 0; i < newCount && !structureChanged; i++) {
-      if (newKeys[i] !== this.galleryRowStructureKeys[i]) {
-        structureChanged = true;
-      }
-    }
-    this.galleryRowStructureKeys = newKeys;
-    this.galleryRowsDataSource.replaceItems(rows);
-    if (structureChanged) {
-      this.galleryRowsDataSource.notifyReload();
-    }
-  }
-
-  private galleryRowKey(rowIndex: number, row: GalleryInfo[]): string {
-    return row.map((gallery: GalleryInfo, index: number) => this.galleryCardKey(rowIndex, gallery, index)).join('-');
-  }
-
-  private galleryCardKey(rowIndex: number, gallery: GalleryInfo, index: number): string {
-    return rowIndex.toString() + ':' + index.toString() + ':' + gallery.gid.toString() + ':' + gallery.token + ':' +
-      gallery.title;
+  private galleryCardKey(gallery: GalleryInfo): string {
+    return gallery.gid.toString() + ':' + gallery.token + ':' + gallery.title;
   }
 }
 

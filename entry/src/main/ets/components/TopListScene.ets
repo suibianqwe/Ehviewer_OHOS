@@ -27,6 +27,19 @@ import { GalleryListScene, GalleryListStateView } from './GalleryScenes';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
 import { FloatingToolbarHost } from './NavigationComponents';
+import {
+  areaDimensionToVp,
+  saveSplitPaneRatio,
+  SPLIT_PANE_BREAKPOINT,
+  SPLIT_PANE_RATIO_REVISION_KEY,
+  splitPaneCurrentRatio,
+  SplitPaneDivider,
+  splitPaneListWidth,
+  splitPaneModeEnabled,
+  splitPaneRatioForWidth,
+  splitPaneSideWidth,
+  splitPaneWidthFromDrag
+} from './SplitPaneSupport';
 
 function normalizeSceneScrollOffset(offset: number): number {
   if (offset <= 1 || Number.isNaN(offset)) {
@@ -117,10 +130,15 @@ export struct TopListScene {
   @State tagSearchImageUseSimilarity: boolean = false;
   @State tagSearchImageOnlyCovers: boolean = false;
   @State tagSearchImageShowExpunged: boolean = false;
+  @State sceneContentWidth: number = 0;
+  @State splitListRatio: number = splitPaneCurrentRatio();
+  @State splitDragging: boolean = false;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
+  @StorageProp(SPLIT_PANE_RATIO_REVISION_KEY) @Watch('onSplitPaneRatioRevisionChange') splitPaneRatioRevision: number = 0;
   private topListScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
   private toolbarRestoring: boolean = false;
+  private splitDragStartWidth: number = 0;
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
@@ -487,6 +505,51 @@ export struct TopListScene {
     return this.statusBarVp() + 56;
   }
 
+  private updateSceneContentWidth(width: number): void {
+    const normalized = Math.floor(width);
+    if (normalized <= 0 || Number.isNaN(normalized) || Math.abs(this.sceneContentWidth - normalized) < 1) {
+      return;
+    }
+    this.sceneContentWidth = normalized;
+  }
+
+  onSplitPaneRatioRevisionChange(): void {
+    if (!this.splitDragging) {
+      this.splitListRatio = splitPaneCurrentRatio();
+    }
+  }
+
+  private availableSceneWidth(): number {
+    return this.sceneContentWidth > 0 ? this.sceneContentWidth : 0;
+  }
+
+  private useSplitLayout(): boolean {
+    return splitPaneModeEnabled() && this.availableSceneWidth() >= SPLIT_PANE_BREAKPOINT &&
+      this.showDetail && !this.showReader && !this.showTagSearch && !this.showGalleryList;
+  }
+
+  private splitListPaneWidth(): number {
+    return splitPaneListWidth(this.availableSceneWidth(), this.splitListRatio);
+  }
+
+  private splitSidePaneWidth(): number {
+    if (!this.useSplitLayout()) {
+      return this.availableSceneWidth();
+    }
+    return splitPaneSideWidth(this.availableSceneWidth(), this.splitListPaneWidth());
+  }
+
+  private updateSplitPaneByOffset(offsetX: number): void {
+    const sceneWidth = this.availableSceneWidth();
+    const targetWidth = splitPaneWidthFromDrag(sceneWidth, this.splitDragStartWidth, offsetX);
+    this.splitListRatio = splitPaneRatioForWidth(sceneWidth, targetWidth);
+  }
+
+  private finishSplitPaneDrag(): void {
+    this.splitDragging = false;
+    saveSplitPaneRatio(this.splitListRatio);
+  }
+
   build() {
     if (this.showTagSearch) {
       GalleryListScene({
@@ -518,7 +581,7 @@ export struct TopListScene {
           this.closeReader();
         }
       })
-    } else if (this.showDetail) {
+    } else if (this.showDetail && !this.useSplitLayout()) {
       GalleryDetailHostScene({
         detailLink: this.detailLink,
         listRequestUrl: this.requestUrl,
@@ -575,6 +638,7 @@ export struct TopListScene {
           this.loadTopList();
         }
       }) {
+        Stack({ alignContent: Alignment.TopStart }) {
         Column() {
           if (this.topList.lists.length === 0) {
             Column() {
@@ -630,12 +694,65 @@ export struct TopListScene {
             .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
           }
         }
-        .width('100%')
+        .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
     .height('100%')
     .backgroundColor(themePageBackground())
+    .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
     .transition(TransitionEffect.asymmetric(
       TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }),
       TransitionEffect.OPACITY.animation({ duration: 1, delay: 300, curve: Curve.Linear })))
+
+        if (this.useSplitLayout()) {
+          SplitPaneDivider({
+            x: this.splitListPaneWidth(),
+            dragging: this.splitDragging,
+            onSplitDragStart: () => {
+              this.splitDragging = true;
+              this.splitDragStartWidth = this.splitListPaneWidth();
+            },
+            onSplitDragUpdate: (offsetX: number) => {
+              this.updateSplitPaneByOffset(offsetX);
+            },
+            onSplitDragEnd: () => {
+              this.finishSplitPaneDrag();
+            }
+          })
+
+          GalleryDetailHostScene({
+            detailLink: this.detailLink,
+            listRequestUrl: this.requestUrl,
+            initialDetailScrollOffset: this.detailScrollOffset,
+            onBack: () => {
+              this.closeDetail();
+            },
+            onShowEmbeddedReader: () => {
+              this.showReader = true;
+            },
+            onOpenSearch: (request: DetailSearchRequest) => {
+              this.openRemoteSearch(request);
+            },
+            onDetailLoaded: (detail: GalleryDetail) => {
+              this.detail = detail;
+            },
+            onDetailScrollUpdate: (offset: number) => {
+              this.detailScrollOffset = offset;
+            }
+          })
+            .width(this.splitSidePaneWidth())
+            .height('100%')
+            .translate({ x: this.splitListPaneWidth() + 1 })
+            .zIndex(5)
+            .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
+            .transition(this.restoreDetailWithFade ?
+              TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
+              TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }))
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.updateSceneContentWidth(areaDimensionToVp(newArea.width, (value: number) => this.getUIContext().px2vp(value)));
+      })
     }
   }
   }

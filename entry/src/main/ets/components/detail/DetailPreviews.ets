@@ -18,6 +18,9 @@ import {
   themeSurfaceVariant
 } from '../../shared/EhTheme';
 import { GalleryThumb } from '../GalleryCards';
+
+const PREVIEW_THUMB_LOCAL_SOURCE_CACHE: Map<string, string> = new Map<string, string>();
+
 @Component
 export struct DetailPreviews {
   @Prop previews: GalleryPreview[] = [];
@@ -335,14 +338,19 @@ export struct PreviewThumb {
       return;
     }
     this.cachedUrl = cacheKey;
-    this.localUrl = '';
+    const cachedLocalSource = PREVIEW_THUMB_LOCAL_SOURCE_CACHE.get(cacheKey);
+    this.localUrl = cachedLocalSource === undefined ? '' : cachedLocalSource;
     this.loadFailed = false;
+    if (this.localUrl.length > 0) {
+      return;
+    }
     cachePreviewThumbnail(this.preview, (localPath: string) => {
       if (this.cachedUrl !== cacheKey) {
         return;
       }
       if (localPath.length > 0) {
         this.localUrl = readerLocalImageSource(localPath);
+        PREVIEW_THUMB_LOCAL_SOURCE_CACHE.set(cacheKey, this.localUrl);
         this.loadFailed = false;
       }
     }, () => {
