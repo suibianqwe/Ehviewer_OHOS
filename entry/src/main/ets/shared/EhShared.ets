@@ -469,6 +469,35 @@ export function uiStatusText(text: string): string {
   if (text === 'Preparing public Downloads access...') {
     return '正在准备访问系统下载目录...';
   }
+  if (text === 'Preparing app internal storage...') {
+    return '正在准备应用内部存储...';
+  }
+  if (text === 'Switching download location...') {
+    return '正在切换下载位置...';
+  }
+  if (text === 'Download location change cancelled') {
+    return '已取消切换下载位置';
+  }
+  if (text === 'Download location switched without migration') {
+    return '下载位置已切换，未迁移文件';
+  }
+  if (text.indexOf('Migrated downloads: ') === 0) {
+    return '下载文件迁移完成：' + text.substring('Migrated downloads: '.length)
+      .replace(' files, ', ' 个文件，')
+      .replace('.', '。');
+  }
+  if (text.indexOf('Download migration failed: ') === 0) {
+    return '下载文件迁移失败：' + text.substring('Download migration failed: '.length);
+  }
+  if (text.indexOf('Download location change failed: ') === 0) {
+    return '下载位置切换失败：' + text.substring('Download location change failed: '.length);
+  }
+  if (text === 'Download location needs app context') {
+    return '切换下载位置需要 Ability 上下文';
+  }
+  if (text === 'Downloads access was not granted') {
+    return '未授权访问下载目录';
+  }
   if (text === 'Scanning downloaded folders...') {
     return '正在扫描已下载文件夹...';
   }
@@ -755,6 +784,7 @@ export function zhText(text: string): string {
       case 'No galleries': return '没有画廊';
     case 'Please wait...': return '请稍候...';
     case 'Migrating downloaded files...': return '正在迁移下载文件...';
+    case 'Switching download location...': return '正在切换下载位置...';
     case 'Rebuilding downloaded metadata...': return '正在重建下载元数据...';
     case 'Rebuilding imported history metadata...': return '正在重建导入历史元数据...';
     case 'Creating download archive...': return '正在生成下载压缩包...';

@@ -519,6 +519,7 @@ export struct SettingsScene {
   private applyDownloadLocationChange(context: common.UIAbilityContext, current: string, target: string,
     migrate: boolean): void {
     this.applyDownloadLocationChangeAsync(context, current, target, migrate).catch((error: Error) => {
+      this.hideBlockingBusy();
       this.statusText = 'Download migration failed: ' + error.message;
     });
   }
@@ -535,15 +536,17 @@ export struct SettingsScene {
   private async applyDownloadLocationChangeAsync(context: common.UIAbilityContext, current: string, target: string,
     migrate: boolean): Promise<void> {
     this.closeDownloadMigrationDialog();
+    this.showBlockingBusy(migrate ? 'Migrating downloaded files...' : 'Switching download location...');
     if (migrate) {
       try {
         if (!await this.ensureDownloadLocationAccess(context, current)) {
+          this.hideBlockingBusy();
           return;
         }
         if (!await this.ensureDownloadLocationAccess(context, target)) {
+          this.hideBlockingBusy();
           return;
         }
-        this.showBlockingBusy('Migrating downloaded files...');
         const result = ehDownloadFileStore.migrateDownloadLocation(context, current, target);
         this.hideBlockingBusy();
         this.showFloatingStatus('Migrated downloads: ' + result.files.toString() + ' files, ' +
@@ -554,6 +557,7 @@ export struct SettingsScene {
         return;
       }
     } else {
+      this.hideBlockingBusy();
       this.showFloatingStatus('Download location switched without migration');
     }
     this.commitSettingValue('download_location', target);
@@ -1557,7 +1561,7 @@ export struct SettingsScene {
           .animation({ duration: 300, curve: Curve.EaseOut }))
       }
 
-      // Option picker slides in on top of everything
+      // Option picker floats on top of everything.
       if (this.optionPickerOpen) {
         SettingsOptionPanel({
           title: this.optionTitle,
@@ -1571,8 +1575,9 @@ export struct SettingsScene {
             this.selectOptionValue(value);
           }
         })
-          .transition(TransitionEffect.move(TransitionEdge.END)
-            .animation({ duration: 300, curve: Curve.EaseOut }))
+          .zIndex(25)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut })
+            .combine(TransitionEffect.scale({ x: 0.96, y: 0.96 }).animation({ duration: 160, curve: Curve.EaseOut })))
       }
 
       if (this.downloadMigrationDialogOpen) {
@@ -1966,63 +1971,94 @@ export struct SettingsOptionPanel {
   onSelect: (value: string) => void = () => {};
 
   build() {
-    Column() {
-      AppSubToolbar({
-        title: this.title,
-        onBack: this.onBack
-      })
+    Stack({ alignContent: Alignment.Center }) {
+      Column()
+        .width('100%')
+        .height('100%')
+        .backgroundColor(themeScrimColor())
+        .onClick(this.onBack)
 
-      if (this.summary.length > 0) {
-        Text(uiText(this.summary))
-          .fontSize(12)
-          .fontColor(themeSecondaryText())
-          .lineHeight(18)
-          .width('100%')
-          .padding({ left: 14, right: 14, top: 12, bottom: 10 })
-          .backgroundColor(themeSurface())
-      }
+      Column() {
+        Row() {
+          Text(uiText(this.title))
+            .fontSize(18)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(themePrimaryText())
+            .layoutWeight(1)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.xmark'))
+              .fontSize(18)
+              .fontColor([themePrimaryText()])
+          }
+          .width(40)
+          .height(40)
+          .backgroundColor(themeSurfaceVariant())
+          .onClick(this.onBack)
+        }
+        .width('100%')
 
-      List({ space: 8 }) {
-        ForEach(this.options, (option: string) => {
-          ListItem() {
-            Button({ type: ButtonType.Normal, stateEffect: true }) {
-              Row() {
-                Text(uiValue(option))
-                  .fontSize(15)
-                  .fontWeight(option === this.value ? FontWeight.Medium : FontWeight.Regular)
-                  .fontColor(themePrimaryText())
-                  .layoutWeight(1)
-                if (option === this.value) {
-                  Text(uiText('Selected'))
-                    .fontSize(12)
-                    .fontColor(themeOnPrimaryText())
-                    .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-                    .backgroundColor(themePrimaryColor())
-                    .borderRadius(14)
+        if (this.summary.length > 0) {
+          Text(uiText(this.summary))
+            .fontSize(13)
+            .fontColor(themeSecondaryText())
+            .lineHeight(19)
+            .width('100%')
+            .margin({ top: 6, bottom: 12 })
+        }
+
+        List({ space: 8 }) {
+          ForEach(this.options, (option: string) => {
+            ListItem() {
+              Button({ type: ButtonType.Normal, stateEffect: true }) {
+                Row() {
+                  Text(uiValue(option))
+                    .fontSize(15)
+                    .fontWeight(option === this.value ? FontWeight.Medium : FontWeight.Regular)
+                    .fontColor(themePrimaryText())
+                    .layoutWeight(1)
+                  if (option === this.value) {
+                    Text(uiText('Selected'))
+                      .fontSize(12)
+                      .fontColor(themeOnPrimaryText())
+                      .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+                      .backgroundColor(themePrimaryColor())
+                      .borderRadius(14)
+                  }
                 }
+                .width('100%')
               }
               .width('100%')
+              .padding(14)
+              .backgroundColor(option === this.value ? themeSurfaceVariant() : themeFieldBackground())
+              .borderRadius(6)
+              .onClick(() => {
+                this.onSelect(option);
+              })
             }
-            .width('100%')
-            .padding(14)
-            .backgroundColor(themeSurface())
-            .borderRadius(6)
-            .onClick(() => {
-              this.onSelect(option);
-            })
-          }
-          .reuseId('settings-option-row')
-        }, (option: string) => option)
+            .reuseId('settings-option-row')
+          }, (option: string) => option)
+        }
+        .width('100%')
+        .constraintSize({ maxHeight: 420 })
+        .cachedCount(4)
       }
-      .width('100%')
-      .height('100%')
-      .layoutWeight(1)
-      .cachedCount(4)
-      .padding({ left: 12, right: 12, top: 0, bottom: 0 })
+      .width('86%')
+      .constraintSize({ maxWidth: 420, maxHeight: '82%' })
+      .padding(18)
+      .backgroundColor(themeSurface())
+      .borderRadius(8)
+      .shadow({
+        radius: 18,
+        color: '#33000000',
+        offsetX: 0,
+        offsetY: 8
+      })
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(themePageBackground())
+    .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
   }
 }
 
