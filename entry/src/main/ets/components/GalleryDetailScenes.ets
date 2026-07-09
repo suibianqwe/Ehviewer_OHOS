@@ -291,7 +291,7 @@ export struct GalleryDetailScene {
           onBack: this.onBack
         })
 
-        Refresh({ refreshing: $$this.detailRefreshing }) {
+        Refresh({ refreshing: this.detailRefreshing }) {
           List({ space: 0, scroller: this.detailScroller }) {
             ListItem() {
               DetailHeader({

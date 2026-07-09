@@ -4164,7 +4164,7 @@ export struct GalleryListContent {
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
-        Refresh({ refreshing: $$this.refreshing }) {
+        Refresh({ refreshing: this.refreshing }) {
           List({ space: 0, scroller: this.listScroller }) {
             if (this.shouldShowSearchSuggestions()) {
               ListItem() {
@@ -4184,7 +4184,7 @@ export struct GalleryListContent {
             } else {
               ListItem()
                 .margin({ bottom: this.galleryCardGap() })
-              // 画廊卡片按行分组，每行 galleryColumnCount() 张
+              // Group gallery cards into rows with galleryColumnCount() items per row.
               LazyForEach(this.galleryRowsSource(), (row: GalleryInfo[]) => {
                 ListItem() {
                   Row() {
@@ -4235,7 +4235,7 @@ export struct GalleryListContent {
                   this.galleryRowKey(_row);
               })
 
-              // 加载更多指示器
+              // Load-more indicator.
               if (this.isLoadingMore) {
                 ListItem() {
                   Row() {
@@ -4753,7 +4753,7 @@ export struct GalleryListContent {
       }
     }
 
-    // 其他情况（首次加载、刷新、列数变化等）：全量替换
+    // Other cases, such as first load, refresh, or column-count changes: replace all rows.
     let structureChanged = newCount !== prevCount;
     for (let i = 0; i < newCount && !structureChanged; i++) {
       if (newKeys[i] !== this.galleryRowStructureKeys[i]) {
@@ -4781,14 +4781,14 @@ export struct GalleryListStateView {
 
   private isLoading(): boolean {
     const lower = this.statusText.toLowerCase();
-    return lower.indexOf('loading') >= 0 || lower.indexOf('加载') >= 0;
+    return lower.indexOf('loading') >= 0;
   }
 
   private isError(): boolean {
     const lower = this.statusText.toLowerCase();
     return lower.indexOf('failed') >= 0 || lower.indexOf('error') >= 0 ||
       lower.indexOf('blocked') >= 0 || lower.indexOf('banned') >= 0 ||
-      lower.indexOf('required') >= 0 || lower.indexOf('失败') >= 0;
+      lower.indexOf('required') >= 0;
   }
 
   private titleText(): string {

@@ -751,6 +751,8 @@ export function zhText(text: string): string {
       case 'Tag vote requires gallery API key': return '标签投票需要已加载的画廊会话';
       case 'Tag definition unavailable': return '标签定义不可用';
       case 'Loading...': return '正在加载...';
+      case 'Load failed': return '加载失败';
+      case 'No galleries': return '没有画廊';
     case 'Please wait...': return '请稍候...';
     case 'Migrating downloaded files...': return '正在迁移下载文件...';
     case 'Rebuilding downloaded metadata...': return '正在重建下载元数据...';
