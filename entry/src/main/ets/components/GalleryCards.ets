@@ -48,23 +48,65 @@ export struct GalleryListRow {
   }
 
   private metaGap(): number {
-    return 2;
+    return this.isSmallThumb() ? 1 : 2;
   }
 
   private metaTopGap(): number {
-    return galleryListMode() === 'Extended' ? 8 : this.metaGap();
+    if (this.isSmallThumb()) {
+      return 1;
+    }
+    return galleryListMode() === 'Extended' ? 6 : 2;
   }
 
   private titleMaxLines(): number {
+    if (this.isSmallThumb()) {
+      return 2;
+    }
     return galleryListMode() === 'Extended' ? 2 : 3;
   }
 
   private titleHeight(): number {
-    return galleryListMode() === 'Extended' ? 38 : 56;
+    if (this.isSmallThumb()) {
+      return 34;
+    }
+    if (galleryListMode() === 'Extended') {
+      return 38;
+    }
+    if (this.cardHeight() >= 160) {
+      return 58;
+    }
+    if (this.cardHeight() >= 140) {
+      return 50;
+    }
+    return 42;
   }
 
   private uploaderTopGap(): number {
-    return galleryListMode() === 'Extended' ? 1 : 3;
+    return this.isSmallThumb() || galleryListMode() === 'Extended' ? 1 : 2;
+  }
+
+  private isSmallThumb(): boolean {
+    return galleryThumbWidth() <= 70 || this.cardHeight() <= 100;
+  }
+
+  private titleFontSize(): number {
+    return this.isSmallThumb() ? 14 : 15;
+  }
+
+  private uploaderFontSize(): number {
+    return this.isSmallThumb() ? 11 : 12;
+  }
+
+  private metaFontSize(): number {
+    return this.isSmallThumb() ? 11 : 13;
+  }
+
+  private metaLineHeight(): number {
+    return this.isSmallThumb() ? 14 : 17;
+  }
+
+  private sideMetaVisible(): boolean {
+    return !this.isSmallThumb();
   }
 
   private hasTags(): boolean {
@@ -142,9 +184,10 @@ export struct GalleryListRow {
         Column() {
           Column() {
             Text(galleryDisplayTitle(this.gallery))
-              .fontSize(15)
+              .fontSize(this.titleFontSize())
               .fontWeight(FontWeight.Medium)
               .fontColor(themePrimaryText())
+              .lineHeight(this.titleFontSize() + 3)
               .maxLines(this.titleMaxLines())
               .textOverflow({ overflow: TextOverflow.Ellipsis })
               .width('100%')
@@ -157,8 +200,9 @@ export struct GalleryListRow {
 
           Text(this.gallery.uploader === undefined || this.gallery.uploader.length === 0 ? uiText('unknown uploader') :
             this.gallery.uploader)
-            .fontSize(12)
+            .fontSize(this.uploaderFontSize())
             .fontColor(themeSecondaryText())
+            .lineHeight(this.uploaderFontSize() + 3)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .margin({ top: this.uploaderTopGap() })
@@ -171,17 +215,19 @@ export struct GalleryListRow {
           Column() {
             Row() {
               Text(this.languageText())
-                .fontSize(13)
+                .fontSize(this.metaFontSize())
                 .fontColor(themeSecondaryText())
                 .fontWeight(FontWeight.Medium)
+                .lineHeight(this.metaLineHeight())
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
                 .layoutWeight(1)
               if (this.showReadPageText()) {
                 Text(this.readPageText())
-                  .fontSize(13)
+                  .fontSize(this.metaFontSize())
                   .fontColor(themeSecondaryText())
                   .fontWeight(FontWeight.Medium)
+                  .lineHeight(this.metaLineHeight())
                   .maxLines(1)
                   .textOverflow({ overflow: TextOverflow.Ellipsis })
                   .margin({ left: 8 })
@@ -190,8 +236,9 @@ export struct GalleryListRow {
             .width('100%')
 
             Text(this.gallery.posted === undefined ? '' : this.gallery.posted)
-              .fontSize(13)
+              .fontSize(this.metaFontSize())
               .fontColor(themeTertiaryText())
+              .lineHeight(this.metaLineHeight())
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
               .margin({ top: this.metaGap() })
@@ -199,17 +246,19 @@ export struct GalleryListRow {
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
 
-          Column() {
-            Rating({ rating: this.gallery.rating, indicator: true })
-              .stars(5)
-              .stepSize(0.5)
-              .height(14)
-              .width(74)
-            CategoryBadge({ category: this.gallery.category })
-              .margin({ top: 1 })
+          if (this.sideMetaVisible()) {
+            Column() {
+              Rating({ rating: this.gallery.rating, indicator: true })
+                .stars(5)
+                .stepSize(0.5)
+                .height(14)
+                .width(74)
+              CategoryBadge({ category: this.gallery.category })
+                .margin({ top: 1 })
+            }
+            .alignItems(HorizontalAlign.End)
+            .margin({ left: 8 })
           }
-          .alignItems(HorizontalAlign.End)
-          .margin({ left: 8 })
         }
         .width('100%')
         .alignItems(VerticalAlign.Bottom)
@@ -234,7 +283,12 @@ export struct GalleryListRow {
         }
         .height('100%')
         .layoutWeight(1)
-        .padding({ left: 10, right: 8, top: this.cardGap(), bottom: this.cardGap() })
+        .padding({
+          left: this.isSmallThumb() ? 8 : 10,
+          right: this.isSmallThumb() ? 6 : 8,
+          top: this.isSmallThumb() ? 5 : this.cardGap(),
+          bottom: this.isSmallThumb() ? 5 : this.cardGap()
+        })
         .alignItems(HorizontalAlign.Start)
       }
       .width('100%')

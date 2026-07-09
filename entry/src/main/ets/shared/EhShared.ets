@@ -968,9 +968,11 @@ export function zhText(text: string): string {
     case 'Not set': return '未设置';
     case 'App files': return '应用文件';
     case 'Small': return '小';
+    case 'Medium': return '中';
     case 'Large': return '大';
     case 'XLarge': return '超大';
     case 'Compact': return '紧凑';
+    case 'Loose': return '宽松';
     case 'Detail': return '详情';
     case 'Thumb': return '缩略图';
     case 'Extended': return '扩展';
@@ -2240,8 +2242,10 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       staticSettingsRow('my_tags', 'My Tags', 'Manage watched and hidden tags, requires sign in', 'Open', 'action'),
       optionSettingsRow('launch_page', 'Launch page', 'Default start scene after warnings and sign-in checks', entries, ['Homepage', 'Subscription', 'What\'s Hot', 'Favorites']),
       optionSettingsRow('list_mode', 'List mode', 'Gallery list style from original Android preferences', entries, ['Detail', 'Thumb', 'Extended']),
-      optionSettingsRow('detail_size', 'Detail size', 'Gallery detail image and metadata density', entries, ['Default', 'Compact', 'Large']),
-      optionSettingsRow('thumb_size', 'Thumb size', 'Thumbnail size used in gallery rows', entries, ['Small', 'Large', 'XLarge']),
+      optionSettingsRow('detail_size', 'Detail size', 'Gallery detail image and metadata density', entries,
+        ['Compact', 'Medium', 'Loose']),
+      optionSettingsRow('thumb_size', 'Thumb size', 'Thumbnail size used in gallery rows', entries,
+        ['Small', 'Medium', 'Large', 'XLarge']),
       optionSettingsRow(HISTORY_INFO_SIZE_KEY, 'History size', 'Maximum stored gallery history records',
         entries, historyInfoSizeOptions()),
       optionSettingsRow('show_jpn_title', 'Show Japanese title', 'Prefer original title when available', entries, ON_OFF_OPTIONS),
@@ -3032,44 +3036,50 @@ export function galleryListMode(): string {
 }
 
 export function galleryThumbWidth(): number {
-  const value = ehSettingsStore.getValue('thumb_size', 'Large');
+  const value = ehSettingsStore.getValue('thumb_size', 'Medium');
   if (value === 'Small') {
     return 70;
   }
-  if (value === 'XLarge') {
+  if (value === 'Large') {
     return 104;
+  }
+  if (value === 'XLarge') {
+    return 124;
   }
   return 86;
 }
 
 export function galleryThumbHeight(): number {
-  const value = ehSettingsStore.getValue('thumb_size', 'Large');
+  const value = ehSettingsStore.getValue('thumb_size', 'Medium');
   if (value === 'Small') {
     return 96;
   }
-  if (value === 'XLarge') {
+  if (value === 'Large') {
     return 142;
+  }
+  if (value === 'XLarge') {
+    return 170;
   }
   return 118;
 }
 
 export function detailTitleFontSize(): number {
-  const value = ehSettingsStore.getValue('detail_size', 'Default');
+  const value = ehSettingsStore.getValue('detail_size', 'Medium');
   if (value === 'Compact') {
     return 16;
   }
-  if (value === 'Large') {
+  if (value === 'Large' || value === 'Loose') {
     return 20;
   }
   return 18;
 }
 
 export function detailTitleMaxLines(): number {
-  const value = ehSettingsStore.getValue('detail_size', 'Default');
+  const value = ehSettingsStore.getValue('detail_size', 'Medium');
   if (value === 'Compact') {
     return 3;
   }
-  if (value === 'Large') {
+  if (value === 'Large' || value === 'Loose') {
     return 6;
   }
   return 5;

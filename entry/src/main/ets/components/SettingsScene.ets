@@ -492,6 +492,24 @@ export struct SettingsScene {
     if (key === HISTORY_INFO_SIZE_KEY) {
       return normalizeHistoryInfoSizeOption(value);
     }
+    if (key === 'detail_size') {
+      if (value === 'Default') {
+        return 'Medium';
+      }
+      if (value === 'Compact' || value === 'Medium' || value === 'Loose') {
+        return value;
+      }
+      if (value === 'Large') {
+        return 'Loose';
+      }
+      return 'Medium';
+    }
+    if (key === 'thumb_size') {
+      if (value === 'Small' || value === 'Medium' || value === 'Large' || value === 'XLarge') {
+        return value;
+      }
+      return 'Medium';
+    }
     if (key === 'theme' && ehSettingsStore.getValue('follow_system_dark_mode', 'Off') === 'On') {
       return value === 'Black' ? 'Black' : 'Dark';
     }

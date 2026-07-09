@@ -25,7 +25,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'theme', value: 'Light' },
     { key: 'launch_page', value: 'Homepage' },
     { key: 'list_mode', value: 'Detail' },
-    { key: 'detail_size', value: 'Default' },
+    { key: 'detail_size', value: 'Medium' },
     { key: 'thumb_size', value: 'Medium' },
     { key: HISTORY_INFO_SIZE_KEY, value: DEFAULT_HISTORY_INFO_SIZE },
     { key: 'show_jpn_title', value: 'Off' },
@@ -174,6 +174,12 @@ export class EhSettingsStore {
       }
       if (this.getValue('download_timeout', '30s') === 'Default') {
         this.setValue('download_timeout', '30s');
+      }
+      if (this.getValue('detail_size', 'Medium') === 'Default') {
+        this.setValue('detail_size', 'Medium');
+      }
+      if (this.getValue('detail_size', 'Medium') === 'Large') {
+        this.setValue('detail_size', 'Loose');
       }
     } catch (error) {
       throw new Error(String(error));
