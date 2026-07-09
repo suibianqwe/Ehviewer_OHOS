@@ -290,7 +290,7 @@ function mergePreviewList(current: GalleryPreview[], loaded: GalleryPreview[]): 
 
 @Component
 export struct GalleryDetailHostScene {
-  @Prop detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();
+  @Prop @Watch('onDetailLinkChanged') detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();
   listRequestUrl: string = '';
   initialDetailScrollOffset: number = 0;
   onBack: () => void = () => {};
@@ -346,6 +346,16 @@ export struct GalleryDetailHostScene {
 
   onPageHide(): void {
     this.saveNavigationState();
+  }
+
+  onDetailLinkChanged(): void {
+    if (this.detailLink.gid <= 0 || this.detailLink.token.length === 0) {
+      return;
+    }
+    if (this.detail.gid === this.detailLink.gid && this.detail.token === this.detailLink.token) {
+      return;
+    }
+    this.loadDetailFromLink();
   }
 
   private handleDetailSystemBack(): boolean {

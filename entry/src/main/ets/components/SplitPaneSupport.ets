@@ -138,8 +138,8 @@ export struct SplitPaneDivider {
     }
     .width(24)
     .height('100%')
-    .translate({ x: this.x - 12 })
-    .zIndex(40)
+    .position({ x: this.x - 12, y: 0 })
+    .zIndex(80)
     .gesture(
       PanGesture({ fingers: 1, direction: PanDirection.Horizontal, distance: 1 })
         .onActionStart(() => {

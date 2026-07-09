@@ -740,8 +740,8 @@ export struct TopListScene {
           })
             .width(this.splitSidePaneWidth())
             .height('100%')
-            .translate({ x: this.splitListPaneWidth() + 1 })
-            .zIndex(5)
+            .position({ x: this.splitListPaneWidth() + 1, y: 0 })
+            .zIndex(20)
             .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
             .transition(this.restoreDetailWithFade ?
               TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :

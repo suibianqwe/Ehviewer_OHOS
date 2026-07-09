@@ -1833,7 +1833,7 @@ export struct DownloadScene {
         })
           .width(this.splitSidePaneWidth())
           .height('100%')
-          .translate({ x: this.splitListPaneWidth() + 1 })
+          .position({ x: this.splitListPaneWidth() + 1, y: 0 })
           .zIndex(5)
           .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
           .transition(this.restoreDetailWithFade ?

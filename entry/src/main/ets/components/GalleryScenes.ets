@@ -2656,7 +2656,7 @@ export struct GalleryListScene {
   }
 
   private useSplitLayout(): boolean {
-    return !this.isSearchResultScene && splitPaneModeEnabled() && this.sceneContentWidth >= SPLIT_PANE_BREAKPOINT &&
+    return splitPaneModeEnabled() && this.sceneContentWidth >= SPLIT_PANE_BREAKPOINT &&
       this.showDetail && !this.showReader;
   }
 
@@ -3096,7 +3096,7 @@ export struct GalleryListScene {
             })
               .width(this.useSplitLayout() ? this.splitSidePaneWidth() : '100%')
               .height('100%')
-              .translate({ x: this.useSplitLayout() ? this.splitListPaneWidth() + 1 : 0 })
+              .position({ x: this.useSplitLayout() ? this.splitListPaneWidth() + 1 : 0, y: 0 })
               .zIndex(5)
               .animation({
                 duration: this.splitDragging ? 0 : 220,
