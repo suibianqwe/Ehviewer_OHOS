@@ -584,6 +584,10 @@ function bookmarkLocationLabel(route: GalleryRoute): string {
   return 'All site';
 }
 
+function bookmarkInputFocusId(id: string): string {
+  return 'bookmark-input-' + id;
+}
+
 function bookmarkSummary(item: SearchBookmarkInfo): string {
   const parts: string[] = [uiText(bookmarkLocationLabel(item.location)), uiText(bookmarkModeLabel(item.mode))];
   if (item.keyword.length > 0) {
@@ -872,6 +876,10 @@ export struct SearchBookmarkManagerScene {
                 editing: this.editingBookmarkId === item.id,
                 onStartEdit: (bookmark: SearchBookmarkInfo) => {
                   this.editingBookmarkId = bookmark.id;
+                  const focusId = bookmarkInputFocusId(bookmark.id);
+                  setTimeout(() => {
+                    focusControl.requestFocus(focusId);
+                  }, 0);
                 },
                 onFinishEdit: (bookmark: SearchBookmarkInfo) => {
                   if (this.editingBookmarkId === bookmark.id) {
@@ -961,7 +969,11 @@ export struct SearchBookmarkManagerRow {
 
         if (this.editing) {
           TextInput({ text: this.draftName, placeholder: uiText('Bookmark name') })
+            .id(bookmarkInputFocusId(this.item.id))
             .defaultFocus(true)
+            .onAppear(() => {
+              focusControl.requestFocus(bookmarkInputFocusId(this.item.id));
+            })
             .height(38)
             .layoutWeight(1)
             .fontSize(14)
