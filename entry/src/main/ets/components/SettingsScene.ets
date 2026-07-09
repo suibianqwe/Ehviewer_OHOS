@@ -152,7 +152,6 @@ export struct SettingsScene {
   @State updateCurrentVersion: string = '';
   @State updateRelease: ReleaseInfo | null = null;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
-  private webViewController: webview.WebviewController = new webview.WebviewController();
   private client: EhHttpClient = new EhHttpClient();
   @Prop @Watch('onResetVersionChanged') resetVersion: number = 0;
   onMenu: () => void = () => {};
@@ -1511,28 +1510,18 @@ export struct SettingsScene {
           .transition(TransitionEffect.move(TransitionEdge.END)
             .animation({ duration: 300, curve: Curve.EaseOut }))
       } else if (this.panel === SettingsPanel.WebView) {
-        Column() {
-          SettingsSubToolbar({
-            title: uiText(this.webViewTitle),
-            onBack: () => {
-              this.closePanel();
-            }
-          })
-          Web({ src: this.webViewUrl, controller: this.webViewController })
-            .javaScriptAccess(true)
-            .domStorageAccess(true)
-            .backgroundColor(Color.Transparent)
-            .onPageEnd((event: OnPageEndEvent) => {
-              this.captureAccountWebCookies(event.url);
-            })
-            .width('100%')
-            .layoutWeight(1)
-        }
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themePageBackground())
-        .transition(TransitionEffect.move(TransitionEdge.END)
-          .animation({ duration: 300, curve: Curve.EaseOut }))
+        SettingsAccountWebPanel({
+          title: this.webViewTitle,
+          url: this.webViewUrl,
+          onBack: () => {
+            this.closePanel();
+          },
+          onPageEnd: (url: string) => {
+            this.captureAccountWebCookies(url);
+          }
+        })
+          .transition(TransitionEffect.move(TransitionEdge.END)
+            .animation({ duration: 300, curve: Curve.EaseOut }))
       } else if (this.panel === SettingsPanel.MyTags) {
         Column() {
           SettingsSubToolbar({
@@ -1764,6 +1753,36 @@ export struct SettingsHomePanel {
       .cachedCount(3)
       .padding({ left: 12, right: 12, top: 0, bottom: 0 })
       .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor(themePageBackground())
+  }
+}
+
+@Component
+export struct SettingsAccountWebPanel {
+  title: string = '';
+  url: string = '';
+  onBack: () => void = () => {};
+  onPageEnd: (url: string) => void = (_url: string) => {};
+  private webViewController: webview.WebviewController = new webview.WebviewController();
+
+  build() {
+    Column() {
+      SettingsSubToolbar({
+        title: uiText(this.title),
+        onBack: this.onBack
+      })
+      Web({ src: this.url, controller: this.webViewController })
+        .javaScriptAccess(true)
+        .domStorageAccess(true)
+        .backgroundColor(Color.Transparent)
+        .onPageEnd((event: OnPageEndEvent) => {
+          this.onPageEnd(event.url);
+        })
+        .width('100%')
+        .layoutWeight(1)
     }
     .width('100%')
     .height('100%')

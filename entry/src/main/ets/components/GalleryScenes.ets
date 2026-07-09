@@ -961,6 +961,7 @@ export struct SearchBookmarkManagerRow {
 
         if (this.editing) {
           TextInput({ text: this.draftName, placeholder: uiText('Bookmark name') })
+            .defaultFocus(true)
             .height(38)
             .layoutWeight(1)
             .fontSize(14)
