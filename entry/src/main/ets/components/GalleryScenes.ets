@@ -103,8 +103,7 @@ import {
   galleryThumbWidth,
   galleryThumbHeight,
   toggleGalleryDownload,
-  downloadButtonText,
-  cacheThumbnailImage
+  downloadButtonText
 } from '../shared/EhShared';
 
 export { CategoryBadge, GalleryListRow, GalleryTagChip, GalleryThumb, GalleryThumbCard } from './GalleryCards';
@@ -3603,14 +3602,6 @@ export struct GalleryListContent {
 
   aboutToAppear(): void {
     setActiveBackHandler(() => this.handleContentBack());
-    this.galleryRowsDataSource.setPrefetchCallback((row: GalleryRowData) => {
-      for (let i = 0; i < row.items.length; i++) {
-        const thumb = row.items[i].thumb;
-        if (thumb !== undefined && thumb.length > 0) {
-          cacheThumbnailImage(thumb, () => {}, () => {});
-        }
-      }
-    });
     this.syncContentWidthFromWindow();
     this.refreshGalleryRows();
     this.syncPageJumpDraft();

@@ -161,6 +161,12 @@ interface DownloadNavigationCache {
   tagSearchImageShowExpunged: boolean;
 }
 
+interface DownloadRowData {
+  index: number;
+  key: string;
+  items: DownloadInfo[];
+}
+
 let downloadNavigationCache: DownloadNavigationCache | null = null;
 
 function cloneDownloadDetailLink(link: GalleryDetailLink): GalleryDetailLink {
@@ -232,7 +238,7 @@ export struct DownloadScene {
   private downloadScrollOffset: number = 0;
   private toolbarRestoring: boolean = false;
   private cellularWarningDialogOpen: boolean = false;
-  private downloadRowsDataSource: ArrayDataSource<DownloadInfo[]> = new ArrayDataSource<DownloadInfo[]>([]);
+  private downloadRowsDataSource: ArrayDataSource<DownloadRowData> = new ArrayDataSource<DownloadRowData>([]);
   private downloadRowStructureKeys: string[] = [];
   private downloadCardStates: Map<number, DownloadCardState> = new Map<number, DownloadCardState>();
 
@@ -805,17 +811,23 @@ export struct DownloadScene {
     this.updateDownloadContentWidth(mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value)));
   }
 
-  private buildDownloadRows(): DownloadInfo[][] {
+  private buildDownloadRows(): DownloadRowData[] {
     const visible = this.visibleDownloadItems();
     const columns = this.downloadColumnCount();
-    const rows: DownloadInfo[][] = [];
+    const rows: DownloadRowData[] = [];
     for (let i = 0; i < visible.length; i += columns) {
-      rows.push(visible.slice(i, i + columns));
+      const items = visible.slice(i, i + columns);
+      const rowIndex = Math.floor(i / columns);
+      rows.push({
+        index: rowIndex,
+        key: columns.toString() + ':' + rowIndex.toString() + ':' + this.downloadRowKey(rowIndex, items),
+        items: items
+      });
     }
     return rows;
   }
 
-  private downloadRowsSource(): ArrayDataSource<DownloadInfo[]> {
+  private downloadRowsSource(): ArrayDataSource<DownloadRowData> {
     return this.downloadRowsDataSource;
   }
 
@@ -823,7 +835,7 @@ export struct DownloadScene {
     const rows = this.buildDownloadRows();
     const newKeys: string[] = [];
     for (let i = 0; i < rows.length; i++) {
-      newKeys.push(this.downloadRowKey(rows[i]));
+      newKeys.push(rows[i].key);
     }
 
     const prevCount = this.downloadRowStructureKeys.length;
@@ -868,8 +880,9 @@ export struct DownloadScene {
     }
   }
 
-  private downloadRowKey(row: DownloadInfo[]): string {
-    return row.map((item: DownloadInfo) => item.gid.toString() + '@' + item.state).join('-');
+  private downloadRowKey(rowIndex: number, row: DownloadInfo[]): string {
+    return row.map((item: DownloadInfo, index: number) => rowIndex.toString() + ':' + index.toString() + ':' +
+      item.gid.toString() + '@' + item.state).join('-');
   }
 
   private syncDownloadCardStates(): void {
@@ -1424,10 +1437,10 @@ export struct DownloadScene {
                   .width('100%')
                   .backgroundColor(Color.Transparent)
               }
-              LazyForEach(this.downloadRowsSource(), (row: DownloadInfo[]) => {
+              LazyForEach(this.downloadRowsSource(), (row: DownloadRowData) => {
                 ListItem() {
                   Row() {
-                    ForEach(row, (item: DownloadInfo, colIndex: number) => {
+                    ForEach(row.items, (item: DownloadInfo, colIndex: number) => {
                       Column() {
                       if (galleryListMode() === 'Thumb') {
                         GalleryThumbCard({
@@ -1473,18 +1486,17 @@ export struct DownloadScene {
                       }
                     }
                       .width(this.downloadCardWidth())
-                      .margin({ right: colIndex < row.length - 1 ? this.downloadCardGap() : 0 })
+                      .margin({ right: colIndex < row.items.length - 1 ? this.downloadCardGap() : 0 })
                       .animation({ duration: 220, curve: Curve.EaseOut })
-                    }, (item: DownloadInfo) => item.gid.toString())
+                    }, (item: DownloadInfo, colIndex: number) => row.index.toString() + ':' + colIndex.toString() +
+                      ':' + item.gid.toString())
                   }
                   .width('100%')
                   .justifyContent(FlexAlign.Start)
                   .animation({ duration: 220, curve: Curve.EaseOut })
                 }
                 .margin({ bottom: this.downloadCardGap() })
-              }, (row: DownloadInfo[], rowIndex: number) => {
-                return this.downloadColumnCount().toString() + ':' + rowIndex.toString() + ':' + this.downloadRowKey(row);
-              })
+              }, (row: DownloadRowData) => row.key)
             }
             .width('100%')
             .height(this.downloadListViewportHeight())

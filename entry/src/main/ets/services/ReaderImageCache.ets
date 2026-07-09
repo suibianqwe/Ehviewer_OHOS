@@ -224,7 +224,7 @@ export class ReaderImageCache {
         method: http.RequestMethod.GET,
         header: header,
         expectDataType: http.HttpDataType.ARRAY_BUFFER,
-        connectTimeout: plan.fronted ? IMAGE_CONNECT_TIMEOUT_MS : Math.min(timeout, 10000),
+        connectTimeout: plan.fronted ? IMAGE_CONNECT_TIMEOUT_MS : Math.min(timeout, 30000),
         readTimeout: imageHttpReadTimeoutMs(timeout)
       };
       applyEhNetworkOptions(options, plan);

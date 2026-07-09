@@ -91,6 +91,7 @@ interface ThumbnailReadyDelivery {
 
 const THUMBNAIL_READY_BATCH_SIZE: number = 1;
 const THUMBNAIL_READY_BATCH_DELAY_MS: number = 48;
+const THUMBNAIL_RETRY_LIMIT: number = 2;
 const THUMBNAIL_READY_QUEUE: ThumbnailReadyDelivery[] = [];
 let thumbnailReadyScheduled: boolean = false;
 
@@ -2850,7 +2851,8 @@ export function cacheThumbnailImage(url: string, onReady: (path: string) => void
     return;
   }
 
-  readerImageCache.ensureCached(context, url, EhUrl.getReferer(currentGallerySite())).then((path: string) => {
+  readerImageCache.ensureCached(context, url, EhUrl.getReferer(currentGallerySite()), false, undefined, '',
+    { retryLimit: THUMBNAIL_RETRY_LIMIT }).then((path: string) => {
     if (path.length > 0) {
       enqueueThumbnailReady(path, onReady);
     } else if (onError !== undefined) {
