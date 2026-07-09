@@ -564,9 +564,9 @@ export struct AppToolbar {
 
 @Component
 export struct AppSubToolbar {
-  title: string = '';
-  showAction: boolean = false;
-  actionIcon: Resource = $r('sys.symbol.share');
+  @Prop title: string = '';
+  @Prop showAction: boolean = false;
+  @Prop actionIcon: Resource = $r('sys.symbol.share');
   onBack: () => void = () => {};
   onAction: () => void = () => {};
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeight: number = 0;

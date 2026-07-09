@@ -848,15 +848,19 @@ export struct DownloadScene {
   }
 
   private availableSceneWidth(): number {
-    return this.sceneContentWidth > 0 ? this.sceneContentWidth : this.windowContentWidthVp();
+    const windowWidth = this.windowContentWidthVp();
+    if (this.sceneContentWidth > 0) {
+      return Math.max(this.sceneContentWidth, windowWidth);
+    }
+    return windowWidth;
   }
 
   private syncSceneContentWidthFromWindow(): void {
-    if (this.sceneContentWidth >= 240) {
+    if (this.sceneContentWidth >= SPLIT_PANE_BREAKPOINT) {
       return;
     }
     const width = this.windowContentWidthVp();
-    if (width > 0) {
+    if (width > this.sceneContentWidth) {
       this.updateSceneContentWidth(width);
     }
   }
@@ -1398,6 +1402,12 @@ export struct DownloadScene {
           this.persistDownloads();
         }
       })
+        .onAppear(() => {
+          this.syncSceneContentWidthFromWindow();
+        })
+        .onAreaChange((_oldArea: Area, newArea: Area) => {
+          this.updateSceneContentWidth(areaDimensionToVp(newArea.width, (value: number) => this.getUIContext().px2vp(value)));
+        })
         .transition(TransitionEffect.move(TransitionEdge.END)
           .animation({ duration: 300, curve: Curve.EaseOut }))
     } else {

@@ -550,6 +550,68 @@ export struct TopListScene {
     saveSplitPaneRatio(this.splitListRatio);
   }
 
+  @Builder
+  private topListMainContent() {
+    Column() {
+      if (this.topList.lists.length === 0) {
+        Column() {
+          GalleryListStateView({
+            statusText: this.statusText,
+            requestUrl: this.requestUrl,
+            onRefresh: () => {
+              this.loadTopList();
+            }
+          })
+            .layoutWeight(1)
+        }
+        .width('100%')
+        .height('100%')
+        .padding({ top: this.floatingToolbarHeight() + 12 })
+        .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+      } else {
+        Column() {
+          TopListBoard({
+            lists: this.topList.lists,
+            selectedIndex: this.selectedIndex,
+            info: this.currentInfo(),
+            toolbarOffsetY: this.toolbarOffsetY,
+            topPadding: this.floatingToolbarHeight() + 4,
+            statusBarHeight: this.statusBarVp(),
+            renderVersion: this.renderVersion,
+            onSelectList: (index: number) => {
+              if (this.selectedIndex === index) {
+                return;
+              }
+              this.selectedIndex = index;
+              this.topListScrollOffset = 0;
+              this.toolbarOffsetY = 0;
+              this.renderVersion++;
+            },
+            onOpenBucket: (bucket: TopListBucket) => {
+              this.openBucket(bucket);
+            },
+            onOpenItem: (item: TopListItem, info: TopListInfo) => {
+              this.openTopListItem(item, info);
+            },
+            initialScrollOffset: this.topListScrollOffset,
+            onScrollUpdate: (offset: number, scrollOffset: number) => {
+              const offsetRemain = this.updateToolbarForScroll(offset, scrollOffset);
+              this.topListScrollOffset = offset;
+              return offsetRemain;
+            }
+          })
+            .layoutWeight(1)
+        }
+        .width('100%')
+        .height('100%')
+        .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor(themePageBackground())
+  }
+
   build() {
     if (this.showTagSearch) {
       GalleryListScene({
@@ -626,81 +688,29 @@ export struct TopListScene {
         .transition(TransitionEffect.move(TransitionEdge.END)
           .animation({ duration: 300, curve: Curve.EaseOut }))
     } else {
-      FloatingToolbarHost({
-        kind: 'title',
-        title: '排行',
-        requestUrl: '',
-        showRefreshButton: false,
-        toolbarOffsetY: this.toolbarOffsetY,
-        toolbarHeight: 56,
-        onMenu: this.onMenu,
-        onRefresh: () => {
-          this.loadTopList();
-        }
-      }) {
-        Stack({ alignContent: Alignment.TopStart }) {
+      Stack({ alignContent: Alignment.TopStart }) {
         Column() {
-          if (this.topList.lists.length === 0) {
-            Column() {
-              GalleryListStateView({
-                statusText: this.statusText,
-                requestUrl: this.requestUrl,
-                onRefresh: () => {
-                  this.loadTopList();
-                }
-              })
-                .layoutWeight(1)
+          FloatingToolbarHost({
+            kind: 'title',
+            title: '排行',
+            requestUrl: '',
+            showRefreshButton: false,
+            toolbarOffsetY: this.toolbarOffsetY,
+            toolbarHeight: 56,
+            onMenu: this.onMenu,
+            onRefresh: () => {
+              this.loadTopList();
             }
-            .width('100%')
-            .height('100%')
-            .padding({ top: this.floatingToolbarHeight() + 12 })
-            .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
-          } else {
-            Column() {
-              TopListBoard({
-                lists: this.topList.lists,
-                selectedIndex: this.selectedIndex,
-                info: this.currentInfo(),
-                toolbarOffsetY: this.toolbarOffsetY,
-                topPadding: this.floatingToolbarHeight() + 4,
-                statusBarHeight: this.statusBarVp(),
-                renderVersion: this.renderVersion,
-                onSelectList: (index: number) => {
-                  if (this.selectedIndex === index) {
-                    return;
-                  }
-                  this.selectedIndex = index;
-                  this.topListScrollOffset = 0;
-                  this.toolbarOffsetY = 0;
-                  this.renderVersion++;
-                },
-                onOpenBucket: (bucket: TopListBucket) => {
-                  this.openBucket(bucket);
-                },
-                onOpenItem: (item: TopListItem, info: TopListInfo) => {
-                  this.openTopListItem(item, info);
-                },
-                initialScrollOffset: this.topListScrollOffset,
-                onScrollUpdate: (offset: number, scrollOffset: number) => {
-                  const offsetRemain = this.updateToolbarForScroll(offset, scrollOffset);
-                  this.topListScrollOffset = offset;
-                  return offsetRemain;
-                }
-              })
-              .layoutWeight(1)
-            }
-            .width('100%')
-            .height('100%')
-            .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+          }) {
+            this.topListMainContent()
           }
         }
         .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
-    .height('100%')
-    .backgroundColor(themePageBackground())
-    .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
-    .transition(TransitionEffect.asymmetric(
-      TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }),
-      TransitionEffect.OPACITY.animation({ duration: 1, delay: 300, curve: Curve.Linear })))
+        .height('100%')
+        .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
+        .transition(TransitionEffect.asymmetric(
+          TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }),
+          TransitionEffect.OPACITY.animation({ duration: 1, delay: 300, curve: Curve.Linear })))
 
         if (this.useSplitLayout()) {
           SplitPaneDivider({
@@ -741,7 +751,7 @@ export struct TopListScene {
             .width(this.splitSidePaneWidth())
             .height('100%')
             .position({ x: this.splitListPaneWidth() + 1, y: 0 })
-            .zIndex(20)
+            .zIndex(5)
             .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
             .transition(this.restoreDetailWithFade ?
               TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
@@ -754,7 +764,6 @@ export struct TopListScene {
         this.updateSceneContentWidth(areaDimensionToVp(newArea.width, (value: number) => this.getUIContext().px2vp(value)));
       })
     }
-  }
   }
 }
 
