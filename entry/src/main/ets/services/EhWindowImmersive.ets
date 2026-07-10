@@ -33,18 +33,19 @@ export function rememberMainContentWidthVp(width: number): void {
 
 export function mainContentWidthFallbackVp(pxToVp: (value: number) => number): number {
   const remembered = AppStorage.get<number>(MAIN_CONTENT_WIDTH_VP_KEY);
-  if (remembered !== undefined && remembered >= 240) {
-    return remembered;
-  }
   const win = getMainWindow();
-  if (win === undefined) {
-    return 0;
-  }
+  let windowWidth = 0;
   try {
-    return normalizeWindowWidthVp(win.getWindowProperties().windowRect.width, pxToVp);
+    if (win !== undefined) {
+      windowWidth = normalizeWindowWidthVp(win.getWindowProperties().windowRect.width, pxToVp);
+    }
   } catch (_error) {
-    return 0;
+    windowWidth = 0;
   }
+  if (remembered !== undefined && remembered >= 240) {
+    return Math.max(remembered, windowWidth);
+  }
+  return windowWidth;
 }
 
 function normalizeWindowWidthVp(rawWidth: number, pxToVp: (value: number) => number): number {
