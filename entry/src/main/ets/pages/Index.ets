@@ -9,6 +9,7 @@ import { ehUpdateChecker, ReleaseInfo, UpdateCheckResult } from '../services/EhU
 import { EhDrawer } from '../components/NavigationComponents';
 import { UpdatePromptOverlay } from '../components/UpdatePromptOverlay';
 import { applyAppChromeImmersiveMode, isEmbeddedReaderActive } from '../services/EhWindowImmersive';
+import { markPreviousRouteRightPane } from '../components/SplitPaneSupport';
 import { FavoriteGalleryScene, HomeGalleryScene, HotGalleryScene, SubscriptionGalleryScene } from '../components/GalleryScenes';
 import { HistoryScene, TopListScene } from '../components/HistoryTopScenes';
 import { DownloadScene, MigrationScene } from '../components/DownloadMigrationScenes';
@@ -185,6 +186,9 @@ struct Index {
   }
 
   private setRootRoute(route: GalleryRoute): void {
+    if (this.activeRoute === GalleryRoute.Session || this.activeRoute === GalleryRoute.Migration) {
+      markPreviousRouteRightPane(false);
+    }
     this.activeRoute = route;
     this.routeResetVersion++;
     rootNavigationCache = {

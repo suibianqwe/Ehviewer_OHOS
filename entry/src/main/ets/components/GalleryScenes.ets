@@ -61,9 +61,11 @@ import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
 import {
   areaDimensionToVp,
+  markPreviousRouteRightPane,
   saveSplitPaneRatio,
   SPLIT_PANE_BREAKPOINT,
   SPLIT_PANE_RATIO_REVISION_KEY,
+  shouldFadeRestoredRightPane,
   splitPaneCurrentRatio,
   SplitPaneDivider,
   splitPaneListWidth,
@@ -1271,7 +1273,7 @@ export struct GalleryListScene {
       cloneSearchResultDraft(cache.searchResultDraft);
     this.localSearchBarVisible = cache.localSearchBarVisible;
     this.showDetail = cache.showDetail;
-    this.restoreDetailWithFade = cache.restoreDetailWithFade;
+    this.restoreDetailWithFade = cache.showDetail && shouldFadeRestoredRightPane();
     this.detailLink = cloneGalleryDetailLink(cache.detailLink);
     this.detail = cloneGalleryDetail(cache.detail);
     this.detailStatus = cache.detailStatus;
@@ -1427,11 +1429,13 @@ export struct GalleryListScene {
   }
 
   aboutToDisappear(): void {
+    markPreviousRouteRightPane(this.useSplitLayout());
     this.saveListCache();
     this.saveNavigationCache();
   }
 
   onPageHide(): void {
+    markPreviousRouteRightPane(this.useSplitLayout());
     this.saveListCache();
     this.saveNavigationCache();
   }
@@ -3152,7 +3156,7 @@ export struct GalleryListScene {
                 duration: this.splitDragging ? 0 : 220,
                 curve: Curve.EaseOut
               })
-              .transition(this.useSplitLayout() || this.restoreDetailWithFade ?
+              .transition(this.restoreDetailWithFade ?
                 TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
                 TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }))
           }

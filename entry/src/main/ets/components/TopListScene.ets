@@ -30,9 +30,11 @@ import { ReaderSessionScene } from './ReaderHostScene';
 import { FloatingToolbarHost } from './NavigationComponents';
 import {
   areaDimensionToVp,
+  markPreviousRouteRightPane,
   saveSplitPaneRatio,
   SPLIT_PANE_BREAKPOINT,
   SPLIT_PANE_RATIO_REVISION_KEY,
+  shouldFadeRestoredRightPane,
   splitPaneCurrentRatio,
   SplitPaneDivider,
   splitPaneListWidth,
@@ -154,6 +156,7 @@ export struct TopListScene {
   }
 
   aboutToDisappear(): void {
+    markPreviousRouteRightPane(this.useSplitLayout());
     this.saveNavigationCache();
   }
 
@@ -224,7 +227,7 @@ export struct TopListScene {
     this.galleryUseForcedMode = cache.galleryUseForcedMode;
     this.galleryForcedMode = cache.galleryForcedMode;
     this.showDetail = cache.showDetail;
-    this.restoreDetailWithFade = cache.restoreDetailWithFade;
+    this.restoreDetailWithFade = cache.showDetail && shouldFadeRestoredRightPane();
     this.detailLink = cloneTopListDetailLink(cache.detailLink);
     this.detail = cloneGalleryDetail(cache.detail);
     this.detailStatus = cache.detailStatus;
@@ -783,7 +786,7 @@ export struct TopListScene {
             })
             .zIndex(5)
             .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
-            .transition(this.useSplitLayout() || this.restoreDetailWithFade ?
+            .transition(this.restoreDetailWithFade ?
               TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
               TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }))
         }

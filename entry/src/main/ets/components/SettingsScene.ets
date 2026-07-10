@@ -89,9 +89,11 @@ import { collectWebCookies, hasLoginCookie, SessionScene, syncCookieHeaderToWebV
 import { UpdatePromptOverlay } from './UpdatePromptOverlay';
 import {
   areaDimensionToVp,
+  markPreviousRouteRightPane,
   saveSplitPaneRatio,
   SPLIT_PANE_BREAKPOINT,
   SPLIT_PANE_RATIO_REVISION_KEY,
+  shouldFadeRestoredRightPane,
   splitPaneCurrentRatio,
   SplitPaneDivider,
   splitPaneListWidth,
@@ -153,6 +155,7 @@ export struct SettingsScene {
   @State sceneContentWidth: number = 0;
   @State splitListRatio: number = splitPaneCurrentRatio();
   @State splitDragging: boolean = false;
+  @State restorePanelWithFade: boolean = false;
   @State updateDialogVisible: boolean = false;
   @State updateCurrentVersion: string = '';
   @State updateRelease: ReleaseInfo | null = null;
@@ -195,6 +198,7 @@ export struct SettingsScene {
   }
 
   aboutToDisappear(): void {
+    markPreviousRouteRightPane(this.useSplitLayout());
     this.saveNavigationCache();
   }
 
@@ -222,11 +226,13 @@ export struct SettingsScene {
     this.webViewTitle = '';
     this.panel = SettingsPanel.Main;
     this.panelStack = [SettingsPanel.Main];
+    this.restorePanelWithFade = false;
     this.restoreBackHandler();
     this.clearNavigationCache();
   }
 
   private openPanel(panel: SettingsPanel): void {
+    this.restorePanelWithFade = false;
     this.optionPickerOpen = false;
     if (this.panel === panel) {
       return;
@@ -243,6 +249,7 @@ export struct SettingsScene {
   }
 
   private openPrimaryPanel(panel: SettingsPanel): void {
+    this.restorePanelWithFade = false;
     this.optionPickerOpen = false;
     if (splitPaneModeEnabled() && this.sceneContentWidth >= SPLIT_PANE_BREAKPOINT) {
       this.panelStack = [SettingsPanel.Main, panel];
@@ -255,6 +262,7 @@ export struct SettingsScene {
   }
 
   private closePanel(): void {
+    this.restorePanelWithFade = false;
     this.optionPickerOpen = false;
     if (this.panelStack.length <= 1) {
       this.panelStack = [SettingsPanel.Main];
@@ -282,6 +290,7 @@ export struct SettingsScene {
     this.webViewTitle = settingsNavigationCache.webViewTitle;
     this.filterNewText = settingsNavigationCache.filterNewText;
     this.filterNewMode = settingsNavigationCache.filterNewMode;
+    this.restorePanelWithFade = this.settingsDetailLayerPanel() !== SettingsPanel.Main && shouldFadeRestoredRightPane();
   }
 
   private saveNavigationCache(): void {
@@ -1591,7 +1600,7 @@ export struct SettingsScene {
           .position({ x: this.useSplitLayout() ? this.splitListPaneWidth() + 1 : 0, y: 0 })
           .zIndex(5)
           .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
-          .transition(this.useSplitLayout() ?
+          .transition(this.restorePanelWithFade ?
             TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
             TransitionEffect.asymmetric(
               TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }),
