@@ -1512,7 +1512,9 @@ function isTransientError(message: string): boolean {
     lower.indexOf('refused') >= 0 || lower.indexOf('unreachable') >= 0 || lower.indexOf('unknownhost') >= 0 ||
     lower.indexOf('dns') >= 0 || lower.indexOf('network') >= 0 || lower.indexOf('socket') >= 0 ||
     lower.indexOf('ssl') >= 0 || lower.indexOf('tls') >= 0 || lower.indexOf('certificate') >= 0 ||
-    lower.indexOf('http2') >= 0 || lower.indexOf('2300016') >= 0 ||
+    lower.indexOf('curlcode result 35') >= 0 || lower.indexOf('curl code 35') >= 0 ||
+    lower.indexOf('curl_code') >= 0 && lower.indexOf('35') >= 0 ||
+    lower.indexOf('http2') >= 0 || lower.indexOf('2300016') >= 0 || lower.indexOf('2300999') >= 0 ||
     lower.indexOf('2300007') >= 0 || lower.indexOf('230350') >= 0 ||
     lower.indexOf('temporary') >= 0 || lower.indexOf('503') >= 0 || lower.indexOf('504') >= 0;
 }
@@ -1618,6 +1620,10 @@ function networkErrorMessage(error: Object): string {
   if (lower.indexOf('ssl') >= 0 || lower.indexOf('tls') >= 0 || lower.indexOf('certificate') >= 0) {
     return 'TLS connection failed: check network interception or domain fronting settings';
   }
+  if (lower.indexOf('curlcode result 35') >= 0 || lower.indexOf('curl code 35') >= 0 ||
+    lower.indexOf('curl_code') >= 0 && lower.indexOf('35') >= 0 || lower.indexOf('2300999') >= 0) {
+    return 'TLS connection failed: check network interception or domain fronting settings';
+  }
   if (lower.indexOf('refused') >= 0 || lower.indexOf('proxy') >= 0) {
     return 'Connection refused: check proxy settings';
   }
@@ -1660,7 +1666,7 @@ function buildRequestHeader(plan: EhRequestPlan, referer: string, cookieHeader: 
     'Accept-Language': CHROME_ACCEPT_LANGUAGE,
     'Referer': referer,
     'Cache-Control': maxAge > 0 ? 'max-age=' + maxAge.toString() : 'no-cache',
-    'Connection': 'close'
+    'Connection': requestConnectionHeader(plan)
   };
   if (cookieHeader.length > 0) {
     header.Cookie = cookieHeader;
@@ -1678,7 +1684,7 @@ function buildPostRequestHeader(plan: EhRequestPlan, referer: string, origin: st
     'Referer': referer,
     'Cache-Control': 'no-cache',
     'Pragma': 'no-cache',
-    'Connection': 'close',
+    'Connection': requestConnectionHeader(plan),
     'Content-Type': 'application/x-www-form-urlencoded',
     'Origin': origin
   };
@@ -1698,7 +1704,7 @@ function buildJsonRequestHeader(plan: EhRequestPlan, referer: string, origin: st
     'Referer': referer,
     'Cache-Control': 'no-cache',
     'Pragma': 'no-cache',
-    'Connection': 'close',
+    'Connection': requestConnectionHeader(plan),
     'Content-Type': 'application/json',
     'Origin': origin
   };
@@ -1718,7 +1724,7 @@ function buildMultipartRequestHeader(plan: EhRequestPlan, referer: string, origi
     'Referer': referer,
     'Cache-Control': 'no-cache',
     'Pragma': 'no-cache',
-    'Connection': 'close',
+    'Connection': requestConnectionHeader(plan),
     'Content-Type': contentType,
     'Origin': origin
   };
@@ -1726,6 +1732,10 @@ function buildMultipartRequestHeader(plan: EhRequestPlan, referer: string, origi
     header.Cookie = cookieHeader;
   }
   return header;
+}
+
+function requestConnectionHeader(plan: EhRequestPlan): string {
+  return plan.fronted ? 'close' : 'keep-alive';
 }
 
 function buildFormBody(fields: FormField[]): string {

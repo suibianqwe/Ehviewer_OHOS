@@ -14,6 +14,8 @@ const FRONTING_PROBE_DEADLINE_MS: number = 4500;
 const FRONTING_PROBE_CONCURRENCY: number = 4;
 const FRONTING_FAST_IP_LIMIT: number = 3;
 const DIRECT_PROBE_TIMEOUT_MS: number = 5000;
+const DIRECT_HOST_FAILURE_THRESHOLD: number = 2;
+const DIRECT_HOST_BLOCK_MS: number = 120000;
 const IP_FAILURE_LATENCY_PENALTY_MS: number = 2500;
 const IP_SUCCESS_LATENCY_BONUS_MS: number = 120;
 const IP_RETRY_DEMOTE_THRESHOLD: number = 2;
@@ -53,6 +55,7 @@ let directProbeKey: string = '';
 let directProbePending: Promise<boolean> | null = null;
 let directProbePassed: boolean = false;
 let lastIpQualitySaveAt: number = 0;
+const DIRECT_HOST_FAILURES: DirectHostFailure[] = [];
 
 interface HostRule {
   host: string;
@@ -78,6 +81,12 @@ interface HostIpQuality {
 interface HostIpProbeTarget {
   host: string;
   ip: string;
+}
+
+interface DirectHostFailure {
+  host: string;
+  failureCount: number;
+  blockedUntil: number;
 }
 
 interface FrontingIpQualityCache {
@@ -143,12 +152,12 @@ function ensureFrontingQualityCacheLoaded(): void {
 export function applyEhNetworkOptions(options: http.HttpRequestOptions, plan: EhRequestPlan): void {
   options.usingCache = false;
   options.usingProxy = proxyOption();
-  options.usingProtocol = http.HttpProtocol.HTTP1_1;
   const dohUrl = currentDnsOverHttpsUrl();
   if (dohUrl.length > 0) {
     options.dnsOverHttps = dohUrl;
   }
   if (plan.fronted) {
+    options.usingProtocol = http.HttpProtocol.HTTP1_1;
     options.remoteValidation = 'skip';
   }
   if (deviceInfo.apiAvailable(23)) {
@@ -166,6 +175,7 @@ export function startEhDirectConnectionProbe(context?: common.UIAbilityContext):
   if (key === 'Off') {
     directProbeKey = key;
     directProbePassed = false;
+    clearDirectHostFailures();
     return Promise.resolve(false);
   }
   if (directProbePending !== null && directProbeKey === key) {
@@ -178,6 +188,9 @@ export function startEhDirectConnectionProbe(context?: common.UIAbilityContext):
   }).then((passed: boolean) => {
     if (directProbeKey === key) {
       directProbePassed = passed;
+      if (passed) {
+        clearDirectHostFailures();
+      }
     }
     directProbePending = null;
     return passed;
@@ -197,6 +210,7 @@ export function isEhDirectConnectionProbeEnabled(): boolean {
 
 export function recordEhRequestOutcome(plan: EhRequestPlan, ok: boolean, elapsedMs: number): void {
   if (!plan.fronted) {
+    recordDirectRequestOutcome(plan, ok);
     return;
   }
   const ip = requestHost(plan.url);
@@ -798,6 +812,9 @@ function shouldUseDirectConnection(host: string): boolean {
     return false;
   }
   const normalizedHost = host.toLowerCase();
+  if (isDirectHostBlocked(normalizedHost)) {
+    return false;
+  }
   if (normalizedHost === 'repo.e-hentai.org') {
     return true;
   }
@@ -812,6 +829,83 @@ function shouldUseDirectConnection(host: string): boolean {
     return normalizedHost.endsWith('.e-hentai.org') || normalizedHost === 'ehgt.org';
   }
   return false;
+}
+
+function recordDirectRequestOutcome(plan: EhRequestPlan, ok: boolean): void {
+  if (!directProbePassed || ehSettingsStore.getValue('auto_direct_connection', 'On') !== 'On') {
+    return;
+  }
+  const host = plan.host.split(':')[0].toLowerCase();
+  if (!isDirectCandidateHost(host)) {
+    return;
+  }
+  if (ok) {
+    clearDirectHostFailure(host);
+    return;
+  }
+  const failure = directHostFailureFor(host);
+  failure.failureCount++;
+  if (failure.failureCount >= DIRECT_HOST_FAILURE_THRESHOLD) {
+    failure.blockedUntil = Date.now() + DIRECT_HOST_BLOCK_MS;
+  }
+}
+
+function isDirectCandidateHost(host: string): boolean {
+  if (host === 'repo.e-hentai.org') {
+    return true;
+  }
+  const selectedHost = selectedGalleryHost();
+  if (host === selectedHost) {
+    return true;
+  }
+  if (selectedHost === 'exhentai.org') {
+    return host.endsWith('.exhentai.org');
+  }
+  if (selectedHost === 'e-hentai.org') {
+    return host.endsWith('.e-hentai.org') || host === 'ehgt.org';
+  }
+  return false;
+}
+
+function isDirectHostBlocked(host: string): boolean {
+  for (let i = DIRECT_HOST_FAILURES.length - 1; i >= 0; i--) {
+    const item = DIRECT_HOST_FAILURES[i];
+    if (item.blockedUntil > 0 && item.blockedUntil <= Date.now()) {
+      DIRECT_HOST_FAILURES.splice(i, 1);
+      continue;
+    }
+    if (item.host === host && item.blockedUntil > Date.now()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function directHostFailureFor(host: string): DirectHostFailure {
+  for (let i = 0; i < DIRECT_HOST_FAILURES.length; i++) {
+    if (DIRECT_HOST_FAILURES[i].host === host) {
+      return DIRECT_HOST_FAILURES[i];
+    }
+  }
+  const failure: DirectHostFailure = {
+    host: host,
+    failureCount: 0,
+    blockedUntil: 0
+  };
+  DIRECT_HOST_FAILURES.push(failure);
+  return failure;
+}
+
+function clearDirectHostFailure(host: string): void {
+  for (let i = DIRECT_HOST_FAILURES.length - 1; i >= 0; i--) {
+    if (DIRECT_HOST_FAILURES[i].host === host) {
+      DIRECT_HOST_FAILURES.splice(i, 1);
+    }
+  }
+}
+
+function clearDirectHostFailures(): void {
+  DIRECT_HOST_FAILURES.splice(0, DIRECT_HOST_FAILURES.length);
 }
 
 function directProbeKeyValue(): string {

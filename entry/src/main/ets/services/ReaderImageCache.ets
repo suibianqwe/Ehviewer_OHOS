@@ -250,8 +250,11 @@ export class ReaderImageCache {
       const savedPath = result.path;
 
       if (statusCode < 200 || statusCode >= 300) {
-        recordEhRequestOutcome(plan, false, Date.now() - startedAt);
-        hathQualityStore.recordFailure(context, imageUrl);
+        const routeOk = statusCode > 0 && statusCode < 500;
+        recordEhRequestOutcome(plan, routeOk, Date.now() - startedAt);
+        if (!routeOk) {
+          hathQualityStore.recordFailure(context, imageUrl);
+        }
         outcomeRecorded = true;
         throw new Error(imageStatusMessage(statusCode));
       }
@@ -339,7 +342,7 @@ function buildImageRequestHeader(plan: EhRequestPlan, referer: string, cookieHea
     'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
     'Referer': referer,
-    'Connection': 'close'
+    'Connection': plan.fronted ? 'close' : 'keep-alive'
   };
   if (cookieHeader.length > 0) {
     header.Cookie = cookieHeader;
