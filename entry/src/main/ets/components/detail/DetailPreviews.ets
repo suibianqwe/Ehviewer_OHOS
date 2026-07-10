@@ -389,8 +389,6 @@ export struct PreviewThumb {
           .height('100%')
           .objectFit(ImageFit.Cover)
           .syncLoad(false)
-          .dynamicRangeMode(DynamicRangeMode.STANDARD)
-          .orientation(ImageRotateOrientation.UP)
           .onError(() => {
             this.loadFailed = true;
           })

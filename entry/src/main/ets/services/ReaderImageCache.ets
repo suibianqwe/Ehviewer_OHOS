@@ -41,6 +41,11 @@ interface CachedImageFile {
   modifiedAt: number;
 }
 
+interface ImageStreamResult {
+  statusCode: number;
+  path: string;
+}
+
 export interface CacheClearResult {
   files: number;
   bytes: number;
@@ -124,6 +129,12 @@ export class ReaderImageCache {
     if (isUsableCachedImage(path)) {
       return path;
     }
+    const candidates = this.pathCandidates(context, imageUrl, cacheKey);
+    for (let i = 0; i < candidates.length; i++) {
+      if (candidates[i] !== path && isUsableCachedImage(candidates[i])) {
+        return candidates[i];
+      }
+    }
     return this.migrateExistingCache(context, imageUrl, path);
   }
 
@@ -155,6 +166,13 @@ export class ReaderImageCache {
       removed.length === 0) {
       removed = legacyAliasPath;
     }
+    const candidates = this.pathCandidates(context, imageUrl, cacheKey)
+      .concat(this.pathCandidates(context, imageUrl));
+    for (let i = 0; i < candidates.length; i++) {
+      if (exists(candidates[i]) && removeFile(candidates[i]) && removed.length === 0) {
+        removed = candidates[i];
+      }
+    }
     return removed;
   }
 
@@ -180,21 +198,19 @@ export class ReaderImageCache {
     ensureDirectory(readerImageCacheDirectory(context));
     await acquireImageSlot(priority);
     try {
-      await this.downloadWithRetry(context, imageUrl, referer, path, onProgress, options);
-      return path;
+      return await this.downloadWithRetry(context, imageUrl, referer, path, onProgress, options);
     } finally {
       releaseImageSlot();
     }
   }
 
   private async downloadWithRetry(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
-    onProgress?: ImageDownloadProgressCallback, options?: ImageDownloadOptions): Promise<void> {
+    onProgress?: ImageDownloadProgressCallback, options?: ImageDownloadOptions): Promise<string> {
     let lastError = '';
     const retryLimit = normalizedRetryLimit(options);
     for (let attempt = 0; attempt < retryLimit; attempt++) {
       try {
-        await this.downloadOnce(context, imageUrl, referer, path, attempt, onProgress);
-        return;
+        return await this.downloadOnce(context, imageUrl, referer, path, attempt, onProgress);
       } catch (error) {
         removeFileQuietly(path);
         lastError = imageNetworkErrorMessage(error);
@@ -210,7 +226,7 @@ export class ReaderImageCache {
   }
 
   private async downloadOnce(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
-    attempt: number, onProgress?: ImageDownloadProgressCallback): Promise<void> {
+    attempt: number, onProgress?: ImageDownloadProgressCallback): Promise<string> {
     const request = http.createHttp();
     let plan: EhRequestPlan | null = null;
     const startedAt = Date.now();
@@ -228,8 +244,10 @@ export class ReaderImageCache {
         readTimeout: imageHttpReadTimeoutMs(timeout)
       };
       applyEhNetworkOptions(options, plan);
-      const statusCode = await streamImageToFile(request, plan.url, options, path,
+      const result = await streamImageToFile(request, plan.url, options, path,
         imageRequestDeadlineMs(plan, attempt), onProgress);
+      const statusCode = result.statusCode;
+      const savedPath = result.path;
 
       if (statusCode < 200 || statusCode >= 300) {
         recordEhRequestOutcome(plan, false, Date.now() - startedAt);
@@ -238,7 +256,7 @@ export class ReaderImageCache {
         throw new Error(imageStatusMessage(statusCode));
       }
 
-      const size = statFileSize(path);
+      const size = statFileSize(savedPath);
       if (size <= 0) {
         recordEhRequestOutcome(plan, false, Date.now() - startedAt);
         hathQualityStore.recordFailure(context, imageUrl);
@@ -252,6 +270,7 @@ export class ReaderImageCache {
       if (onProgress !== undefined) {
         onProgress({ receivedBytes: size, totalBytes: size });
       }
+      return savedPath;
     } catch (error) {
       if (plan !== null && !outcomeRecorded) {
         recordEhRequestOutcome(plan, false, Date.now() - startedAt);
@@ -267,13 +286,30 @@ export class ReaderImageCache {
   }
 
   private pathFor(context: common.UIAbilityContext, imageUrl: string, cacheKey: string = ''): string {
-    return readerImageCacheDirectory(context) + '/' + stableImageKey(normalizeImageCacheKey(imageUrl, cacheKey)) +
-      imageExtension(imageUrl);
+    return this.pathForExtension(context, imageUrl, imageExtension(imageUrl), cacheKey);
   }
 
   private legacyPathFor(context: common.UIAbilityContext, imageUrl: string, cacheKey: string = ''): string {
     return legacyReaderImageCacheDirectory(context) + '/' + stableImageKey(normalizeImageCacheKey(imageUrl, cacheKey)) +
       imageExtension(imageUrl);
+  }
+
+  private pathForExtension(context: common.UIAbilityContext, imageUrl: string, extension: string,
+    cacheKey: string = ''): string {
+    return readerImageCacheDirectory(context) + '/' + stableImageKey(normalizeImageCacheKey(imageUrl, cacheKey)) +
+      extension;
+  }
+
+  private pathCandidates(context: common.UIAbilityContext, imageUrl: string, cacheKey: string = ''): string[] {
+    if (explicitImageExtension(imageUrl).length > 0) {
+      return [this.pathFor(context, imageUrl, cacheKey)];
+    }
+    const extensions: string[] = ['.webp', '.jpg', '.jpeg', '.png', '.gif'];
+    const paths: string[] = [];
+    for (let i = 0; i < extensions.length; i++) {
+      paths.push(this.pathForExtension(context, imageUrl, extensions[i], cacheKey));
+    }
+    return paths;
   }
 
   private migrateExistingCache(context: common.UIAbilityContext, imageUrl: string, path: string): string {
@@ -360,8 +396,9 @@ function clampImageTotalTimeout(timeoutMs: number): number {
 }
 
 function streamImageToFile(request: http.HttpRequest, url: string, options: http.HttpRequestOptions, path: string,
-  timeoutMs: number, onProgress?: ImageDownloadProgressCallback): Promise<number> {
-  return new Promise<number>((resolve: (value: number) => void, reject: (reason: Error) => void) => {
+  timeoutMs: number, onProgress?: ImageDownloadProgressCallback): Promise<ImageStreamResult> {
+  return new Promise<ImageStreamResult>((resolve: (value: ImageStreamResult) => void,
+    reject: (reason: Error) => void) => {
     let finished = false;
     let fd = -1;
     let writtenBytes = 0;
@@ -370,6 +407,7 @@ function streamImageToFile(request: http.HttpRequest, url: string, options: http
     let lastProgressBytes = 0;
     let idleTimer = -1;
     let totalTimer = -1;
+    let responseExtension = '';
     const tempPath = path + '.part';
     removeFileQuietly(tempPath);
     try {
@@ -494,6 +532,7 @@ function streamImageToFile(request: http.HttpRequest, url: string, options: http
         return;
       }
       const contentLength = headerContentLength(header);
+      responseExtension = headerImageExtension(header);
       if (contentLength > 0) {
         updateKnownTotalBytes(contentLength);
         if (onProgress !== undefined) {
@@ -519,10 +558,11 @@ function streamImageToFile(request: http.HttpRequest, url: string, options: http
       finished = true;
       clearTimers();
       cleanup();
+      const finalPath = responseImagePath(path, responseExtension);
       if (statusCode >= 200 && statusCode < 300 && receivedBytes > 0) {
         try {
-          removeFileQuietly(path);
-          fs.moveFileSync(tempPath, path);
+          removeFileQuietly(finalPath);
+          fs.moveFileSync(tempPath, finalPath);
         } catch (error) {
           removeFileQuietly(tempPath);
           reject(new Error(String(error)));
@@ -531,7 +571,7 @@ function streamImageToFile(request: http.HttpRequest, url: string, options: http
       } else {
         removeFileQuietly(tempPath);
       }
-      resolve(Number(statusCode));
+      resolve({ statusCode: Number(statusCode), path: finalPath });
     }).catch((error: Error) => {
       if (finished) {
         return;
@@ -569,6 +609,65 @@ function headerContentLength(header: Object): number {
     }
   }
   return 0;
+}
+
+function headerImageExtension(header: Object): string {
+  const headers = header as Record<string, Object>;
+  const keys = Object.keys(headers);
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i].toLowerCase() !== 'content-type') {
+      continue;
+    }
+    return contentTypeImageExtension(headers[keys[i]]);
+  }
+  return '';
+}
+
+function contentTypeImageExtension(value: Object): string {
+  if (typeof value === 'string') {
+    return imageExtensionFromContentType(value);
+  }
+  if (Array.isArray(value) && value.length > 0) {
+    const first = value[0] as Object;
+    if (typeof first === 'string') {
+      return imageExtensionFromContentType(first);
+    }
+  }
+  return '';
+}
+
+function imageExtensionFromContentType(value: string): string {
+  const type = value.split(';')[0].trim().toLowerCase();
+  if (type === 'image/webp') {
+    return '.webp';
+  }
+  if (type === 'image/png') {
+    return '.png';
+  }
+  if (type === 'image/gif') {
+    return '.gif';
+  }
+  if (type === 'image/jpeg' || type === 'image/jpg') {
+    return '.jpg';
+  }
+  return '';
+}
+
+function responseImagePath(path: string, responseExtension: string): string {
+  if (responseExtension.length === 0) {
+    return path;
+  }
+  const currentExtension = pathImageExtension(path);
+  if (currentExtension.length > 0 && currentExtension !== '.jpg') {
+    return path;
+  }
+  if (currentExtension === responseExtension) {
+    return path;
+  }
+  if (currentExtension.length === 0) {
+    return path + responseExtension;
+  }
+  return path.substring(0, path.length - currentExtension.length) + responseExtension;
 }
 
 function sleepImageRetry(attempt: number): Promise<void> {
@@ -971,7 +1070,7 @@ function imageDownloadPendingKey(imageUrl: string, cacheKey: string): string {
   return normalizeImageCacheKey(imageUrl, cacheKey) + '|' + imageUrl;
 }
 
-function imageExtension(url: string): string {
+function explicitImageExtension(url: string): string {
   const clean = url.split('?')[0].toLowerCase();
   const dot = clean.lastIndexOf('.');
   if (dot >= 0) {
@@ -980,6 +1079,27 @@ function imageExtension(url: string): string {
       extension === '.gif') {
       return extension;
     }
+  }
+  return '';
+}
+
+function pathImageExtension(path: string): string {
+  const dot = path.lastIndexOf('.');
+  if (dot < 0) {
+    return '';
+  }
+  const extension = path.substring(dot).toLowerCase();
+  if (extension === '.jpg' || extension === '.jpeg' || extension === '.png' || extension === '.webp' ||
+    extension === '.gif') {
+    return extension;
+  }
+  return '';
+}
+
+function imageExtension(url: string): string {
+  const explicit = explicitImageExtension(url);
+  if (explicit.length > 0) {
+    return explicit;
   }
   return '.jpg';
 }
