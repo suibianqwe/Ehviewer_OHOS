@@ -1391,33 +1391,6 @@ export struct DownloadScene {
           this.closeEmbeddedReader();
         }
       })
-    } else if (this.showDetail && !this.useSplitLayout()) {
-      GalleryDetailHostScene({
-        detailLink: this.detailLink,
-        listRequestUrl: '',
-        onBack: () => {
-          this.closeDetail();
-        },
-        onShowEmbeddedReader: () => {
-          this.showReader = true;
-        },
-        onOpenSearch: (request: DetailSearchRequest) => {
-          this.openRemoteSearch(request);
-        },
-        onDetailLoaded: (detail: GalleryDetail) => {
-          this.detail = detail;
-          ehDownloadStore.updateGallery(detail);
-          this.persistDownloads();
-        }
-      })
-        .onAppear(() => {
-          this.syncSceneContentWidthFromWindow();
-        })
-        .onAreaChange((_oldArea: Area, newArea: Area) => {
-          this.updateSceneContentWidth(areaDimensionToVp(newArea.width, (value: number) => this.getUIContext().px2vp(value)));
-        })
-        .transition(TransitionEffect.move(TransitionEdge.END)
-          .animation({ duration: 300, curve: Curve.EaseOut }))
     } else {
       Stack({ alignContent: Alignment.TopStart }) {
       Column() {
@@ -1847,6 +1820,9 @@ export struct DownloadScene {
           }
         })
 
+      }
+
+      if (this.showDetail) {
         GalleryDetailHostScene({
           detailLink: this.detailLink,
           listRequestUrl: '',
@@ -1865,9 +1841,9 @@ export struct DownloadScene {
             this.persistDownloads();
           }
         })
-          .width(this.splitSidePaneWidth())
+          .width(this.useSplitLayout() ? this.splitSidePaneWidth() : '100%')
           .height('100%')
-          .position({ x: this.splitListPaneWidth() + 1, y: 0 })
+          .position({ x: this.useSplitLayout() ? this.splitListPaneWidth() + 1 : 0, y: 0 })
           .onTouch(() => {
             this.activeSplitPane = 'right';
           })

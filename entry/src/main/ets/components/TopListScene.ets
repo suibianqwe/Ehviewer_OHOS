@@ -687,35 +687,6 @@ export struct TopListScene {
           this.closeReader();
         }
       })
-    } else if (this.showDetail && !this.useSplitLayout()) {
-      GalleryDetailHostScene({
-        detailLink: this.detailLink,
-        listRequestUrl: this.requestUrl,
-        initialDetailScrollOffset: this.detailScrollOffset,
-        onBack: () => {
-          this.closeDetail();
-        },
-        onShowEmbeddedReader: () => {
-          this.showReader = true;
-        },
-        onOpenSearch: (request: DetailSearchRequest) => {
-          this.openRemoteSearch(request);
-        },
-        onDetailLoaded: (detail: GalleryDetail) => {
-          this.detail = detail;
-        },
-        onDetailScrollUpdate: (offset: number) => {
-          this.detailScrollOffset = offset;
-        }
-      })
-        .onAppear(() => {
-          this.syncSceneContentWidthFromWindow();
-        })
-        .onAreaChange((_oldArea: Area, newArea: Area) => {
-          this.updateSceneContentWidth(areaDimensionToVp(newArea.width, (value: number) => this.getUIContext().px2vp(value)));
-        })
-        .transition(TransitionEffect.move(TransitionEdge.END)
-          .animation({ duration: 300, curve: Curve.EaseOut }))
     } else if (this.showGalleryList) {
       GalleryListScene({
         sceneTitle: this.galleryListTitle,
@@ -781,6 +752,9 @@ export struct TopListScene {
             }
           })
 
+        }
+
+        if (this.showDetail) {
           GalleryDetailHostScene({
             detailLink: this.detailLink,
             listRequestUrl: this.requestUrl,
@@ -801,9 +775,9 @@ export struct TopListScene {
               this.detailScrollOffset = offset;
             }
           })
-            .width(this.splitSidePaneWidth())
+            .width(this.useSplitLayout() ? this.splitSidePaneWidth() : '100%')
             .height('100%')
-            .position({ x: this.splitListPaneWidth() + 1, y: 0 })
+            .position({ x: this.useSplitLayout() ? this.splitListPaneWidth() + 1 : 0, y: 0 })
             .onTouch(() => {
               this.activeSplitPane = 'right';
             })
