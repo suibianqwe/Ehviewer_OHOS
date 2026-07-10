@@ -81,10 +81,6 @@ export struct GalleryListRow {
     return 42;
   }
 
-  private uploaderTopGap(): number {
-    return this.isSmallThumb() || galleryListMode() === 'Extended' ? 1 : 2;
-  }
-
   private isSmallThumb(): boolean {
     return galleryThumbWidth() <= 70 || this.cardHeight() <= 100;
   }
@@ -197,15 +193,6 @@ export struct GalleryListRow {
           .clip(true)
           .justifyContent(FlexAlign.Start)
           .alignItems(HorizontalAlign.Start)
-
-          Text(this.gallery.uploader === undefined || this.gallery.uploader.length === 0 ? uiText('unknown uploader') :
-            this.gallery.uploader)
-            .fontSize(this.uploaderFontSize())
-            .fontColor(themeSecondaryText())
-            .lineHeight(this.uploaderFontSize() + 3)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .margin({ top: this.uploaderTopGap() })
         }
         .width('100%')
         .layoutWeight(1)
@@ -213,6 +200,15 @@ export struct GalleryListRow {
 
         Row() {
           Column() {
+            Text(this.gallery.uploader === undefined || this.gallery.uploader.length === 0 ? uiText('unknown uploader') :
+              this.gallery.uploader)
+              .fontSize(this.uploaderFontSize())
+              .fontColor(themeSecondaryText())
+              .lineHeight(this.metaLineHeight())
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .width('100%')
+
             Row() {
               Text(this.languageText())
                 .fontSize(this.metaFontSize())
@@ -234,6 +230,7 @@ export struct GalleryListRow {
               }
             }
             .width('100%')
+            .margin({ top: this.metaGap() })
 
             Text(this.gallery.posted === undefined ? '' : this.gallery.posted)
               .fontSize(this.metaFontSize())
