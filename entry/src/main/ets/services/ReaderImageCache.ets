@@ -696,7 +696,9 @@ function isTransientImageError(message: string): boolean {
     lower.indexOf('521') >= 0 || lower.indexOf('523') >= 0 || lower.indexOf('525') >= 0 ||
     lower.indexOf('526') >= 0 ||
     lower.indexOf('ssl') >= 0 || lower.indexOf('tls') >= 0 || lower.indexOf('certificate') >= 0 ||
-    lower.indexOf('http2') >= 0 || lower.indexOf('2300016') >= 0 ||
+    lower.indexOf('curlcode result 35') >= 0 || lower.indexOf('curl code 35') >= 0 ||
+    lower.indexOf('curl_code') >= 0 && lower.indexOf('35') >= 0 ||
+    lower.indexOf('http2') >= 0 || lower.indexOf('2300016') >= 0 || lower.indexOf('2300999') >= 0 ||
     lower.indexOf('2300007') >= 0 || lower.indexOf('230350') >= 0;
 }
 
@@ -737,6 +739,10 @@ function imageNetworkErrorMessage(error: Object): string {
     return 'Image network timeout';
   }
   if (lower.indexOf('ssl') >= 0 || lower.indexOf('tls') >= 0 || lower.indexOf('certificate') >= 0) {
+    return 'Image TLS connection failed';
+  }
+  if (lower.indexOf('curlcode result 35') >= 0 || lower.indexOf('curl code 35') >= 0 ||
+    lower.indexOf('curl_code') >= 0 && lower.indexOf('35') >= 0 || lower.indexOf('2300999') >= 0) {
     return 'Image TLS connection failed';
   }
   if (lower.indexOf('dns') >= 0 || lower.indexOf('unknownhost') >= 0) {
