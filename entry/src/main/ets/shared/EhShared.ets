@@ -17,6 +17,7 @@ import { GalleryListLoadResult, NetworkDiagnosticResult } from '../services/EhHt
 import { EhUrl, ListMode } from '../services/EhUrl';
 import { readerImageCache } from '../services/ReaderImageCache';
 import { previewThumbnailCache } from '../services/PreviewThumbnailCache';
+import { galleryThumbnailColorCache } from '../services/GalleryThumbnailColorCache';
 import { FilterRule, ehFilterStore } from '../services/EhFilterStore';
 import { LocalFavoriteBackupInfo } from '../services/EhLocalFavoritesStore';
 import { SearchBookmarkBackupInfo } from '../services/EhBookmarkStore';
@@ -2858,12 +2859,20 @@ export function cacheThumbnailImage(url: string, onReady: (path: string) => void
 
   const existing = readerImageCache.getCachedPath(context, url);
   if (existing.length > 0) {
-    enqueueThumbnailReady(existing, onReady);
+    const srgbPath = galleryThumbnailColorCache.getSrgbPath(context, url);
+    if (srgbPath.length > 0) {
+      enqueueThumbnailReady(srgbPath, onReady);
+      return;
+    }
+    galleryThumbnailColorCache.ensureSrgb(context, url, EhUrl.getReferer(currentGallerySite())).then((path: string) => {
+      enqueueThumbnailReady(path.length > 0 ? path : existing, onReady);
+    }).catch(() => {
+      enqueueThumbnailReady(existing, onReady);
+    });
     return;
   }
 
-  readerImageCache.ensureCached(context, url, EhUrl.getReferer(currentGallerySite()), false, undefined, '',
-    { retryLimit: THUMBNAIL_RETRY_LIMIT }).then((path: string) => {
+  galleryThumbnailColorCache.ensureSrgb(context, url, EhUrl.getReferer(currentGallerySite())).then((path: string) => {
     if (path.length > 0) {
       enqueueThumbnailReady(path, onReady);
     } else if (onError !== undefined) {
