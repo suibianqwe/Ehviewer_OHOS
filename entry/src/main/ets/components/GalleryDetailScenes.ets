@@ -289,6 +289,29 @@ export struct GalleryDetailScene {
     this.onShowTagDefinition(fullTag);
   }
 
+  private startDetailPullRefresh(): void {
+    this.detailRefreshing = true;
+    let finished = false;
+    const finish = () => {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      this.detailRefreshing = false;
+      setTimeout(() => {
+        this.detailRefreshing = false;
+      }, 0);
+    };
+    setTimeout(() => {
+      finish();
+    }, 30000);
+    try {
+      this.onRefreshDetail(finish);
+    } catch (_error) {
+      finish();
+    }
+  }
+
   build() {
     Stack({ alignContent: Alignment.Center }) {
       Column() {
@@ -398,10 +421,7 @@ export struct GalleryDetailScene {
         .refreshOffset(64)
         .pullToRefresh(true)
         .onRefreshing(() => {
-          this.detailRefreshing = true;
-          this.onRefreshDetail(() => {
-            this.detailRefreshing = false;
-          });
+          this.startDetailPullRefresh();
         })
       }
       .width('100%')

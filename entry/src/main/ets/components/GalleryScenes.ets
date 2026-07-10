@@ -4348,6 +4348,29 @@ export struct GalleryListContent {
     }, 220);
   }
 
+  private startPullRefresh(): void {
+    this.refreshing = true;
+    let finished = false;
+    const finish = () => {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      this.refreshing = false;
+      setTimeout(() => {
+        this.refreshing = false;
+      }, 0);
+    };
+    setTimeout(() => {
+      finish();
+    }, 30000);
+    try {
+      this.onRefreshPull(finish);
+    } catch (_error) {
+      finish();
+    }
+  }
+
   @Builder
   private galleryRow(row: GalleryRowData) {
     ListItem() {
@@ -4472,9 +4495,7 @@ export struct GalleryListContent {
         .refreshOffset(this.REFRESH_OFFSET)
         .pullToRefresh(true)
         .onRefreshing(() => {
-          this.onRefreshPull(() => {
-            this.refreshing = false;
-          });
+          this.startPullRefresh();
         })
         .width('100%')
         .height(this.listViewportHeight())
