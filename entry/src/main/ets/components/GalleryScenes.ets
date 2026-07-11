@@ -1105,6 +1105,8 @@ export struct GalleryListScene {
   };
   onBack: () => void = () => {
   };
+  delegateDetailToHost: boolean = false;
+  onOpenDetailInHost: (link: GalleryDetailLink) => boolean = (_link: GalleryDetailLink) => false;
   @State keyword: string = '';
   @State statusText: string = 'Loading galleries...';
   @State requestUrl: string = '';
@@ -1387,7 +1389,11 @@ export struct GalleryListScene {
       this.localSearchBarVisible = false;
     }
     this.restoreNavigationCache();
-    markCurrentRouteRightPane(this.useSplitLayout());
+    if (this.delegateDetailToHost) {
+      this.clearDelegatedDetailLayer();
+    } else {
+      markCurrentRouteRightPane(this.useSplitLayout());
+    }
     const context = getAbilityContext();
     if (context !== undefined) {
       Promise.all([
@@ -2461,10 +2467,19 @@ export struct GalleryListScene {
   }
 
   private loadDetail(gallery: GalleryInfo): void {
+    const detailLink = createGalleryDetailLinkFromGallery(gallery, this.activeSite, this.requestUrl);
+    this.openDetailLink(detailLink);
+  }
+
+  private openDetailLink(detailLink: GalleryDetailLink): void {
+    if (this.delegateDetailToHost && this.onOpenDetailInHost(detailLink)) {
+      return;
+    }
     this.restoreDetailWithFade = false;
     this.showDetail = true;
-    markCurrentRouteRightPane(this.useSplitLayout());
-    const detailLink = createGalleryDetailLinkFromGallery(gallery, this.activeSite, this.requestUrl);
+    if (!this.delegateDetailToHost) {
+      markCurrentRouteRightPane(this.useSplitLayout());
+    }
     this.detailLink = detailLink;
     this.detail = initialDetailForLink(detailLink);
     this.detailStatus = '';
@@ -2487,23 +2502,27 @@ export struct GalleryListScene {
   }
 
   private openDetailByToken(gid: number, token: string): void {
-    this.restoreDetailWithFade = false;
-    this.showDetail = true;
-    markCurrentRouteRightPane(this.useSplitLayout());
     const detailLink = createGalleryDetailLink(gid, token, 'Gallery ' + gid.toString(), this.activeSite, this.requestUrl);
-    this.detailLink = detailLink;
-    this.detail = initialDetailForLink(detailLink);
-    this.detailStatus = '';
-    this.detailRequestUrl = detailLink.url;
-    this.renderVersion++;
-    this.saveNavigationCache();
+    this.openDetailLink(detailLink);
+  }
+
+  private clearDelegatedDetailLayer(): void {
+    this.showDetail = false;
+    this.showReader = false;
+    this.restoreDetailWithFade = false;
+    this.detailLink = createEmptyGalleryDetailLink();
+    this.detail = createEmptyDetail();
+    this.detailRequestUrl = '';
+    this.detailScrollOffset = 0;
   }
 
   private closeDetail(): void {
     this.restoreDetailWithFade = false;
     this.showDetail = false;
     this.showReader = false;
-    markCurrentRouteRightPane(false);
+    if (!this.delegateDetailToHost) {
+      markCurrentRouteRightPane(false);
+    }
     this.detailLink = createEmptyGalleryDetailLink();
     this.detail = createEmptyDetail();
     this.detailStatus = 'Tap a gallery row to load detail';
@@ -2664,8 +2683,10 @@ export struct GalleryListScene {
       return;
     }
     this.sceneContentWidth = normalized;
-    rememberMainContentWidthVp(normalized);
-    markCurrentRouteRightPane(this.useSplitLayout());
+    if (!this.delegateDetailToHost) {
+      rememberMainContentWidthVp(normalized);
+      markCurrentRouteRightPane(this.useSplitLayout());
+    }
   }
 
   private syncSceneContentWidthFromWindow(): void {
@@ -2736,6 +2757,11 @@ export struct GalleryListScene {
       initialImageOnlySearchCovers: this.searchResultDraft.imageOnlySearchCovers,
       initialImageShowExpunged: this.searchResultDraft.imageShowExpunged,
       isSearchResultScene: true,
+      delegateDetailToHost: this.shouldShowSearchResultInLeftPane(),
+      onOpenDetailInHost: (link: GalleryDetailLink) => {
+        this.openDetailLink(link);
+        return true;
+      },
       onBack: () => {
         this.closeSearchResultScene();
       }
