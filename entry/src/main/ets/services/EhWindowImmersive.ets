@@ -42,8 +42,11 @@ export function mainContentWidthFallbackVp(pxToVp: (value: number) => number): n
   } catch (_error) {
     windowWidth = 0;
   }
+  if (windowWidth >= 240) {
+    return windowWidth;
+  }
   if (remembered !== undefined && remembered >= 240) {
-    return Math.max(remembered, windowWidth);
+    return remembered;
   }
   return windowWidth;
 }

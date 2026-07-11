@@ -834,6 +834,10 @@ export struct DownloadScene {
   }
 
   private syncDownloadContentWidthFromWindow(): void {
+    if (this.useSplitLayout()) {
+      this.syncDownloadContentWidthForCurrentLayout();
+      return;
+    }
     this.updateDownloadContentWidth(mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value)));
   }
 
@@ -867,17 +871,14 @@ export struct DownloadScene {
   private availableSceneWidth(): number {
     const windowWidth = this.windowContentWidthVp();
     if (this.sceneContentWidth > 0) {
-      return Math.max(this.sceneContentWidth, windowWidth);
+      return this.sceneContentWidth;
     }
     return windowWidth;
   }
 
   private syncSceneContentWidthFromWindow(): void {
-    if (this.sceneContentWidth >= SPLIT_PANE_BREAKPOINT) {
-      return;
-    }
     const width = this.windowContentWidthVp();
-    if (width > this.sceneContentWidth) {
+    if (width >= 240) {
       this.updateSceneContentWidth(width);
     }
   }

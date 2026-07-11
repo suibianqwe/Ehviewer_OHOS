@@ -535,17 +535,14 @@ export struct TopListScene {
   private availableSceneWidth(): number {
     const windowWidth = this.windowContentWidthVp();
     if (this.sceneContentWidth > 0) {
-      return Math.max(this.sceneContentWidth, windowWidth);
+      return this.sceneContentWidth;
     }
     return windowWidth;
   }
 
   private syncSceneContentWidthFromWindow(): void {
-    if (this.sceneContentWidth >= SPLIT_PANE_BREAKPOINT) {
-      return;
-    }
     const width = this.windowContentWidthVp();
-    if (width > this.sceneContentWidth) {
+    if (width >= 240) {
       this.updateSceneContentWidth(width);
     }
   }

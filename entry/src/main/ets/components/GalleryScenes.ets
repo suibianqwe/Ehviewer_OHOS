@@ -2672,7 +2672,7 @@ export struct GalleryListScene {
 
   private syncSceneContentWidthFromWindow(): void {
     const width = mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value));
-    if (width > this.sceneContentWidth) {
+    if (width >= 240) {
       this.updateSceneContentWidth(width);
     }
   }
@@ -4204,6 +4204,10 @@ export struct GalleryListContent {
   }
 
   private syncContentWidthFromWindow(): void {
+    if (this.layoutWidthHint >= 240) {
+      this.updateContentWidth(this.layoutWidthHint);
+      return;
+    }
     this.updateContentWidth(mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value)));
   }
 

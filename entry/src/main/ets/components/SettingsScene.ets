@@ -339,7 +339,7 @@ export struct SettingsScene {
 
   private syncSceneContentWidthFromWindow(): void {
     const width = mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value));
-    if (width > this.sceneContentWidth) {
+    if (width >= 240) {
       this.updateSceneContentWidth(width);
     }
   }
