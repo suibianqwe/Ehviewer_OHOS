@@ -9,6 +9,7 @@ import {
   GalleryPage,
   GallerySite,
   HathArchiveList,
+  TorrentInfo,
   TopListDetail
 } from '../model/GalleryModels';
 import { ehCookieStore } from './EhCookieStore';
@@ -36,6 +37,7 @@ import {
   recordEhRequestOutcome
 } from './EhNetworkConfig';
 import { TopListParseResult, parseTopList } from './TopListParser';
+import { parseTorrentList } from './TorrentParser';
 
 export interface EhHttpResponse {
   statusCode: number;
@@ -192,6 +194,14 @@ export interface HathArchiveSubmitResult {
   ok: boolean;
   statusCode: number;
   message: string;
+}
+
+export interface TorrentListLoadResult {
+  ok: boolean;
+  url: string;
+  statusCode: number;
+  message: string;
+  torrents: TorrentInfo[];
 }
 
 export interface ArchiverLoadResult {
@@ -784,6 +794,41 @@ export class EhHttpClient {
   async loadGalleryPage(pageUrl: string, site: GallerySite = GallerySite.E,
     referer: string = EhUrl.getReferer(site)): Promise<GalleryPageLoadResult> {
     return this.loadGalleryPageFast(pageUrl, site, referer, true);
+  }
+
+  async loadTorrentList(torrentUrl: string, gid: number, token: string,
+    site: GallerySite = GallerySite.E): Promise<TorrentListLoadResult> {
+    if (torrentUrl.length === 0) {
+      return { ok: false, url: torrentUrl, statusCode: 0, message: 'Torrent URL is unavailable', torrents: [] };
+    }
+    try {
+      const response = await this.getText(torrentUrl, EhUrl.getGalleryDetailUrl(gid, token, 0, false, site), 0);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return {
+          ok: false,
+          url: torrentUrl,
+          statusCode: response.statusCode,
+          message: httpStatusMessage(response.statusCode, response.body),
+          torrents: []
+        };
+      }
+      const torrents = parseTorrentList(response.body);
+      return {
+        ok: torrents.length > 0,
+        url: torrentUrl,
+        statusCode: response.statusCode,
+        message: torrents.length > 0 ? 'Parsed torrent list' : 'No torrents',
+        torrents: torrents
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        url: torrentUrl,
+        statusCode: 0,
+        message: networkErrorMessage(error),
+        torrents: []
+      };
+    }
   }
 
   async loadHathArchiveList(gid: number, token: string, archiveUrl: string,

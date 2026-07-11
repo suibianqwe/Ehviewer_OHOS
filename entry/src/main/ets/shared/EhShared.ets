@@ -746,6 +746,10 @@ export function zhText(text: string): string {
     case 'Favorite count': return '收藏数';
     case 'Rating count': return '评分数';
     case 'Torrents': return '种子';
+    case 'No torrents': return '没有可用的种子';
+    case 'Seeds': return '做种';
+    case 'Magnet link copied': return '磁力链接已复制';
+    case 'Magnet link unavailable': return '磁力链接不可用';
     case 'Torrent URL': return '种子 URL';
     case 'Favorite name': return '收藏夹名';
     case 'Advanced': return '高级';
@@ -843,6 +847,8 @@ export function zhText(text: string): string {
     case 'Parsed archiver options': return '已解析档案选项';
     case 'H@H download request submitted': return 'H@H 下载请求已提交';
     case 'Archiver download URL ready': return '档案下载链接已就绪';
+    case 'Archive download started': return '存档已开始下载到下载目录';
+    case 'Archive download failed': return '存档下载失败';
     case 'Share': return '分享';
     case 'Save': return '保存';
     case 'Save to album': return '保存到相册';

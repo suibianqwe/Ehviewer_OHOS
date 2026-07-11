@@ -1,7 +1,7 @@
 ﻿import { GalleryDetail, GalleryPreview } from '../model/GalleryModels';
 import { GalleryComment } from '../model/GalleryModels';
 import { GalleryTagInfo } from '../model/GalleryModels';
-import { ArchiveOption, ArchiverInfo, ArchiverOption, HathArchiveList } from '../model/GalleryModels';
+import { ArchiveOption, ArchiverInfo, ArchiverOption, HathArchiveList, TorrentInfo } from '../model/GalleryModels';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import {
   LANGUAGE_REVISION_KEY,
@@ -47,11 +47,13 @@ export struct GalleryDetailOverlayScene {
   @Prop archiveBusy: boolean = false;
   @Prop archiverInfo: ArchiverInfo = { funds: '', options: [] };
   @Prop hathArchiveList: HathArchiveList = { formParamOr: '', options: [] };
+  @Prop torrentList: TorrentInfo[] = [];
   initialDetailScrollOffset: number = 0;
   onBack: () => void = () => {};
   onShowInfo: () => void = () => {};
   onCloseInfo: () => void = () => {};
   onCloseComments: () => void = () => {};
+  onSelectTorrent: (torrent: TorrentInfo) => void = (_torrent: TorrentInfo) => {};
   onDownload: () => void = () => {};
   onRead: () => void = () => {};
   onUploaderSearch: () => void = () => {};
@@ -101,6 +103,7 @@ export struct GalleryDetailOverlayScene {
         archiveBusy: this.archiveBusy,
         archiverInfo: this.archiverInfo,
         hathArchiveList: this.hathArchiveList,
+        torrentList: this.torrentList,
         onBack: this.onBack,
         onShowInfo: this.onShowInfo,
         onCloseInfo: this.onCloseInfo,
@@ -124,6 +127,7 @@ export struct GalleryDetailOverlayScene {
         onCloseArchivePanel: this.onCloseArchivePanel,
         onSelectArchiverOption: this.onSelectArchiverOption,
         onSelectHathOption: this.onSelectHathOption,
+        onSelectTorrent: this.onSelectTorrent,
         onLoadMorePreviews: this.onLoadMorePreviews,
         onRefreshDetail: this.onRefreshDetail,
         initialDetailScrollOffset: this.initialDetailScrollOffset,
@@ -182,6 +186,7 @@ export struct GalleryDetailScene {
   @Prop archiveBusy: boolean = false;
   @Prop archiverInfo: ArchiverInfo = { funds: '', options: [] };
   @Prop hathArchiveList: HathArchiveList = { formParamOr: '', options: [] };
+  @Prop torrentList: TorrentInfo[] = [];
   onBack: () => void = () => {};
   onShowInfo: () => void = () => {};
   onCloseInfo: () => void = () => {};
@@ -205,6 +210,7 @@ export struct GalleryDetailScene {
   onCloseArchivePanel: () => void = () => {};
   onSelectArchiverOption: (option: ArchiverOption) => void = (_option: ArchiverOption) => {};
   onSelectHathOption: (option: ArchiveOption) => void = (_option: ArchiveOption) => {};
+  onSelectTorrent: (torrent: TorrentInfo) => void = (_torrent: TorrentInfo) => {};
   onLoadMorePreviews: () => void = () => {};
   onRefreshDetail: (done: () => void) => void = (_done: () => void) => {};
   initialDetailScrollOffset: number = 0;
@@ -490,9 +496,11 @@ export struct GalleryDetailScene {
           busy: this.archiveBusy,
           archiverInfo: this.archiverInfo,
           hathArchiveList: this.hathArchiveList,
+          torrentList: this.torrentList,
           onDismiss: this.onCloseArchivePanel,
           onSelectArchiverOption: this.onSelectArchiverOption,
-          onSelectHathOption: this.onSelectHathOption
+          onSelectHathOption: this.onSelectHathOption,
+          onSelectTorrent: this.onSelectTorrent
         })
         .zIndex(13)
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
@@ -728,11 +736,16 @@ struct ArchiveOptionsOverlay {
   @Prop busy: boolean = false;
   @Prop archiverInfo: ArchiverInfo = { funds: '', options: [] };
   @Prop hathArchiveList: HathArchiveList = { formParamOr: '', options: [] };
+  @Prop torrentList: TorrentInfo[] = [];
   onDismiss: () => void = () => {};
   onSelectArchiverOption: (option: ArchiverOption) => void = (_option: ArchiverOption) => {};
   onSelectHathOption: (option: ArchiveOption) => void = (_option: ArchiveOption) => {};
+  onSelectTorrent: (torrent: TorrentInfo) => void = (_torrent: TorrentInfo) => {};
 
   private title(): string {
+    if (this.mode === 'torrent') {
+      return uiText('Torrents');
+    }
     return this.mode === 'hath' ? 'H@H' : uiText('Archive');
   }
 
@@ -740,11 +753,27 @@ struct ArchiveOptionsOverlay {
     if (this.busy) {
       return uiText('Loading...');
     }
+    if (this.mode === 'torrent') {
+      return uiText('No torrents');
+    }
     return this.mode === 'hath' ? uiText('No H@H archives') : uiText('No archiver options');
   }
 
+  private torrentSubtitle(torrent: TorrentInfo): string {
+    const parts: string[] = [];
+    if (torrent.posted.length > 0) {
+      parts.push(torrent.posted);
+    }
+    if (torrent.size.length > 0) {
+      parts.push(torrent.size);
+    }
+    parts.push(uiText('Seeds') + ' ' + torrent.seeds.toString());
+    parts.push(uiText('Downloads') + ' ' + torrent.downloads.toString());
+    return parts.join(' · ');
+  }
+
   build() {
-    Stack({ alignContent: Alignment.Bottom }) {
+    Stack({ alignContent: Alignment.Center }) {
       Column() {}
         .width('100%')
         .height('100%')
@@ -790,7 +819,21 @@ struct ArchiveOptionsOverlay {
 
         Scroll() {
           Column({ space: 0 }) {
-            if (this.mode === 'hath') {
+            if (this.mode === 'torrent') {
+              if (this.torrentList.length === 0) {
+                ArchiveEmptyRow({ text: this.emptyText() })
+              }
+              ForEach(this.torrentList, (torrent: TorrentInfo) => {
+                ArchiveOptionRow({
+                  title: torrent.name,
+                  subtitle: this.torrentSubtitle(torrent),
+                  busy: this.busy,
+                  onTap: () => {
+                    this.onSelectTorrent(torrent);
+                  }
+                })
+              }, (torrent: TorrentInfo) => torrent.magnetUrl)
+            } else if (this.mode === 'hath') {
               if (this.hathArchiveList.options.length === 0) {
                 ArchiveEmptyRow({ text: this.emptyText() })
               }
@@ -826,12 +869,15 @@ struct ArchiveOptionsOverlay {
         .width('100%')
         .constraintSize({ maxHeight: 360 })
       }
-      .width('100%')
+      .width('88%')
       .constraintSize({ maxWidth: 520 })
       .backgroundColor(themeSurface())
-      .borderRadius({ topLeft: 12, topRight: 12 })
+      .borderRadius(12)
       .clip(true)
-      .transition(TransitionEffect.move(TransitionEdge.BOTTOM).animation({ duration: 220, curve: Curve.EaseOut }))
+      .shadow({ radius: 18, color: themeShadowColor(), offsetX: 0, offsetY: 4 })
+      .transition(TransitionEffect.OPACITY
+        .combine(TransitionEffect.scale({ x: 0.96, y: 0.96 }))
+        .animation({ duration: 180, curve: Curve.EaseOut }))
     }
     .width('100%')
     .height('100%')

@@ -39,7 +39,10 @@ export function parseArchiverInfo(body: string): ArchiverInfo {
   let match: RegExpExecArray | null = FORM_PATTERN.exec(body);
   while (match !== null) {
     const formHtml = match[0];
-    const nearbyHtml = body.substring(Math.max(0, match.index - 360), Math.min(body.length, match.index + formHtml.length + 420));
+    const beforeForm = body.substring(Math.max(0, match.index - 260), match.index);
+    const afterForm = body.substring(match.index + formHtml.length,
+      Math.min(body.length, match.index + formHtml.length + 260));
+    const nearbyHtml = beforeForm + formHtml + afterForm;
     const text = cleanText(nearbyHtml);
     const hidden = parseHiddenFields(formHtml);
     const submit = parseInputValue(formHtml, 'value');
@@ -49,8 +52,8 @@ export function parseArchiverInfo(body: string): ArchiverInfo {
       options.push({
         kind: isOriginal ? 'original' : 'resampled',
         label: isOriginal ? 'Original' : 'Resampled',
-        cost: parseCost(text),
-        size: parseSize(text),
+        cost: parseLastCost(cleanText(beforeForm)),
+        size: parseSize(cleanText(afterForm)),
         url: decodeHtml(match[1]),
         dlType: hidden.dlType.length > 0 ? hidden.dlType : (isOriginal ? 'org' : 'res'),
         dlCheck: hidden.dlCheck
@@ -113,6 +116,17 @@ function attr(html: string, name: string): string {
 function parseCost(text: string): string {
   const match = /Download Cost\s*:?\s*([\s\S]*?)(?:Download|Estimated Size|$)/i.exec(text);
   return match === null ? '' : cleanText(match[1]);
+}
+
+function parseLastCost(text: string): string {
+  const pattern = /Download Cost\s*:?\s*([\d,]+\s*(?:GP|Credits|Hath))/gi;
+  let result = '';
+  let match: RegExpExecArray | null = pattern.exec(text);
+  while (match !== null) {
+    result = cleanText(match[1]);
+    match = pattern.exec(text);
+  }
+  return result.length > 0 ? result : parseCost(text);
 }
 
 function parseSize(text: string): string {

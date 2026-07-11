@@ -1,9 +1,13 @@
 import { common } from '@kit.AbilityKit';
+import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { pasteboard } from '@kit.BasicServicesKit';
-import { ArchiveOption, ArchiverInfo, ArchiverOption, GalleryComment, GalleryDetail, GalleryPreview, GallerySite, HathArchiveList } from '../model/GalleryModels';
+import { fileUri, picker } from '@kit.CoreFileKit';
+import { systemShare } from '@kit.ShareKit';
+import { ArchiveOption, ArchiverInfo, ArchiverOption, GalleryComment, GalleryDetail, GalleryPreview, GallerySite, HathArchiveList, TorrentInfo } from '../model/GalleryModels';
 import { confirmCellularNetworkWarningForSession, shouldConfirmCellularNetworkOperation } from '../services/EhCellularNetworkGuard';
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { DownloadInfo, ehDownloadStore } from '../services/EhDownloadStore';
+import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
 import {
   ArchiverDownloadResult,
@@ -14,9 +18,11 @@ import {
   HathArchiveSubmitResult,
   RateGalleryResult,
   ToggleFavoriteResult,
+  TorrentListLoadResult,
   VoteCommentResult,
   VoteTagResult
 } from '../services/EhHttpClient';
+import { PublicDownloadStartResult, startPublicDownload } from '../services/PublicDownloadService';
 import { EhUrl } from '../services/EhUrl';
 import {
   archiveUnavailableReason,
@@ -329,6 +335,7 @@ export struct GalleryDetailHostScene {
   @State archiveBusy: boolean = false;
   @State archiverInfo: ArchiverInfo = { funds: '', options: [] };
   @State hathArchiveList: HathArchiveList = { formParamOr: '', options: [] };
+  @State torrentList: TorrentInfo[] = [];
   @State commentGalleryLink: GalleryDetailLink = createEmptyGalleryDetailLink();
   @State viewportHeight: number = 0;
 
@@ -917,6 +924,70 @@ export struct GalleryDetailHostScene {
     this.renderVersion++;
   }
 
+  private shareGallery(): void {
+    const context = getAbilityContext();
+    if (context === undefined || !this.detailLoaded) {
+      return;
+    }
+    const url = EhUrl.getGalleryDetailUrl(this.detail.gid, this.detail.token, 0, false, this.detailLink.site);
+    const shareData = new systemShare.SharedData({
+      utd: utd.UniformDataType.PLAIN_TEXT,
+      content: url,
+      title: this.detail.title,
+      description: 'EhViewer'
+    });
+    const controller = new systemShare.ShareController(shareData);
+    controller.show(context, {
+      selectionMode: systemShare.SelectionMode.SINGLE,
+      previewMode: systemShare.SharePreviewMode.DETAIL
+    }).catch(() => {});
+  }
+
+  private openTorrentPanel(): void {
+    if (!this.detailLoaded || this.detail.torrentUrl.length === 0) {
+      this.detailStatus = 'Torrent URL is unavailable';
+      this.renderVersion++;
+      return;
+    }
+    this.archivePanelVisible = true;
+    this.archivePanelMode = 'torrent';
+    this.archivePanelStatus = 'Loading...';
+    this.archiveBusy = true;
+    this.torrentList = [];
+    this.renderVersion++;
+    this.client.loadTorrentList(this.detail.torrentUrl, this.detail.gid, this.detail.token, this.detailLink.site)
+      .then((result: TorrentListLoadResult) => {
+        this.archiveBusy = false;
+        this.archivePanelStatus = result.ok ? '' : result.message;
+        this.torrentList = result.torrents;
+        this.renderVersion++;
+      }).catch((error: Error) => {
+        this.archiveBusy = false;
+        this.archivePanelStatus = 'Torrent failed: ' + error.message;
+        this.renderVersion++;
+      });
+  }
+
+  private copyTorrentMagnet(torrent: TorrentInfo): void {
+    if (torrent.magnetUrl.length === 0) {
+      this.showToast('Magnet link unavailable');
+      return;
+    }
+    try {
+      const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, torrent.magnetUrl);
+      pasteboard.getSystemPasteboard().setData(data).then(() => {
+        this.closeArchivePanel();
+        this.detailStatus = 'Magnet link copied';
+        this.showToast('Magnet link copied');
+        this.renderVersion++;
+      }).catch(() => {
+        this.showToast('Copy failed');
+      });
+    } catch (error) {
+      this.showToast('Copy failed');
+    }
+  }
+
   private closeArchivePanel(): void {
     this.archivePanelVisible = false;
     this.archivePanelMode = '';
@@ -924,6 +995,7 @@ export struct GalleryDetailHostScene {
     this.archiveBusy = false;
     this.archiverInfo = { funds: '', options: [] };
     this.hathArchiveList = { formParamOr: '', options: [] };
+    this.torrentList = [];
   }
 
   private ensureArchiveSession(): boolean {
@@ -949,7 +1021,7 @@ export struct GalleryDetailHostScene {
     this.client.loadArchiver(this.detail.gid, this.detail.token, this.detail.archiveUrl, this.detailLink.site)
       .then((result: ArchiverLoadResult) => {
         this.archiveBusy = false;
-        this.archivePanelStatus = result.ok ? result.message : 'Archive failed: ' + result.message;
+        this.archivePanelStatus = result.ok ? '' : 'Archive failed: ' + result.message;
         this.archiverInfo = result.info === null ? { funds: '', options: [] } : result.info;
         this.renderVersion++;
       }).catch((error: Error) => {
@@ -991,17 +1063,59 @@ export struct GalleryDetailHostScene {
     this.renderVersion++;
     const referer = detailArchiveReferer(this.detail, this.detailLink.site);
     this.client.requestArchiverDownload(option, referer, this.detailLink.site).then((result: ArchiverDownloadResult) => {
-      this.archiveBusy = false;
       this.archivePanelStatus = result.message;
       if (result.ok && result.downloadUrl.length > 0) {
-        this.copyDetailLink(result.downloadUrl, 'Archive');
+        this.startArchiveDownload(result.downloadUrl).then(() => {
+          this.archiveBusy = false;
+          this.closeArchivePanel();
+          this.detailStatus = 'Archive download started';
+          this.showToast('Archive download started');
+          this.renderVersion++;
+        }).catch((error: Error) => {
+          this.archiveBusy = false;
+          this.archivePanelStatus = 'Archive failed: ' + error.message;
+          this.showToast('Archive download failed');
+          this.renderVersion++;
+        });
+        return;
       }
+      this.archiveBusy = false;
       this.renderVersion++;
     }).catch((error: Error) => {
       this.archiveBusy = false;
       this.archivePanelStatus = 'Archive failed: ' + error.message;
       this.renderVersion++;
     });
+  }
+
+  private async startArchiveDownload(url: string): Promise<PublicDownloadStartResult> {
+    const context = getAbilityContext();
+    if (context === undefined) {
+      throw new Error('App context is unavailable');
+    }
+    const directory = await this.ensurePublicDownloadDirectory(context);
+    const title = this.detail.title.length > 0 ? this.detail.title : this.detail.gid.toString();
+    const fileName = title + ' (' + this.detail.gid.toString() + ').zip';
+    return startPublicDownload(context, url, detailArchiveReferer(this.detail, this.detailLink.site), directory,
+      fileName, title);
+  }
+
+  private async ensurePublicDownloadDirectory(context: common.UIAbilityContext): Promise<string> {
+    try {
+      return ehDownloadFileStore.publicDownloadRoot(context);
+    } catch (error) {
+    }
+    const saveOptions = new picker.DocumentSaveOptions();
+    saveOptions.pickerMode = picker.DocumentPickerMode.DOWNLOAD;
+    const documentPicker = new picker.DocumentViewPicker(context);
+    const result = await documentPicker.save(saveOptions);
+    if (result.length === 0 || result[0].length === 0) {
+      throw new Error('Downloads access was not granted');
+    }
+    const directory = new fileUri.FileUri(result[0]).path + '/EhViewer';
+    ehDownloadFileStore.rememberPublicDownloadRoot(directory);
+    await ehSettingsStore.save(context);
+    return directory;
   }
 
   private submitHathOption(option: ArchiveOption): void {
@@ -1016,6 +1130,12 @@ export struct GalleryDetailHostScene {
       this.archiveBusy = false;
       this.archivePanelStatus = result.message;
       this.detailStatus = result.message;
+      if (result.ok) {
+        this.closeArchivePanel();
+        this.showToast('H@H download request submitted');
+      } else {
+        this.showToast(result.message);
+      }
       this.renderVersion++;
     }).catch((error: Error) => {
       this.archiveBusy = false;
@@ -1302,6 +1422,7 @@ export struct GalleryDetailHostScene {
         archiveBusy: this.archiveBusy,
         archiverInfo: this.archiverInfo,
         hathArchiveList: this.hathArchiveList,
+        torrentList: this.torrentList,
         initialDetailScrollOffset: this.initialDetailScrollOffset,
         onBack: this.onBack,
         onShowInfo: () => {
@@ -1340,12 +1461,9 @@ export struct GalleryDetailHostScene {
         onVoteComment: (comment: GalleryComment, vote: number) => { this.voteDetailComment(comment, vote); },
         onOpenCommentGalleryLink: (url: string) => { this.openCommentGalleryLink(url); },
         onFavorite: () => { this.toggleFavoriteDetail(); },
-        onShare: () => {
-          this.copyDetailLink(EhUrl.getGalleryDetailUrl(this.detail.gid, this.detail.token, 0, false, this.detailLink.site),
-            'Gallery URL');
-        },
+        onShare: () => { this.shareGallery(); },
         onRate: (rating: number) => { this.rateDetail(rating); },
-        onTorrent: () => { this.copyDetailLink(this.detail.torrentUrl, 'Torrent'); },
+        onTorrent: () => { this.openTorrentPanel(); },
         onArchive: () => { this.openArchiverPanel(); },
         onHath: () => { this.openHathPanel(); },
         onSimilar: () => { this.openSimilarGalleryList(); },
@@ -1353,6 +1471,7 @@ export struct GalleryDetailHostScene {
         onCloseArchivePanel: () => { this.closeArchivePanel(); },
         onSelectArchiverOption: (option: ArchiverOption) => { this.submitArchiverOption(option); },
         onSelectHathOption: (option: ArchiveOption) => { this.submitHathOption(option); },
+        onSelectTorrent: (torrent: TorrentInfo) => { this.copyTorrentMagnet(torrent); },
         onLoadMorePreviews: () => {
           this.loadNextDetailPreviewPage();
         },

@@ -98,6 +98,17 @@ export interface HathArchiveList {
   options: ArchiveOption[];
 }
 
+export interface TorrentInfo {
+  url: string;
+  magnetUrl: string;
+  name: string;
+  posted: string;
+  size: string;
+  seeds: number;
+  peers: number;
+  downloads: number;
+}
+
 export interface ArchiverOption {
   kind: string;
   label: string;
