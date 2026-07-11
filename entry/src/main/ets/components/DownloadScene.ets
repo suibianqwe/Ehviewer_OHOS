@@ -175,12 +175,6 @@ interface DownloadNavigationCache {
   tagSearchImageShowExpunged: boolean;
 }
 
-interface DownloadRowData {
-  index: number;
-  key: string;
-  items: DownloadInfo[];
-}
-
 let downloadNavigationCache: DownloadNavigationCache | null = null;
 
 function cloneDownloadDetailLink(link: GalleryDetailLink): GalleryDetailLink {
@@ -794,10 +788,6 @@ export struct DownloadScene {
     return 8;
   }
 
-  private downloadCardMinWidth(): number {
-    return galleryListMode() === 'Thumb' ? 104 : 300;
-  }
-
   private downloadColumnCount(): number {
     return this.downloadColumnCountForWidth(this.downloadContentWidth);
   }
@@ -810,16 +800,6 @@ export struct DownloadScene {
     const preferred = this.downloadCardPreferredWidth();
     const gap = this.downloadCardGap();
     return Math.max(1, Math.floor((availableWidth + gap) / (preferred + gap)));
-  }
-
-  private downloadCardWidth(): number {
-    const availableWidth = Math.max(0, this.downloadContentWidth - this.downloadContentPadding() * 2);
-    if (availableWidth <= 0 || Number.isNaN(availableWidth)) {
-      return this.downloadCardPreferredWidth();
-    }
-    const columns = this.downloadColumnCount();
-    const gap = this.downloadCardGap();
-    return Math.max(this.downloadCardMinWidth(), Math.floor((availableWidth - gap * (columns - 1)) / columns));
   }
 
   private updateDownloadContentWidth(width: number): void {
@@ -914,22 +894,6 @@ export struct DownloadScene {
   private finishSplitPaneDrag(): void {
     this.splitDragging = false;
     saveSplitPaneRatio(this.splitListRatio);
-  }
-
-  private buildDownloadRows(): DownloadRowData[] {
-    const visible = this.visibleDownloadItems();
-    const columns = this.downloadColumnCount();
-    const rows: DownloadRowData[] = [];
-    for (let i = 0; i < visible.length; i += columns) {
-      const items = visible.slice(i, i + columns);
-      const rowIndex = Math.floor(i / columns);
-      rows.push({
-        index: rowIndex,
-        key: rowIndex.toString(),
-        items: items
-      });
-    }
-    return rows;
   }
 
   private refreshDownloadRows(): void {
@@ -1467,79 +1431,69 @@ export struct DownloadScene {
             .translate({ y: this.downloadContentStartOffset() })
           } else {
             List({ space: 0, scroller: this.downloadScroller }) {
-              ListItem() {
-                Column()
-                  .height(this.downloadCardGap())
-                  .width('100%')
-                  .backgroundColor(Color.Transparent)
-              }
-              ForEach(this.buildDownloadRows(), (row: DownloadRowData) => {
+              ForEach(this.visibleDownloadItems(), (item: DownloadInfo) => {
                 ListItem() {
-                  Row() {
-                    ForEach(row.items, (item: DownloadInfo, colIndex: number) => {
-                      Column() {
-                      if (galleryListMode() === 'Thumb') {
-                        GalleryThumbCard({
-                          gallery: item,
-                          selected: this.isDownloadSelected(item.gid),
-                          onLongPress: (_pressed: GalleryInfo) => {
-                            this.toggleDownloadSelection(item);
-                          }
-                        })
-                          .width('100%')
-                          .zIndex(2)
-                          .onClick(() => {
-                            this.handleDownloadCardTap(item);
-                          })
-                      } else {
-                        GalleryListRow({
-                          gallery: item,
-                          selected: this.isDownloadSelected(item.gid),
-                          onLongPress: (_pressed: GalleryInfo) => {
-                            this.toggleDownloadSelection(item);
-                          }
-                        })
-                          .width('100%')
-                          .zIndex(2)
-                          .onClick(() => {
-                            this.handleDownloadCardTap(item);
-                          })
+                  Column() {
+                    if (galleryListMode() === 'Thumb') {
+                      GalleryThumbCard({
+                        gallery: item,
+                        selected: this.isDownloadSelected(item.gid),
+                        onLongPress: (_pressed: GalleryInfo) => {
+                          this.toggleDownloadSelection(item);
                         }
-                        if (item.state !== DownloadState.Finish) {
-                        DownloadCardStatus({
-                          item: item,
-                          cardState: this.downloadCardStateFor(item.gid),
-                          onStatusTap: (downloadItem: DownloadInfo) => {
-                            this.toggleItemFromProgress(downloadItem);
-                            }
+                      })
+                        .width('100%')
+                        .zIndex(2)
+                        .onClick(() => {
+                          this.handleDownloadCardTap(item);
                         })
-                          .margin({ top: 4 })
-                          .zIndex(1)
-                          .transition(TransitionEffect.asymmetric(
-                            TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }),
-                            TransitionEffect.move(TransitionEdge.TOP)
-                              .animation({ duration: 180, curve: Curve.EaseIn })))
-                      }
+                    } else {
+                      GalleryListRow({
+                        gallery: item,
+                        selected: this.isDownloadSelected(item.gid),
+                        onLongPress: (_pressed: GalleryInfo) => {
+                          this.toggleDownloadSelection(item);
+                        }
+                      })
+                        .width('100%')
+                        .zIndex(2)
+                        .onClick(() => {
+                          this.handleDownloadCardTap(item);
+                        })
                     }
-                      .width(this.downloadCardWidth())
-                      .margin({ right: colIndex < row.items.length - 1 ? this.downloadCardGap() : 0 })
-                      .animation({ duration: 220, curve: Curve.EaseOut })
-                      .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
-                    }, (item: DownloadInfo, _colIndex: number) => item.gid.toString())
+                    if (item.state !== DownloadState.Finish) {
+                      DownloadCardStatus({
+                        item: item,
+                        cardState: this.downloadCardStateFor(item.gid),
+                        onStatusTap: (downloadItem: DownloadInfo) => {
+                          this.toggleItemFromProgress(downloadItem);
+                        }
+                      })
+                        .margin({ top: 4 })
+                        .zIndex(1)
+                        .transition(TransitionEffect.asymmetric(
+                          TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }),
+                          TransitionEffect.move(TransitionEdge.TOP)
+                            .animation({ duration: 180, curve: Curve.EaseIn })))
+                    }
                   }
                   .width('100%')
-                  .justifyContent(FlexAlign.Start)
                   .animation({ duration: 220, curve: Curve.EaseOut })
                 }
                 .margin({ bottom: this.downloadCardGap() })
-              }, (row: DownloadRowData) => row.key)
+                .reuseId('download-card-item')
+                .animation({ duration: 220, curve: Curve.EaseOut })
+                .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
+              }, (item: DownloadInfo) => item.gid.toString())
             }
             .width('100%')
             .height(this.downloadListViewportHeight())
+            .lanes(this.downloadColumnCount(), this.downloadCardGap())
             .cachedCount(4)
             .padding({
               left: this.downloadContentPadding(),
-              right: this.downloadContentPadding()
+              right: this.downloadContentPadding(),
+              top: this.downloadCardGap()
             })
             .translate({ y: this.downloadContentStartOffset() })
         .onAreaChange((_oldArea: Area, newArea: Area) => {

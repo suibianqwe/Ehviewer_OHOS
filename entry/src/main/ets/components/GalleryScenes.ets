@@ -173,12 +173,6 @@ interface GalleryListSceneCache {
   appendExhausted?: boolean;
 }
 
-interface GalleryRowData {
-  index: number;
-  key: string;
-  items: GalleryInfo[];
-}
-
 interface SearchResultDraft {
   keyword: string;
   mode: ListMode;
@@ -4051,6 +4045,10 @@ export struct GalleryListContent {
     this.onScrollUpdate(yOffset);
   }
 
+  private galleryColumnCount(): number {
+    return this.galleryColumnCountForWidth(this.effectiveContentWidth());
+  }
+
   private galleryCardWidth(): number {
     const availableWidth = Math.max(0, this.effectiveContentWidth() - this.galleryContentPadding() * 2);
     if (availableWidth <= 0 || Number.isNaN(availableWidth)) {
@@ -4061,8 +4059,11 @@ export struct GalleryListContent {
     return Math.max(this.galleryCardMinWidth(), Math.floor((availableWidth - gap * (columns - 1)) / columns));
   }
 
-  private galleryColumnCount(): number {
-    return this.galleryColumnCountForWidth(this.effectiveContentWidth());
+  private galleryListLanes(): number {
+    if (this.shouldShowSearchSuggestions() || this.galleries.length === 0) {
+      return 1;
+    }
+    return this.galleryColumnCount();
   }
 
   private galleryColumnCountForWidth(width: number): number {
@@ -4406,52 +4407,37 @@ export struct GalleryListContent {
   }
 
   @Builder
-  private galleryRow(row: GalleryRowData) {
+  private galleryItem(gallery: GalleryInfo) {
     ListItem() {
-      Row() {
-        ForEach(row.items, (gallery: GalleryInfo, colIndex: number) => {
-          if (galleryListMode() === 'Thumb') {
-            GalleryThumbCard({
-              gallery: gallery,
-              onLongPress: (pressed: GalleryInfo) => {
-                this.onLongPressGallery(pressed);
-              }
-            })
-              .width(this.galleryCardWidth())
-              .margin({
-                right: colIndex < row.items.length - 1 ? this.galleryCardGap() : 0
-              })
-              .animation({ duration: 220, curve: Curve.EaseOut })
-              .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
-              .onClick(() => {
-                this.onSelectGallery(gallery);
-              })
-          } else {
-            GalleryListRow({
-              gallery: gallery,
-              onLongPress: (pressed: GalleryInfo) => {
-                this.onLongPressGallery(pressed);
-              }
-            })
-              .width(this.galleryCardWidth())
-              .margin({
-                right: colIndex < row.items.length - 1 ? this.galleryCardGap() : 0
-              })
-              .animation({ duration: 220, curve: Curve.EaseOut })
-              .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
-              .onClick(() => {
-                this.onSelectGallery(gallery);
-              })
+      if (galleryListMode() === 'Thumb') {
+        GalleryThumbCard({
+          gallery: gallery,
+          onLongPress: (pressed: GalleryInfo) => {
+            this.onLongPressGallery(pressed);
           }
-        }, (gallery: GalleryInfo, _colIndex: number) => this.galleryCardKey(gallery))
+        })
+          .width('100%')
+          .animation({ duration: 220, curve: Curve.EaseOut })
+          .onClick(() => {
+            this.onSelectGallery(gallery);
+          })
+      } else {
+        GalleryListRow({
+          gallery: gallery,
+          onLongPress: (pressed: GalleryInfo) => {
+            this.onLongPressGallery(pressed);
+          }
+        })
+          .width('100%')
+          .animation({ duration: 220, curve: Curve.EaseOut })
+          .onClick(() => {
+            this.onSelectGallery(gallery);
+          })
       }
-      .width('100%')
-      .padding({ left: this.galleryContentPadding(), right: this.galleryContentPadding() })
-      .justifyContent(FlexAlign.Start)
-      .animation({ duration: 220, curve: Curve.EaseOut })
     }
     .margin({ bottom: this.galleryCardGap() })
-    .reuseId('gallery-row')
+    .reuseId('gallery-card-item')
+    .animation({ duration: 220, curve: Curve.EaseOut })
     .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
   }
 
@@ -4476,12 +4462,9 @@ export struct GalleryListContent {
               }
               .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
             } else {
-              ListItem()
-                .margin({ bottom: this.galleryCardGap() })
-              // Group gallery cards into rows with galleryColumnCount() items per row.
-              ForEach(this.buildRows(), (row: GalleryRowData) => {
-                this.galleryRow(row)
-              }, (row: GalleryRowData) => row.key)
+              ForEach(this.galleries, (gallery: GalleryInfo) => {
+                this.galleryItem(gallery)
+              }, (gallery: GalleryInfo) => this.galleryCardKey(gallery))
 
               // Load-more indicator.
               if (this.isLoadingMore) {
@@ -4498,8 +4481,14 @@ export struct GalleryListContent {
             }
           }
           .scrollBar(BarState.Auto)
+          .lanes(this.galleryListLanes(), this.galleryCardGap())
           .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
           .cachedCount(10)
+          .padding({
+            left: this.galleries.length > 0 ? this.galleryContentPadding() : 0,
+            right: this.galleries.length > 0 ? this.galleryContentPadding() : 0,
+            top: this.galleries.length > 0 ? this.galleryCardGap() : 0
+          })
           .width('100%')
           .height(this.listViewportHeight())
           .onAppear(() => {
@@ -4968,22 +4957,6 @@ export struct GalleryListContent {
           this.handleOpenBookmarkDrawerPan(event);
         })
     )
-  }
-
-  // 把 galleries 按列数分组成行数组
-  private buildRows(): GalleryRowData[] {
-    const cols = this.galleryColumnCount();
-    const rows: GalleryRowData[] = [];
-    for (let i = 0; i < this.galleries.length; i += cols) {
-      const items = this.galleries.slice(i, i + cols);
-      const rowIndex = Math.floor(i / cols);
-      rows.push({
-        index: rowIndex,
-        key: rowIndex.toString(),
-        items: items
-      });
-    }
-    return rows;
   }
 
   private galleryCardKey(gallery: GalleryInfo): string {
