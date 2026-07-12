@@ -43,8 +43,9 @@ export class EhUrl {
     return EhUrl.getHost(site) + 'api.php';
   }
 
-  static getHomeUrl(site: GallerySite = GallerySite.E): string {
-    return EhUrl.getHost(site) + 'home.php';
+  static getHomeUrl(_site: GallerySite = GallerySite.E): string {
+    // Account limits are served only by E-Hentai, even when gallery browsing uses ExHentai.
+    return EhUrl.HOST_E + 'home.php';
   }
 
   static getFavoritesUrl(site: GallerySite = GallerySite.E): string {
