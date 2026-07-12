@@ -198,6 +198,13 @@ interface SearchResultDraft {
 interface GalleryListNavigationCache {
   showSearchResultScene: boolean;
   searchResultDraft: SearchResultDraft;
+  searchResultDetailOpened: boolean;
+  searchOriginShowDetail: boolean;
+  searchOriginDetailLink: GalleryDetailLink;
+  searchOriginDetail: GalleryDetail;
+  searchOriginDetailStatus: string;
+  searchOriginDetailRequestUrl: string;
+  searchOriginDetailScrollOffset: number;
   localSearchBarVisible: boolean;
   showDetail: boolean;
   restoreDetailWithFade: boolean;
@@ -1129,6 +1136,7 @@ export struct GalleryListScene {
   @State searchFilterEnabled: boolean = true;
   @State showSearchResultScene: boolean = false;
   @State searchResultDraft: SearchResultDraft = createEmptySearchResultDraft();
+  @State searchResultDetailOpened: boolean = false;
   @State searchMode: ListMode = ListMode.Normal;
   @State searchCategory: number = GalleryCategory.None;
   @State searchAdvancedPanelOpened: boolean = false;
@@ -1185,6 +1193,12 @@ export struct GalleryListScene {
   @StorageProp(SPLIT_PANE_RATIO_REVISION_KEY) @Watch('onSplitPaneRatioRevisionChange') splitPaneRatioRevision: number = 0;
   private listScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
+  private searchOriginShowDetail: boolean = false;
+  private searchOriginDetailLink: GalleryDetailLink = createEmptyGalleryDetailLink();
+  private searchOriginDetail: GalleryDetail = createEmptyDetail();
+  private searchOriginDetailStatus: string = '';
+  private searchOriginDetailRequestUrl: string = '';
+  private searchOriginDetailScrollOffset: number = 0;
   private navigationCacheSuppressed: boolean = false;
 
   private cacheKey(): string {
@@ -1270,6 +1284,15 @@ export struct GalleryListScene {
     this.showSearchResultScene = this.isSearchResultScene ? false : cache.showSearchResultScene;
     this.searchResultDraft = this.isSearchResultScene ? createEmptySearchResultDraft() :
       cloneSearchResultDraft(cache.searchResultDraft);
+    this.searchResultDetailOpened = this.isSearchResultScene ? false : cache.searchResultDetailOpened;
+    this.searchOriginShowDetail = this.isSearchResultScene ? false : cache.searchOriginShowDetail;
+    this.searchOriginDetailLink = this.isSearchResultScene ? createEmptyGalleryDetailLink() :
+      cloneGalleryDetailLink(cache.searchOriginDetailLink);
+    this.searchOriginDetail = this.isSearchResultScene ? createEmptyDetail() :
+      cloneGalleryDetail(cache.searchOriginDetail);
+    this.searchOriginDetailStatus = this.isSearchResultScene ? '' : cache.searchOriginDetailStatus;
+    this.searchOriginDetailRequestUrl = this.isSearchResultScene ? '' : cache.searchOriginDetailRequestUrl;
+    this.searchOriginDetailScrollOffset = this.isSearchResultScene ? 0 : cache.searchOriginDetailScrollOffset;
     this.localSearchBarVisible = cache.localSearchBarVisible;
     this.showDetail = cache.showDetail;
     this.restoreDetailWithFade = cache.showDetail && shouldFadeRestoredRightPane();
@@ -1324,6 +1347,14 @@ export struct GalleryListScene {
       showSearchResultScene: this.isSearchResultScene ? false : this.showSearchResultScene,
       searchResultDraft: this.isSearchResultScene ? createEmptySearchResultDraft() :
         cloneSearchResultDraft(this.searchResultDraft),
+      searchResultDetailOpened: this.isSearchResultScene ? false : this.searchResultDetailOpened,
+      searchOriginShowDetail: this.isSearchResultScene ? false : this.searchOriginShowDetail,
+      searchOriginDetailLink: this.isSearchResultScene ? createEmptyGalleryDetailLink() :
+        cloneGalleryDetailLink(this.searchOriginDetailLink),
+      searchOriginDetail: this.isSearchResultScene ? createEmptyDetail() : cloneGalleryDetail(this.searchOriginDetail),
+      searchOriginDetailStatus: this.isSearchResultScene ? '' : this.searchOriginDetailStatus,
+      searchOriginDetailRequestUrl: this.isSearchResultScene ? '' : this.searchOriginDetailRequestUrl,
+      searchOriginDetailScrollOffset: this.isSearchResultScene ? 0 : this.searchOriginDetailScrollOffset,
       localSearchBarVisible: this.localSearchBarVisible,
       showDetail: this.showDetail,
       restoreDetailWithFade: this.restoreDetailWithFade,
@@ -1350,6 +1381,38 @@ export struct GalleryListScene {
     if (this.showSearchResultScene) {
       this.saveNavigationCache();
     }
+  }
+
+  private captureSearchOrigin(): void {
+    this.searchOriginShowDetail = this.showDetail;
+    this.searchOriginDetailLink = cloneGalleryDetailLink(this.detailLink);
+    this.searchOriginDetail = cloneGalleryDetail(this.detail);
+    this.searchOriginDetailStatus = this.detailStatus;
+    this.searchOriginDetailRequestUrl = this.detailRequestUrl;
+    this.searchOriginDetailScrollOffset = this.detailScrollOffset;
+    this.searchResultDetailOpened = false;
+  }
+
+  private clearSearchOrigin(): void {
+    this.searchOriginShowDetail = false;
+    this.searchOriginDetailLink = createEmptyGalleryDetailLink();
+    this.searchOriginDetail = createEmptyDetail();
+    this.searchOriginDetailStatus = '';
+    this.searchOriginDetailRequestUrl = '';
+    this.searchOriginDetailScrollOffset = 0;
+  }
+
+  private restoreSearchOrigin(): void {
+    if (this.searchOriginShowDetail) {
+      this.showDetail = true;
+      this.detailLink = cloneGalleryDetailLink(this.searchOriginDetailLink);
+      this.detail = cloneGalleryDetail(this.searchOriginDetail);
+      this.detailStatus = this.searchOriginDetailStatus;
+      this.detailRequestUrl = this.searchOriginDetailRequestUrl;
+      this.detailScrollOffset = this.searchOriginDetailScrollOffset;
+    }
+    this.searchResultDetailOpened = false;
+    this.clearSearchOrigin();
   }
 
   private resetListScroll(): void {
@@ -1514,6 +1577,8 @@ export struct GalleryListScene {
     this.addBookmarkDialogVisible = false;
     this.showSearchResultScene = false;
     this.searchResultDraft = createEmptySearchResultDraft();
+    this.searchResultDetailOpened = false;
+    this.clearSearchOrigin();
     this.localSearchBarVisible = false;
     this.fabExpanded = false;
     this.restoreBackHandler();
@@ -2195,6 +2260,7 @@ export struct GalleryListScene {
       imageShowExpunged: false
     };
     if (!this.isSearchResultScene) {
+      this.captureSearchOrigin();
       this.searchResultDraft = draft;
       this.showSearchResultScene = true;
       this.saveNavigationCache();
@@ -2262,6 +2328,7 @@ export struct GalleryListScene {
       imageShowExpunged: true
     };
     if (!this.isSearchResultScene) {
+      this.captureSearchOrigin();
       this.searchResultDraft = draft;
       this.showSearchResultScene = true;
       this.saveNavigationCache();
@@ -2316,6 +2383,7 @@ export struct GalleryListScene {
       this.openLocalSearchBar();
       return;
     }
+    this.captureSearchOrigin();
     this.searchResultDraft = {
       keyword: this.keyword.trim(),
       mode: this.searchMode,
@@ -2372,6 +2440,7 @@ export struct GalleryListScene {
   private closeSearchResultScene(): void {
     this.showSearchResultScene = false;
     this.searchResultDraft = createEmptySearchResultDraft();
+    this.restoreSearchOrigin();
     this.saveNavigationCache();
     setTimeout(() => {
       setActiveBackHandler(() => this.handleSystemBack());
@@ -2434,6 +2503,9 @@ export struct GalleryListScene {
       return;
     }
     this.restoreDetailWithFade = false;
+    if (this.showSearchResultScene) {
+      this.searchResultDetailOpened = true;
+    }
     this.showDetail = true;
     if (!this.delegateDetailToHost) {
       markCurrentRouteRightPane(this.useSplitLayout());
@@ -2476,6 +2548,7 @@ export struct GalleryListScene {
 
   private closeDetail(): void {
     this.restoreDetailWithFade = false;
+    this.searchResultDetailOpened = false;
     this.showDetail = false;
     this.showReader = false;
     if (!this.delegateDetailToHost) {
@@ -2607,6 +2680,7 @@ export struct GalleryListScene {
 
   private openSearchResult(request: DetailSearchRequest): void {
     this.showReader = false;
+    this.captureSearchOrigin();
     this.searchResultDraft = {
       keyword: request.keyword,
       mode: request.mode,
@@ -2693,6 +2767,11 @@ export struct GalleryListScene {
     return !this.isSearchResultScene && this.showSearchResultScene && this.useSplitLayout();
   }
 
+  private shouldShowDetailLayer(): boolean {
+    return this.showDetail && (!this.showSearchResultScene || this.useSplitLayout() ||
+      this.searchResultDetailOpened);
+  }
+
   @Builder
   private searchResultSceneContent() {
     GalleryListScene({
@@ -2715,7 +2794,7 @@ export struct GalleryListScene {
       initialImageOnlySearchCovers: this.searchResultDraft.imageOnlySearchCovers,
       initialImageShowExpunged: this.searchResultDraft.imageShowExpunged,
       isSearchResultScene: true,
-      delegateDetailToHost: this.shouldShowSearchResultInLeftPane(),
+      delegateDetailToHost: true,
       onOpenDetailInHost: (link: GalleryDetailLink) => {
         this.openDetailLink(link);
         return true;
@@ -2728,16 +2807,7 @@ export struct GalleryListScene {
 
   build() {
     Column() {
-      if (!this.isSearchResultScene && this.showSearchResultScene && !this.shouldShowSearchResultInLeftPane()) {
-        Column() {
-          this.searchResultSceneContent()
-        }
-          .width('100%')
-          .height('100%')
-          .transition(TransitionEffect.asymmetric(
-            TransitionEffect.move(TransitionEdge.END).animation({ duration: 260, curve: Curve.EaseOut }),
-            TransitionEffect.move(TransitionEdge.END).animation({ duration: 220, curve: Curve.EaseIn })))
-      } else if (this.showReader) {
+      if (this.showReader) {
         ReaderSessionScene({
           restoreAppChromeOnExit: true,
           onBack: () => {
@@ -2748,11 +2818,11 @@ export struct GalleryListScene {
           .height('100%')
       } else {
         Stack({ alignContent: Alignment.TopStart }) {
-          if (this.shouldShowSearchResultInLeftPane()) {
+          if (!this.isSearchResultScene && this.showSearchResultScene) {
             Column() {
               this.searchResultSceneContent()
             }
-              .width(this.splitListPaneWidth())
+              .width(this.shouldShowSearchResultInLeftPane() ? this.splitListPaneWidth() : '100%')
               .height('100%')
               .onTouch(() => {
                 this.activeSplitPane = 'left';
@@ -2761,6 +2831,11 @@ export struct GalleryListScene {
                 duration: this.splitDragging ? 0 : 220,
                 curve: Curve.EaseOut
               })
+              .transition(this.shouldShowSearchResultInLeftPane() ?
+                TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
+                TransitionEffect.asymmetric(
+                  TransitionEffect.move(TransitionEdge.END).animation({ duration: 260, curve: Curve.EaseOut }),
+                  TransitionEffect.move(TransitionEdge.END).animation({ duration: 220, curve: Curve.EaseIn })))
           } else {
             GalleryListContent({
             sceneTitle: this.sceneTitle,
@@ -3116,7 +3191,7 @@ export struct GalleryListScene {
             })
           }
 
-          if (this.showDetail) {
+          if (this.shouldShowDetailLayer()) {
             GalleryDetailHostScene({
               detailLink: this.detailLink,
               listRequestUrl: this.requestUrl,
