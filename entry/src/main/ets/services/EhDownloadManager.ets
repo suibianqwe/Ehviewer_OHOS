@@ -10,16 +10,19 @@ import { GalleryDetail, GalleryPage, GallerySite } from '../model/GalleryModels'
 import {
   cloneGalleryDetail,
   currentGallerySite,
+  downloadSizeText,
   downloadImageUrlForPage,
   downloadPageIndexes,
   downloadThreadLimit,
   readerPageImageCacheKey,
-  readerPageReferer
+  readerPageReferer,
+  uiText
 } from '../shared/EhShared';
 import { EhUrl } from './EhUrl';
 import { mergeGalleryPreviewSets } from './GalleryPreviewLoader';
 import { ehAppLog } from './EhAppLog';
 import { hathQualityStore } from './HathQualityStore';
+import { ensureDownloadNotificationEnabled } from './DownloadNotificationSupport';
 
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
 const DOWNLOAD_PAGE_RETRY_LIMIT: number = 3;
@@ -460,6 +463,7 @@ export class EhDownloadManager {
       Math.round(Math.max(0, total - state.finished) * averageBytes / state.currentSpeed) : 0;
     ehDownloadStore.setProgress(item.gid, state.finished, total, state.finished * DOWNLOAD_PAGE_PROGRESS_SCALE);
     ehDownloadStore.setTransfer(item.gid, state.currentSpeed, remaining);
+    this.publishProgress(item, state.finished, total, state.currentSpeed).catch(() => {});
   }
 
   private async loadCompleteDownloadDetail(initial: GalleryDetail, referer: string): Promise<GalleryDetail> {
@@ -485,6 +489,7 @@ export class EhDownloadManager {
       return;
     }
     try {
+      await ensureDownloadNotificationEnabled(context);
       const agentInfo: wantAgent.WantAgentInfo = {
         wants: [
           {
@@ -519,30 +524,36 @@ export class EhDownloadManager {
     this.backgroundRunning = false;
   }
 
-  private async publishProgress(item: DownloadInfo, finished: number, total: number): Promise<void> {
+  private async publishProgress(item: DownloadInfo, finished: number, total: number,
+    speed: number = 0): Promise<void> {
     const progress = total > 0 ? Math.max(0, Math.min(100, Math.round(finished * 100 / total))) : 0;
+    let progressText = finished.toString() + '/' + total.toString();
+    if (speed > 0) {
+      progressText += ' · ' + downloadSizeText(speed) + '/s';
+    }
     try {
       if (!this.templateChecked) {
         this.templateSupported = await notificationManager.isSupportTemplate(DOWNLOAD_NOTIFICATION_TEMPLATE);
         this.templateChecked = true;
       }
-      await notificationManager.addSlot(notificationManager.SlotType.OTHER_TYPES).catch(() => {});
+      const notificationTitle = uiText('EhViewer download');
       const request: notificationManager.NotificationRequest = {
         id: this.notificationId,
         content: {
-          notificationContentType: notificationManager.ContentType.NOTIFICATION_CONTENT_BASIC_TEXT,
-          normal: {
-            title: 'EhViewer download',
+          notificationContentType: notificationManager.ContentType.NOTIFICATION_CONTENT_SYSTEM_LIVE_VIEW,
+          systemLiveView: {
+            typeCode: 8,
+            title: notificationTitle,
             text: item.title,
-            additionalText: finished.toString() + '/' + total.toString()
+            additionalText: progressText
           }
         },
-        notificationSlotType: notificationManager.SlotType.OTHER_TYPES,
+        notificationSlotType: notificationManager.SlotType.LIVE_VIEW,
         isOngoing: finished < total,
         template: this.templateSupported ? {
           name: DOWNLOAD_NOTIFICATION_TEMPLATE,
           data: {
-            title: 'EhViewer download',
+            title: notificationTitle,
             fileName: item.title,
             progressValue: progress
           }

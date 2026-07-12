@@ -3,6 +3,7 @@ import { request } from '@kit.BasicServicesKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { ehCookieStore } from './EhCookieStore';
 import { ehAppLog } from './EhAppLog';
+import { ensureDownloadNotificationEnabled } from './DownloadNotificationSupport';
 
 const DOWNLOAD_USER_AGENT: string = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36';
@@ -27,6 +28,7 @@ export async function startPublicDownload(context: common.UIAbilityContext, url:
     headers['Cookie'] = ehCookieStore.getCookieHeaderForUrl(url);
     headers['User-Agent'] = DOWNLOAD_USER_AGENT;
     headers['Accept'] = '*/*';
+    await ensureDownloadNotificationEnabled(context);
 
     const config: request.agent.Config = {
       action: request.agent.Action.DOWNLOAD,
@@ -40,7 +42,13 @@ export async function startPublicDownload(context: common.UIAbilityContext, url:
       saveas: cachePath,
       network: request.agent.Network.ANY,
       metered: true,
-      roaming: true
+      roaming: true,
+      gauge: true,
+      notification: {
+        title: title,
+        text: sanitizeFileName(fileName),
+        visibility: request.agent.VISIBILITY_PROGRESS | request.agent.VISIBILITY_COMPLETION
+      }
     };
     const task = await request.agent.create(context, config);
     const completed = (_progress: request.agent.Progress): void => {
