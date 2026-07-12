@@ -15,14 +15,17 @@ import {
   downloadPageIndexes,
   downloadThreadLimit,
   readerPageImageCacheKey,
-  readerPageReferer,
-  uiText
+  readerPageReferer
 } from '../shared/EhShared';
 import { EhUrl } from './EhUrl';
 import { mergeGalleryPreviewSets } from './GalleryPreviewLoader';
 import { ehAppLog } from './EhAppLog';
 import { hathQualityStore } from './HathQualityStore';
-import { ensureDownloadNotificationEnabled } from './DownloadNotificationSupport';
+import {
+  DownloadNotificationText,
+  downloadNotificationText,
+  ensureDownloadNotificationEnabled
+} from './DownloadNotificationSupport';
 
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
 const DOWNLOAD_PAGE_RETRY_LIMIT: number = 3;
@@ -527,24 +530,25 @@ export class EhDownloadManager {
   private async publishProgress(item: DownloadInfo, finished: number, total: number,
     speed: number = 0): Promise<void> {
     const progress = total > 0 ? Math.max(0, Math.min(100, Math.round(finished * 100 / total))) : 0;
-    let progressText = finished.toString() + '/' + total.toString();
+    const progressText = finished.toString() + '/' + total.toString();
+    let speedText = '';
     if (speed > 0) {
-      progressText += ' · ' + downloadSizeText(speed) + '/s';
+      speedText = downloadSizeText(speed) + '/s';
     }
     try {
       if (!this.templateChecked) {
         this.templateSupported = await notificationManager.isSupportTemplate(DOWNLOAD_NOTIFICATION_TEMPLATE);
         this.templateChecked = true;
       }
-      const notificationTitle = uiText('EhViewer download');
+      const notificationText: DownloadNotificationText = downloadNotificationText(item.title, speedText);
       const request: notificationManager.NotificationRequest = {
         id: this.notificationId,
         content: {
           notificationContentType: notificationManager.ContentType.NOTIFICATION_CONTENT_SYSTEM_LIVE_VIEW,
           systemLiveView: {
             typeCode: 8,
-            title: notificationTitle,
-            text: item.title,
+            title: notificationText.title,
+            text: notificationText.fileName,
             additionalText: progressText
           }
         },
@@ -553,8 +557,8 @@ export class EhDownloadManager {
         template: this.templateSupported ? {
           name: DOWNLOAD_NOTIFICATION_TEMPLATE,
           data: {
-            title: notificationTitle,
-            fileName: item.title,
+            title: notificationText.title,
+            fileName: notificationText.fileName,
             progressValue: progress
           }
         } : undefined

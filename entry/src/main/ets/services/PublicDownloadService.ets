@@ -3,7 +3,11 @@ import { request } from '@kit.BasicServicesKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { ehCookieStore } from './EhCookieStore';
 import { ehAppLog } from './EhAppLog';
-import { ensureDownloadNotificationEnabled } from './DownloadNotificationSupport';
+import {
+  DownloadNotificationText,
+  downloadNotificationText,
+  ensureDownloadNotificationEnabled
+} from './DownloadNotificationSupport';
 
 const DOWNLOAD_USER_AGENT: string = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36';
@@ -29,11 +33,13 @@ export async function startPublicDownload(context: common.UIAbilityContext, url:
     headers['User-Agent'] = DOWNLOAD_USER_AGENT;
     headers['Accept'] = '*/*';
     await ensureDownloadNotificationEnabled(context);
+    const notificationText: DownloadNotificationText = downloadNotificationText(title.length > 0 ? title :
+      sanitizeFileName(fileName));
 
     const config: request.agent.Config = {
       action: request.agent.Action.DOWNLOAD,
       url: url,
-      title: title,
+      title: notificationText.fileName,
       description: 'EhViewer archive download',
       mode: request.agent.Mode.BACKGROUND,
       overwrite: false,
@@ -45,8 +51,8 @@ export async function startPublicDownload(context: common.UIAbilityContext, url:
       roaming: true,
       gauge: true,
       notification: {
-        title: title,
-        text: sanitizeFileName(fileName),
+        title: notificationText.title,
+        text: notificationText.fileName,
         visibility: request.agent.VISIBILITY_PROGRESS | request.agent.VISIBILITY_COMPLETION
       }
     };
