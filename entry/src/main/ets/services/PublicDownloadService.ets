@@ -2,9 +2,12 @@ import { common } from '@kit.AbilityKit';
 import { request } from '@kit.BasicServicesKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { ehCookieStore } from './EhCookieStore';
+import { ehAppLog } from './EhAppLog';
 
 const DOWNLOAD_USER_AGENT: string = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36';
+const PUBLIC_DOWNLOAD_CACHE_DIRECTORY: string = 'public_downloads';
+const ACTIVE_PUBLIC_DOWNLOAD_TASKS: request.agent.Task[] = [];
 
 export interface PublicDownloadStartResult {
   taskId: string;
@@ -16,6 +19,9 @@ export async function startPublicDownload(context: common.UIAbilityContext, url:
   try {
     ensureDirectory(directory);
     const path = uniqueDownloadPath(directory, sanitizeFileName(fileName));
+    const cacheDirectory = context.cacheDir + '/' + PUBLIC_DOWNLOAD_CACHE_DIRECTORY;
+    ensureDirectory(cacheDirectory);
+    const cachePath = uniqueDownloadPath(cacheDirectory, Date.now().toString() + '_' + sanitizeFileName(fileName));
     const headers: Record<string, string> = {};
     headers['Referer'] = referer;
     headers['Cookie'] = ehCookieStore.getCookieHeaderForUrl(url);
@@ -31,16 +37,78 @@ export async function startPublicDownload(context: common.UIAbilityContext, url:
       overwrite: false,
       method: 'GET',
       headers: headers,
-      saveas: path,
+      saveas: cachePath,
       network: request.agent.Network.ANY,
       metered: true,
       roaming: true
     };
     const task = await request.agent.create(context, config);
-    await task.start();
+    const completed = (_progress: request.agent.Progress): void => {
+      finishPublicDownload(context, task, cachePath, path, completed, failed);
+    };
+    const failed = (_progress: request.agent.Progress): void => {
+      ehAppLog.error(context, 'PublicDownload', 'Download task failed tid=' + task.tid + ', target=' + path);
+      removeFileQuietly(cachePath);
+      releasePublicDownloadTask(task, completed, failed);
+    };
+    task.on('completed', completed);
+    task.on('failed', failed);
+    ACTIVE_PUBLIC_DOWNLOAD_TASKS.push(task);
+    try {
+      await task.start();
+    } catch (error) {
+      releasePublicDownloadTask(task, completed, failed);
+      removeFileQuietly(cachePath);
+      throw new Error(String(error));
+    }
     return { taskId: task.tid, path: path };
   } catch (error) {
     throw new Error(String(error));
+  }
+}
+
+function finishPublicDownload(context: common.UIAbilityContext, task: request.agent.Task, cachePath: string,
+  targetPath: string, completed: (progress: request.agent.Progress) => void,
+  failed: (progress: request.agent.Progress) => void): void {
+  const partPath = targetPath + '.part';
+  try {
+    removeFileQuietly(partPath);
+    fs.copyFileSync(cachePath, partPath);
+    fs.moveFileSync(partPath, targetPath);
+    ehAppLog.info(context, 'PublicDownload', 'Saved download tid=' + task.tid + ', target=' + targetPath);
+  } catch (error) {
+    removeFileQuietly(partPath);
+    ehAppLog.error(context, 'PublicDownload', 'Saving public download failed tid=' + task.tid + ', target=' +
+      targetPath + ': ' + String(error));
+  } finally {
+    removeFileQuietly(cachePath);
+    releasePublicDownloadTask(task, completed, failed);
+  }
+}
+
+function releasePublicDownloadTask(task: request.agent.Task,
+  completed: (progress: request.agent.Progress) => void,
+  failed: (progress: request.agent.Progress) => void): void {
+  try {
+    task.off('completed', completed);
+  } catch (error) {
+  }
+  try {
+    task.off('failed', failed);
+  } catch (error) {
+  }
+  const index = ACTIVE_PUBLIC_DOWNLOAD_TASKS.indexOf(task);
+  if (index >= 0) {
+    ACTIVE_PUBLIC_DOWNLOAD_TASKS.splice(index, 1);
+  }
+  request.agent.remove(task.tid).catch((_error: Error) => {
+  });
+}
+
+function removeFileQuietly(path: string): void {
+  try {
+    fs.unlinkSync(path);
+  } catch (error) {
   }
 }
 
