@@ -2498,6 +2498,30 @@ export struct GalleryListScene {
     this.openDetailLink(detailLink);
   }
 
+  private updateVisibleLocalFavorite(detail: GalleryDetail): void {
+    if (this.sourceRoute !== GalleryRoute.Favorites || !ehLocalFavoritesStore.contains(detail.gid)) {
+      return;
+    }
+    const next: GalleryInfo[] = [];
+    let changed = false;
+    for (let i = 0; i < this.galleries.length; i++) {
+      if (this.galleries[i].gid === detail.gid) {
+        const updated = cloneGalleryInfo(detail);
+        updated.favoriteSlot = -1;
+        updated.favoriteName = undefined;
+        next.push(updated);
+        changed = true;
+      } else {
+        next.push(this.galleries[i]);
+      }
+    }
+    if (!changed) {
+      return;
+    }
+    this.galleries = next;
+    this.saveListCache();
+  }
+
   private openDetailLink(detailLink: GalleryDetailLink): void {
     if (this.delegateDetailToHost && this.onOpenDetailInHost(detailLink)) {
       return;
@@ -3207,6 +3231,7 @@ export struct GalleryListScene {
               },
               onDetailLoaded: (detail: GalleryDetail) => {
                 this.detail = detail;
+                this.updateVisibleLocalFavorite(detail);
               },
               onDetailScrollUpdate: (offset: number) => {
                 this.detailScrollOffset = offset;

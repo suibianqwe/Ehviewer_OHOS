@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { preferences } from '@kit.ArkData';
-import { GalleryCategory, GalleryInfo, GalleryTagGroup } from '../model/GalleryModels';
+import { GalleryCategory, GalleryDetail, GalleryInfo, GalleryTagGroup } from '../model/GalleryModels';
+import { normalizeGalleryLanguageCode } from './GalleryLanguageSupport';
 
 const PREFERENCES_NAME: string = 'ehviewer_local_favorites';
 const VALUES_KEY: string = 'items';
@@ -84,6 +85,15 @@ export class EhLocalFavoritesStore {
       return;
     }
     this.putGallery(gallery, Date.now(), true);
+  }
+
+  updateGalleryIfPresent(gallery: GalleryInfo): boolean {
+    const index = this.findIndex(gallery.gid);
+    if (index < 0 || gallery.token.length === 0) {
+      return false;
+    }
+    this.putGallery(gallery, this.items[index].time, true);
+    return true;
   }
 
   importGallery(gallery: GalleryInfo, time: number): boolean {
@@ -251,7 +261,7 @@ function galleryToStoredLocalFavorite(gallery: GalleryInfo, time: number): Local
     uploader: gallery.uploader,
     rating: gallery.rating,
     rated: gallery.rated,
-    simpleLanguage: gallery.simpleLanguage,
+    simpleLanguage: localFavoriteSimpleLanguage(gallery),
     simpleTags: cloneStringArray(gallery.simpleTags),
     pages: gallery.pages,
     thumbWidth: gallery.thumbWidth,
@@ -259,8 +269,8 @@ function galleryToStoredLocalFavorite(gallery: GalleryInfo, time: number): Local
     favoriteSlot: -1,
     favoriteName: undefined,
     tagList: cloneStringArray(gallery.tagList),
-    detailTags: galleryTagsToStored(gallery.detailTags),
-    detailLanguage: gallery.detailLanguage,
+    detailTags: galleryTagsToStored(localFavoriteDetailTags(gallery)),
+    detailLanguage: localFavoriteDetailLanguage(gallery),
     time: time
   };
 }
@@ -295,7 +305,7 @@ function cloneLocalFavoriteGallery(gallery: GalleryInfo): GalleryInfo {
     uploader: gallery.uploader,
     rating: gallery.rating,
     rated: gallery.rated,
-    simpleLanguage: gallery.simpleLanguage,
+    simpleLanguage: localFavoriteSimpleLanguage(gallery),
     simpleTags: cloneStringArray(gallery.simpleTags),
     pages: gallery.pages,
     thumbWidth: gallery.thumbWidth,
@@ -303,9 +313,35 @@ function cloneLocalFavoriteGallery(gallery: GalleryInfo): GalleryInfo {
     favoriteSlot: -1,
     favoriteName: undefined,
     tagList: cloneStringArray(gallery.tagList),
-    detailTags: cloneGalleryTagGroups(gallery.detailTags),
-    detailLanguage: gallery.detailLanguage
+    detailTags: cloneGalleryTagGroups(localFavoriteDetailTags(gallery)),
+    detailLanguage: localFavoriteDetailLanguage(gallery)
   };
+}
+
+function localFavoriteSimpleLanguage(gallery: GalleryInfo): string | undefined {
+  const value = gallery.simpleLanguage === undefined || gallery.simpleLanguage.length === 0 ?
+    localFavoriteDetailLanguage(gallery) : gallery.simpleLanguage;
+  if (value === undefined || value.length === 0) {
+    return undefined;
+  }
+  const code = normalizeGalleryLanguageCode(value);
+  return code.length > 0 ? code : value;
+}
+
+function localFavoriteDetailLanguage(gallery: GalleryInfo): string | undefined {
+  const detail = gallery as GalleryDetail;
+  if (detail.language !== undefined && detail.language.length > 0) {
+    return detail.language;
+  }
+  return gallery.detailLanguage;
+}
+
+function localFavoriteDetailTags(gallery: GalleryInfo): GalleryTagGroup[] | undefined {
+  const detail = gallery as GalleryDetail;
+  if (Array.isArray(detail.tags) && detail.tags.length > 0) {
+    return detail.tags;
+  }
+  return gallery.detailTags;
 }
 
 function storedGalleryTagGroupsToTags(groups: StoredGalleryTagGroup[] | undefined): GalleryTagGroup[] | undefined {

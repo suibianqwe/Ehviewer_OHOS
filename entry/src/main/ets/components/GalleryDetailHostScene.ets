@@ -474,7 +474,7 @@ export struct GalleryDetailHostScene {
       this.detailLoaded = true;
       this.previewPageSize = seedPreviewMap(this.previewMap, this.detail.previewSet, this.previewPageSize);
       this.optimisticFavorite = this.detail.isFavorited;
-      this.syncLocalFavoriteState();
+      this.syncLocalFavoriteState(true);
       refreshDetailDownloadItem(this.detail);
       this.detailDownloadText = detailDownloadButtonText(this.detail.gid);
       saveGalleryToHistory(this.detail);
@@ -854,15 +854,19 @@ export struct GalleryDetailHostScene {
     }).catch(() => {});
   }
 
-  private syncLocalFavoriteState(): void {
+  private syncLocalFavoriteState(updateStoredGallery: boolean = false): void {
     const context = getAbilityContext();
     if (context === undefined || this.detail.gid <= 0) {
       return;
     }
     const targetGid = this.detail.gid;
+    const loadedDetail = cloneGalleryDetail(this.detail);
     ehLocalFavoritesStore.ensureLoaded(context).then(() => {
       if (this.detail.gid !== targetGid || !ehLocalFavoritesStore.contains(targetGid)) {
         return;
+      }
+      if (updateStoredGallery) {
+        ehLocalFavoritesStore.updateGalleryIfPresent(loadedDetail);
       }
       this.applyDetailFavoriteState(true, -1);
       this.optimisticFavorite = true;
@@ -1294,6 +1298,7 @@ export struct GalleryDetailHostScene {
         next.previewSet = cloneGalleryPreviews(this.detail.previewSet);
         next.previewPages = Math.max(next.previewPages, this.detail.previewPages);
         this.detail = next;
+        this.syncLocalFavoriteState(true);
         this.onDetailLoaded(this.detail);
         this.renderVersion++;
       }).catch((error: Error) => {
