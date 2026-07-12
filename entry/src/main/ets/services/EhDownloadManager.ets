@@ -24,7 +24,8 @@ import { hathQualityStore } from './HathQualityStore';
 import {
   DownloadNotificationText,
   downloadNotificationText,
-  ensureDownloadNotificationEnabled
+  ensureDownloadNotificationEnabled,
+  publishDownloadResultNotification
 } from './DownloadNotificationSupport';
 
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
@@ -32,6 +33,7 @@ const DOWNLOAD_PAGE_RETRY_LIMIT: number = 3;
 const DOWNLOAD_IMAGE_RETRY_LIMIT: number = 1;
 const DOWNLOAD_SLOW_HATH_SKIP_LIMIT: number = 2;
 const DOWNLOAD_NOTIFICATION_ID: number = 8001;
+const DOWNLOAD_RESULT_NOTIFICATION_ID: number = 8002;
 const DOWNLOAD_NOTIFICATION_TEMPLATE: string = 'downloadTemplate';
 
 interface DownloadWorkerState {
@@ -269,12 +271,16 @@ export class EhDownloadManager {
       ehDownloadStore.setTransfer(item.gid, 0, 0);
       this.publishStatus('Download finished: ' + item.title);
       await this.publishProgress(item, total, total);
+      await publishDownloadResultNotification(context, DOWNLOAD_RESULT_NOTIFICATION_ID, item.title,
+        'Download completed');
       this.saveDownloads(context);
     } catch (error) {
       ehDownloadStore.setState(item.gid, DownloadState.Failed);
       ehDownloadStore.setTransfer(item.gid, 0, 0);
       this.publishStatus('Download failed: ' + String(error));
       ehAppLog.error(context, 'DownloadManager', 'Download failed: ' + String(error));
+      await publishDownloadResultNotification(context, DOWNLOAD_RESULT_NOTIFICATION_ID, item.title,
+        'Download failed');
       this.saveDownloads(context);
     }
   }
@@ -540,7 +546,8 @@ export class EhDownloadManager {
         this.templateSupported = await notificationManager.isSupportTemplate(DOWNLOAD_NOTIFICATION_TEMPLATE);
         this.templateChecked = true;
       }
-      const notificationText: DownloadNotificationText = downloadNotificationText(item.title, speedText);
+      const status = total > 0 && finished >= total ? 'Download completed' : 'Downloading';
+      const notificationText: DownloadNotificationText = downloadNotificationText(item.title, status, speedText);
       const request: notificationManager.NotificationRequest = {
         id: this.notificationId,
         content: {

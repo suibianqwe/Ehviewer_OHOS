@@ -6,13 +6,16 @@ import { ehAppLog } from './EhAppLog';
 import {
   DownloadNotificationText,
   downloadNotificationText,
-  ensureDownloadNotificationEnabled
+  ensureDownloadNotificationEnabled,
+  publishDownloadResultNotification
 } from './DownloadNotificationSupport';
 
 const DOWNLOAD_USER_AGENT: string = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36';
 const PUBLIC_DOWNLOAD_CACHE_DIRECTORY: string = 'public_downloads';
 const ACTIVE_PUBLIC_DOWNLOAD_TASKS: request.agent.Task[] = [];
+const ARCHIVE_NOTIFICATION_ID_BASE: number = 9000;
+let nextArchiveNotificationId: number = ARCHIVE_NOTIFICATION_ID_BASE;
 
 export interface PublicDownloadStartResult {
   taskId: string;
@@ -33,8 +36,9 @@ export async function startPublicDownload(context: common.UIAbilityContext, url:
     headers['User-Agent'] = DOWNLOAD_USER_AGENT;
     headers['Accept'] = '*/*';
     await ensureDownloadNotificationEnabled(context);
-    const notificationText: DownloadNotificationText = downloadNotificationText(title.length > 0 ? title :
-      sanitizeFileName(fileName));
+    const displayName = title.length > 0 ? title : sanitizeFileName(fileName);
+    const notificationText: DownloadNotificationText = downloadNotificationText(displayName, 'Downloading');
+    const notificationId = allocateArchiveNotificationId();
 
     const config: request.agent.Config = {
       action: request.agent.Action.DOWNLOAD,
@@ -53,17 +57,20 @@ export async function startPublicDownload(context: common.UIAbilityContext, url:
       notification: {
         title: notificationText.title,
         text: notificationText.fileName,
-        visibility: request.agent.VISIBILITY_PROGRESS | request.agent.VISIBILITY_COMPLETION
+        visibility: request.agent.VISIBILITY_PROGRESS
       }
     };
     const task = await request.agent.create(context, config);
     const completed = (_progress: request.agent.Progress): void => {
-      finishPublicDownload(context, task, cachePath, path, completed, failed);
+      const saved = finishPublicDownload(context, task, cachePath, path, completed, failed);
+      publishDownloadResultNotification(context, notificationId, displayName,
+        saved ? 'Download completed' : 'Download failed', saved ? directory : '').catch(() => {});
     };
     const failed = (_progress: request.agent.Progress): void => {
       ehAppLog.error(context, 'PublicDownload', 'Download task failed tid=' + task.tid + ', target=' + path);
       removeFileQuietly(cachePath);
       releasePublicDownloadTask(task, completed, failed);
+      publishDownloadResultNotification(context, notificationId, displayName, 'Download failed').catch(() => {});
     };
     task.on('completed', completed);
     task.on('failed', failed);
@@ -83,12 +90,14 @@ export async function startPublicDownload(context: common.UIAbilityContext, url:
 
 function finishPublicDownload(context: common.UIAbilityContext, task: request.agent.Task, cachePath: string,
   targetPath: string, completed: (progress: request.agent.Progress) => void,
-  failed: (progress: request.agent.Progress) => void): void {
+  failed: (progress: request.agent.Progress) => void): boolean {
   const partPath = targetPath + '.part';
+  let saved = false;
   try {
     removeFileQuietly(partPath);
     fs.copyFileSync(cachePath, partPath);
     fs.moveFileSync(partPath, targetPath);
+    saved = true;
     ehAppLog.info(context, 'PublicDownload', 'Saved download tid=' + task.tid + ', target=' + targetPath);
   } catch (error) {
     removeFileQuietly(partPath);
@@ -98,6 +107,15 @@ function finishPublicDownload(context: common.UIAbilityContext, task: request.ag
     removeFileQuietly(cachePath);
     releasePublicDownloadTask(task, completed, failed);
   }
+  return saved;
+}
+
+function allocateArchiveNotificationId(): number {
+  nextArchiveNotificationId++;
+  if (nextArchiveNotificationId > 9999) {
+    nextArchiveNotificationId = ARCHIVE_NOTIFICATION_ID_BASE + 1;
+  }
+  return nextArchiveNotificationId;
 }
 
 function releasePublicDownloadTask(task: request.agent.Task,

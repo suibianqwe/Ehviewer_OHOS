@@ -99,6 +99,15 @@ export class EhDownloadFileStore {
     throw new Error('Download directory access needs picker selection');
   }
 
+  publicArchiveDownloadRoot(context: common.UIAbilityContext): string {
+    const galleryRoot = this.publicDownloadRoot(context);
+    if (pathBaseName(galleryRoot).toLowerCase() !== 'ehviewer') {
+      return galleryRoot;
+    }
+    const root = parentPath(galleryRoot);
+    return root.length > 0 ? root : galleryRoot;
+  }
+
   rememberPublicDownloadRoot(root: string): void {
     const normalized = normalizePublicDownloadRoot(root);
     if (normalized.length > 0) {

@@ -1158,7 +1158,7 @@ export struct GalleryDetailHostScene {
 
   private async ensurePublicDownloadDirectory(context: common.UIAbilityContext): Promise<string> {
     try {
-      return ehDownloadFileStore.publicDownloadRoot(context);
+      return ehDownloadFileStore.publicArchiveDownloadRoot(context);
     } catch (error) {
     }
     const saveOptions = new picker.DocumentSaveOptions();
@@ -1171,7 +1171,7 @@ export struct GalleryDetailHostScene {
     const directory = new fileUri.FileUri(result[0]).path;
     ehDownloadFileStore.rememberPublicDownloadRoot(directory);
     await ehSettingsStore.save(context);
-    return directory;
+    return ehDownloadFileStore.publicArchiveDownloadRoot(context);
   }
 
   private submitHathOption(option: ArchiveOption): void {

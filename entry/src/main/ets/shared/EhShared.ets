@@ -1008,6 +1008,8 @@ export function zhText(text: string): string {
     case 'Idle': return '空闲';
     case 'Waiting': return '等待中';
     case 'Downloading': return '下载中';
+    case 'Download completed': return '下载完成';
+    case 'Download failed': return '下载失败';
     case 'Downloaded': return '已下载';
     case 'Failed': return '失败';
     case 'Updating': return '更新中';

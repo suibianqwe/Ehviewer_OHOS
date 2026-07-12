@@ -1,6 +1,7 @@
-import { Configuration, ConfigurationConstant, UIAbility } from '@kit.AbilityKit';
+import { Configuration, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { preferences } from '@kit.ArkData';
+import { fileUri } from '@kit.CoreFileKit';
 import { userAuth } from '@kit.UserAuthenticationKit';
 import {
   EMBEDDED_READER_ACTIVE_KEY,
@@ -12,6 +13,7 @@ import {
 import { applyWindowPrivacyMode, WINDOW_PRIVACY_STATUS_KEY } from '../services/EhWindowPrivacy';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehAppLog } from '../services/EhAppLog';
+import { DOWNLOAD_NOTIFICATION_OPEN_DIRECTORY_KEY } from '../services/DownloadNotificationSupport';
 import { readerImageCache } from '../services/ReaderImageCache';
 import { EH_SYSTEM_COLOR_MODE_DARK, EH_SYSTEM_COLOR_MODE_KEY } from '../shared/EhTheme';
 import {
@@ -53,11 +55,21 @@ export default class EntryAbility extends UIAbility {
   private authPending: boolean = false;
   private identityAuthGraceUntilMs: number = 0;
   private startupDirectProbeToast: string = '';
+  private pendingDownloadDirectory: string = '';
   // Largest bottom avoid (nav bar / gesture indicator) height observed this session, in px.
   // The reader hides system bars (setWindowSystemBarEnable([])), which makes the live avoid
   // area report 0 — but the gesture indicator zone physically persists. We keep the max-seen
   // value so the reader can still inset its bottom bar clear of that zone.
   private maxBottomAvoidPx: number = 0;
+
+  onCreate(want: Want): void {
+    this.captureDownloadDirectory(want);
+  }
+
+  onNewWant(want: Want): void {
+    this.captureDownloadDirectory(want);
+    this.openPendingDownloadDirectory();
+  }
 
   onWindowStageCreate(stage: window.WindowStage): void {
     this.windowStage = stage;
@@ -132,6 +144,37 @@ export default class EntryAbility extends UIAbility {
       this.showStartupCellularNetworkWarning();
       this.showStartupDirectProbeToast();
       this.pruneCacheOnStartup();
+      this.openPendingDownloadDirectory();
+    });
+  }
+
+  private captureDownloadDirectory(want: Want): void {
+    if (want.parameters === undefined) {
+      return;
+    }
+    const value = want.parameters[DOWNLOAD_NOTIFICATION_OPEN_DIRECTORY_KEY];
+    if (typeof value === 'string' && value.length > 0) {
+      this.pendingDownloadDirectory = value;
+    }
+  }
+
+  private openPendingDownloadDirectory(): void {
+    if (this.pendingDownloadDirectory.length === 0) {
+      return;
+    }
+    const directory = this.pendingDownloadDirectory;
+    this.pendingDownloadDirectory = '';
+    let directoryUri = directory;
+    try {
+      directoryUri = new fileUri.FileUri(directory).toString();
+    } catch (error) {
+    }
+    this.context.openLink('filemanager://openDirectory', {
+      parameters: {
+        fileUri: directoryUri
+      }
+    }).catch((error: Error) => {
+      ehAppLog.warn(this.context, 'EntryAbility', 'Open download directory failed: ' + error.message);
     });
   }
 
