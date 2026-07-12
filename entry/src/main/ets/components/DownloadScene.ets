@@ -1680,6 +1680,7 @@ export struct DownloadScene {
             .onClick(() => {
               this.closeDownloadJumpPanel();
             })
+            .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
             .zIndex(20)
 
           Column({ space: 10 }) {

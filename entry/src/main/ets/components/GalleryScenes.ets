@@ -3195,6 +3195,7 @@ export struct GalleryListScene {
               .width('100%')
               .height('100%')
               .zIndex(30)
+              .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
           }
 
           if (this.useSplitLayout()) {
@@ -3271,6 +3272,7 @@ export struct GalleryListScene {
               }
             })
               .zIndex(30)
+              .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
           }
         }
         .width('100%')
@@ -4830,6 +4832,7 @@ export struct GalleryListContent {
           .width('100%')
           .height('100%')
           .zIndex(13)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
       }
 
       if (this.jumpPanelVisible) {
@@ -4840,6 +4843,7 @@ export struct GalleryListContent {
           .onClick(() => {
             this.closeJumpPanel();
           })
+          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
           .zIndex(13)
 
         Column({ space: 10 }) {

@@ -8,6 +8,7 @@ import {
   STATUS_BAR_HEIGHT_KEY,
   createEmptyDetail,
   galleryDisplayTitle,
+  pushDetailBackHandler,
   shouldShowTagTranslations,
   uiStatusText,
   uiText
@@ -228,6 +229,35 @@ export struct GalleryDetailScene {
   @State detailRefreshing: boolean = false;
   @State tagVotePanelVisible: boolean = false;
   @State tagVoteTarget: GalleryTagInfo = createEmptyTagInfo();
+  private unregisterTransientBackHandler: () => void = () => {};
+
+  aboutToAppear(): void {
+    this.unregisterTransientBackHandler = pushDetailBackHandler(() => this.handleTransientSystemBack());
+  }
+
+  aboutToDisappear(): void {
+    this.unregisterTransientBackHandler();
+  }
+
+  private handleTransientSystemBack(): boolean {
+    if (this.archivePanelVisible) {
+      this.onCloseArchivePanel();
+      return true;
+    }
+    if (this.tagVotePanelVisible) {
+      this.closeTagVotePanel();
+      return true;
+    }
+    if (this.previewJumpPanelVisible) {
+      this.previewJumpPanelVisible = false;
+      return true;
+    }
+    if (this.showRatingDialog) {
+      this.showRatingDialog = false;
+      return true;
+    }
+    return false;
+  }
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
 
   private statusBarVp(): number {
@@ -780,9 +810,7 @@ struct ArchiveOptionsOverlay {
         .height('100%')
         .backgroundColor(themeScrimColor())
         .onClick(() => {
-          if (!this.busy) {
-            this.onDismiss();
-          }
+          this.onDismiss();
         })
 
       Column({ space: 0 }) {
@@ -800,9 +828,7 @@ struct ArchiveOptionsOverlay {
             .backgroundColor(themeSurfaceVariant())
             .borderRadius(6)
             .onClick(() => {
-              if (!this.busy) {
-                this.onDismiss();
-              }
+              this.onDismiss();
             })
         }
         .width('100%')

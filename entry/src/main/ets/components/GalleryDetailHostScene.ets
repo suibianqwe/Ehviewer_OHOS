@@ -309,6 +309,7 @@ export struct GalleryDetailHostScene {
 
   private client: EhHttpClient = new EhHttpClient();
   private detailRequestGate: AsyncRequestGate = new AsyncRequestGate();
+  private archiveRequestGate: AsyncRequestGate = new AsyncRequestGate();
   private detailPreviewPager: DetailPreviewPager = new DetailPreviewPager();
   private previewMap: Map<number, GalleryPreview> = new Map();
   private previewPageSize: number = 0;
@@ -369,6 +370,16 @@ export struct GalleryDetailHostScene {
   }
 
   private handleDetailSystemBack(): boolean {
+    if (this.addFavoriteDialogVisible) {
+      this.addFavoriteDialogVisible = false;
+      this.renderVersion++;
+      return true;
+    }
+    if (this.archivePanelVisible) {
+      this.closeArchivePanel();
+      this.renderVersion++;
+      return true;
+    }
     if (this.commentGalleryLink.gid > 0) {
       this.commentGalleryLink = createEmptyGalleryDetailLink();
       this.saveNavigationState();
@@ -959,14 +970,21 @@ export struct GalleryDetailHostScene {
     this.archivePanelStatus = 'Loading...';
     this.archiveBusy = true;
     this.torrentList = [];
+    const requestGeneration = this.archiveRequestGate.begin();
     this.renderVersion++;
     this.client.loadTorrentList(this.detail.torrentUrl, this.detail.gid, this.detail.token, this.detailLink.site)
       .then((result: TorrentListLoadResult) => {
+        if (!this.archiveRequestCurrent(requestGeneration, 'torrent')) {
+          return;
+        }
         this.archiveBusy = false;
         this.archivePanelStatus = result.ok ? '' : result.message;
         this.torrentList = result.torrents;
         this.renderVersion++;
       }).catch((error: Error) => {
+        if (!this.archiveRequestCurrent(requestGeneration, 'torrent')) {
+          return;
+        }
         this.archiveBusy = false;
         this.archivePanelStatus = 'Torrent failed: ' + error.message;
         this.renderVersion++;
@@ -994,6 +1012,7 @@ export struct GalleryDetailHostScene {
   }
 
   private closeArchivePanel(): void {
+    this.archiveRequestGate.begin();
     this.archivePanelVisible = false;
     this.archivePanelMode = '';
     this.archivePanelStatus = '';
@@ -1001,6 +1020,11 @@ export struct GalleryDetailHostScene {
     this.archiverInfo = { funds: '', options: [] };
     this.hathArchiveList = { formParamOr: '', options: [] };
     this.torrentList = [];
+  }
+
+  private archiveRequestCurrent(generation: number, mode: string): boolean {
+    return this.archivePanelVisible && this.archivePanelMode === mode &&
+      this.archiveRequestGate.isCurrent(generation);
   }
 
   private ensureArchiveSession(): boolean {
@@ -1022,14 +1046,21 @@ export struct GalleryDetailHostScene {
     this.archivePanelStatus = 'Loading...';
     this.archiveBusy = true;
     this.archiverInfo = { funds: '', options: [] };
+    const requestGeneration = this.archiveRequestGate.begin();
     this.renderVersion++;
     this.client.loadArchiver(this.detail.gid, this.detail.token, this.detail.archiveUrl, this.detailLink.site)
       .then((result: ArchiverLoadResult) => {
+        if (!this.archiveRequestCurrent(requestGeneration, 'archiver')) {
+          return;
+        }
         this.archiveBusy = false;
         this.archivePanelStatus = result.ok ? '' : 'Archive failed: ' + result.message;
         this.archiverInfo = result.info === null ? { funds: '', options: [] } : result.info;
         this.renderVersion++;
       }).catch((error: Error) => {
+        if (!this.archiveRequestCurrent(requestGeneration, 'archiver')) {
+          return;
+        }
         this.archiveBusy = false;
         this.archivePanelStatus = 'Archive failed: ' + error.message;
         this.renderVersion++;
@@ -1045,14 +1076,21 @@ export struct GalleryDetailHostScene {
     this.archivePanelStatus = 'Loading...';
     this.archiveBusy = true;
     this.hathArchiveList = { formParamOr: '', options: [] };
+    const requestGeneration = this.archiveRequestGate.begin();
     this.renderVersion++;
     this.client.loadHathArchiveList(this.detail.gid, this.detail.token, this.detail.archiveUrl, this.detailLink.site)
       .then((result: HathArchiveListLoadResult) => {
+        if (!this.archiveRequestCurrent(requestGeneration, 'hath')) {
+          return;
+        }
         this.archiveBusy = false;
         this.archivePanelStatus = result.ok ? result.message : 'H@H failed: ' + result.message;
         this.hathArchiveList = result.list === null ? { formParamOr: '', options: [] } : result.list;
         this.renderVersion++;
       }).catch((error: Error) => {
+        if (!this.archiveRequestCurrent(requestGeneration, 'hath')) {
+          return;
+        }
         this.archiveBusy = false;
         this.archivePanelStatus = 'H@H failed: ' + error.message;
         this.renderVersion++;
@@ -1065,18 +1103,28 @@ export struct GalleryDetailHostScene {
     }
     this.archiveBusy = true;
     this.archivePanelStatus = 'Submitting...';
+    const requestGeneration = this.archiveRequestGate.begin();
     this.renderVersion++;
     const referer = detailArchiveReferer(this.detail, this.detailLink.site);
     this.client.requestArchiverDownload(option, referer, this.detailLink.site).then((result: ArchiverDownloadResult) => {
+      if (!this.archiveRequestCurrent(requestGeneration, 'archiver')) {
+        return;
+      }
       this.archivePanelStatus = result.message;
       if (result.ok && result.downloadUrl.length > 0) {
         this.startArchiveDownload(result.downloadUrl).then(() => {
+          if (!this.archiveRequestCurrent(requestGeneration, 'archiver')) {
+            return;
+          }
           this.archiveBusy = false;
           this.closeArchivePanel();
           this.detailStatus = 'Archive download started';
           this.showToast('Archive download started');
           this.renderVersion++;
         }).catch((error: Error) => {
+          if (!this.archiveRequestCurrent(requestGeneration, 'archiver')) {
+            return;
+          }
           this.archiveBusy = false;
           this.archivePanelStatus = 'Archive failed: ' + error.message;
           this.showToast('Archive download failed');
@@ -1087,6 +1135,9 @@ export struct GalleryDetailHostScene {
       this.archiveBusy = false;
       this.renderVersion++;
     }).catch((error: Error) => {
+      if (!this.archiveRequestCurrent(requestGeneration, 'archiver')) {
+        return;
+      }
       this.archiveBusy = false;
       this.archivePanelStatus = 'Archive failed: ' + error.message;
       this.renderVersion++;
@@ -1129,9 +1180,13 @@ export struct GalleryDetailHostScene {
     }
     this.archiveBusy = true;
     this.archivePanelStatus = 'Submitting...';
+    const requestGeneration = this.archiveRequestGate.begin();
     this.renderVersion++;
     this.client.submitHathArchive(this.detail.gid, this.detail.token, this.hathArchiveList.formParamOr, option.value,
       this.detailLink.site).then((result: HathArchiveSubmitResult) => {
+      if (!this.archiveRequestCurrent(requestGeneration, 'hath')) {
+        return;
+      }
       this.archiveBusy = false;
       this.archivePanelStatus = result.message;
       this.detailStatus = result.message;
@@ -1143,6 +1198,9 @@ export struct GalleryDetailHostScene {
       }
       this.renderVersion++;
     }).catch((error: Error) => {
+      if (!this.archiveRequestCurrent(requestGeneration, 'hath')) {
+        return;
+      }
       this.archiveBusy = false;
       this.archivePanelStatus = 'H@H failed: ' + error.message;
       this.renderVersion++;

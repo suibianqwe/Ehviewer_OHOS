@@ -216,6 +216,14 @@ export struct SettingsScene {
       this.closeOptionPicker();
       return true;
     }
+    if (this.downloadMigrationDialogOpen) {
+      this.closeDownloadMigrationDialog();
+      return true;
+    }
+    if (this.updateDialogVisible) {
+      this.updateDialogVisible = false;
+      return true;
+    }
     if (this.panel !== SettingsPanel.Main) {
       this.closePanel();
       return true;
@@ -1747,8 +1755,7 @@ export struct SettingsScene {
           .height('100%')
           .position({ x: this.settingsLayerTranslateX(), y: 0 })
           .zIndex(25)
-          .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut })
-            .combine(TransitionEffect.scale({ x: 0.96, y: 0.96 }).animation({ duration: 160, curve: Curve.EaseOut })))
+          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
       }
 
       if (this.downloadMigrationDialogOpen) {
