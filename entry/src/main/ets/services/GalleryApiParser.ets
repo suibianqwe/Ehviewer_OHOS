@@ -1,4 +1,5 @@
 import { GalleryCategory, GalleryInfo } from '../model/GalleryModels';
+import { galleryLanguageCodeToName, normalizeGalleryLanguageCode } from './GalleryLanguageSupport';
 
 interface GalleryApiItem {
   gid?: string;
@@ -81,7 +82,7 @@ export function inferSimpleLanguage(tags: string[] | undefined, title: string): 
     for (let i = 0; i < tags.length; i++) {
       const tag = tags[i].toLowerCase();
       if (tag.indexOf('language:') === 0) {
-        return languageNameToCode(tag.substring(tag.indexOf(':') + 1));
+        return normalizeGalleryLanguageCode(tag.substring(tag.indexOf(':') + 1));
       }
     }
   }
@@ -93,8 +94,8 @@ export function inferSimpleLanguage(tags: string[] | undefined, title: string): 
 }
 
 export function languageTagFromText(text: string): string {
-  const code = languageNameToCode(text);
-  return code.length === 0 ? '' : 'language:' + languageCodeToName(code);
+  const code = normalizeGalleryLanguageCode(text);
+  return code.length === 0 ? '' : 'language:' + galleryLanguageCodeToName(code);
 }
 
 function languageFromTitle(title: string): string {
@@ -125,48 +126,6 @@ function languageFromTitle(title: string): string {
     }
   }
   return '';
-}
-
-function languageNameToCode(value: string): string {
-  switch (value.toLowerCase().trim()) {
-    case 'english': return 'EN';
-    case 'chinese': return 'ZH';
-    case 'spanish': return 'ES';
-    case 'korean': return 'KO';
-    case 'russian': return 'RU';
-    case 'french': return 'FR';
-    case 'portuguese': return 'PT';
-    case 'thai': return 'TH';
-    case 'german': return 'DE';
-    case 'italian': return 'IT';
-    case 'vietnamese': return 'VI';
-    case 'polish': return 'PL';
-    case 'hungarian': return 'HU';
-    case 'dutch': return 'NL';
-    case 'japanese': return 'JA';
-    default: return '';
-  }
-}
-
-function languageCodeToName(code: string): string {
-  switch (code) {
-    case 'EN': return 'english';
-    case 'ZH': return 'chinese';
-    case 'ES': return 'spanish';
-    case 'KO': return 'korean';
-    case 'RU': return 'russian';
-    case 'FR': return 'french';
-    case 'PT': return 'portuguese';
-    case 'TH': return 'thai';
-    case 'DE': return 'german';
-    case 'IT': return 'italian';
-    case 'VI': return 'vietnamese';
-    case 'PL': return 'polish';
-    case 'HU': return 'hungarian';
-    case 'NL': return 'dutch';
-    case 'JA': return 'japanese';
-    default: return '';
-  }
 }
 
 function categoryNameToValue(category: string): number {

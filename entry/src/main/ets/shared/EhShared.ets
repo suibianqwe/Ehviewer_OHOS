@@ -21,6 +21,7 @@ import { FilterRule, ehFilterStore } from '../services/EhFilterStore';
 import { LocalFavoriteBackupInfo } from '../services/EhLocalFavoritesStore';
 import { SearchBookmarkBackupInfo } from '../services/EhBookmarkStore';
 import { EH_AUTHOR_NAME, EH_RELEASE_TAG } from '../services/EhBuildInfo';
+import { normalizeGalleryLanguageCode } from '../services/GalleryLanguageSupport';
 import {
   EH_THEME_PRIMARY_COLOR,
   currentDarkModeThemeName as themeCurrentDarkModeThemeName,
@@ -1736,20 +1737,25 @@ function findLanguageInTags(tags: string[] | undefined): string {
 
 export function gallerySimpleLanguage(gallery: GalleryInfo): string {
   if (gallery.simpleLanguage !== undefined && gallery.simpleLanguage.length > 0) {
-    return gallery.simpleLanguage;
+    return normalizedGalleryLanguageDisplay(gallery.simpleLanguage);
   }
   if (gallery.detailLanguage !== undefined && gallery.detailLanguage.length > 0) {
-    return gallery.detailLanguage;
+    return normalizedGalleryLanguageDisplay(gallery.detailLanguage);
   }
   const groupLanguage = findLanguageInTagGroups(gallery.detailTags);
   if (groupLanguage.length > 0) {
-    return groupLanguage;
+    return normalizedGalleryLanguageDisplay(groupLanguage);
   }
   const listLanguage = findLanguageInTags(gallery.tagList);
   if (listLanguage.length > 0) {
-    return listLanguage;
+    return normalizedGalleryLanguageDisplay(listLanguage);
   }
-  return findLanguageInTags(gallery.simpleTags);
+  return normalizedGalleryLanguageDisplay(findLanguageInTags(gallery.simpleTags));
+}
+
+function normalizedGalleryLanguageDisplay(value: string): string {
+  const code = normalizeGalleryLanguageCode(value);
+  return code.length > 0 ? code : value;
 }
 
 function galleryDetailLanguage(gallery: GalleryInfo): string | undefined {
@@ -1773,8 +1779,7 @@ function galleryDetailTags(gallery: GalleryInfo): GalleryTagGroup[] | undefined 
 }
 
 export function cloneGalleryInfo(gallery: GalleryInfo): GalleryInfo {
-  const language = gallery.simpleLanguage !== undefined && gallery.simpleLanguage.length > 0 ?
-    gallery.simpleLanguage : gallerySimpleLanguage(gallery);
+  const language = gallerySimpleLanguage(gallery);
   return {
     gid: gallery.gid,
     token: gallery.token,
