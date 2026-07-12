@@ -94,8 +94,11 @@ import { UpdatePromptOverlay } from './UpdatePromptOverlay';
 import {
   areaDimensionToVp,
   markCurrentRouteRightPane,
+  normalizeSplitPaneFocus,
   saveSplitPaneRatio,
   SPLIT_PANE_BREAKPOINT,
+  SPLIT_PANE_FOCUS_LEFT,
+  SPLIT_PANE_FOCUS_RIGHT,
   SPLIT_PANE_RATIO_REVISION_KEY,
   shouldFadeRestoredRightPane,
   splitPaneCurrentRatio,
@@ -104,7 +107,8 @@ import {
   splitPaneModeEnabled,
   splitPaneRatioForWidth,
   splitPaneSideWidth,
-  splitPaneWidthFromDrag
+  splitPaneWidthFromDrag,
+  shouldUpdateSplitPaneFocus
 } from './SplitPaneSupport';
 
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
@@ -121,6 +125,7 @@ function cloneSettingsPanelStack(stack: SettingsPanel[]): SettingsPanel[] {
 }
 
 interface SettingsNavigationCache {
+  activeSplitPane: string;
   panel: SettingsPanel;
   panelStack: SettingsPanel[];
   webViewUrl: string;
@@ -159,6 +164,7 @@ export struct SettingsScene {
   @State sceneContentWidth: number = 0;
   @State splitListRatio: number = splitPaneCurrentRatio();
   @State splitDragging: boolean = false;
+  @State activeSplitPane: string = SPLIT_PANE_FOCUS_LEFT;
   @State restorePanelWithFade: boolean = false;
   @State updateDialogVisible: boolean = false;
   @State updateCurrentVersion: string = '';
@@ -238,6 +244,7 @@ export struct SettingsScene {
     this.webViewUrl = '';
     this.webViewTitle = '';
     this.panel = SettingsPanel.Main;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
     this.panelStack = [SettingsPanel.Main];
     this.restorePanelWithFade = false;
     markCurrentRouteRightPane(false);
@@ -247,6 +254,7 @@ export struct SettingsScene {
 
   private openPanel(panel: SettingsPanel): void {
     this.restorePanelWithFade = false;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
     this.optionPickerOpen = false;
     if (this.panel === panel) {
       return;
@@ -265,6 +273,7 @@ export struct SettingsScene {
 
   private openPrimaryPanel(panel: SettingsPanel): void {
     this.restorePanelWithFade = false;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
     this.optionPickerOpen = false;
     if (splitPaneModeEnabled() && this.sceneContentWidth >= SPLIT_PANE_BREAKPOINT) {
       this.panelStack = [SettingsPanel.Main, panel];
@@ -283,6 +292,7 @@ export struct SettingsScene {
     if (this.panelStack.length <= 1) {
       this.panelStack = [SettingsPanel.Main];
       this.panel = SettingsPanel.Main;
+      this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
     } else {
       const nextStack: SettingsPanel[] = [];
       for (let i = 0; i < this.panelStack.length - 1; i++) {
@@ -302,6 +312,8 @@ export struct SettingsScene {
       return;
     }
     this.panel = settingsNavigationCache.panel;
+    this.activeSplitPane = normalizeSplitPaneFocus(settingsNavigationCache.activeSplitPane,
+      settingsNavigationCache.panel !== SettingsPanel.Main);
     this.panelStack = cloneSettingsPanelStack(settingsNavigationCache.panelStack);
     this.webViewUrl = settingsNavigationCache.webViewUrl;
     this.webViewTitle = settingsNavigationCache.webViewTitle;
@@ -312,6 +324,7 @@ export struct SettingsScene {
 
   private saveNavigationCache(): void {
     settingsNavigationCache = {
+      activeSplitPane: this.activeSplitPane,
       panel: this.panel,
       panelStack: cloneSettingsPanelStack(this.panelStack),
       webViewUrl: this.webViewUrl,
@@ -723,6 +736,7 @@ export struct SettingsScene {
     this.optionSummary = row.summary;
     this.optionValue = row.value;
     this.optionOptions = cloneStringOptions(row.options);
+    this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
     this.optionPickerOpen = true;
     this.statusText = '';
   }
@@ -1577,6 +1591,11 @@ export struct SettingsScene {
       })
         .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
         .height('100%')
+        .onTouch((event: TouchEvent) => {
+          if (shouldUpdateSplitPaneFocus(event)) {
+            this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
+          }
+        })
         .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
 
       if (this.useSplitLayout()) {
@@ -1625,6 +1644,11 @@ export struct SettingsScene {
           .width(this.useSplitLayout() ? this.splitSidePaneWidth() : '100%')
           .height('100%')
           .position({ x: this.useSplitLayout() ? this.splitListPaneWidth() + 1 : 0, y: 0 })
+          .onTouch((event: TouchEvent) => {
+            if (shouldUpdateSplitPaneFocus(event)) {
+              this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
+            }
+          })
           .zIndex(5)
           .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
           .transition(this.restorePanelWithFade ?
@@ -1662,6 +1686,11 @@ export struct SettingsScene {
           .width(this.settingsLayerWidth())
           .height('100%')
           .position({ x: this.settingsLayerTranslateX(), y: 0 })
+          .onTouch((event: TouchEvent) => {
+            if (shouldUpdateSplitPaneFocus(event)) {
+              this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
+            }
+          })
           .zIndex(10)
           .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
           .transition(TransitionEffect.move(TransitionEdge.END)
@@ -1680,6 +1709,11 @@ export struct SettingsScene {
           .width(this.settingsLayerWidth())
           .height('100%')
           .position({ x: this.settingsLayerTranslateX(), y: 0 })
+          .onTouch((event: TouchEvent) => {
+            if (shouldUpdateSplitPaneFocus(event)) {
+              this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
+            }
+          })
           .zIndex(10)
           .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
           .transition(TransitionEffect.move(TransitionEdge.END)
@@ -1706,6 +1740,11 @@ export struct SettingsScene {
         .backgroundColor(themePageBackground())
         .width(this.settingsLayerWidth())
         .position({ x: this.settingsLayerTranslateX(), y: 0 })
+        .onTouch((event: TouchEvent) => {
+          if (shouldUpdateSplitPaneFocus(event)) {
+            this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
+          }
+        })
         .zIndex(10)
         .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
         .transition(TransitionEffect.move(TransitionEdge.END)
@@ -1731,6 +1770,11 @@ export struct SettingsScene {
         .width(this.settingsLayerWidth())
         .height('100%')
         .position({ x: this.settingsLayerTranslateX(), y: 0 })
+        .onTouch((event: TouchEvent) => {
+          if (shouldUpdateSplitPaneFocus(event)) {
+            this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
+          }
+        })
         .zIndex(10)
         .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
         .transition(TransitionEffect.move(TransitionEdge.END)

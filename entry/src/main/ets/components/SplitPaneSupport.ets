@@ -8,6 +8,8 @@ import {
 } from '../shared/EhTheme';
 
 export const SPLIT_PANE_RATIO_REVISION_KEY: string = 'ehviewer_split_pane_ratio_revision';
+export const SPLIT_PANE_FOCUS_LEFT: string = 'left';
+export const SPLIT_PANE_FOCUS_RIGHT: string = 'right';
 export const SPLIT_PANE_BREAKPOINT: number = 840;
 export const SPLIT_PANE_LIST_MIN_WIDTH: number = 340;
 export const SPLIT_PANE_SIDE_MIN_WIDTH: number = 360;
@@ -19,6 +21,14 @@ const SPLIT_PANE_MAX_RATIO: number = 0.75;
 
 export function splitPaneModeEnabled(): boolean {
   return ehSettingsStore.getValue('split_screen_mode', 'On') === 'On';
+}
+
+export function shouldUpdateSplitPaneFocus(event: TouchEvent): boolean {
+  return event.type === TouchType.Down;
+}
+
+export function normalizeSplitPaneFocus(value: string | undefined, rightPaneVisible: boolean): string {
+  return value === SPLIT_PANE_FOCUS_RIGHT && rightPaneVisible ? SPLIT_PANE_FOCUS_RIGHT : SPLIT_PANE_FOCUS_LEFT;
 }
 
 export function splitPaneCurrentRatio(): number {

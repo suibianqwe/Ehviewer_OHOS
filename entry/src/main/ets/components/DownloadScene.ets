@@ -88,8 +88,11 @@ import {
 import {
   areaDimensionToVp,
   markCurrentRouteRightPane,
+  normalizeSplitPaneFocus,
   saveSplitPaneRatio,
   SPLIT_PANE_BREAKPOINT,
+  SPLIT_PANE_FOCUS_LEFT,
+  SPLIT_PANE_FOCUS_RIGHT,
   SPLIT_PANE_RATIO_REVISION_KEY,
   shouldFadeRestoredRightPane,
   splitPaneCurrentRatio,
@@ -98,7 +101,8 @@ import {
   splitPaneModeEnabled,
   splitPaneRatioForWidth,
   splitPaneSideWidth,
-  splitPaneWidthFromDrag
+  splitPaneWidthFromDrag,
+  shouldUpdateSplitPaneFocus
 } from './SplitPaneSupport';
 
 function normalizeSceneScrollOffset(offset: number): number {
@@ -160,6 +164,7 @@ const ACTION_BUBBLE_PRIMARY_GAP: number = 10;
 const DOWNLOAD_JUMP_PAGE_SIZE: number = 25;
 
 interface DownloadNavigationCache {
+  activeSplitPane: string;
   showDetail: boolean;
   restoreDetailWithFade: boolean;
   detailLink: GalleryDetailLink;
@@ -234,7 +239,7 @@ export struct DownloadScene {
   @State sceneContentWidth: number = 0;
   @State splitListRatio: number = splitPaneCurrentRatio();
   @State splitDragging: boolean = false;
-  @State activeSplitPane: string = 'left';
+  @State activeSplitPane: string = SPLIT_PANE_FOCUS_LEFT;
   @State selectedDownloadGids: string = '';
   @State toolbarOffsetY: number = 0;
   @State downloadActionsExpanded: boolean = false;
@@ -289,19 +294,23 @@ export struct DownloadScene {
   }
 
   private handleSystemBack(): boolean {
-    if (this.useSplitLayout() && this.activeSplitPane === 'right' && this.showDetail) {
-      if (runDetailBackHandler()) {
-        return true;
-      }
-      this.closeDetail();
-      return true;
-    }
     if (this.advancedPanelVisible) {
       this.closeAdvancedPanel();
       return true;
     }
     if (this.downloadJumpPanelVisible) {
       this.downloadJumpPanelVisible = false;
+      return true;
+    }
+    if (this.showReader) {
+      this.closeEmbeddedReader();
+      return true;
+    }
+    if (this.useSplitLayout() && this.activeSplitPane === SPLIT_PANE_FOCUS_RIGHT && this.showDetail) {
+      if (runDetailBackHandler()) {
+        return true;
+      }
+      this.closeDetail();
       return true;
     }
     if (this.downloadSelectionCount() > 0) {
@@ -314,10 +323,6 @@ export struct DownloadScene {
     }
     if (this.showTagSearch) {
       this.closeTagSearch();
-      return true;
-    }
-    if (this.showReader) {
-      this.closeEmbeddedReader();
       return true;
     }
     if (this.showDetail) {
@@ -342,6 +347,7 @@ export struct DownloadScene {
     this.showTagSearch = false;
     this.showReader = false;
     this.showDetail = false;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
     this.restoreDetailWithFade = false;
     this.syncDownloadContentWidthForCurrentLayout();
     this.detailLink = createEmptyGalleryDetailLink();
@@ -377,6 +383,7 @@ export struct DownloadScene {
     }
     const cache = downloadNavigationCache;
     this.showDetail = cache.showDetail;
+    this.activeSplitPane = normalizeSplitPaneFocus(cache.activeSplitPane, cache.showDetail);
     this.restoreDetailWithFade = cache.showDetail && shouldFadeRestoredRightPane();
     this.detailLink = cloneDownloadDetailLink(cache.detailLink);
     this.detail = cloneGalleryDetail(cache.detail);
@@ -394,6 +401,7 @@ export struct DownloadScene {
 
   private saveNavigationCache(): void {
     downloadNavigationCache = {
+      activeSplitPane: this.activeSplitPane,
       showDetail: this.showDetail,
       restoreDetailWithFade: this.restoreDetailWithFade,
       detailLink: cloneDownloadDetailLink(this.detailLink),
@@ -1194,6 +1202,7 @@ export struct DownloadScene {
 
   private openDetail(item: DownloadInfo): void {
     this.restoreDetailWithFade = false;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
     this.showDetail = true;
     this.syncDownloadContentWidthForCurrentLayout();
     markCurrentRouteRightPane(this.useSplitLayout());
@@ -1207,6 +1216,7 @@ export struct DownloadScene {
 
   private closeDetail(): void {
     this.restoreDetailWithFade = false;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
     this.showDetail = false;
     this.syncDownloadContentWidthForCurrentLayout();
     markCurrentRouteRightPane(false);
@@ -1755,8 +1765,10 @@ export struct DownloadScene {
       }
       .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
       .height('100%')
-      .onTouch(() => {
-        this.activeSplitPane = 'left';
+      .onTouch((event: TouchEvent) => {
+        if (shouldUpdateSplitPaneFocus(event)) {
+          this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
+        }
       })
       .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
 
@@ -1801,8 +1813,10 @@ export struct DownloadScene {
           .width(this.useSplitLayout() ? this.splitSidePaneWidth() : '100%')
           .height('100%')
           .position({ x: this.useSplitLayout() ? this.splitListPaneWidth() + 1 : 0, y: 0 })
-          .onTouch(() => {
-            this.activeSplitPane = 'right';
+          .onTouch((event: TouchEvent) => {
+            if (shouldUpdateSplitPaneFocus(event)) {
+              this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
+            }
           })
           .zIndex(5)
           .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })

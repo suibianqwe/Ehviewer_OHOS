@@ -33,8 +33,11 @@ import { FloatingToolbarHost } from './NavigationComponents';
 import {
   areaDimensionToVp,
   markCurrentRouteRightPane,
+  normalizeSplitPaneFocus,
   saveSplitPaneRatio,
   SPLIT_PANE_BREAKPOINT,
+  SPLIT_PANE_FOCUS_LEFT,
+  SPLIT_PANE_FOCUS_RIGHT,
   SPLIT_PANE_RATIO_REVISION_KEY,
   shouldFadeRestoredRightPane,
   splitPaneCurrentRatio,
@@ -43,7 +46,8 @@ import {
   splitPaneModeEnabled,
   splitPaneRatioForWidth,
   splitPaneSideWidth,
-  splitPaneWidthFromDrag
+  splitPaneWidthFromDrag,
+  shouldUpdateSplitPaneFocus
 } from './SplitPaneSupport';
 
 function normalizeSceneScrollOffset(offset: number): number {
@@ -54,6 +58,7 @@ function normalizeSceneScrollOffset(offset: number): number {
 }
 
 interface TopListNavigationCache {
+  activeSplitPane: string;
   selectedIndex: number;
   showGalleryList: boolean;
   galleryListTitle: string;
@@ -139,7 +144,7 @@ export struct TopListScene {
   @State sceneContentWidth: number = 0;
   @State splitListRatio: number = splitPaneCurrentRatio();
   @State splitDragging: boolean = false;
-  @State activeSplitPane: string = 'left';
+  @State activeSplitPane: string = SPLIT_PANE_FOCUS_LEFT;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   @StorageProp(SPLIT_PANE_RATIO_REVISION_KEY) @Watch('onSplitPaneRatioRevisionChange') splitPaneRatioRevision: number = 0;
   private topListScrollOffset: number = 0;
@@ -168,7 +173,7 @@ export struct TopListScene {
   }
 
   private handleSystemBack(): boolean {
-    if (this.useSplitLayout() && this.activeSplitPane === 'left') {
+    if (this.useSplitLayout() && this.activeSplitPane === SPLIT_PANE_FOCUS_LEFT) {
       if (this.showGalleryList) { this.closeGalleryList(); return true; }
       if (this.showTagSearch) { this.closeTagSearch(); return true; }
     }
@@ -190,6 +195,7 @@ export struct TopListScene {
     this.showTagSearch = false;
     this.showReader = false;
     this.showDetail = false;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
     this.showGalleryList = false;
     this.restoreDetailWithFade = false;
     this.detailLink = createEmptyGalleryDetailLink();
@@ -230,6 +236,7 @@ export struct TopListScene {
     this.galleryUseForcedMode = cache.galleryUseForcedMode;
     this.galleryForcedMode = cache.galleryForcedMode;
     this.showDetail = cache.showDetail;
+    this.activeSplitPane = normalizeSplitPaneFocus(cache.activeSplitPane, cache.showDetail);
     this.restoreDetailWithFade = cache.showDetail && shouldFadeRestoredRightPane();
     this.detailLink = cloneTopListDetailLink(cache.detailLink);
     this.detail = cloneGalleryDetail(cache.detail);
@@ -250,6 +257,7 @@ export struct TopListScene {
 
   private saveNavigationCache(): void {
     topListNavigationCache = {
+      activeSplitPane: this.activeSplitPane,
       selectedIndex: this.selectedIndex,
       showGalleryList: this.showGalleryList,
       galleryListTitle: this.galleryListTitle,
@@ -301,6 +309,7 @@ export struct TopListScene {
   }
 
   private openRemoteSearch(request: DetailSearchRequest): void {
+    this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
     this.tagSearchTitle = request.title;
     this.tagSearchKeyword = request.keyword;
     this.tagSearchMode = request.mode;
@@ -348,6 +357,7 @@ export struct TopListScene {
   }
 
   private openBucket(bucket: TopListBucket): void {
+    this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
     this.galleryListTitle = 'Gallery Toplists';
     this.galleryListModeLabel = bucket.title;
     this.galleryFollow = bucket.follow;
@@ -414,6 +424,7 @@ export struct TopListScene {
     }
 
     this.restoreDetailWithFade = false;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
     this.showDetail = true;
     markCurrentRouteRightPane(this.useSplitLayout());
     const site = this.gallerySite();
@@ -428,6 +439,7 @@ export struct TopListScene {
 
   private closeDetail(): void {
     this.restoreDetailWithFade = false;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
     this.showDetail = false;
     this.showReader = false;
     markCurrentRouteRightPane(false);
@@ -726,8 +738,10 @@ export struct TopListScene {
         }
         .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
         .height('100%')
-        .onTouch(() => {
-          this.activeSplitPane = 'left';
+        .onTouch((event: TouchEvent) => {
+          if (shouldUpdateSplitPaneFocus(event)) {
+            this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
+          }
         })
         .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
         .transition(TransitionEffect.asymmetric(
@@ -777,8 +791,10 @@ export struct TopListScene {
             .width(this.useSplitLayout() ? this.splitSidePaneWidth() : '100%')
             .height('100%')
             .position({ x: this.useSplitLayout() ? this.splitListPaneWidth() + 1 : 0, y: 0 })
-            .onTouch(() => {
-              this.activeSplitPane = 'right';
+            .onTouch((event: TouchEvent) => {
+              if (shouldUpdateSplitPaneFocus(event)) {
+                this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
+              }
             })
             .zIndex(5)
             .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })

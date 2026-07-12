@@ -64,8 +64,11 @@ import { ReaderSessionScene } from './ReaderHostScene';
 import {
   areaDimensionToVp,
   markCurrentRouteRightPane,
+  normalizeSplitPaneFocus,
   saveSplitPaneRatio,
   SPLIT_PANE_BREAKPOINT,
+  SPLIT_PANE_FOCUS_LEFT,
+  SPLIT_PANE_FOCUS_RIGHT,
   SPLIT_PANE_RATIO_REVISION_KEY,
   shouldFadeRestoredRightPane,
   splitPaneCurrentRatio,
@@ -74,7 +77,8 @@ import {
   splitPaneModeEnabled,
   splitPaneRatioForWidth,
   splitPaneSideWidth,
-  splitPaneWidthFromDrag
+  splitPaneWidthFromDrag,
+  shouldUpdateSplitPaneFocus
 } from './SplitPaneSupport';
 import {
   ActionBubble,
@@ -196,6 +200,7 @@ interface SearchResultDraft {
 }
 
 interface GalleryListNavigationCache {
+  activeSplitPane: string;
   showSearchResultScene: boolean;
   searchResultDraft: SearchResultDraft;
   searchResultDetailOpened: boolean;
@@ -1156,7 +1161,7 @@ export struct GalleryListScene {
   @State sceneContentWidth: number = 0;
   @State splitListRatio: number = splitPaneCurrentRatio();
   @State splitDragging: boolean = false;
-  @State activeSplitPane: string = 'left';
+  @State activeSplitPane: string = SPLIT_PANE_FOCUS_LEFT;
   private splitDragStartWidth: number = 0;
   private readerClosing: boolean = false;
   private listRequestGate: AsyncRequestGate = new AsyncRequestGate();
@@ -1295,6 +1300,7 @@ export struct GalleryListScene {
     this.searchOriginDetailScrollOffset = this.isSearchResultScene ? 0 : cache.searchOriginDetailScrollOffset;
     this.localSearchBarVisible = cache.localSearchBarVisible;
     this.showDetail = cache.showDetail;
+    this.activeSplitPane = normalizeSplitPaneFocus(cache.activeSplitPane, cache.showDetail);
     this.restoreDetailWithFade = cache.showDetail && shouldFadeRestoredRightPane();
     this.detailLink = cloneGalleryDetailLink(cache.detailLink);
     this.detail = cloneGalleryDetail(cache.detail);
@@ -1344,6 +1350,7 @@ export struct GalleryListScene {
       return;
     }
     galleryListNavigationCache.set(this.navigationCacheKey(), {
+      activeSplitPane: this.activeSplitPane,
       showSearchResultScene: this.isSearchResultScene ? false : this.showSearchResultScene,
       searchResultDraft: this.isSearchResultScene ? createEmptySearchResultDraft() :
         cloneSearchResultDraft(this.searchResultDraft),
@@ -1511,7 +1518,22 @@ export struct GalleryListScene {
   }
 
   private handleSystemBack(): boolean {
-    if (this.useSplitLayout() && this.activeSplitPane === 'left') {
+    if (this.cardActionVisible) {
+      this.closeCardActions();
+      return true;
+    }
+    if (this.showReader) {
+      this.closeReader();
+      return true;
+    }
+    if (this.useSplitLayout() && this.activeSplitPane === SPLIT_PANE_FOCUS_RIGHT && this.showDetail) {
+      if (runDetailBackHandler()) {
+        return true;
+      }
+      this.closeDetail();
+      return true;
+    }
+    if (this.useSplitLayout() && this.activeSplitPane === SPLIT_PANE_FOCUS_LEFT) {
       if (this.showBookmarkManager) {
         this.closeBookmarkManager();
         return true;
@@ -1525,16 +1547,8 @@ export struct GalleryListScene {
         return true;
       }
     }
-    if (this.cardActionVisible) {
-      this.closeCardActions();
-      return true;
-    }
     if (this.showBookmarkManager) {
       this.closeBookmarkManager();
-      return true;
-    }
-    if (this.showReader) {
-      this.closeReader();
       return true;
     }
     if (this.showDetail) {
@@ -1565,6 +1579,7 @@ export struct GalleryListScene {
     }
     this.showReader = false;
     this.showDetail = false;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
     this.restoreDetailWithFade = false;
     this.detailLink = createEmptyGalleryDetailLink();
     this.detail = createEmptyDetail();
@@ -2527,6 +2542,7 @@ export struct GalleryListScene {
       return;
     }
     this.restoreDetailWithFade = false;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
     if (this.showSearchResultScene) {
       this.searchResultDetailOpened = true;
     }
@@ -2572,6 +2588,7 @@ export struct GalleryListScene {
 
   private closeDetail(): void {
     this.restoreDetailWithFade = false;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
     this.searchResultDetailOpened = false;
     this.showDetail = false;
     this.showReader = false;
@@ -2704,6 +2721,7 @@ export struct GalleryListScene {
 
   private openSearchResult(request: DetailSearchRequest): void {
     this.showReader = false;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
     this.captureSearchOrigin();
     this.searchResultDraft = {
       keyword: request.keyword,
@@ -2848,8 +2866,10 @@ export struct GalleryListScene {
             }
               .width(this.shouldShowSearchResultInLeftPane() ? this.splitListPaneWidth() : '100%')
               .height('100%')
-              .onTouch(() => {
-                this.activeSplitPane = 'left';
+              .onTouch((event: TouchEvent) => {
+                if (shouldUpdateSplitPaneFocus(event)) {
+                  this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
+                }
               })
               .animation({
                 duration: this.splitDragging ? 0 : 220,
@@ -3062,6 +3082,9 @@ export struct GalleryListScene {
             onSystemBack: () => {
               return this.handleSystemBack();
             },
+            shouldHandleLocalBack: () => {
+              return !this.useSplitLayout() || this.activeSplitPane === SPLIT_PANE_FOCUS_LEFT;
+            },
             layoutWidthHint: this.useSplitLayout() ? this.splitListPaneWidth() : this.sceneContentWidth,
             scrollResetVersion: this.scrollResetVersion,
             initialScrollOffset: this.listScrollOffset,
@@ -3072,8 +3095,10 @@ export struct GalleryListScene {
           })
             .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
             .height('100%')
-            .onTouch(() => {
-              this.activeSplitPane = 'left';
+            .onTouch((event: TouchEvent) => {
+              if (shouldUpdateSplitPaneFocus(event)) {
+                this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
+              }
             })
             .animation({
               duration: this.splitDragging ? 0 : 220,
@@ -3241,8 +3266,10 @@ export struct GalleryListScene {
               .width(this.useSplitLayout() ? this.splitSidePaneWidth() : '100%')
               .height('100%')
               .position({ x: this.useSplitLayout() ? this.splitListPaneWidth() + 1 : 0, y: 0 })
-              .onTouch(() => {
-                this.activeSplitPane = 'right';
+              .onTouch((event: TouchEvent) => {
+                if (shouldUpdateSplitPaneFocus(event)) {
+                  this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
+                }
               })
               .zIndex(5)
               .animation({
@@ -3722,6 +3749,7 @@ export struct GalleryListContent {
   onLongPressGallery: (gallery: GalleryInfo) => void = (_gallery: GalleryInfo) => {
   };
   onSystemBack: () => boolean = () => false;
+  shouldHandleLocalBack: () => boolean = () => true;
   initialScrollOffset: number = 0;
   onScrollUpdate: (offset: number) => void = () => {
   };
@@ -3868,25 +3896,27 @@ export struct GalleryListContent {
   }
 
   private handleContentBack(): boolean {
-    if (this.bookmarkDrawerVisible) {
-      this.closeBookmarkDrawer();
-      return true;
-    }
-    if (this.favoriteDrawerVisible) {
-      this.closeFavoriteDrawer();
-      return true;
-    }
-    if (this.advancedPanelVisible) {
-      this.closeAdvancedPanel();
-      return true;
-    }
-    if (this.imageSearchPanelVisible) {
-      this.closeImageSearchPanel();
-      return true;
-    }
-    if (this.jumpPanelVisible) {
-      this.closeJumpPanel();
-      return true;
+    if (this.shouldHandleLocalBack()) {
+      if (this.bookmarkDrawerVisible) {
+        this.closeBookmarkDrawer();
+        return true;
+      }
+      if (this.favoriteDrawerVisible) {
+        this.closeFavoriteDrawer();
+        return true;
+      }
+      if (this.advancedPanelVisible) {
+        this.closeAdvancedPanel();
+        return true;
+      }
+      if (this.imageSearchPanelVisible) {
+        this.closeImageSearchPanel();
+        return true;
+      }
+      if (this.jumpPanelVisible) {
+        this.closeJumpPanel();
+        return true;
+      }
     }
     return this.onSystemBack();
   }
