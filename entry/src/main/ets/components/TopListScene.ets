@@ -777,7 +777,7 @@ export struct TopListScene {
           if (this.translationButtonsVisible) {
             ActionBubble({
               label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
-              symbolIcon: $r('sys.symbol.book'),
+              symbolIcon: $r('sys.symbol.translate'),
               isEnabled: true,
               checked: this.translationEnabled,
               primary: true,

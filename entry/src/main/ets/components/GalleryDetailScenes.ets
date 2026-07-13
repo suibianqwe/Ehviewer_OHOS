@@ -362,7 +362,7 @@ export struct GalleryDetailScene {
           translateTitle: this.translationEnabled,
           showAction: this.translationButtonsVisible,
           actionChecked: this.translationEnabled,
-          actionIcon: $r('sys.symbol.book'),
+          actionIcon: $r('sys.symbol.translate'),
           onBack: this.onBack,
           onAction: () => {
             this.translationEnabled = !this.translationEnabled;
