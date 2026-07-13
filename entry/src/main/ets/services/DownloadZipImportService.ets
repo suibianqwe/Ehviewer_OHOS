@@ -5,9 +5,11 @@ import { GalleryInfo, GallerySite } from '../model/GalleryModels';
 import { ehDownloadFileStore, RestoredDownloadGallery } from './EhDownloadFileStore';
 import { DownloadState, ehDownloadStore } from './EhDownloadStore';
 import { ehHistoryStore } from './EhHistoryStore';
+import { ehCookieStore } from './EhCookieStore';
 import { EhHttpClient, GalleryListLoadResult } from './EhHttpClient';
 import { ListUrlBuilder } from './EhUrl';
 import { rebuildRestoredDownloadMetadata } from './DownloadMetadataRestore';
+import { gallerySiteCandidates } from './EhGallerySiteFallback';
 
 const ZIP_EXTENSION: string = '.zip';
 const MAX_METADATA_SEARCH_DEPTH: number = 5;
@@ -47,6 +49,7 @@ export async function importPublicDownloadArchives(context: common.UIAbilityCont
     return result;
   }
 
+  await ehCookieStore.ensureLoaded(context);
   await ehHistoryStore.ensureLoaded(context);
   const client = new EhHttpClient();
   for (let i = 0; i < paths.length; i++) {
@@ -297,7 +300,8 @@ async function resolveArchiveGallery(context: common.UIAbilityContext, client: E
     return local;
   }
 
-  const gidResult = await searchGallery(client, site, 'gid:' + gid.toString(), gid);
+  const candidates = gallerySiteCandidates(site);
+  const gidResult = await searchGalleryCandidates(client, candidates, 'gid:' + gid.toString(), gid);
   if (gidResult !== null) {
     return gidResult;
   }
@@ -308,7 +312,18 @@ async function resolveArchiveGallery(context: common.UIAbilityContext, client: E
   if (title.length <= 0) {
     return null;
   }
-  return searchGallery(client, site, title, gid);
+  return searchGalleryCandidates(client, candidates, title, gid);
+}
+
+async function searchGalleryCandidates(client: EhHttpClient, sites: GallerySite[], keyword: string,
+  gid: number): Promise<GalleryInfo | null> {
+  for (let i = 0; i < sites.length; i++) {
+    const gallery = await searchGallery(client, sites[i], keyword, gid);
+    if (gallery !== null) {
+      return gallery;
+    }
+  }
+  return null;
 }
 
 function findLocalGallery(gid: number): GalleryInfo | null {

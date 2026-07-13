@@ -17,6 +17,7 @@ import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { AsyncRequestGate } from '../services/AsyncRequestGate';
+import { gallerySiteCandidates } from '../services/EhGallerySiteFallback';
 import { DetailSearchRequest } from '../services/GalleryDetailActionSupport';
 import {
   createGalleryDetailLink,
@@ -1855,13 +1856,24 @@ export struct GalleryListScene {
     this.saveListCache();
   }
 
-  private loadRoutePageWithFallback(pageIndex: number): Promise<GalleryListLoadResult> {
+  private async loadRoutePageWithFallback(pageIndex: number): Promise<GalleryListLoadResult> {
     const primarySite = effectiveListSite(this.sourceRoute);
+    const candidates = this.sourceRoute === GalleryRoute.Favorites ? gallerySiteCandidates(primarySite) :
+      [primarySite];
+    let result = await this.loadRoutePage(pageIndex, primarySite);
     this.activeSite = primarySite;
-    return this.loadRoutePage(pageIndex, primarySite).then((result: GalleryListLoadResult) => {
-      this.activeSite = primarySite;
-      return result;
-    });
+    if (!result.ok && candidates.length > 1) {
+      const fallback = await this.loadRoutePage(pageIndex, candidates[1]);
+      if (fallback.ok) {
+        result = fallback;
+        this.activeSite = candidates[1];
+      }
+    }
+    if (this.sourceRoute === GalleryRoute.Favorites &&
+      this.favoriteCat === FavListUrlBuilder.FAV_CAT_ALL) {
+      return this.mergeLocalFavoritesIntoAllFavorites(result, searchKeywordForRequest(this.keyword), pageIndex);
+    }
+    return result;
   }
 
   private visibleRemoteGalleries(galleries: GalleryInfo[]): GalleryInfo[] {
@@ -1910,13 +1922,7 @@ export struct GalleryListScene {
       builder.index = pageIndex;
       builder.favCat = this.favoriteCat;
       this.requestUrl = builder.build(site);
-      const request = this.client.loadFavoritesList(builder, site);
-      if (this.favoriteCat === FavListUrlBuilder.FAV_CAT_ALL) {
-        return request.then((result: GalleryListLoadResult) => {
-          return this.mergeLocalFavoritesIntoAllFavorites(result, requestKeyword, pageIndex);
-        });
-      }
-      return request;
+      return this.client.loadFavoritesList(builder, site);
     }
 
     const builder = new ListUrlBuilder();

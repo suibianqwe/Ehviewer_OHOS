@@ -5,6 +5,8 @@ import { DownloadInfo, ehDownloadStore } from './EhDownloadStore';
 import { ehHistoryStore } from './EhHistoryStore';
 import { EhHttpClient, GalleryDetailLoadResult } from './EhHttpClient';
 import { EhUrl } from './EhUrl';
+import { ehCookieStore } from './EhCookieStore';
+import { gallerySiteCandidates } from './EhGallerySiteFallback';
 
 export interface DownloadMetadataRestoreResult {
   rebuilt: number;
@@ -15,6 +17,7 @@ export interface DownloadMetadataRestoreResult {
 export async function rebuildRestoredDownloadMetadata(context: common.UIAbilityContext,
   restored: RestoredDownloadGallery[], site: GallerySite): Promise<DownloadMetadataRestoreResult> {
   const result: DownloadMetadataRestoreResult = { rebuilt: 0, fetched: 0, failed: 0 };
+  await ehCookieStore.ensureLoaded(context);
   await ehHistoryStore.ensureLoaded(context);
   const downloadItems = ehDownloadStore.getItems();
   const historyItems = ehHistoryStore.getItems();
@@ -49,6 +52,7 @@ export async function rebuildImportedHistoryMetadata(context: common.UIAbilityCo
   if (imported.length <= 0) {
     return result;
   }
+  await ehCookieStore.ensureLoaded(context);
   await ehHistoryStore.ensureLoaded(context);
   const downloadItems = ehDownloadStore.getItems();
   const historyItems = ehHistoryStore.getItems();
@@ -92,12 +96,16 @@ function bestLocalMetadata(seed: GalleryInfo, downloadItems: DownloadInfo[], his
 }
 
 async function fetchDetail(client: EhHttpClient, gallery: GalleryInfo, site: GallerySite): Promise<GalleryDetail | null> {
-  const response: GalleryDetailLoadResult = await client.loadGalleryDetail(gallery.gid, gallery.token, 0, site,
-    EhUrl.getReferer(site));
-  if (!response.ok || response.detail === null) {
-    return null;
+  const candidates = gallerySiteCandidates(site);
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i];
+    const response: GalleryDetailLoadResult = await client.loadGalleryDetail(gallery.gid, gallery.token, 0,
+      candidate, EhUrl.getReferer(candidate));
+    if (response.ok && response.detail !== null) {
+      return response.detail;
+    }
   }
-  return response.detail;
+  return null;
 }
 
 function findGallery(items: GalleryInfo[], gid: number): GalleryInfo | null {
