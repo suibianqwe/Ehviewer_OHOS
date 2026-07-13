@@ -118,6 +118,7 @@ export enum SettingsPanel {
   Read = 'read',
   Download = 'download',
   Privacy = 'privacy',
+  Translation = 'translation',
   Advanced = 'advanced',
   About = 'about',
   Session = 'session',
@@ -142,6 +143,7 @@ export const SETTINGS_HEADERS: SettingsHeaderItem[] = [
   { panel: SettingsPanel.Read, title: 'Read', icon: 'R', summary: 'Reader direction, scaling and screen behavior' },
   { panel: SettingsPanel.Download, title: 'Download', icon: 'D', summary: 'Location, threads, preload and cleanup' },
   { panel: SettingsPanel.Privacy, title: 'Privacy', icon: 'P', summary: 'Lock and local data controls' },
+  { panel: SettingsPanel.Translation, title: 'Translation', icon: 'T', summary: 'Title and comment translation providers' },
   { panel: SettingsPanel.Advanced, title: 'Advanced', icon: 'A', summary: 'Network, cache, hosts and diagnostics' },
   { panel: SettingsPanel.About, title: 'About', icon: 'I', summary: 'Version and license' }
 ];
@@ -794,6 +796,45 @@ export function zhText(text: string): string {
     case 'Download queued': return '已加入下载队列';
     case 'Download queued for update': return '已加入更新下载队列';
     case 'Settings': return '设置';
+    case 'Translation': return '翻译';
+    case 'Title and comment translation providers': return '标题与评论翻译服务';
+    case 'Translation provider': return '翻译服务';
+    case 'Choose a public web service or an API-key based AI provider': return '选择公共网页服务或需要 API 密钥的 AI 服务';
+    case 'Target language': return '目标语言';
+    case 'Language used for gallery titles and comments': return '画廊标题与评论使用的翻译语言';
+    case 'Translation timeout': return '翻译超时';
+    case 'Maximum wait time for a translation request': return '单次翻译请求的最长等待时间';
+    case 'DeepSeek API key': return 'DeepSeek API 密钥';
+    case 'Stored locally and sent only to DeepSeek': return '仅保存在本机，并只发送给 DeepSeek';
+    case 'DeepSeek model': return 'DeepSeek 模型';
+    case 'OpenAI-compatible model name': return 'OpenAI 兼容模型名称';
+    case 'API base URL': return 'API 基础地址';
+    case 'Base URL ending in /v1, or a complete /chat/completions URL': return '以 /v1 结尾的基础地址，或完整的 /chat/completions 地址';
+    case 'API key': return 'API 密钥';
+    case 'Stored locally and sent only to the configured API endpoint': return '仅保存在本机，并只发送给所配置的 API 地址';
+    case 'Model': return '模型';
+    case 'Model name supported by the configured endpoint': return '所配置接口支持的模型名称';
+    case 'Gemini API key': return 'Gemini API 密钥';
+    case 'Stored locally and sent only to Google Gemini': return '仅保存在本机，并只发送给 Google Gemini';
+    case 'Gemini model': return 'Gemini 模型';
+    case 'Gemini generateContent model name': return 'Gemini generateContent 模型名称';
+    case 'Public translation notice': return '公共翻译服务说明';
+    case 'Public providers require no token but may be rate-limited or unavailable; translated text is sent to the selected service': return '公共服务无需密钥，但可能限流或不可用；待翻译文字会发送给所选服务';
+    case 'Experimental': return '实验性';
+    case 'Public service': return '公共服务';
+    case 'Simplified Chinese': return '简体中文';
+    case 'Traditional Chinese': return '繁体中文';
+    case 'Japanese': return '日语';
+    case 'Korean': return '韩语';
+    case 'OpenAI compatible': return 'OpenAI 兼容';
+    case 'Google Web': return 'Google 网页';
+    case 'Translate titles': return '翻译标题';
+    case 'Show original titles': return '显示原标题';
+    case 'Test translation': return '测试翻译';
+    case 'Translate a short sample with the current provider': return '使用当前服务翻译一段简短示例';
+    case 'Translation test succeeded': return '翻译测试成功';
+    case 'Translation test failed': return '翻译测试失败';
+    case 'Testing translation...': return '正在测试翻译...';
     case 'Preferences': return '偏好设置';
     case 'Gallery list and search': return '画廊列表与搜索';
     case 'Watched tags': return '关注标签';
@@ -2656,6 +2697,45 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('save_crash_log', 'Save crash log', 'Persist app errors and debug messages locally', entries, ON_OFF_OPTIONS),
       staticSettingsRow('clear_app_log', 'Clear saved log', 'Delete the local app log file', 'Clear', 'action')
     ];
+  }
+
+  if (panel === SettingsPanel.Translation) {
+    const provider = settingEntryValue(entries, 'translation_provider', 'Google Web');
+    const rows: SettingsRowItem[] = [
+      optionSettingsRow('translation_provider', 'Translation provider',
+        'Choose a public web service or an API-key based AI provider', entries,
+        ['Google Web', 'MyMemory', 'Lingva', 'DeepSeek', 'OpenAI compatible', 'Gemini']),
+      optionSettingsRow('translation_target_language', 'Target language',
+        'Language used for gallery titles and comments', entries,
+        ['Simplified Chinese', 'Traditional Chinese', 'English', 'Japanese', 'Korean']),
+      optionSettingsRow('translation_timeout', 'Translation timeout',
+        'Maximum wait time for a translation request', entries, ['10s', '15s', '20s', '30s', '45s', '60s'])
+    ];
+    if (provider === 'DeepSeek') {
+      rows.push(textSettingsRow('translation_deepseek_api_key', 'DeepSeek API key',
+        'Stored locally and sent only to DeepSeek', entries, ''));
+      rows.push(textSettingsRow('translation_deepseek_model', 'DeepSeek model',
+        'OpenAI-compatible model name', entries, 'deepseek-v4-flash'));
+    } else if (provider === 'OpenAI compatible') {
+      rows.push(textSettingsRow('translation_openai_base_url', 'API base URL',
+        'Base URL ending in /v1, or a complete /chat/completions URL', entries, 'https://api.openai.com/v1'));
+      rows.push(textSettingsRow('translation_openai_api_key', 'API key',
+        'Stored locally and sent only to the configured API endpoint', entries, ''));
+      rows.push(textSettingsRow('translation_openai_model', 'Model',
+        'Model name supported by the configured endpoint', entries, 'gpt-4o-mini'));
+    } else if (provider === 'Gemini') {
+      rows.push(textSettingsRow('translation_gemini_api_key', 'Gemini API key',
+        'Stored locally and sent only to Google Gemini', entries, ''));
+      rows.push(textSettingsRow('translation_gemini_model', 'Gemini model',
+        'Gemini generateContent model name', entries, 'gemini-3.5-flash'));
+    } else {
+      rows.push(staticSettingsRow('translation_public_notice', 'Public translation notice',
+        'Public providers require no token but may be rate-limited or unavailable; translated text is sent to the selected service',
+        provider === 'Google Web' ? 'Experimental' : 'Public service', 'info'));
+    }
+    rows.push(staticSettingsRow('translation_test', 'Test translation',
+      'Translate a short sample with the current provider', 'Run', 'action'));
+    return rows;
   }
 
   if (panel === SettingsPanel.Advanced) {

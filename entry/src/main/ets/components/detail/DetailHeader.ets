@@ -18,10 +18,12 @@ import {
 } from '../../shared/EhTheme';
 import { GalleryThumb, galleryThumbnailAspectRatio } from '../GalleryCards';
 import { copyTextToClipboard } from './DetailInfo';
+import { TranslationText } from '../TranslationComponents';
 @Component
 export struct DetailHeader {
   @Prop @Watch('onDetailChange') detail: GalleryDetail = createEmptyDetail();
   @Prop downloadText: string = 'Download';
+  @Prop translateTitle: boolean = false;
   onDownload: () => void = () => {};
   onRead: () => void = () => {};
   onUploaderSearch: () => void = () => {};
@@ -61,12 +63,15 @@ export struct DetailHeader {
           .width(this.detailThumbWidth())
           .aspectRatio(this.coverAspectRatio)
         Column() {
-          Text(galleryDisplayTitle(this.detail))
-            .fontSize(18)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(themeOnPrimaryText())
-            .maxLines(5)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          TranslationText({
+            sourceText: galleryDisplayTitle(this.detail),
+            translationEnabled: this.translateTitle,
+            fontSizeValue: 18,
+            fontWeightValue: FontWeight.Bold,
+            fontColorValue: themeOnPrimaryText(),
+            lineHeightValue: 24,
+            maxLinesValue: 5
+          })
             .onClick(() => {
               copyTextToClipboard(galleryDisplayTitle(this.detail), this.getUIContext());
             })

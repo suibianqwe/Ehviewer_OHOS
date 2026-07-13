@@ -7,6 +7,7 @@ import { GalleryCommentRow } from './CommentComponents';
 export struct DetailComments {
   @Prop comments: GalleryComment[] = [];
   @Prop isDetailLoaded: boolean = false;
+  @Prop translateComments: boolean = false;
   onComments: () => void = () => {};
   onVoteComment: (comment: GalleryComment, vote: number) => void = (_comment: GalleryComment, _vote: number) => {};
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
@@ -61,6 +62,7 @@ export struct DetailComments {
             openGalleryLinksInApp: true,
             selectableText: false,
             rowClickable: true,
+            translateComment: this.translateComments,
             onVoteComment: this.onVoteComment,
             onOpenGalleryLink: this.onOpenGalleryLink,
             onTapRow: this.onComments

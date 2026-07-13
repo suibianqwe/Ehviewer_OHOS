@@ -1,4 +1,5 @@
 import { GalleryComment } from '../../model/GalleryModels';
+import { ehTranslationService } from '../../services/EhTranslationService';
 import { getAbilityContext, plainTextFromHtml, uiText } from '../../shared/EhShared';
 import {
   themeInactiveActionText,
@@ -101,16 +102,60 @@ function isGalleryDetailUrl(url: string): boolean {
 
 @Component
 export struct CommentLinkedText {
-  @Prop html: string = '';
+  @Prop @Watch('onContentChanged') html: string = '';
+  @Prop @Watch('onTranslationChanged') translateComment: boolean = false;
   @Prop maxLines: number = 1000;
   @Prop openGalleryLinksInApp: boolean = false;
   @Prop selectable: boolean = true;
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
   onTapText: () => void = () => {};
+  @State translatedText: string = '';
+  private translationRequestVersion: number = 0;
+
+  aboutToAppear(): void {
+    this.updateTranslation();
+  }
+
+  onContentChanged(): void {
+    this.updateTranslation();
+  }
+
+  onTranslationChanged(): void {
+    this.updateTranslation();
+  }
+
+  private updateTranslation(): void {
+    this.translationRequestVersion++;
+    const version = this.translationRequestVersion;
+    this.translatedText = '';
+    if (!this.translateComment) {
+      return;
+    }
+    const source = commentPlainTextFromHtml(this.html);
+    if (source.length === 0) {
+      return;
+    }
+    ehTranslationService.translateComment(source).then((translated: string) => {
+      if (version === this.translationRequestVersion && this.translateComment) {
+        this.translatedText = translated;
+      }
+    }).catch(() => {
+      if (version === this.translationRequestVersion) {
+        this.translatedText = '';
+      }
+    });
+  }
+
+  private displayText(): string {
+    if (this.translateComment && this.translatedText.length > 0) {
+      return this.translatedText;
+    }
+    return commentPlainTextFromHtml(this.html);
+  }
 
   build() {
     Text() {
-      ForEach(commentTextSegments(commentPlainTextFromHtml(this.html)), (segment: CommentTextSegment) => {
+      ForEach(commentTextSegments(this.displayText()), (segment: CommentTextSegment) => {
         Span(segment.text)
           .fontColor(segment.url.length > 0 ? themePrimaryColor() : themePrimaryText())
           .decoration({
@@ -183,6 +228,7 @@ export struct GalleryCommentRow {
   openGalleryLinksInApp: boolean = false;
   selectableText: boolean = true;
   rowClickable: boolean = false;
+  @Prop translateComment: boolean = false;
   onVoteComment: (comment: GalleryComment, vote: number) => void = (_comment: GalleryComment, _vote: number) => {};
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
   onTapRow: () => void = () => {};
@@ -247,6 +293,7 @@ export struct GalleryCommentRow {
         maxLines: this.maxLines,
         openGalleryLinksInApp: this.openGalleryLinksInApp,
         selectable: this.selectableText,
+        translateComment: this.translateComment,
         onOpenGalleryLink: this.onOpenGalleryLink,
         onTapText: this.onTapRow
       })

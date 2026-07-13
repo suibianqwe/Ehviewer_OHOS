@@ -14,6 +14,7 @@ import {
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { DownloadInfo, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
+import { TRANSLATION_ENABLED_KEY } from '../services/EhTranslationService';
 import {
   DownloadRestoreResult,
   DownloadZipImportResult,
@@ -233,6 +234,7 @@ export struct DownloadScene {
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   @StorageProp(SPLIT_PANE_RATIO_REVISION_KEY) @Watch('onSplitPaneRatioRevisionChange') splitPaneRatioRevision: number = 0;
+  @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
   private downloadScroller: Scroller = new Scroller();
   private splitDragStartWidth: number = 0;
   private downloadScrollOffset: number = 0;
@@ -1308,6 +1310,7 @@ export struct DownloadScene {
         GalleryThumbCard({
           gallery: item,
           selected: this.isDownloadSelected(item.gid),
+          translateTitle: this.translationEnabled,
           onLongPress: (_pressed: GalleryInfo) => {
             this.toggleDownloadSelection(item);
           }
@@ -1321,6 +1324,7 @@ export struct DownloadScene {
         GalleryListRow({
           gallery: item,
           selected: this.isDownloadSelected(item.gid),
+          translateTitle: this.translationEnabled,
           onLongPress: (_pressed: GalleryInfo) => {
             this.toggleDownloadSelection(item);
           }
@@ -1663,6 +1667,7 @@ export struct DownloadScene {
               hasSelection: this.downloadSelectionCount() > 0,
               canOperate: this.items.length > 0,
               canJump: this.downloadJumpTotalPages() > 1,
+              translationEnabled: this.translationEnabled,
               onToggle: () => {
                 this.downloadActionsExpanded = !this.downloadActionsExpanded;
               },
@@ -1683,6 +1688,9 @@ export struct DownloadScene {
               },
               onRestore: () => {
                 this.restoreDownloadedItems();
+              },
+              onTranslate: () => {
+                this.translationEnabled = !this.translationEnabled;
               },
               onSelectAll: () => {
                 this.selectAllFinishedDownloads();
@@ -1907,6 +1915,7 @@ struct DownloadToolColumn {
   @Prop hasSelection: boolean = false;
   @Prop canOperate: boolean = false;
   @Prop canJump: boolean = false;
+  @Prop translationEnabled: boolean = false;
   @State activeActionIndex: number = -1;
   onToggle: () => void = () => {};
   onStatus: () => void = () => {};
@@ -1914,6 +1923,7 @@ struct DownloadToolColumn {
   onStart: () => void = () => {};
   onStop: () => void = () => {};
   onRestore: () => void = () => {};
+  onTranslate: () => void = () => {};
   onSelectAll: () => void = () => {};
   onDelete: () => void = () => {};
   onExportZip: () => void = () => {};
@@ -1928,7 +1938,7 @@ struct DownloadToolColumn {
     if (!this.expanded) {
       return 0;
     }
-    return this.hasSelection ? 8 : 5;
+    return this.hasSelection ? 9 : 6;
   }
 
   private primaryIndex(): number {
@@ -2007,6 +2017,8 @@ struct DownloadToolColumn {
       this.onStop();
     } else if (baseIndex === 4) {
       this.onRestore();
+    } else if (baseIndex === 5) {
+      this.onTranslate();
     }
   }
 
@@ -2086,6 +2098,14 @@ struct DownloadToolColumn {
             symbolIcon: $r('sys.symbol.play_arrow_triangle_2_circlepath'),
             isEnabled: true,
             active: this.activeActionIndex === this.baseActionIndex(4),
+            directTap: false
+          })
+          ActionBubble({
+            label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
+            symbolIcon: $r('sys.symbol.book'),
+            isEnabled: true,
+            checked: this.translationEnabled,
+            active: this.activeActionIndex === this.baseActionIndex(5),
             directTap: false
           })
         }

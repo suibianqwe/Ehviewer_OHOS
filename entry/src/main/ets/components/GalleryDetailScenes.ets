@@ -3,6 +3,7 @@ import { GalleryComment } from '../model/GalleryModels';
 import { GalleryTagInfo } from '../model/GalleryModels';
 import { ArchiveOption, ArchiverInfo, ArchiverOption, HathArchiveList, TorrentInfo } from '../model/GalleryModels';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
+import { TRANSLATION_ENABLED_KEY } from '../services/EhTranslationService';
 import {
   LANGUAGE_REVISION_KEY,
   STATUS_BAR_HEIGHT_KEY,
@@ -259,6 +260,7 @@ export struct GalleryDetailScene {
     return false;
   }
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
+  @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
 
   private statusBarVp(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx);
@@ -355,7 +357,14 @@ export struct GalleryDetailScene {
         EhSubNavBar({
           statusBarHeight: this.statusBarVp(),
           title: galleryDisplayTitle(this.detail),
-          onBack: this.onBack
+          translateTitle: this.translationEnabled,
+          showAction: true,
+          actionChecked: this.translationEnabled,
+          actionIcon: $r('sys.symbol.book'),
+          onBack: this.onBack,
+          onAction: () => {
+            this.translationEnabled = !this.translationEnabled;
+          }
         })
 
         Refresh({ refreshing: this.detailRefreshing }) {
@@ -364,6 +373,7 @@ export struct GalleryDetailScene {
               DetailHeader({
                 detail: this.detail,
                 downloadText: this.downloadText,
+                translateTitle: this.translationEnabled,
                 onDownload: this.onDownload,
                 onRead: this.onRead,
                 onUploaderSearch: this.onUploaderSearch,
@@ -415,6 +425,7 @@ export struct GalleryDetailScene {
               DetailComments({
                 comments: this.detail.comments,
                 isDetailLoaded: this.isDetailLoaded,
+                translateComments: this.translationEnabled,
                 onComments: this.onComments,
                 onVoteComment: this.onVoteComment,
                 onOpenGalleryLink: this.onOpenCommentGalleryLink

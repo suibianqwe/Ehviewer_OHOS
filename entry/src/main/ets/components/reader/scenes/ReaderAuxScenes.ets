@@ -1,4 +1,5 @@
 import { GalleryComment } from '../../../model/GalleryModels';
+import { TRANSLATION_ENABLED_KEY } from '../../../services/EhTranslationService';
 import { uiText } from '../../../shared/EhShared';
 import {
   themeDividerColor,
@@ -9,6 +10,7 @@ import {
 } from '../../../shared/EhTheme';
 import { EhSubNavBar } from '../../NavigationComponents';
 import { GalleryCommentRow } from '../../detail/CommentComponents';
+import { TranslationText } from '../../TranslationComponents';
 
 @Component
 export struct CommentsScene {
@@ -19,6 +21,7 @@ export struct CommentsScene {
   onVoteComment: (comment: GalleryComment, vote: number) => void = (_comment: GalleryComment, _vote: number) => {};
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
+  @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
 
   private statusBarVp(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx);
@@ -29,14 +32,23 @@ export struct CommentsScene {
       EhSubNavBar({
         statusBarHeight: this.statusBarVp(),
         title: uiText('Comments'),
-        onBack: this.onBack
+        showAction: true,
+        actionChecked: this.translationEnabled,
+        actionIcon: $r('sys.symbol.book'),
+        onBack: this.onBack,
+        onAction: () => {
+          this.translationEnabled = !this.translationEnabled;
+        }
       })
       Row() {
-        Text(this.galleryTitle)
-          .fontSize(12)
-          .fontColor(themeSecondaryText())
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        TranslationText({
+          sourceText: this.galleryTitle,
+          translationEnabled: this.translationEnabled,
+          fontSizeValue: 12,
+          lineHeightValue: 18,
+          fontColorValue: themeSecondaryText(),
+          maxLinesValue: 1
+        })
           .layoutWeight(1)
         Text(this.comments.length.toString() + ' ' + uiText('total'))
           .fontSize(12)
@@ -61,6 +73,7 @@ export struct CommentsScene {
                 maxLines: 1000,
                 compact: false,
                 openGalleryLinksInApp: true,
+                translateComment: this.translationEnabled,
                 onVoteComment: this.onVoteComment,
                 onOpenGalleryLink: this.onOpenGalleryLink
               })

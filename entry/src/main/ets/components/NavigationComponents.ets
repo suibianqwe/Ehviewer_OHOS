@@ -24,6 +24,7 @@ import {
   themeSurfaceVariant,
   themeTransparentColor
 } from '../shared/EhTheme';
+import { TranslationText } from './TranslationComponents';
 
 // ===================================================================
 // EhDrawer  -- slide-in navigation drawer (HarmonyOS style)
@@ -641,6 +642,8 @@ export struct EhSubNavBar {
   @Prop statusBarHeight: number = 0;
   @Prop title: string = '';
   @Prop showAction: boolean = false;
+  @Prop translateTitle: boolean = false;
+  @Prop actionChecked: boolean = false;
   @Prop actionIcon: Resource = $r('sys.symbol.share');
   onBack: () => void = () => {};
   onAction: () => void = () => {};
@@ -665,12 +668,15 @@ export struct EhSubNavBar {
         .flexShrink(0)
         .onClick(() => { this.onBack(); })
 
-        Text(uiText(this.title))
-          .fontSize(19)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(themeOnPrimaryText())
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        TranslationText({
+          sourceText: this.translateTitle ? this.title : uiText(this.title),
+          translationEnabled: this.translateTitle,
+          fontSizeValue: 19,
+          fontWeightValue: FontWeight.Medium,
+          fontColorValue: themeOnPrimaryText(),
+          lineHeightValue: 24,
+          maxLinesValue: 1
+        })
           .layoutWeight(1)
           .margin({ left: 12 })
 
@@ -682,7 +688,7 @@ export struct EhSubNavBar {
           }
           .width(40)
           .height(40)
-          .backgroundColor(themeOnPrimaryActionBackground())
+          .backgroundColor(this.actionChecked ? themeOnPrimaryActionStrongBackground() : themeOnPrimaryActionBackground())
           .flexShrink(0)
           .margin({ left: 8 })
           .onClick(() => {
@@ -733,6 +739,8 @@ export struct AppToolbar {
 export struct AppSubToolbar {
   @Prop title: string = '';
   @Prop showAction: boolean = false;
+  @Prop translateTitle: boolean = false;
+  @Prop actionChecked: boolean = false;
   @Prop actionIcon: Resource = $r('sys.symbol.share');
   onBack: () => void = () => {};
   onAction: () => void = () => {};
@@ -748,6 +756,8 @@ export struct AppSubToolbar {
       statusBarHeight: this.statusBarVp(),
       title: this.title,
       showAction: this.showAction,
+      translateTitle: this.translateTitle,
+      actionChecked: this.actionChecked,
       actionIcon: this.actionIcon,
       onBack: this.onBack,
       onAction: this.onAction

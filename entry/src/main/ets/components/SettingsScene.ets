@@ -41,6 +41,7 @@ import {
 } from '../services/EhNetworkConfig';
 import { EhUrl } from '../services/EhUrl';
 import { ehUpdateChecker, ReleaseInfo, UpdateCheckResult } from '../services/EhUpdateChecker';
+import { ehTranslationService } from '../services/EhTranslationService';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { CacheClearResult, CachePruneResult, readerImageCache } from '../services/ReaderImageCache';
 import { FilterRule, FILTER_MODE_RATING, FILTER_MODE_TITLE, ehFilterStore } from '../services/EhFilterStore';
@@ -348,7 +349,8 @@ export struct SettingsScene {
 
   private isSettingsDetailPanel(panel: SettingsPanel): boolean {
     return panel === SettingsPanel.Eh || panel === SettingsPanel.Read || panel === SettingsPanel.Download ||
-      panel === SettingsPanel.Privacy || panel === SettingsPanel.Advanced || panel === SettingsPanel.About;
+      panel === SettingsPanel.Privacy || panel === SettingsPanel.Translation || panel === SettingsPanel.Advanced ||
+      panel === SettingsPanel.About;
   }
 
   private settingsDetailLayerPanel(): SettingsPanel {
@@ -856,6 +858,10 @@ export struct SettingsScene {
       this.checkForUpdatesManually();
       return true;
     }
+    if (key === 'translation_test') {
+      this.testTranslationProvider();
+      return true;
+    }
     if (key === 'donate') {
       this.statusText = 'Donate entry is retained from the original app; payment integration is not migrated yet.';
       return true;
@@ -911,6 +917,18 @@ export struct SettingsScene {
       return true;
     }
     return false;
+  }
+
+  private testTranslationProvider(): void {
+    this.statusText = uiText('Testing translation...');
+    ehTranslationService.clearCache();
+    ehTranslationService.translate('Hello, world.', 'text').then((translated: string) => {
+      this.statusText = uiText('Translation test succeeded') + ': ' + translated;
+      this.showToast(this.statusText);
+    }).catch((error: Error) => {
+      this.statusText = uiText('Translation test failed') + ': ' + error.message;
+      this.showToast(this.statusText);
+    });
   }
 
   private openExternalUrl(url: string, label: string): void {
@@ -2351,10 +2369,10 @@ export struct SettingsStaticRow {
         })
         .layoutWeight(1)
         if (this.row.type === 'input') {
-          TextInput({ text: this.row.value, placeholder: this.row.summary })
+          TextInput({ text: this.row.value, placeholder: uiText(this.row.summary) })
             .width(150)
             .height(38)
-            .type(this.row.key === 'proxy_password' ? InputType.Password : InputType.Normal)
+            .type(isSecretSettingKey(this.row.key) ? InputType.Password : InputType.Normal)
             .fontSize(13)
             .fontColor(themePrimaryText())
             .placeholderColor(themeSecondaryText())
@@ -2362,7 +2380,7 @@ export struct SettingsStaticRow {
             .margin({ left: 12 })
             .onChange((value: string) => {
               if (this.row.key !== undefined) {
-                this.onTextChange(this.row.key, this.row.key === 'proxy_password' ? value : value.trim());
+                this.onTextChange(this.row.key, isSecretSettingKey(this.row.key) ? value : value.trim());
               }
             })
         } else if (this.row.type === 'switch') {
@@ -2410,6 +2428,13 @@ export struct SettingsStaticRow {
             .onClick(() => {
               this.onTap();
             })
+        } else if (this.row.type === 'info') {
+          Text(uiValue(this.row.value))
+            .fontSize(12)
+            .fontColor(themeSecondaryText())
+            .maxLines(2)
+            .textAlign(TextAlign.End)
+            .margin({ left: 12 })
         } else {
           Button(settingsRowActionText(this.row), { type: ButtonType.Normal, stateEffect: true })
             .height(34)
@@ -2430,7 +2455,7 @@ export struct SettingsStaticRow {
     .backgroundColor(themeSurface())
     .borderRadius(6)
     .onClick(() => {
-      if (this.row.type !== 'input' && this.row.type !== 'switch' &&
+      if (this.row.type !== 'input' && this.row.type !== 'switch' && this.row.type !== 'info' &&
         this.row.type !== 'slider' && this.row.key !== 'theme') {
         this.onTap();
       }
@@ -2478,6 +2503,11 @@ function settingsRowActionText(row: SettingsRowItem): string {
     return uiValue(row.value);
   }
   return uiText('Open');
+}
+
+function isSecretSettingKey(key: string | undefined): boolean {
+  return key === 'proxy_password' || key === 'translation_deepseek_api_key' ||
+    key === 'translation_openai_api_key' || key === 'translation_gemini_api_key';
 }
 
 function settingsSliderNumberValue(row: SettingsRowItem): number {
@@ -2616,7 +2646,7 @@ function proxyDiagnosticText(): string {
 }
 
 function settingDisplayValueForStatus(key: string, value: string): string {
-  if (key === 'proxy_password' && value.length > 0) {
+  if (isSecretSettingKey(key) && value.length > 0) {
     return '***';
   }
   return value;

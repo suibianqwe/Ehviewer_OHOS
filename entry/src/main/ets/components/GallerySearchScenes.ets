@@ -839,6 +839,7 @@ export struct QuickActionColumn {
   @Prop canRandom: boolean = false;
   @Prop canImageSearch: boolean = false;
   @Prop canBookmark: boolean = false;
+  @Prop translationEnabled: boolean = false;
   onToggle: () => void = () => {};
   onFilter: () => void = () => {};
   onJump: () => void = () => {};
@@ -846,6 +847,7 @@ export struct QuickActionColumn {
   onRandom: () => void = () => {};
   onImageSearch: () => void = () => {};
   onBookmark: () => void = () => {};
+  onTranslate: () => void = () => {};
   @State activeActionIndex: number = -1;
 
   private toggleExpanded(): void {
@@ -874,15 +876,15 @@ export struct QuickActionColumn {
   }
 
   private bookmarkActionIndex(): number {
-    return this.canBookmark ? 3 : -1;
+    return this.canBookmark ? 4 : -1;
   }
 
   private imageSearchActionIndex(): number {
-    return this.canImageSearch ? 3 + (this.canBookmark ? 1 : 0) : -1;
+    return this.canImageSearch ? 4 + (this.canBookmark ? 1 : 0) : -1;
   }
 
   private randomActionIndex(): number {
-    return 3 + (this.canBookmark ? 1 : 0) + (this.canImageSearch ? 1 : 0);
+    return 4 + (this.canBookmark ? 1 : 0) + (this.canImageSearch ? 1 : 0);
   }
 
   private hitActionIndex(y: number): number {
@@ -941,6 +943,8 @@ export struct QuickActionColumn {
       this.onJump();
     } else if (index === 2) {
       this.onRefresh();
+    } else if (index === 3) {
+      this.onTranslate();
     } else if (index === this.bookmarkActionIndex()) {
       this.onBookmark();
     } else if (index === this.imageSearchActionIndex()) {
@@ -987,6 +991,14 @@ export struct QuickActionColumn {
             symbolIcon: $r('sys.symbol.play_arrow_triangle_2_circlepath'),
             isEnabled: true,
             active: this.activeActionIndex === 2,
+            directTap: false
+          })
+          ActionBubble({
+            label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
+            symbolIcon: $r('sys.symbol.book'),
+            isEnabled: true,
+            checked: this.translationEnabled,
+            active: this.activeActionIndex === 3,
             directTap: false
           })
           if (this.canBookmark) {

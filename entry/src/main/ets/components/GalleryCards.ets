@@ -32,6 +32,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
+import { TranslationText } from './TranslationComponents';
 
 const GALLERY_THUMB_LOCAL_SOURCE_CACHE: Map<string, string> = new Map<string, string>();
 const GALLERY_THUMB_ASPECT_RATIO_CACHE: Map<string, number> = new Map<string, number>();
@@ -72,6 +73,7 @@ export function galleryThumbnailAspectRatio(gallery: GalleryInfo): number {
 export struct GalleryListRow {
   @Prop gallery: GalleryInfo = createEmptyGallery();
   @Prop selected: boolean = false;
+  @Prop translateTitle: boolean = false;
   onLongPress: (gallery: GalleryInfo) => void = (_gallery: GalleryInfo) => {
   };
   @StorageProp(HISTORY_READ_REVISION_KEY) historyReadRevision: number = 0;
@@ -351,14 +353,15 @@ export struct GalleryListRow {
 
       Column() {
         Column() {
-          Text(galleryDisplayTitle(this.gallery))
-            .fontSize(this.titleFontSize())
-            .fontWeight(FontWeight.Medium)
-            .fontColor(themePrimaryText())
-            .lineHeight(this.titleLineHeight())
-            .maxLines(this.titleMaxLines())
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .width('100%')
+          TranslationText({
+            sourceText: galleryDisplayTitle(this.gallery),
+            translationEnabled: this.translateTitle,
+            fontSizeValue: this.titleFontSize(),
+            fontWeightValue: FontWeight.Medium,
+            fontColorValue: themePrimaryText(),
+            lineHeightValue: this.titleLineHeight(),
+            maxLinesValue: this.titleMaxLines()
+          })
         }
         .width('100%')
         .height(this.titleHeight())
@@ -586,6 +589,7 @@ export struct GalleryThumb {
 export struct GalleryThumbCard {
   @Prop @Watch('onGalleryChange') gallery: GalleryInfo = createEmptyGallery();
   @Prop selected: boolean = false;
+  @Prop translateTitle: boolean = false;
   onLongPress: (gallery: GalleryInfo) => void = (_gallery: GalleryInfo) => {
   };
   @StorageProp(HISTORY_READ_REVISION_KEY) historyReadRevision: number = 0;
@@ -689,14 +693,15 @@ export struct GalleryThumbCard {
 
         Column() {
           Column() {
-            Text(galleryDisplayTitle(this.gallery))
-              .fontSize(15)
-              .lineHeight(19)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(themePrimaryText())
-              .maxLines(5)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-              .width('100%')
+            TranslationText({
+              sourceText: galleryDisplayTitle(this.gallery),
+              translationEnabled: this.translateTitle,
+              fontSizeValue: 15,
+              lineHeightValue: 19,
+              fontWeightValue: FontWeight.Medium,
+              fontColorValue: themePrimaryText(),
+              maxLinesValue: 5
+            })
           }
           .width('100%')
           .justifyContent(FlexAlign.Start)

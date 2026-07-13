@@ -1,6 +1,7 @@
 import { GalleryCategory, GalleryDetail, GalleryRoute, GallerySite, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
 import { EhHttpClient, TopListLoadResult } from '../services/EhHttpClient';
 import { AsyncRequestGate } from '../services/AsyncRequestGate';
+import { TRANSLATION_ENABLED_KEY } from '../services/EhTranslationService';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
 import { DetailSearchRequest } from '../services/GalleryDetailActionSupport';
 import {
@@ -26,10 +27,11 @@ import {
   themeTransparentColor
 } from '../shared/EhTheme';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, runDetailBackHandler, createEmptyDetail, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneGalleryDetail, cloneGalleryInfo, cloneTopListDetail, nextFloatingToolbarOffset, topListChipColor, currentGallerySite, uiText } from '../shared/EhShared';
-import { GalleryListScene, GalleryListStateView } from './GalleryScenes';
+import { ActionBubble, GalleryListScene, GalleryListStateView } from './GalleryScenes';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
 import { FloatingToolbarHost } from './NavigationComponents';
+import { TranslationText } from './TranslationComponents';
 import {
   areaDimensionToVp,
   markCurrentRouteRightPane,
@@ -147,6 +149,7 @@ export struct TopListScene {
   @State activeSplitPane: string = SPLIT_PANE_FOCUS_LEFT;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   @StorageProp(SPLIT_PANE_RATIO_REVISION_KEY) @Watch('onSplitPaneRatioRevisionChange') splitPaneRatioRevision: number = 0;
+  @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
   private topListScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
   private toolbarRestoring: boolean = false;
@@ -632,6 +635,7 @@ export struct TopListScene {
             topPadding: this.floatingToolbarHeight() + 4,
             statusBarHeight: this.statusBarVp(),
             renderVersion: this.renderVersion,
+            translateTitles: this.translationEnabled,
             onSelectList: (index: number) => {
               if (this.selectedIndex === index) {
                 return;
@@ -767,6 +771,27 @@ export struct TopListScene {
 
         }
 
+        Column() {
+          ActionBubble({
+            label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
+            symbolIcon: $r('sys.symbol.book'),
+            isEnabled: true,
+            checked: this.translationEnabled,
+            primary: true,
+            directTap: true,
+            onTapAction: () => {
+              this.translationEnabled = !this.translationEnabled;
+            }
+          })
+        }
+        .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
+        .height('100%')
+        .justifyContent(FlexAlign.End)
+        .alignItems(HorizontalAlign.End)
+        .padding({ right: 16, bottom: 24 })
+        .hitTestBehavior(HitTestMode.Transparent)
+        .zIndex(4)
+
         if (this.showDetail) {
           GalleryDetailHostScene({
             detailLink: this.detailLink,
@@ -854,6 +879,7 @@ export struct TopListBoard {
   @Prop topPadding: number = 74;
   @Prop statusBarHeight: number = 0;
   @Prop renderVersion: number = 0;
+  @Prop translateTitles: boolean = false;
   onSelectList: (index: number) => void = () => {};
   onOpenBucket: (bucket: TopListBucket) => void = () => {};
   onOpenItem: (item: TopListItem, info: TopListInfo) => void = () => {};
@@ -900,6 +926,7 @@ export struct TopListBoard {
             TopListBucketCard({
               bucket: bucket,
               info: this.info,
+              translateTitles: this.translateTitles,
               canOpenBucket: this.info.kind === TopListKind.Gallery,
               onOpenBucket: this.onOpenBucket,
               onOpenItem: this.onOpenItem
@@ -949,6 +976,7 @@ export struct TopListBucketCard {
   @Prop bucket: TopListBucket = createEmptyTopListBucket();
   @Prop info: TopListInfo = createEmptyTopListInfo();
   @Prop canOpenBucket: boolean = false;
+  @Prop translateTitles: boolean = false;
   onOpenBucket: (bucket: TopListBucket) => void = () => {};
   onOpenItem: (item: TopListItem, info: TopListInfo) => void = () => {};
 
@@ -977,6 +1005,7 @@ export struct TopListBucketCard {
           TopListChip({
             item: item,
             color: topListChipColor(index),
+            translateTitle: this.translateTitles && this.info.kind === TopListKind.Gallery,
             onTap: () => {
               this.onOpenItem(item, this.info);
             }
@@ -997,20 +1026,26 @@ export struct TopListBucketCard {
 export struct TopListChip {
   item: TopListItem = createEmptyTopListItem();
   color: string = themePrimaryColor();
+  @Prop translateTitle: boolean = false;
   onTap: () => void = () => {};
 
   build() {
-    Text(this.item.value)
-      .fontSize(13)
-      .fontColor(themeOnPrimaryText())
-      .maxLines(2)
-      .textOverflow({ overflow: TextOverflow.Ellipsis })
-      .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-      .margin({ right: 8, bottom: 8 })
-      .backgroundColor(this.color)
-      .borderRadius(5)
-      .onClick(() => {
-        this.onTap();
+    Column() {
+      TranslationText({
+        sourceText: this.item.value,
+        translationEnabled: this.translateTitle,
+        fontSizeValue: 13,
+        lineHeightValue: 18,
+        fontColorValue: themeOnPrimaryText(),
+        maxLinesValue: 2
       })
+    }
+    .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+    .margin({ right: 8, bottom: 8 })
+    .backgroundColor(this.color)
+    .borderRadius(5)
+    .onClick(() => {
+      this.onTap();
+    })
   }
 }

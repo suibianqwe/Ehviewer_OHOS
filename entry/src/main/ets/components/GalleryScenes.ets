@@ -18,6 +18,7 @@ import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { AsyncRequestGate } from '../services/AsyncRequestGate';
 import { gallerySiteCandidates } from '../services/EhGallerySiteFallback';
+import { TRANSLATION_ENABLED_KEY } from '../services/EhTranslationService';
 import { DetailSearchRequest } from '../services/GalleryDetailActionSupport';
 import {
   createGalleryDetailLink,
@@ -3887,6 +3888,7 @@ export struct GalleryListContent {
   private barHeight: number = 56; // matches EhNavBar body height
   private readonly FAVORITE_DRAWER_WIDTH: number = 288;
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
+  @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
 
   onScrollReset(): void {
     // Scroll back to the top when scrollResetVersion changes.
@@ -4640,6 +4642,7 @@ export struct GalleryListContent {
       if (galleryListMode() === 'Thumb') {
         GalleryThumbCard({
           gallery: gallery,
+          translateTitle: this.translationEnabled,
           onLongPress: (pressed: GalleryInfo) => {
             this.onLongPressGallery(pressed);
           }
@@ -4652,6 +4655,7 @@ export struct GalleryListContent {
       } else {
         GalleryListRow({
           gallery: gallery,
+          translateTitle: this.translationEnabled,
           onLongPress: (pressed: GalleryInfo) => {
             this.onLongPressGallery(pressed);
           }
@@ -4673,6 +4677,7 @@ export struct GalleryListContent {
     FlowItem() {
       GalleryThumbCard({
         gallery: gallery,
+        translateTitle: this.translationEnabled,
         onLongPress: (pressed: GalleryInfo) => {
           this.onLongPressGallery(pressed);
         }
@@ -4959,6 +4964,17 @@ export struct GalleryListContent {
       Column() {
         if (this.shouldShowSearchOnlyFab()) {
           ActionBubble({
+            label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
+            symbolIcon: $r('sys.symbol.book'),
+            isEnabled: true,
+            checked: this.translationEnabled,
+            directTap: true,
+            onTapAction: () => {
+              this.translationEnabled = !this.translationEnabled;
+            }
+          })
+            .margin({ bottom: 10 })
+          ActionBubble({
             label: uiText('Search'),
             symbolIcon: $r('sys.symbol.magnifyingglass'),
             isEnabled: true,
@@ -4977,12 +4993,16 @@ export struct GalleryListContent {
             canRandom: this.canRandom,
             canImageSearch: !this.useLocalSearchBar,
             canBookmark: this.showBookmarkButton,
+            translationEnabled: this.translationEnabled,
             onToggle: this.onToggleActions,
             onFilter: this.onFilter,
             onJump: () => {
               this.openJumpPanel();
             },
             onRefresh: this.onRefresh,
+            onTranslate: () => {
+              this.translationEnabled = !this.translationEnabled;
+            },
             onRandom: this.onRandom,
             onImageSearch: () => {
               this.openImageSearchPanel();
