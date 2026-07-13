@@ -1,4 +1,5 @@
 import { GalleryCategory, GalleryInfo } from '../model/GalleryModels';
+import { decodeHtmlEntities } from '../shared/HtmlEntitySupport';
 import { galleryLanguageCodeToName, normalizeGalleryLanguageCode } from './GalleryLanguageSupport';
 
 interface GalleryApiItem {
@@ -53,8 +54,8 @@ function findGallery(galleries: GalleryInfo[], gid: number): GalleryInfo | null 
 }
 
 function mergeGalleryApiItem(gallery: GalleryInfo, item: GalleryApiItem): void {
-  gallery.title = normalizeString(item.title, gallery.title);
-  gallery.titleJpn = normalizeString(item.title_jpn, gallery.titleJpn);
+  gallery.title = decodeHtmlEntities(normalizeString(item.title, gallery.title));
+  gallery.titleJpn = decodeHtmlEntities(normalizeString(item.title_jpn, gallery.titleJpn));
   gallery.category = categoryNameToValue(normalizeString(item.category, '')) || gallery.category;
   gallery.thumb = normalizeString(item.thumb, gallery.thumb);
   gallery.uploader = normalizeString(item.uploader, gallery.uploader);

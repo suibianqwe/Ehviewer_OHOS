@@ -62,6 +62,7 @@ import {
   categoryName,
   createEmptyDetail,
   createEmptyPage,
+  galleryDisplayTitle,
   getAbilityContext,
   pushDetailBackHandler,
   readerStartIndex,
@@ -949,7 +950,7 @@ export struct GalleryDetailHostScene {
     const shareData = new systemShare.SharedData({
       utd: utd.UniformDataType.PLAIN_TEXT,
       content: url,
-      title: this.detail.title,
+      title: galleryDisplayTitle(this.detail),
       description: 'EhViewer'
     });
     const controller = new systemShare.ShareController(shareData);

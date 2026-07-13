@@ -1352,17 +1352,26 @@ export struct DownloadScene {
   }
 
   @Builder
+  private downloadListEdgeSpacer() {
+    Row()
+      .width('100%')
+      .height(this.downloadCardGap())
+  }
+
+  @Builder
   private downloadStandardList() {
     List({ space: 0, scroller: this.downloadScroller }) {
-      ForEach(this.visibleItems, (item: DownloadInfo) => {
-        ListItem() {
-          this.downloadCardContent(item)
-        }
-        .margin({ bottom: this.downloadCardGap() })
-        .reuseId('download-card-item')
-        .animation({ duration: 220, curve: Curve.EaseOut })
-        .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
-      }, (item: DownloadInfo) => item.gid.toString())
+      ListItemGroup({ header: this.downloadListEdgeSpacer() }) {
+        ForEach(this.visibleItems, (item: DownloadInfo) => {
+          ListItem() {
+            this.downloadCardContent(item)
+          }
+          .margin({ bottom: this.downloadCardGap() })
+          .reuseId('download-card-item')
+          .animation({ duration: 220, curve: Curve.EaseOut })
+          .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
+        }, (item: DownloadInfo) => item.gid.toString())
+      }
     }
     .width('100%')
     .height(this.downloadListViewportHeight())
@@ -1412,6 +1421,7 @@ export struct DownloadScene {
     .padding({
       left: this.downloadContentPadding(),
       right: this.downloadContentPadding(),
+      top: this.downloadCardGap(),
       bottom: this.downloadCardGap()
     })
     .translate({ y: this.downloadContentStartOffset() })

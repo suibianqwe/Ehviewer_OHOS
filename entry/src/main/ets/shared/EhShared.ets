@@ -22,6 +22,7 @@ import { LocalFavoriteBackupInfo } from '../services/EhLocalFavoritesStore';
 import { SearchBookmarkBackupInfo } from '../services/EhBookmarkStore';
 import { EH_AUTHOR_NAME, EH_RELEASE_TAG } from '../services/EhBuildInfo';
 import { normalizeGalleryLanguageCode } from '../services/GalleryLanguageSupport';
+import { decodeHtmlEntities } from './HtmlEntitySupport';
 import {
   EH_THEME_PRIMARY_COLOR,
   currentDarkModeThemeName as themeCurrentDarkModeThemeName,
@@ -203,18 +204,11 @@ export function uiValue(value: string): string {
 }
 
 export function plainTextFromHtml(html: string): string {
-  return html
+  return decodeHtmlEntities(html
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n')
     .replace(/<\/div>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'")
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
+    .replace(/<[^>]+>/g, ''))
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
@@ -3427,13 +3421,13 @@ export function ratingText(rating: number): string {
 export function galleryDisplayTitle(gallery: GalleryInfo): string {
   if (ehSettingsStore.getValue('show_jpn_title', 'Off') === 'On' &&
     gallery.titleJpn !== undefined && gallery.titleJpn.length > 0) {
-    return gallery.titleJpn;
+    return decodeHtmlEntities(gallery.titleJpn);
   }
   if (gallery.title.length > 0) {
-    return gallery.title;
+    return decodeHtmlEntities(gallery.title);
   }
   if (gallery.titleJpn !== undefined && gallery.titleJpn.length > 0) {
-    return gallery.titleJpn;
+    return decodeHtmlEntities(gallery.titleJpn);
   }
   return 'Untitled';
 }

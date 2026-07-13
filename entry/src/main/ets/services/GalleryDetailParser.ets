@@ -1,4 +1,5 @@
 import { GalleryCategory, GalleryComment, GalleryDetail, GalleryPreview, GalleryTagGroup, GalleryTagInfo } from '../model/GalleryModels';
+import { decodeHtmlEntities } from '../shared/HtmlEntitySupport';
 
 const DETAIL_PATTERN: RegExp =
   /var\s+gid\s*=\s*(\d+);[\s\S]*?var\s+token\s*=\s*["']([a-f0-9]+)["'];[\s\S]*?var\s+apiuid\s*=\s*([-\d]+);[\s\S]*?var\s+apikey\s*=\s*["']([a-f0-9]+)["'];/i;
@@ -595,13 +596,7 @@ function isVoidTag(tag: string): boolean {
 }
 
 function decodeHtml(value: string): string {
-  return value
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, '\'')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
+  return decodeHtmlEntities(value);
 }
 
 function parseIntSafe(value: string, fallback: number): number {

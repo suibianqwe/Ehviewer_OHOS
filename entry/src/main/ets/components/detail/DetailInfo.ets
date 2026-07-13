@@ -1,5 +1,6 @@
 import { pasteboard } from '@kit.BasicServicesKit';
 import { GalleryDetail } from '../../model/GalleryModels';
+import { decodeHtmlEntities } from '../../shared/HtmlEntitySupport';
 import {
   categoryDisplayName,
   createEmptyDetail,
@@ -145,8 +146,8 @@ export struct GalleryInfoScene {
     rows.push({ key: 'Gid', value: this.detail.gid > 0 ? this.detail.gid.toString() : '-' });
     rows.push({ key: 'Token', value: this.valueOrDash(this.detail.token) });
     rows.push({ key: 'URL', value: this.valueOrDash(this.galleryUrl()) });
-    rows.push({ key: 'Title', value: this.valueOrDash(this.detail.title) });
-    rows.push({ key: 'Jpn Title', value: this.valueOrDash(this.detail.titleJpn) });
+    rows.push({ key: 'Title', value: decodeHtmlEntities(this.valueOrDash(this.detail.title)) });
+    rows.push({ key: 'Jpn Title', value: decodeHtmlEntities(this.valueOrDash(this.detail.titleJpn)) });
     rows.push({ key: 'Thumb', value: this.valueOrDash(this.detail.thumb) });
     rows.push({ key: 'Category', value: categoryDisplayName(this.detail.category) });
     rows.push({ key: 'Uploader', value: this.valueOrDash(this.detail.uploader) });
