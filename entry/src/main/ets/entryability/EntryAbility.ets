@@ -17,7 +17,9 @@ import { DOWNLOAD_NOTIFICATION_OPEN_DIRECTORY_KEY } from '../services/DownloadNo
 import { readerImageCache } from '../services/ReaderImageCache';
 import { EH_SYSTEM_COLOR_MODE_DARK, EH_SYSTEM_COLOR_MODE_KEY } from '../shared/EhTheme';
 import {
+  ensureEhHostRules,
   isEhDirectConnectionProbeEnabled,
+  isEhFrontingBenchmarkEnabled,
   startEhDirectConnectionProbe,
   startEhFrontingBenchmark
 } from '../services/EhNetworkConfig';
@@ -101,7 +103,11 @@ export default class EntryAbility extends UIAbility {
     const settingsReady = ehSettingsStore.ensureLoaded(this.context).then(() => {
       this.setIdentityAuthLocked(this.identityAuthEnabledInMemory());
       if (!isEhDirectConnectionProbeEnabled()) {
-        return;
+        return ensureEhHostRules().then(() => {
+          if (isEhFrontingBenchmarkEnabled()) {
+            startEhFrontingBenchmark(this.context);
+          }
+        });
       }
       return startEhDirectConnectionProbe(this.context).then((directAvailable: boolean) => {
         this.startupDirectProbeToast = directAvailable

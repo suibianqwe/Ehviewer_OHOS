@@ -235,7 +235,7 @@ function safeNumber(value: number): number {
 }
 
 function hathQualityEnabled(): boolean {
-  return ehSettingsStore.getValue('auto_direct_connection', 'On') === 'On';
+  return ehSettingsStore.getValue('auto_direct_connection', 'Off') === 'On';
 }
 
 export const hathQualityStore: HathQualityStore = new HathQualityStore();

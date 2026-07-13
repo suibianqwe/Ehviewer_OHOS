@@ -1376,6 +1376,8 @@ export function zhText(text: string): string {
     case 'Language override': return '语言覆盖设置';
     case 'System proxy or direct connection': return '系统代理或直连';
     case 'System proxy, direct connection or HTTP proxy': return '系统代理、直连或 HTTP 代理';
+    case 'Follow the system proxy by default; Off bypasses it; HTTP uses a custom proxy':
+      return '默认遵循系统代理；关闭时跳过系统代理；HTTP 使用自定义代理';
     case 'Proxy host': return '代理主机';
     case 'Host or IP address for custom proxy': return '自定义代理的主机名或 IP 地址';
     case 'Host or IP address for HTTP proxy': return 'HTTP 代理的主机名或 IP 地址';
@@ -2837,7 +2839,9 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('read_cache_size', 'Read cache size', 'Reader cache budget', entries,
         ['160 MB', '320 MB', '640 MB', '1 GB', '2 GB']),
       optionSettingsRow('app_language', 'App language', 'Language override', entries, ['System', 'English', 'zh-CN']),
-      optionSettingsRow('proxy', 'Proxy', 'System proxy, direct connection or HTTP proxy', entries, ['System', 'Off', 'HTTP']),
+      optionSettingsRow('proxy', 'Proxy',
+        'Follow the system proxy by default; Off bypasses it; HTTP uses a custom proxy',
+        entries, ['System', 'Off', 'HTTP']),
       staticSettingsRow('network_diagnostics', 'Network diagnostics', 'Test E, EX, forums and repo connectivity with current settings', 'Run', 'action'),
     ];
     const proxyType = settingEntryValue(entries, 'proxy', 'System');

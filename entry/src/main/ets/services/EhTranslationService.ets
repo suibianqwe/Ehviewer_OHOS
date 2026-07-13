@@ -1,5 +1,6 @@
 import { http } from '@kit.NetworkKit';
 import { ehSettingsStore } from './EhSettingsStore';
+import { applyConfiguredNetworkOptions } from './EhNetworkConfig';
 import {
   SavedTranslationApi,
   findSavedTranslationApi,
@@ -553,6 +554,7 @@ async function requestText(url: string, method: http.RequestMethod, body: string
       connectTimeout: timeout,
       readTimeout: timeout
     };
+    applyConfiguredNetworkOptions(options);
     if (method === http.RequestMethod.POST) {
       options.extraData = body;
     }

@@ -97,16 +97,17 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'proxy_username', value: '' },
     { key: 'proxy_password', value: '' },
     { key: 'proxy_exclusion_list', value: '' },
-    { key: 'built_in_hosts', value: 'On' },
-    { key: 'built_ex_hosts', value: 'On' },
+    { key: 'built_in_hosts', value: 'Off' },
+    { key: 'built_ex_hosts', value: 'Off' },
     { key: 'dns_over_https', value: 'Off' },
-    { key: 'domain_fronting', value: 'On' },
-    { key: 'auto_direct_connection', value: 'On' },
+    { key: 'domain_fronting', value: 'Off' },
+    { key: 'auto_direct_connection', value: 'Off' },
     { key: 'close_auto_updates', value: 'Off' },
     { key: 'network_defaults_20260612', value: 'Applied' },
     { key: 'network_runtime_20260613', value: 'Applied' },
     { key: 'network_proxy_20260613', value: 'Applied' },
-    { key: 'network_proxy_20260707', value: 'Applied' }
+    { key: 'network_proxy_20260707', value: 'Applied' },
+    { key: 'network_passthrough_20260714', value: 'Applied' }
   ];
 }
 
@@ -184,6 +185,7 @@ export class EhSettingsStore {
       let hasRuntimeMigration = false;
       let hasProxyMigration = false;
       let hasProxyApi24Migration = false;
+      let hasPassthroughMigration = false;
       for (let i = 0; i < parsed.length; i++) {
         const item = parsed[i];
         if (typeof item.key === 'string' && typeof item.value === 'string') {
@@ -198,6 +200,9 @@ export class EhSettingsStore {
           }
           if (item.key === 'network_proxy_20260707') {
             hasProxyApi24Migration = true;
+          }
+          if (item.key === 'network_passthrough_20260714') {
+            hasPassthroughMigration = true;
           }
           this.setValue(item.key, item.value);
         }
@@ -223,6 +228,21 @@ export class EhSettingsStore {
         }
         this.setValue('network_proxy_20260707', 'Applied');
       }
+      if (!hasPassthroughMigration) {
+        const legacyAutomaticNetworkConfig = hasNetworkMigration &&
+          this.getValue('built_in_hosts', 'Off') === 'On' &&
+          this.getValue('built_ex_hosts', 'Off') === 'On' &&
+          this.getValue('dns_over_https', 'Off') === 'Off' &&
+          this.getValue('domain_fronting', 'Off') === 'On' &&
+          this.getValue('auto_direct_connection', 'Off') === 'On';
+        if (legacyAutomaticNetworkConfig) {
+          this.setValue('built_in_hosts', 'Off');
+          this.setValue('built_ex_hosts', 'Off');
+          this.setValue('domain_fronting', 'Off');
+          this.setValue('auto_direct_connection', 'Off');
+        }
+        this.setValue('network_passthrough_20260714', 'Applied');
+      }
       if (this.getValue('download_location', 'App files') !== 'Downloads') {
         this.setValue('download_location', 'App files');
       }
@@ -236,6 +256,13 @@ export class EhSettingsStore {
         this.setValue('detail_size', 'Loose');
       }
       this.migrateLegacyTranslationApi();
+      if (!hasPassthroughMigration) {
+        try {
+          await prefs.put(VALUES_KEY, JSON.stringify(this.entries));
+          await prefs.flush();
+        } catch (error) {
+        }
+      }
     } catch (error) {
       throw new Error(String(error));
     } finally {

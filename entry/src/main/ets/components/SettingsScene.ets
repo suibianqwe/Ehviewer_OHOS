@@ -44,7 +44,9 @@ import {
 import { EhHttpClient, NetworkDiagnosticResult } from '../services/EhHttpClient';
 import {
   currentDnsOverHttpsStatusText,
+  ensureEhHostRules,
   isEhDirectConnectionProbeEnabled,
+  isEhFrontingBenchmarkEnabled,
   startEhDirectConnectionProbe,
   startEhFrontingBenchmark
 } from '../services/EhNetworkConfig';
@@ -1641,9 +1643,9 @@ export struct SettingsScene {
     lines.push('Proxy: ' + proxyDiagnosticText());
     lines.push('Built-in hosts: ' + ehSettingsStore.getValue('built_in_hosts', 'Off'));
     lines.push('Built EX hosts: ' + ehSettingsStore.getValue('built_ex_hosts', 'Off'));
-    lines.push('Domain fronting: ' + ehSettingsStore.getValue('domain_fronting', 'On'));
+    lines.push('Domain fronting: ' + ehSettingsStore.getValue('domain_fronting', 'Off'));
     lines.push('DNS over HTTPS: ' + currentDnsOverHttpsStatusText());
-    lines.push('Direct connection check: ' + ehSettingsStore.getValue('auto_direct_connection', 'On'));
+    lines.push('Direct connection check: ' + ehSettingsStore.getValue('auto_direct_connection', 'Off'));
     lines.push('');
     lines.push(summary);
     lines.push('');
@@ -1662,6 +1664,11 @@ export struct SettingsScene {
   private refreshNetworkRuntime(): void {
     const context = getAbilityContext();
     if (!isEhDirectConnectionProbeEnabled()) {
+      ensureEhHostRules().then(() => {
+        if (isEhFrontingBenchmarkEnabled()) {
+          startEhFrontingBenchmark(context);
+        }
+      }).catch(() => {});
       return;
     }
     startEhDirectConnectionProbe(context).then((directAvailable: boolean) => {

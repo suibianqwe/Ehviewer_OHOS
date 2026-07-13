@@ -1,5 +1,4 @@
 import { common } from '@kit.AbilityKit';
-import { deviceInfo } from '@kit.BasicServicesKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
 import { connection } from '@kit.NetworkKit';
@@ -102,20 +101,27 @@ export interface EhRequestPlan {
   url: string;
   host: string;
   fronted: boolean;
-  sniHost: string;
 }
 
 export function createEhRequestPlan(url: string): EhRequestPlan {
-  refreshNetworkEnvironment();
-  ensureFrontingQualityCacheLoaded();
   const host = requestHost(url);
   const hostHeader = requestHostHeader(url);
+  if (!isEhNetworkProcessingEnabled()) {
+    return {
+      url: url,
+      host: hostHeader,
+      fronted: false
+    };
+  }
+  if (isEhDirectConnectionProbeEnabled()) {
+    refreshNetworkEnvironment();
+  }
+  ensureFrontingQualityCacheLoaded();
   if (shouldUseDirectConnection(host)) {
     return {
       url: url,
       host: hostHeader,
-      fronted: false,
-      sniHost: host
+      fronted: false
     };
   }
   const exFrontingIp = exFrontingIpForUrl(url, host);
@@ -123,8 +129,7 @@ export function createEhRequestPlan(url: string): EhRequestPlan {
     return {
       url: replaceUrlHost(url, exFrontingIp),
       host: hostHeader,
-      fronted: true,
-      sniHost: ''
+      fronted: true
     };
   }
   const eFrontingIp = eFrontingIpForUrl(url, host);
@@ -132,16 +137,22 @@ export function createEhRequestPlan(url: string): EhRequestPlan {
     return {
       url: url,
       host: hostHeader,
-      fronted: false,
-      sniHost: host
+      fronted: false
     };
   }
   return {
     url: replaceUrlHost(url, eFrontingIp),
     host: hostHeader,
-    fronted: true,
-    sniHost: ''
+    fronted: true
   };
+}
+
+function isEhNetworkProcessingEnabled(): boolean {
+  return ehSettingsStore.getValue('built_in_hosts', 'Off') === 'On' ||
+    ehSettingsStore.getValue('built_ex_hosts', 'Off') === 'On' ||
+    ehSettingsStore.getValue('dns_over_https', 'Off') === 'On' ||
+    ehSettingsStore.getValue('domain_fronting', 'Off') === 'On' ||
+    ehSettingsStore.getValue('auto_direct_connection', 'Off') === 'On';
 }
 
 function ensureFrontingQualityCacheLoaded(): void {
@@ -154,19 +165,18 @@ function ensureFrontingQualityCacheLoaded(): void {
 
 export function applyEhNetworkOptions(options: http.HttpRequestOptions, plan: EhRequestPlan): void {
   options.usingCache = false;
-  options.usingProxy = proxyOption();
-  const dohUrl = currentDnsOverHttpsUrl();
-  if (dohUrl.length > 0) {
-    options.dnsOverHttps = dohUrl;
-  }
+  applyConfiguredNetworkOptions(options);
   if (plan.fronted) {
     options.usingProtocol = http.HttpProtocol.HTTP1_1;
     options.remoteValidation = 'skip';
   }
-  if (deviceInfo.apiAvailable(23)) {
-    if (plan.sniHost.length > 0) {
-      options.sniHostName = plan.sniHost;
-    }
+}
+
+export function applyConfiguredNetworkOptions(options: http.HttpRequestOptions): void {
+  options.usingProxy = proxyOption();
+  const dohUrl = currentDnsOverHttpsUrl();
+  if (dohUrl.length > 0) {
+    options.dnsOverHttps = dohUrl;
   }
 }
 
@@ -174,7 +184,6 @@ export function startEhDirectConnectionProbe(context?: common.UIAbilityContext):
   if (context !== undefined) {
     frontingIpCachePath = context.filesDir + '/' + FRONTING_IP_CACHE_FILE_NAME;
   }
-  refreshNetworkEnvironment();
   const key = directProbeKeyValue();
   if (key === 'Off') {
     directProbeGeneration++;
@@ -184,6 +193,7 @@ export function startEhDirectConnectionProbe(context?: common.UIAbilityContext):
     clearDirectHostFailures();
     return Promise.resolve(false);
   }
+  refreshNetworkEnvironment();
   if (directProbePending !== null && directProbeKey === key) {
     return directProbePending;
   }
@@ -213,7 +223,11 @@ export function startEhDirectConnectionProbe(context?: common.UIAbilityContext):
 }
 
 export function isEhDirectConnectionProbeEnabled(): boolean {
-  return ehSettingsStore.getValue('auto_direct_connection', 'On') === 'On';
+  return ehSettingsStore.getValue('auto_direct_connection', 'Off') === 'On';
+}
+
+export function isEhFrontingBenchmarkEnabled(): boolean {
+  return frontingBenchmarkKey() !== 'Off';
 }
 
 export function recordEhRequestOutcome(plan: EhRequestPlan, ok: boolean, elapsedMs: number): void {
@@ -295,7 +309,7 @@ export function startEhFrontingBenchmark(context?: common.UIAbilityContext): voi
 }
 
 export async function ensureEhHostRules(): Promise<void> {
-  if (directProbePassed && ehSettingsStore.getValue('auto_direct_connection', 'On') === 'On') {
+  if (directProbePassed && ehSettingsStore.getValue('auto_direct_connection', 'Off') === 'On') {
     const key = 'Direct';
     if (appliedHostRulesKey !== key) {
       if (appliedHostRulesKey.length > 0) {
@@ -309,9 +323,7 @@ export async function ensureEhHostRules(): Promise<void> {
     ehSettingsStore.getValue('built_ex_hosts', 'Off');
   if (key === 'Off:Off') {
     if (appliedHostRulesKey !== key) {
-      if (appliedHostRulesKey.length > 0) {
-        await waitHostRuleTask(removeKnownHostRules(), 1200);
-      }
+      await waitHostRuleTask(removeKnownHostRules(), 1200);
     }
     appliedHostRulesKey = key;
     return;
@@ -359,31 +371,27 @@ function proxyOption(): boolean | http.HttpProxy {
 }
 
 function eFrontingIpForUrl(url: string, host: string): string {
-  if (shouldUseDirectConnection(host) || ehSettingsStore.getValue('domain_fronting', 'On') !== 'On' ||
+  if (shouldUseDirectConnection(host) || ehSettingsStore.getValue('domain_fronting', 'Off') !== 'On' ||
     !isHttpsUrl(url) || host.length === 0 || !supportsDomainFrontingHost(host)) {
     return '';
   }
   const normalizedHost = host.toLowerCase();
-  if (ehSettingsStore.getValue('built_in_hosts', 'Off') === 'On') {
-    const ip = rotatingIpv4ForHost(normalizedHost, BUILT_IN_RULES);
-    if (ip.length > 0) {
-      return ip;
-    }
+  const ip = rotatingIpv4ForHost(normalizedHost, BUILT_IN_RULES);
+  if (ip.length > 0) {
+    return ip;
   }
   return '';
 }
 
 function exFrontingIpForUrl(url: string, host: string): string {
-  if (shouldUseDirectConnection(host) || ehSettingsStore.getValue('domain_fronting', 'On') !== 'On' ||
+  if (shouldUseDirectConnection(host) || ehSettingsStore.getValue('domain_fronting', 'Off') !== 'On' ||
     !isHttpsUrl(url) || host.length === 0 || !supportsDomainFrontingHost(host)) {
     return '';
   }
   const normalizedHost = host.toLowerCase();
-  if (ehSettingsStore.getValue('built_ex_hosts', 'Off') === 'On') {
-    const ip = rotatingIpv4ForHost(normalizedHost, BUILT_EX_RULES);
-    if (ip.length > 0) {
-      return ip;
-    }
+  const ip = rotatingIpv4ForHost(normalizedHost, BUILT_EX_RULES);
+  if (ip.length > 0) {
+    return ip;
   }
   return '';
 }
@@ -573,7 +581,7 @@ async function requestProbeToCompletion(request: http.HttpRequest, url: string,
 
 function collectFrontingProbeTargets(): HostIpProbeTarget[] {
   const targets: HostIpProbeTarget[] = [];
-  const frontingEnabled = ehSettingsStore.getValue('domain_fronting', 'On') === 'On';
+  const frontingEnabled = ehSettingsStore.getValue('domain_fronting', 'Off') === 'On';
   const builtInHostsEnabled = ehSettingsStore.getValue('built_in_hosts', 'Off') === 'On';
   const builtExHostsEnabled = ehSettingsStore.getValue('built_ex_hosts', 'Off') === 'On';
   if (!frontingEnabled && !builtInHostsEnabled && !builtExHostsEnabled) {
@@ -794,7 +802,7 @@ function isValidIpQuality(item: HostIpQuality): boolean {
 }
 
 function shouldUseDirectConnection(host: string): boolean {
-  if (!directProbePassed || ehSettingsStore.getValue('auto_direct_connection', 'On') !== 'On') {
+  if (!directProbePassed || ehSettingsStore.getValue('auto_direct_connection', 'Off') !== 'On') {
     return false;
   }
   const normalizedHost = host.toLowerCase();
@@ -818,7 +826,7 @@ function shouldUseDirectConnection(host: string): boolean {
 }
 
 function recordDirectRequestOutcome(plan: EhRequestPlan, ok: boolean): void {
-  if (!directProbePassed || ehSettingsStore.getValue('auto_direct_connection', 'On') !== 'On') {
+  if (!directProbePassed || ehSettingsStore.getValue('auto_direct_connection', 'Off') !== 'On') {
     return;
   }
   const host = plan.host.split(':')[0].toLowerCase();
@@ -895,7 +903,7 @@ function clearDirectHostFailures(): void {
 }
 
 function directProbeKeyValue(): string {
-  if (ehSettingsStore.getValue('auto_direct_connection', 'On') !== 'On') {
+  if (ehSettingsStore.getValue('auto_direct_connection', 'Off') !== 'On') {
     return 'Off';
   }
   return ehSettingsStore.getValue('gallery_site', 'E-Hentai') + ':' + proxySettingsKey() + ':' +
@@ -953,7 +961,7 @@ function isKnownProbeTarget(host: string, ip: string): boolean {
 }
 
 function frontingBenchmarkKey(): string {
-  if (ehSettingsStore.getValue('domain_fronting', 'On') !== 'On' &&
+  if (ehSettingsStore.getValue('domain_fronting', 'Off') !== 'On' &&
     ehSettingsStore.getValue('built_in_hosts', 'Off') !== 'On' &&
     ehSettingsStore.getValue('built_ex_hosts', 'Off') !== 'On') {
     return 'Off';
