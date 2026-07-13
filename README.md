@@ -36,7 +36,7 @@
   <tr>
     <td><img src="docs/images/reader-settings.jpg" alt="阅读器设置" width="220" /></td>
     <td><img src="docs/images/gallery-detail-tag-vote.jpg" alt="标签编辑与投票" width="220" /></td>
-    <td><img src="docs/images/split-pane.jpg" alt="宽屏分栏模式" width="440" /></td>
+    <td><img src="docs/images/split-pane.jpg" alt="宽屏分栏模式" width="220" /></td>
   </tr>
   <tr>
     <td align="center">阅读器设置</td>
