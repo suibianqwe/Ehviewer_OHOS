@@ -192,6 +192,7 @@ export struct SettingsScene {
   @StorageProp(SPLIT_PANE_RATIO_REVISION_KEY) @Watch('onSplitPaneRatioRevisionChange') splitPaneRatioRevision: number = 0;
   private client: EhHttpClient = new EhHttpClient();
   private splitDragStartWidth: number = 0;
+  private modelPickerRequestVersion: number = 0;
   @Prop @Watch('onResetVersionChanged') resetVersion: number = 0;
   onMenu: () => void = () => {};
   onSignedIn: () => void = () => {};
@@ -834,6 +835,7 @@ export struct SettingsScene {
   }
 
   private closeOptionPicker(): void {
+    this.modelPickerRequestVersion++;
     this.optionPickerOpen = false;
     this.optionKey = '';
     this.optionTitle = '';
@@ -863,6 +865,7 @@ export struct SettingsScene {
       return;
     }
     const provider = ehSettingsStore.getValue('translation_provider', 'Google Web');
+    const requestVersion = ++this.modelPickerRequestVersion;
     this.optionKey = row.key;
     this.optionTitle = row.title;
     this.optionSummary = row.summary;
@@ -874,6 +877,10 @@ export struct SettingsScene {
     this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
     this.showFloatingStatus('Loading available models...');
     ehTranslationService.fetchAvailableModels(provider).then((models: string[]) => {
+      if (requestVersion !== this.modelPickerRequestVersion || !this.optionPickerOpen ||
+        this.optionKey !== row.key) {
+        return;
+      }
       const options: string[] = [];
       if (row.value.trim().length > 0) {
         options.push(row.value.trim());
@@ -887,6 +894,10 @@ export struct SettingsScene {
       this.showFloatingStatus(models.length > 0 ? 'Available models loaded: ' + models.length.toString() :
         'No available models were returned');
     }).catch((error: Error) => {
+      if (requestVersion !== this.modelPickerRequestVersion || !this.optionPickerOpen ||
+        this.optionKey !== row.key) {
+        return;
+      }
       const message = cleanErrorMessage(error);
       if (message === 'Translation API key is missing' || message === 'No custom translation API is selected') {
         this.showFloatingStatus(message);
@@ -2716,12 +2727,12 @@ export struct SettingsDetailPanel {
 
 @Component
 export struct SettingsOptionPanel {
-  title: string = '';
-  summary: string = '';
-  value: string = '';
-  options: string[] = [];
-  optionDescriptions: string[] = [];
-  allowCustomInput: boolean = false;
+  @Prop title: string = '';
+  @Prop summary: string = '';
+  @Prop value: string = '';
+  @Prop options: string[] = [];
+  @Prop optionDescriptions: string[] = [];
+  @Prop allowCustomInput: boolean = false;
   @State customValue: string = '';
   onBack: () => void = () => {};
   onSelect: (value: string) => void = () => {};
