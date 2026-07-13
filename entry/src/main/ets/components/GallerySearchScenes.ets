@@ -12,7 +12,7 @@ import {
   tagTranslationOptionText,
   uiText
 } from '../shared/EhShared';
-import { themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePrimaryColor, themePrimaryText, themeSecondaryText, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
+import { themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
 
 export interface SearchSuggestionItem {
   kind: string;
@@ -411,6 +411,7 @@ export struct SearchSuggestionList {
     .rowsGap(6)
     .width('100%')
     .height('100%')
+    .backgroundColor(themePageBackground())
     .scrollBar(BarState.Auto)
     .onAppear(() => {
       this.syncContentWidthFromWindow();
@@ -475,7 +476,6 @@ struct SearchSuggestionTile {
     .alignItems(VerticalAlign.Center)
     .backgroundColor(themeSurface())
     .borderRadius(5)
-    .shadow({ radius: 3, color: themeShadowColor(), offsetX: 0, offsetY: 1 })
     .onClick(() => {
       this.onSelect(this.suggestion);
     })

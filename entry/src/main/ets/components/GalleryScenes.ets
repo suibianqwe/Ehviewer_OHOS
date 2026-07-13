@@ -4526,6 +4526,10 @@ export struct GalleryListContent {
     return (this.isSearchResultScene || this.useLocalSearchBar) && !this.searchSubmitted;
   }
 
+  private shouldShowTranslationAction(): boolean {
+    return this.translationButtonsVisible && !this.shouldShowSearchSuggestions() && !this.useStandardTagResultNavBar();
+  }
+
   private refreshSearchSuggestions(namespaces: string[] = this.selectedTagNamespaces): void {
     this.searchSuggestionItems = buildSearchSuggestions(this.keyword, 0, namespaces);
     this.searchSuggestionRevision++;
@@ -4968,7 +4972,7 @@ export struct GalleryListContent {
       // FAB 悬浮按钮
       Column() {
         if (this.shouldShowSearchOnlyFab()) {
-          if (this.translationButtonsVisible) {
+          if (this.shouldShowTranslationAction()) {
             ActionBubble({
               label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
               symbolIcon: $r('sys.symbol.book'),
@@ -5000,7 +5004,7 @@ export struct GalleryListContent {
             canRandom: this.canRandom,
             canImageSearch: !this.useLocalSearchBar,
             canBookmark: this.showBookmarkButton,
-            showTranslationButton: this.translationButtonsVisible,
+            showTranslationButton: this.shouldShowTranslationAction(),
             translationEnabled: this.translationEnabled,
             onToggle: this.onToggleActions,
             onFilter: this.onFilter,

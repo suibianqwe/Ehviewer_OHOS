@@ -321,11 +321,11 @@ export struct GalleryListRow {
       .layoutWeight(1)
 
       Column({ space: this.isLooseLayout() ? 6 : 4 }) {
-        Rating({ rating: this.gallery.rating, indicator: true })
-          .stars(5)
-          .stepSize(0.5)
-          .height(this.ratingHeight())
-          .width(this.ratingWidth())
+        GalleryRatingStars({
+          rating: this.gallery.rating,
+          widthValue: this.ratingWidth(),
+          heightValue: this.ratingHeight()
+        })
         CategoryBadge({
           category: this.gallery.category,
           fontSizeValue: this.categoryFontSize(),
@@ -710,11 +710,7 @@ export struct GalleryThumbCard {
           Row() {
             Column({ space: 6 }) {
               if (showGalleryRating()) {
-                Rating({ rating: this.gallery.rating, indicator: true })
-                  .stars(5)
-                  .stepSize(0.5)
-                  .height(16)
-                  .width(86)
+                GalleryRatingStars({ rating: this.gallery.rating, widthValue: 86, heightValue: 16 })
               }
               CategoryBadge({ category: this.gallery.category })
             }
@@ -746,6 +742,49 @@ export struct GalleryThumbCard {
           this.onLongPress(this.gallery);
         })
     )
+  }
+}
+
+@Component
+struct GalleryRatingStars {
+  @Prop rating: number = 0;
+  @Prop widthValue: number = 86;
+  @Prop heightValue: number = 16;
+
+  private filledWidth(): number {
+    const normalized = Number.isNaN(this.rating) ? 0 : Math.max(0, Math.min(5, this.rating));
+    return this.widthValue * normalized / 5;
+  }
+
+  @Builder
+  private starRow(filled: boolean) {
+    Row({ space: 0 }) {
+      ForEach([0, 1, 2, 3, 4], (_index: number) => {
+        SymbolGlyph(filled ? $r('sys.symbol.star_fill') : $r('sys.symbol.star'))
+          .fontSize(this.heightValue)
+          .fontColor([filled ? '#F4C43F' : themeSecondaryText()])
+          .width(this.widthValue / 5)
+          .height(this.heightValue)
+      }, (index: number) => index.toString())
+    }
+    .width(this.widthValue)
+    .height(this.heightValue)
+    .flexShrink(0)
+  }
+
+  build() {
+    Stack({ alignContent: Alignment.Start }) {
+      this.starRow(false)
+      Row() {
+        this.starRow(true)
+      }
+      .width(this.filledWidth())
+      .height(this.heightValue)
+      .clip(true)
+      .alignItems(VerticalAlign.Center)
+    }
+    .width(this.widthValue)
+    .height(this.heightValue)
   }
 }
 
