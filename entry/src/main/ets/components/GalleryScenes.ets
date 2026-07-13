@@ -4172,7 +4172,7 @@ export struct GalleryListContent {
       galleryThumbHeight();
     return this.searchResultStripHeight() + rows * cardHeight +
       Math.max(0, rows - 1) * this.galleryCardGap() +
-      this.galleryContentPadding();
+      this.galleryCardGap() * 2 + (this.isLoadingMore ? 40 : 0);
   }
 
   private triggerLoadMoreByOffset(offset: number): void {
@@ -4623,10 +4623,35 @@ export struct GalleryListContent {
           })
       }
     }
-    .margin({ bottom: this.galleryCardGap() })
     .reuseId('gallery-card-item')
     .animation({ duration: 220, curve: Curve.EaseOut })
     .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+  }
+
+  @Builder
+  private galleryListEdgeSpacer() {
+    Row()
+      .width('100%')
+      .height(this.galleryCardGap())
+  }
+
+  @Builder
+  private galleryListFooter() {
+    Column() {
+      if (this.isLoadingMore) {
+        Row() {
+          LoadingProgress().width(20).height(20).color(themePlaceholderColor())
+          Text(uiText('Loading...')).fontSize(12).fontColor(themePlaceholderColor()).margin({ left: 6 })
+        }
+        .width('100%')
+        .height(40)
+        .justifyContent(FlexAlign.Center)
+      }
+      Row()
+        .width('100%')
+        .height(this.galleryCardGap())
+    }
+    .width('100%')
   }
 
   build() {
@@ -4650,21 +4675,14 @@ export struct GalleryListContent {
               }
               .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
             } else {
-              ForEach(this.galleries, (gallery: GalleryInfo) => {
-                this.galleryItem(gallery)
-              }, (gallery: GalleryInfo) => this.galleryCardKey(gallery))
-
-              // Load-more indicator.
-              if (this.isLoadingMore) {
-                ListItem() {
-                  Row() {
-                    LoadingProgress().width(20).height(20).color(themePlaceholderColor())
-                    Text(uiText('Loading...')).fontSize(12).fontColor(themePlaceholderColor()).margin({ left: 6 })
-                  }
-                  .width('100%')
-                  .height(40)
-                  .justifyContent(FlexAlign.Center)
-                }
+              ListItemGroup({
+                header: this.galleryListEdgeSpacer(),
+                footer: this.galleryListFooter(),
+                space: this.galleryCardGap()
+              }) {
+                ForEach(this.galleries, (gallery: GalleryInfo) => {
+                  this.galleryItem(gallery)
+                }, (gallery: GalleryInfo) => this.galleryCardKey(gallery))
               }
             }
           }
@@ -4674,8 +4692,7 @@ export struct GalleryListContent {
           .cachedCount(10)
           .padding({
             left: this.galleries.length > 0 ? this.galleryContentPadding() : 0,
-            right: this.galleries.length > 0 ? this.galleryContentPadding() : 0,
-            top: this.galleries.length > 0 ? this.galleryCardGap() : 0
+            right: this.galleries.length > 0 ? this.galleryContentPadding() : 0
           })
           .width('100%')
           .height(this.listViewportHeight())
