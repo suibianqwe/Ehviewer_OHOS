@@ -3376,6 +3376,20 @@ export function galleryThumbWidth(): number {
   return 86;
 }
 
+export function galleryThumbnailPreferredColumnWidth(): number {
+  const thumbnailWidth = galleryThumbWidth();
+  if (thumbnailWidth <= 70) {
+    return 132;
+  }
+  if (thumbnailWidth >= 124) {
+    return 216;
+  }
+  if (thumbnailWidth >= 104) {
+    return 184;
+  }
+  return 156;
+}
+
 export function galleryThumbHeight(): number {
   const value = ehSettingsStore.getValue('thumb_size', 'Medium');
   if (value === 'Small') {

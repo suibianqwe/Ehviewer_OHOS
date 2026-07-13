@@ -121,7 +121,7 @@ import {
   galleryListMode,
   categoryName,
   galleryDisplayTitle,
-  galleryThumbWidth,
+  galleryThumbnailPreferredColumnWidth,
   galleryThumbHeight,
   toggleGalleryDownload,
   downloadButtonText,
@@ -4245,14 +4245,7 @@ export struct GalleryListContent {
     if (galleryListMode() === 'Detail') {
       return 340;
     }
-    const value = galleryThumbWidth();
-    if (value <= 70) {
-      return 116;
-    }
-    if (value >= 104) {
-      return 164;
-    }
-    return 136;
+    return galleryThumbnailPreferredColumnWidth();
   }
 
   private galleryCardGap(): number {
@@ -4693,6 +4686,7 @@ export struct GalleryListContent {
           this.onSelectGallery(gallery);
         })
     }
+    .width('100%')
     .reuseId('gallery-thumb-flow-item')
     .animation({ duration: 220, curve: Curve.EaseOut })
     .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))

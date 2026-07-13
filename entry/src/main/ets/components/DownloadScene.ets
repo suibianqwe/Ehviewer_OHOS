@@ -53,7 +53,7 @@ import {
   downloadStateLabel,
   filterDownloadItems,
   galleryListMode,
-  galleryThumbWidth,
+  galleryThumbnailPreferredColumnWidth,
   getAbilityContext,
   nextDownloadStatusFilter,
   uiText,
@@ -752,14 +752,7 @@ export struct DownloadScene {
 
   private downloadCardPreferredWidth(): number {
     if (galleryListMode() === 'Thumb') {
-      const value = galleryThumbWidth();
-      if (value <= 70) {
-        return 116;
-      }
-      if (value >= 104) {
-        return 164;
-      }
-      return 136;
+      return galleryThumbnailPreferredColumnWidth();
     }
     return 340;
   }
@@ -1404,6 +1397,7 @@ export struct DownloadScene {
         FlowItem() {
           this.downloadCardContent(item)
         }
+        .width('100%')
         .reuseId('download-thumb-flow-item')
         .animation({ duration: 220, curve: Curve.EaseOut })
         .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))

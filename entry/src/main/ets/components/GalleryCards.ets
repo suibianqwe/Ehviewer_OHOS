@@ -471,6 +471,7 @@ export struct GalleryThumbCard {
           Column() {
             Text(galleryDisplayTitle(this.gallery))
               .fontSize(12)
+              .lineHeight(16)
               .fontWeight(FontWeight.Medium)
               .fontColor(themePrimaryText())
               .maxLines(2)
@@ -478,8 +479,6 @@ export struct GalleryThumbCard {
               .width('100%')
           }
           .width('100%')
-          .height(32)
-          .clip(true)
           .justifyContent(FlexAlign.Start)
           .alignItems(HorizontalAlign.Start)
 
