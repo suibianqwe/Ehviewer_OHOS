@@ -3,7 +3,7 @@ import { GalleryComment } from '../model/GalleryModels';
 import { GalleryTagInfo } from '../model/GalleryModels';
 import { ArchiveOption, ArchiverInfo, ArchiverOption, HathArchiveList, TorrentInfo } from '../model/GalleryModels';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
-import { TRANSLATION_ENABLED_KEY } from '../services/EhTranslationService';
+import { TRANSLATION_ENABLED_KEY, ehTranslationService } from '../services/EhTranslationService';
 import { TRANSLATION_BUTTONS_VISIBLE_KEY } from '../services/EhSettingsStore';
 import {
   LANGUAGE_REVISION_KEY,
@@ -365,7 +365,7 @@ export struct GalleryDetailScene {
           actionIcon: $r('sys.symbol.translate'),
           onBack: this.onBack,
           onAction: () => {
-            this.translationEnabled = !this.translationEnabled;
+            ehTranslationService.setEnabled(!this.translationEnabled);
           }
         })
 

@@ -14,7 +14,7 @@ const FRONTING_PROBE_DEADLINE_MS: number = 4500;
 const FRONTING_PROBE_CONCURRENCY: number = 4;
 const FRONTING_FAST_IP_LIMIT: number = 3;
 const DIRECT_PROBE_TIMEOUT_MS: number = 5000;
-const DIRECT_HOST_FAILURE_THRESHOLD: number = 2;
+const DIRECT_HOST_FAILURE_THRESHOLD: number = 1;
 const DIRECT_HOST_BLOCK_MS: number = 120000;
 const IP_FAILURE_LATENCY_PENALTY_MS: number = 2500;
 const IP_SUCCESS_LATENCY_BONUS_MS: number = 120;
@@ -52,8 +52,10 @@ let frontingProbePending: Promise<void> | null = null;
 let frontingIpCachePath: string = '';
 let frontingIpCacheLoadedKey: string = '';
 let directProbeKey: string = '';
+let directProbeGeneration: number = 0;
 let directProbePending: Promise<boolean> | null = null;
 let directProbePassed: boolean = false;
+let observedNetworkEnvironmentKey: string = '';
 let lastIpQualitySaveAt: number = 0;
 const DIRECT_HOST_FAILURES: DirectHostFailure[] = [];
 
@@ -104,6 +106,7 @@ export interface EhRequestPlan {
 }
 
 export function createEhRequestPlan(url: string): EhRequestPlan {
+  refreshNetworkEnvironment();
   ensureFrontingQualityCacheLoaded();
   const host = requestHost(url);
   const hostHeader = requestHostHeader(url);
@@ -171,9 +174,12 @@ export function startEhDirectConnectionProbe(context?: common.UIAbilityContext):
   if (context !== undefined) {
     frontingIpCachePath = context.filesDir + '/' + FRONTING_IP_CACHE_FILE_NAME;
   }
+  refreshNetworkEnvironment();
   const key = directProbeKeyValue();
   if (key === 'Off') {
+    directProbeGeneration++;
     directProbeKey = key;
+    directProbePending = null;
     directProbePassed = false;
     clearDirectHostFailures();
     return Promise.resolve(false);
@@ -183,22 +189,24 @@ export function startEhDirectConnectionProbe(context?: common.UIAbilityContext):
   }
   directProbeKey = key;
   directProbePassed = false;
+  directProbeGeneration++;
+  const generation = directProbeGeneration;
   directProbePending = removeKnownHostRules().then(() => {
     return probeDirectSelectedSite();
   }).then((passed: boolean) => {
-    if (directProbeKey === key) {
+    if (generation === directProbeGeneration && directProbeKey === key) {
       directProbePassed = passed;
       if (passed) {
         clearDirectHostFailures();
       }
+      directProbePending = null;
     }
-    directProbePending = null;
     return passed;
   }).catch(() => {
-    if (directProbeKey === key) {
+    if (generation === directProbeGeneration && directProbeKey === key) {
       directProbePassed = false;
+      directProbePending = null;
     }
-    directProbePending = null;
     return false;
   });
   return directProbePending;
@@ -888,7 +896,7 @@ function directProbeKeyValue(): string {
     return 'Off';
   }
   return ehSettingsStore.getValue('gallery_site', 'E-Hentai') + ':' + proxySettingsKey() + ':' +
-    dohSettingsKey();
+    dohSettingsKey() + ':' + currentNetworkEnvironmentKey();
 }
 
 function selectedGalleryHost(): string {
@@ -948,7 +956,53 @@ function frontingBenchmarkKey(): string {
   return ehSettingsStore.getValue('built_in_hosts', 'Off') + ':' +
     ehSettingsStore.getValue('built_ex_hosts', 'Off') + ':' +
     proxySettingsKey() + ':' +
-    dohSettingsKey();
+    dohSettingsKey() + ':' + currentNetworkEnvironmentKey();
+}
+
+function refreshNetworkEnvironment(): void {
+  const key = currentNetworkEnvironmentKey();
+  if (key.length === 0) {
+    return;
+  }
+  if (observedNetworkEnvironmentKey.length === 0) {
+    observedNetworkEnvironmentKey = key;
+    return;
+  }
+  if (observedNetworkEnvironmentKey === key) {
+    return;
+  }
+  observedNetworkEnvironmentKey = key;
+  directProbeGeneration++;
+  directProbeKey = '';
+  directProbePending = null;
+  directProbePassed = false;
+  clearDirectHostFailures();
+  frontingProbeGeneration++;
+  frontingProbeKey = '';
+  frontingProbePending = null;
+  frontingIpCacheLoadedKey = '';
+  HOST_IP_CURSORS.splice(0, HOST_IP_CURSORS.length);
+  HOST_IP_QUALITIES.splice(0, HOST_IP_QUALITIES.length);
+}
+
+function currentNetworkEnvironmentKey(): string {
+  try {
+    const networks = connection.getAllNetsSync();
+    const entries: string[] = [];
+    for (let i = 0; i < networks.length; i++) {
+      const capabilities = connection.getNetCapabilitiesSync(networks[i]);
+      const bearerTypes: number[] = [];
+      for (let j = 0; j < capabilities.bearerTypes.length; j++) {
+        bearerTypes.push(capabilities.bearerTypes[j] as number);
+      }
+      bearerTypes.sort((left: number, right: number): number => left - right);
+      entries.push(networks[i].netId.toString() + ':' + bearerTypes.join(','));
+    }
+    entries.sort();
+    return entries.join('|');
+  } catch (error) {
+    return '';
+  }
 }
 
 function requestHost(url: string): string {

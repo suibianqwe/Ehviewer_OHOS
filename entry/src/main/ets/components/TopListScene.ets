@@ -1,7 +1,7 @@
 import { GalleryCategory, GalleryDetail, GalleryRoute, GallerySite, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
 import { EhHttpClient, TopListLoadResult } from '../services/EhHttpClient';
 import { AsyncRequestGate } from '../services/AsyncRequestGate';
-import { TRANSLATION_ENABLED_KEY } from '../services/EhTranslationService';
+import { TRANSLATION_ENABLED_KEY, ehTranslationService } from '../services/EhTranslationService';
 import { TRANSLATION_BUTTONS_VISIBLE_KEY } from '../services/EhSettingsStore';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
 import { DetailSearchRequest } from '../services/GalleryDetailActionSupport';
@@ -783,7 +783,7 @@ export struct TopListScene {
               primary: true,
               directTap: true,
               onTapAction: () => {
-                this.translationEnabled = !this.translationEnabled;
+                ehTranslationService.setEnabled(!this.translationEnabled);
               }
             })
           }

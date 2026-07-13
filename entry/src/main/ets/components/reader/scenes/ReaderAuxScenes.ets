@@ -1,5 +1,5 @@
 import { GalleryComment } from '../../../model/GalleryModels';
-import { TRANSLATION_ENABLED_KEY } from '../../../services/EhTranslationService';
+import { TRANSLATION_ENABLED_KEY, ehTranslationService } from '../../../services/EhTranslationService';
 import { TRANSLATION_BUTTONS_VISIBLE_KEY } from '../../../services/EhSettingsStore';
 import { uiText } from '../../../shared/EhShared';
 import {
@@ -39,7 +39,7 @@ export struct CommentsScene {
         actionIcon: $r('sys.symbol.translate'),
         onBack: this.onBack,
         onAction: () => {
-          this.translationEnabled = !this.translationEnabled;
+          ehTranslationService.setEnabled(!this.translationEnabled);
         }
       })
       Row() {

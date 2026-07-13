@@ -148,8 +148,18 @@ const SLOT_WAITERS: TranslationSlotWaiter[] = [];
 let activeRequests: number = 0;
 let lastTranslationErrorAt: number = 0;
 let lastTranslationErrorMessage: string = '';
+let translationSessionRevision: number = 0;
 
 export class EhTranslationService {
+  setEnabled(enabled: boolean): void {
+    const wasEnabled = AppStorage.get<boolean>(TRANSLATION_ENABLED_KEY) === true;
+    if (enabled && !wasEnabled) {
+      translationSessionRevision++;
+      this.clearCache();
+    }
+    AppStorage.setOrCreate<boolean>(TRANSLATION_ENABLED_KEY, enabled);
+  }
+
   async translateTitle(text: string): Promise<string> {
     return this.translate(text, 'gallery title');
   }
@@ -165,7 +175,8 @@ export class EhTranslationService {
     }
     const provider = ehSettingsStore.getValue('translation_provider', 'Google Web');
     const target = ehSettingsStore.getValue('translation_target_language', 'Simplified Chinese');
-    const key = translationConfigurationKey(provider, target) + '\n' + contentKind + '\n' + source;
+    const key = translationSessionRevision.toString() + '\n' +
+      translationConfigurationKey(provider, target) + '\n' + contentKind + '\n' + source;
     const cached = getCachedTranslation(key);
     if (cached !== null) {
       return cached;

@@ -478,7 +478,7 @@ export struct SettingsScene {
       this.ensureCustomTranslationApi();
     }
     if (key === 'translation_buttons_enabled' && normalizedValue !== 'On') {
-      AppStorage.setOrCreate<boolean>(TRANSLATION_ENABLED_KEY, false);
+      ehTranslationService.setEnabled(false);
     }
     if (isTranslationSettingKey(key)) {
       ehTranslationService.clearCache();

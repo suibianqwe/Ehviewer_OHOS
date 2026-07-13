@@ -18,7 +18,7 @@ import { TRANSLATION_BUTTONS_VISIBLE_KEY, ehSettingsStore } from '../services/Eh
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { AsyncRequestGate } from '../services/AsyncRequestGate';
 import { gallerySiteCandidates } from '../services/EhGallerySiteFallback';
-import { TRANSLATION_ENABLED_KEY } from '../services/EhTranslationService';
+import { TRANSLATION_ENABLED_KEY, ehTranslationService } from '../services/EhTranslationService';
 import { DetailSearchRequest } from '../services/GalleryDetailActionSupport';
 import {
   createGalleryDetailLink,
@@ -4980,7 +4980,7 @@ export struct GalleryListContent {
               checked: this.translationEnabled,
               directTap: true,
               onTapAction: () => {
-                this.translationEnabled = !this.translationEnabled;
+                ehTranslationService.setEnabled(!this.translationEnabled);
               }
             })
               .margin({ bottom: 10 })
@@ -5013,7 +5013,7 @@ export struct GalleryListContent {
             },
             onRefresh: this.onRefresh,
             onTranslate: () => {
-              this.translationEnabled = !this.translationEnabled;
+              ehTranslationService.setEnabled(!this.translationEnabled);
             },
             onRandom: this.onRandom,
             onImageSearch: () => {

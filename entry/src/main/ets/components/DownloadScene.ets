@@ -14,7 +14,7 @@ import {
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { DownloadInfo, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import { TRANSLATION_BUTTONS_VISIBLE_KEY, ehSettingsStore } from '../services/EhSettingsStore';
-import { TRANSLATION_ENABLED_KEY } from '../services/EhTranslationService';
+import { TRANSLATION_ENABLED_KEY, ehTranslationService } from '../services/EhTranslationService';
 import {
   DownloadRestoreResult,
   DownloadZipImportResult,
@@ -1692,7 +1692,7 @@ export struct DownloadScene {
                 this.restoreDownloadedItems();
               },
               onTranslate: () => {
-                this.translationEnabled = !this.translationEnabled;
+                ehTranslationService.setEnabled(!this.translationEnabled);
               },
               onSelectAll: () => {
                 this.selectAllFinishedDownloads();
