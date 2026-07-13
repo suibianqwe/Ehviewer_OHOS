@@ -1,7 +1,7 @@
 import { pasteboard } from '@kit.BasicServicesKit';
 import { GalleryDetail } from '../../model/GalleryModels';
 import {
-  categoryName,
+  categoryDisplayName,
   createEmptyDetail,
   uiText
 } from '../../shared/EhShared';
@@ -148,7 +148,7 @@ export struct GalleryInfoScene {
     rows.push({ key: 'Title', value: this.valueOrDash(this.detail.title) });
     rows.push({ key: 'Jpn Title', value: this.valueOrDash(this.detail.titleJpn) });
     rows.push({ key: 'Thumb', value: this.valueOrDash(this.detail.thumb) });
-    rows.push({ key: 'Category', value: categoryName(this.detail.category) });
+    rows.push({ key: 'Category', value: categoryDisplayName(this.detail.category) });
     rows.push({ key: 'Uploader', value: this.valueOrDash(this.detail.uploader) });
     rows.push({ key: 'Posted', value: this.valueOrDash(this.detail.posted) });
     rows.push({ key: 'Parent', value: this.valueOrDash(this.detail.parent) });

@@ -1370,8 +1370,7 @@ export struct DownloadScene {
     .cachedCount(4)
     .padding({
       left: this.downloadContentPadding(),
-      right: this.downloadContentPadding(),
-      top: this.downloadCardGap()
+      right: this.downloadContentPadding()
     })
     .translate({ y: this.downloadContentStartOffset() })
     .onAreaChange((_oldArea: Area, newArea: Area) => {
@@ -1413,7 +1412,6 @@ export struct DownloadScene {
     .padding({
       left: this.downloadContentPadding(),
       right: this.downloadContentPadding(),
-      top: this.downloadCardGap(),
       bottom: this.downloadCardGap()
     })
     .translate({ y: this.downloadContentStartOffset() })

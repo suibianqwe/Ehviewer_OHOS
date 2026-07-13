@@ -1,6 +1,11 @@
 import { GalleryTagGroup, GalleryTagInfo } from '../../model/GalleryModels';
 import { ehTagTranslationStore, EhTagSuggestion } from '../../services/EhTagTranslationStore';
-import { LANGUAGE_REVISION_KEY, shouldShowTagTranslations, uiText } from '../../shared/EhShared';
+import {
+  LANGUAGE_REVISION_KEY,
+  shouldShowTagTranslations,
+  tagNamespaceDisplayName,
+  uiText
+} from '../../shared/EhShared';
 import { sortedStringKey, toggleStringValue } from '../../shared/StringCollectionSupport';
 import {
   themeFieldBackground,
@@ -71,7 +76,7 @@ export struct DetailTags {
 
   private refreshSuggestions(): void {
     const active = activeTagText(this.addTagText);
-    if (active.length < 2) {
+    if (active.length === 0) {
       this.suggestions = [];
       this.suggestionRevision++;
       return;
@@ -293,7 +298,7 @@ export struct TagGroupRow {
 
   build() {
     Row() {
-      Text(uiText(this.group.namespace))
+      Text(tagNamespaceDisplayName(this.group.namespace))
         .fontSize(14)
         .fontColor(themeSecondaryText())
         .width(80)
@@ -387,7 +392,7 @@ function buildDetailTagSuggestions(text: string, limit: number, namespaces: stri
   }
   const namespace = normalizeTagNamespace(trimmed.substring(0, colon));
   const keyword = trimmed.substring(colon + 1).trim();
-  if (keyword.length < 2) {
+  if (keyword.length === 0) {
     return [];
   }
   const selectedNamespaces = namespace.length > 0 ? [namespace] : namespaces;
@@ -395,10 +400,11 @@ function buildDetailTagSuggestions(text: string, limit: number, namespaces: stri
   const result: SearchSuggestionItem[] = [];
   for (let i = 0; i < tags.length; i++) {
     const tag: EhTagSuggestion = tags[i];
+    const translated = shouldShowTagTranslations() && tag.translated.length > 0;
     result.push({
       kind: 'tag',
-      title: tag.translated,
-      subtitle: tag.tag,
+      title: translated ? tag.translated : tag.tag,
+      subtitle: translated ? tag.tag : '',
       query: tag.tag,
       translated: tag.translated,
       namespace: tag.namespace

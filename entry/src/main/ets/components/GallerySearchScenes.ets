@@ -3,7 +3,15 @@ import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
 import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { mainContentWidthFallbackVp } from '../services/EhWindowImmersive';
-import { LANGUAGE_REVISION_KEY, categoryColor, uiText } from '../shared/EhShared';
+import {
+  LANGUAGE_REVISION_KEY,
+  categoryColor,
+  categoryDisplayName,
+  shouldShowTagTranslations,
+  tagNamespaceDisplayName,
+  tagTranslationOptionText,
+  uiText
+} from '../shared/EhShared';
 import { themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePrimaryColor, themePrimaryText, themeSecondaryText, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
 
 export interface SearchSuggestionItem {
@@ -31,7 +39,6 @@ interface SearchModeOption {
 }
 
 interface TagNamespaceOption {
-  label: string;
   value: string;
 }
 
@@ -41,18 +48,18 @@ const ACTION_BUBBLE_GAP: number = 8;
 const ACTION_BUBBLE_PRIMARY_SIZE: number = 54;
 const ACTION_BUBBLE_PRIMARY_GAP: number = 10;
 const TAG_NAMESPACE_OPTIONS: TagNamespaceOption[] = [
-  { label: 'Artist', value: 'artist' },
-  { label: 'Group', value: 'group' },
-  { label: 'Parody', value: 'parody' },
-  { label: 'Character', value: 'character' },
-  { label: 'Female', value: 'female' },
-  { label: 'Male', value: 'male' },
-  { label: 'Mixed', value: 'mixed' },
-  { label: 'Language', value: 'language' },
-  { label: 'Cosplayer', value: 'cosplayer' },
-  { label: 'Other', value: 'other' },
-  { label: 'Location', value: 'location' },
-  { label: 'Rows', value: 'rows' }
+  { value: 'artist' },
+  { value: 'group' },
+  { value: 'parody' },
+  { value: 'character' },
+  { value: 'female' },
+  { value: 'male' },
+  { value: 'mixed' },
+  { value: 'language' },
+  { value: 'cosplayer' },
+  { value: 'other' },
+  { value: 'location' },
+  { value: 'rows' }
 ];
 
 function isDefaultFilterDisableFlag(flag: number): boolean {
@@ -113,6 +120,23 @@ export function searchTagTokenLabel(token: string): string {
     value = value.substring(colon + 1).trim();
   }
   return value.replace(/\s+/g, ' ').trim();
+}
+
+export function searchTagTokenDisplayLabel(token: string): string {
+  let value = token.trim();
+  if (value.endsWith('$')) {
+    value = value.substring(0, value.length - 1).trim();
+  }
+  const colon = value.indexOf(':');
+  const namespace = colon > 0 ? value.substring(0, colon).trim() : '';
+  const tag = colon >= 0 && colon < value.length - 1 ? value.substring(colon + 1).trim() : value;
+  if (shouldShowTagTranslations()) {
+    const translated = ehTagTranslationStore.translate(namespace, tag);
+    if (translated.length > 0) {
+      return translated;
+    }
+  }
+  return searchTagTokenLabel(token).replace(/_/g, ' ').replace(/\$/g, ' ').trim();
 }
 
 export function searchKeywordForRequest(keyword: string): string {
@@ -236,10 +260,11 @@ export function buildSearchSuggestions(keyword: string, limit: number = 0,
   const tags = ehTagTranslationStore.suggest(active, limit, namespaces);
   for (let i = 0; i < tags.length; i++) {
     const tag = tags[i];
+    const translated = shouldShowTagTranslations() && tag.translated.length > 0;
     next.push({
       kind: 'tag',
-      title: tag.translated,
-      subtitle: tag.tag,
+      title: translated ? tag.translated : tag.tag,
+      subtitle: translated ? tag.tag : '',
       query: tag.tag,
       translated: tag.translated,
       namespace: tag.namespace
@@ -253,6 +278,7 @@ export struct SearchSummaryStrip {
   @Prop selectedTagNamespaces: string[] = [];
   @Prop selectedTagNamespaceKey: string = '';
   @Prop revision: number = 0;
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   onToggleTagNamespace: (namespace: string) => void = (_namespace: string) => {};
 
   build() {
@@ -260,7 +286,7 @@ export struct SearchSummaryStrip {
       Row({ space: 6 }) {
         ForEach(TAG_NAMESPACE_OPTIONS, (option: TagNamespaceOption, index: number) => {
           SearchNamespaceChip({
-            label: option.label,
+            label: tagNamespaceDisplayName(option.value),
             paletteIndex: index,
             isActive: this.namespaceSelected(option.value),
             revision: this.revision,
@@ -268,7 +294,7 @@ export struct SearchSummaryStrip {
               this.onToggleTagNamespace(option.value);
             }
           })
-        }, (option: TagNamespaceOption) => option.value)
+        }, (option: TagNamespaceOption) => option.value + ':' + this.languageRevision.toString())
       }
     }
     .width('100%')
@@ -480,7 +506,7 @@ struct SearchNamespaceChip {
   }
 
   build() {
-    Button(uiText(this.label), { type: ButtonType.Normal, stateEffect: true })
+    Button(this.label, { type: ButtonType.Normal, stateEffect: true })
       .width(102)
       .height(34)
       .fontSize(16)
@@ -546,16 +572,16 @@ export struct SearchAdvancedPanel {
   }
   private categoryOptions(): SearchCategoryOption[] {
     return [
-      { label: 'Doujinshi', category: GalleryCategory.Doujinshi },
-      { label: 'Manga', category: GalleryCategory.Manga },
-      { label: 'Artist CG', category: GalleryCategory.ArtistCg },
-      { label: 'Game CG', category: GalleryCategory.GameCg },
-      { label: 'Image Set', category: GalleryCategory.ImageSet },
-      { label: 'Cosplay', category: GalleryCategory.Cosplay },
-      { label: 'Asian Porn', category: GalleryCategory.AsianPorn },
-      { label: 'Non-H', category: GalleryCategory.NonH },
-      { label: 'Western', category: GalleryCategory.Western },
-      { label: 'Misc', category: GalleryCategory.Misc }
+      { label: categoryDisplayName(GalleryCategory.Doujinshi), category: GalleryCategory.Doujinshi },
+      { label: categoryDisplayName(GalleryCategory.Manga), category: GalleryCategory.Manga },
+      { label: categoryDisplayName(GalleryCategory.ArtistCg), category: GalleryCategory.ArtistCg },
+      { label: categoryDisplayName(GalleryCategory.GameCg), category: GalleryCategory.GameCg },
+      { label: categoryDisplayName(GalleryCategory.ImageSet), category: GalleryCategory.ImageSet },
+      { label: categoryDisplayName(GalleryCategory.Cosplay), category: GalleryCategory.Cosplay },
+      { label: categoryDisplayName(GalleryCategory.AsianPorn), category: GalleryCategory.AsianPorn },
+      { label: categoryDisplayName(GalleryCategory.NonH), category: GalleryCategory.NonH },
+      { label: categoryDisplayName(GalleryCategory.Western), category: GalleryCategory.Western },
+      { label: categoryDisplayName(GalleryCategory.Misc), category: GalleryCategory.Misc }
     ];
   }
 
@@ -656,8 +682,12 @@ export struct SearchAdvancedPanel {
           }
           .width('100%')
 
-          this.sectionTitle('Categories')
-          Button(uiText('All categories'))
+          Text(tagTranslationOptionText('Categories', '分类'))
+            .fontSize(12)
+            .fontColor(themeSecondaryText())
+            .fontWeight(FontWeight.Medium)
+            .margin({ top: 4 })
+          Button(tagTranslationOptionText('All categories', '全部分类'))
             .height(32)
             .fontSize(14)
             .fontColor(this.allCategoriesSelected() ? themeOnPrimaryText() : themeSecondaryText())
@@ -1154,7 +1184,7 @@ export struct SearchCategoryChip {
   }
 
   build() {
-    Button(uiText(this.label))
+    Button(this.label)
       .height(32)
       .fontSize(14)
       .fontWeight(FontWeight.Bold)

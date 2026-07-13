@@ -178,7 +178,7 @@ export function shouldUseChineseUi(): boolean {
 }
 
 export function shouldShowTagTranslations(): boolean {
-  return shouldUseChineseUi() && ehSettingsStore.getValue('show_tag_translations', 'On') === 'On';
+  return ehSettingsStore.getValue('show_tag_translations', 'On') === 'On';
 }
 
 function isSystemChineseLanguage(): boolean {
@@ -3322,6 +3322,75 @@ export function categoryName(category: number): string {
     default:
       return 'UNKNOWN';
   }
+}
+
+export function categoryDisplayName(category: number): string {
+  if (!shouldShowTagTranslations()) {
+    return categoryName(category);
+  }
+  switch (category) {
+    case GalleryCategory.Misc:
+      return '杂项';
+    case GalleryCategory.Doujinshi:
+      return '同人志';
+    case GalleryCategory.Manga:
+      return '漫画';
+    case GalleryCategory.ArtistCg:
+      return '艺术家 CG';
+    case GalleryCategory.GameCg:
+      return '游戏 CG';
+    case GalleryCategory.ImageSet:
+      return '图集';
+    case GalleryCategory.Cosplay:
+      return '角色扮演';
+    case GalleryCategory.AsianPorn:
+      return '亚洲色情';
+    case GalleryCategory.NonH:
+      return '非 H';
+    case GalleryCategory.Western:
+      return '西方';
+    default:
+      return '未知';
+  }
+}
+
+export function tagNamespaceDisplayName(namespace: string): string {
+  const normalized = namespace.trim().toLowerCase();
+  if (!shouldShowTagTranslations()) {
+    return normalized;
+  }
+  switch (normalized) {
+    case 'artist':
+      return '艺术家';
+    case 'group':
+      return '社团';
+    case 'parody':
+      return '原作';
+    case 'character':
+      return '角色';
+    case 'female':
+      return '女性';
+    case 'male':
+      return '男性';
+    case 'mixed':
+      return '混合';
+    case 'language':
+      return '语言';
+    case 'cosplayer':
+      return '角色扮演者';
+    case 'other':
+      return '其他';
+    case 'location':
+      return '地点';
+    case 'rows':
+      return '行数';
+    default:
+      return normalized;
+  }
+}
+
+export function tagTranslationOptionText(original: string, translated: string): string {
+  return shouldShowTagTranslations() ? translated : original;
 }
 
 export function categoryColor(category: number): string {

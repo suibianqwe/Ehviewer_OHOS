@@ -175,7 +175,7 @@ export struct FilterPanel {
       return;
     }
     const text = this.draftText.trim();
-    if (activeFilterTagText(text).length < 2) {
+    if (activeFilterTagText(text).length === 0) {
       this.tagSuggestions = [];
       this.suggestionRevision++;
       return;

@@ -1,7 +1,7 @@
 ﻿import { GalleryDetail } from '../../model/GalleryModels';
 import {
   categoryColor,
-  categoryName,
+  categoryDisplayName,
   createEmptyDetail,
   galleryDisplayTitle,
   uiStatusText,
@@ -135,7 +135,7 @@ struct DetailCategoryBadge {
   onTap: () => void = () => {};
 
   build() {
-    Text(categoryName(this.category))
+    Text(categoryDisplayName(this.category))
       .fontSize(14)
       .fontWeight(FontWeight.Bold)
       .fontColor(Color.White)

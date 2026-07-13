@@ -95,6 +95,7 @@ import {
   SearchSummaryStrip,
   searchKeywordForRequest,
   searchKeywordWithoutTagTokens,
+  searchTagTokenDisplayLabel,
   searchTagTokenLabel,
   searchTagTokens,
   recordSearchHistory
@@ -119,7 +120,7 @@ import {
   effectiveListSite,
   galleryListFailureMessage,
   galleryListMode,
-  categoryName,
+  categoryDisplayName,
   galleryDisplayTitle,
   galleryDetailCardHeight,
   galleryDetailCardMinWidth,
@@ -2170,7 +2171,7 @@ export struct GalleryListScene {
       return uiText('Whats Hot');
     }
     if (category !== GalleryCategory.None && category !== ALL_CATEGORY) {
-      return categoryName(category);
+      return categoryDisplayName(category);
     }
     return uiText('Homepage');
   }
@@ -4367,7 +4368,7 @@ export struct GalleryListContent {
   @Builder
   private searchTagChip(token: string) {
     Row({ space: 4 }) {
-      Text(searchTagTokenLabel(token))
+      Text(searchTagTokenDisplayLabel(token))
         .fontSize(12)
         .fontColor(themeOnPrimaryText())
         .maxLines(1)

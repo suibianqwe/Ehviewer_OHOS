@@ -1,9 +1,10 @@
 import { GalleryCategory, GalleryInfo } from '../model/GalleryModels';
 import { ehHistoryStore } from '../services/EhHistoryStore';
+import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import {
   cacheThumbnailImage,
   categoryColor,
-  categoryName,
+  categoryDisplayName,
   createEmptyGallery,
   galleryDetailCardBaseHeight,
   galleryDetailCardHeight,
@@ -13,10 +14,12 @@ import {
   galleryListMode,
   GALLERY_TITLE_REVISION_KEY,
   HISTORY_READ_REVISION_KEY,
+  LANGUAGE_REVISION_KEY,
   readerLocalImageSource,
   showGalleryLanguage,
   showGalleryPages,
   showGalleryRating,
+  shouldShowTagTranslations,
   uiText
 } from '../shared/EhShared';
 import {
@@ -73,6 +76,7 @@ export struct GalleryListRow {
   };
   @StorageProp(HISTORY_READ_REVISION_KEY) historyReadRevision: number = 0;
   @StorageProp(GALLERY_TITLE_REVISION_KEY) galleryTitleRevision: number = 0;
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
   private cardHeight(): number {
     return galleryDetailCardHeight();
@@ -255,10 +259,15 @@ export struct GalleryListRow {
 
   private tagDisplayText(tag: string): string {
     const colon = tag.indexOf(':');
-    if (colon >= 0 && colon < tag.length - 1) {
-      return tag.substring(colon + 1);
+    const namespace = colon > 0 ? tag.substring(0, colon).trim() : '';
+    const value = colon >= 0 && colon < tag.length - 1 ? tag.substring(colon + 1).trim() : tag.trim();
+    if (shouldShowTagTranslations()) {
+      const translated = ehTagTranslationStore.translate(namespace, value);
+      if (translated.length > 0) {
+        return translated;
+      }
     }
-    return tag;
+    return value;
   }
 
   @Builder
@@ -376,25 +385,31 @@ export struct GalleryListRow {
 
   @Builder
   private extendedTagArea() {
-    Flex({ wrap: FlexWrap.Wrap }) {
-      ForEach(this.previewTags(), (tag: string, index: number) => {
-        GalleryTagChip({
-          text: this.tagDisplayText(tag),
-          backgroundColorValue: this.tagColor(index),
-          color: this.tagTextColor(index),
-          fontSizeValue: this.tagFontSize(),
-          heightValue: this.tagRowHeight(),
-          horizontalPadding: this.isLooseLayout() ? 9 : 7
-        })
-          .margin({ right: this.isLooseLayout() ? 6 : 4 })
-      }, (tag: string, index: number) => tag + ':' + index.toString())
+    Scroll() {
+      Row({ space: this.isLooseLayout() ? 6 : 4 }) {
+        ForEach(this.previewTags(), (tag: string, index: number) => {
+          GalleryTagChip({
+            text: this.tagDisplayText(tag),
+            backgroundColorValue: this.tagColor(index),
+            color: this.tagTextColor(index),
+            fontSizeValue: this.tagFontSize(),
+            heightValue: this.tagRowHeight(),
+            horizontalPadding: this.isLooseLayout() ? 9 : 7
+          })
+            .flexShrink(0)
+        }, (tag: string, index: number) => tag + ':' + index.toString())
+      }
+      .padding({
+        left: this.isLooseLayout() ? 12 : 8,
+        right: this.isLooseLayout() ? 10 : 6
+      })
     }
     .width('100%')
     .layoutWeight(1)
     .clip(true)
+    .scrollable(ScrollDirection.Horizontal)
+    .scrollBar(BarState.Off)
     .padding({
-      left: this.isLooseLayout() ? 12 : 8,
-      right: this.isLooseLayout() ? 10 : 6,
       top: this.isLooseLayout() ? 6 : 4,
       bottom: this.isLooseLayout() ? 8 : 6
     })
@@ -737,7 +752,7 @@ export struct CategoryBadge {
   @Prop horizontalPadding: number = 8;
 
   build() {
-    Text(categoryName(this.category))
+    Text(categoryDisplayName(this.category))
       .fontSize(this.fontSizeValue)
       .fontWeight(FontWeight.Bold)
       .fontColor(Color.White)

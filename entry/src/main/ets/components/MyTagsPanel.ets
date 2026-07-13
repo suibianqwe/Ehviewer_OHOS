@@ -13,7 +13,7 @@ import {
   SearchSuggestionList,
   SearchSummaryStrip
 } from './GallerySearchScenes';
-import { uiText } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, shouldShowTagTranslations, uiText } from '../shared/EhShared';
 import { sortedStringKey, toggleStringValue } from '../shared/StringCollectionSupport';
 import {
   themeFieldBackground,
@@ -160,7 +160,7 @@ export struct MyTagsPanel {
 
   private refreshSuggestions(value: string, kind: MyTagKind): void {
     const text = value.trim();
-    if (activeMyTagText(text).length < 2) {
+    if (activeMyTagText(text).length === 0) {
       if (kind === MyTagKind.Watched) {
         this.watchedSuggestions = [];
       } else {
@@ -393,6 +393,7 @@ struct MyTagsColumn {
 @Component
 struct MyTagRow {
   @Prop tag: MyTagItem = { id: 0, tag: '', watched: false, hidden: false, color: '', weight: '10' };
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   onDelete: (tag: MyTagItem) => void = (_tag: MyTagItem) => {};
 
   build() {
@@ -451,7 +452,15 @@ function cloneSuggestions(suggestions: SearchSuggestionItem[]): SearchSuggestion
 }
 
 function myTagChipLabel(tag: string): string {
-  return tag.trim().replace(/\s+/g, ' ');
+  const normalized = tag.trim().replace(/\s+/g, ' ');
+  if (!shouldShowTagTranslations()) {
+    return normalized;
+  }
+  const colon = normalized.indexOf(':');
+  const namespace = colon > 0 ? normalized.substring(0, colon).trim() : '';
+  const value = colon >= 0 && colon < normalized.length - 1 ? normalized.substring(colon + 1).trim() : normalized;
+  const translated = ehTagTranslationStore.translate(namespace, value);
+  return translated.length > 0 ? translated : normalized;
 }
 
 function buildMyTagSuggestions(text: string, limit: number, namespaces: string[]): SearchSuggestionItem[] {
@@ -462,7 +471,7 @@ function buildMyTagSuggestions(text: string, limit: number, namespaces: string[]
   }
   const namespace = normalizeMyTagNamespace(trimmed.substring(0, colon));
   const keyword = trimmed.substring(colon + 1).trim();
-  if (keyword.length < 2) {
+  if (keyword.length === 0) {
     return [];
   }
   const selectedNamespaces = namespace.length > 0 ? [namespace] : namespaces;
@@ -470,10 +479,11 @@ function buildMyTagSuggestions(text: string, limit: number, namespaces: string[]
   const result: SearchSuggestionItem[] = [];
   for (let i = 0; i < tags.length; i++) {
     const tag: EhTagSuggestion = tags[i];
+    const translated = shouldShowTagTranslations() && tag.translated.length > 0;
     result.push({
       kind: 'tag',
-      title: tag.translated,
-      subtitle: tag.tag,
+      title: translated ? tag.translated : tag.tag,
+      subtitle: translated ? tag.tag : '',
       query: tag.tag,
       translated: tag.translated,
       namespace: tag.namespace
