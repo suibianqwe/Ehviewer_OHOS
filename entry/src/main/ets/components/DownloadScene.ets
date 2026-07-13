@@ -13,7 +13,7 @@ import {
 } from '../services/EhDownloadFileStore';
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { DownloadInfo, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
-import { ehSettingsStore } from '../services/EhSettingsStore';
+import { TRANSLATION_BUTTONS_VISIBLE_KEY, ehSettingsStore } from '../services/EhSettingsStore';
 import { TRANSLATION_ENABLED_KEY } from '../services/EhTranslationService';
 import {
   DownloadRestoreResult,
@@ -235,6 +235,7 @@ export struct DownloadScene {
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   @StorageProp(SPLIT_PANE_RATIO_REVISION_KEY) @Watch('onSplitPaneRatioRevisionChange') splitPaneRatioRevision: number = 0;
   @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
+  @StorageProp(TRANSLATION_BUTTONS_VISIBLE_KEY) translationButtonsVisible: boolean = true;
   private downloadScroller: Scroller = new Scroller();
   private splitDragStartWidth: number = 0;
   private downloadScrollOffset: number = 0;
@@ -1667,6 +1668,7 @@ export struct DownloadScene {
               hasSelection: this.downloadSelectionCount() > 0,
               canOperate: this.items.length > 0,
               canJump: this.downloadJumpTotalPages() > 1,
+              showTranslationButton: this.translationButtonsVisible,
               translationEnabled: this.translationEnabled,
               onToggle: () => {
                 this.downloadActionsExpanded = !this.downloadActionsExpanded;
@@ -1915,6 +1917,7 @@ struct DownloadToolColumn {
   @Prop hasSelection: boolean = false;
   @Prop canOperate: boolean = false;
   @Prop canJump: boolean = false;
+  @Prop showTranslationButton: boolean = true;
   @Prop translationEnabled: boolean = false;
   @State activeActionIndex: number = -1;
   onToggle: () => void = () => {};
@@ -1938,7 +1941,8 @@ struct DownloadToolColumn {
     if (!this.expanded) {
       return 0;
     }
-    return this.hasSelection ? 9 : 6;
+    const baseCount = this.showTranslationButton ? 6 : 5;
+    return this.hasSelection ? baseCount + 3 : baseCount;
   }
 
   private primaryIndex(): number {
@@ -2017,7 +2021,7 @@ struct DownloadToolColumn {
       this.onStop();
     } else if (baseIndex === 4) {
       this.onRestore();
-    } else if (baseIndex === 5) {
+    } else if (baseIndex === 5 && this.showTranslationButton) {
       this.onTranslate();
     }
   }
@@ -2100,14 +2104,16 @@ struct DownloadToolColumn {
             active: this.activeActionIndex === this.baseActionIndex(4),
             directTap: false
           })
-          ActionBubble({
-            label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
-            symbolIcon: $r('sys.symbol.book'),
-            isEnabled: true,
-            checked: this.translationEnabled,
-            active: this.activeActionIndex === this.baseActionIndex(5),
-            directTap: false
-          })
+          if (this.showTranslationButton) {
+            ActionBubble({
+              label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
+              symbolIcon: $r('sys.symbol.book'),
+              isEnabled: true,
+              checked: this.translationEnabled,
+              active: this.activeActionIndex === this.baseActionIndex(5),
+              directTap: false
+            })
+          }
         }
         .alignItems(HorizontalAlign.End)
         .margin({ bottom: 10 })

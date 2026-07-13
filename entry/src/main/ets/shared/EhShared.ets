@@ -22,6 +22,10 @@ import { LocalFavoriteBackupInfo } from '../services/EhLocalFavoritesStore';
 import { SearchBookmarkBackupInfo } from '../services/EhBookmarkStore';
 import { EH_AUTHOR_NAME, EH_RELEASE_TAG } from '../services/EhBuildInfo';
 import { normalizeGalleryLanguageCode } from '../services/GalleryLanguageSupport';
+import {
+  findSavedTranslationApi,
+  parseSavedTranslationApis
+} from '../services/TranslationApiConfigSupport';
 import { decodeHtmlEntities } from './HtmlEntitySupport';
 import {
   EH_THEME_PRIMARY_COLOR,
@@ -104,6 +108,7 @@ export interface SettingsRowItem {
   value: string;
   type: string;
   options?: string[];
+  optionDescriptions?: string[];
 }
 
 export enum SessionMode {
@@ -652,6 +657,7 @@ interface UiStatusPrefixTranslation {
 
 const UI_STATUS_PREFIX_TRANSLATIONS: UiStatusPrefixTranslation[] = [
   { source: 'Archive failed: ', target: '存档失败：' },
+  { source: 'Available models could not be loaded: ', target: '无法获取可用模型：' },
   { source: 'Comment vote failed: ', target: '评论投票失败：' },
   { source: 'Cookie load failed, using current session: ', target: 'Cookie 加载失败，继续使用当前会话：' },
   { source: 'Cover search failed: ', target: '封面搜索失败：' },
@@ -691,6 +697,9 @@ const UI_STATUS_PREFIX_TRANSLATIONS: UiStatusPrefixTranslation[] = [
   { source: 'Tag refresh failed: ', target: '标签刷新失败：' },
   { source: 'Tag vote failed: ', target: '标签投票失败：' },
   { source: 'Torrent failed: ', target: '种子加载失败：' },
+  { source: 'Translation failed: ', target: '翻译失败：' },
+  { source: 'Youdao web translation failed: ', target: '有道网页翻译失败：' },
+  { source: 'Created API: ', target: '已新建 API：' },
   { source: 'Cleared page cache: ', target: '已清理页面缓存：' },
   { source: 'Preview page ', target: '预览页 ' },
   { source: 'Page ', target: '第 ' },
@@ -798,8 +807,20 @@ export function zhText(text: string): string {
     case 'Settings': return '设置';
     case 'Translation': return '翻译';
     case 'Title and comment translation providers': return '标题与评论翻译服务';
+    case 'Translation feature': return '翻译功能';
+    case 'Show translation buttons on gallery lists, details and comments': return '在画廊列表、详情和评论中显示翻译按钮';
     case 'Translation provider': return '翻译服务';
-    case 'Choose a public web service or an API-key based AI provider': return '选择公共网页服务或需要 API 密钥的 AI 服务';
+    case 'Choose a web translation or AI translation service': return '选择网页翻译或 AI 翻译服务';
+    case 'Free Google web translation without an API key': return '无需密钥的免费 Google 网页翻译';
+    case 'Free Microsoft web translation without an API key': return '无需密钥的免费微软网页翻译';
+    case 'Free Baidu web translation without an API key': return '无需密钥的免费百度网页翻译';
+    case 'Free Youdao web translation without an API key': return '无需密钥的免费有道网页翻译';
+    case 'Public translation memory with a short text limit': return '有短文本限制的公共翻译记忆库';
+    case 'Open-source Google translation proxy': return '开源 Google 翻译代理';
+    case 'DeepSeek AI translation using your API key': return '使用个人密钥的 DeepSeek AI 翻译';
+    case 'OpenAI model translation using your API key': return '使用个人密钥的 OpenAI 模型翻译';
+    case 'Google Gemini translation using your API key': return '使用个人密钥的 Google Gemini 翻译';
+    case 'Saved OpenAI-compatible APIs and local model services': return '已保存的 OpenAI 兼容接口和本地模型服务';
     case 'Target language': return '目标语言';
     case 'Language used for gallery titles and comments': return '画廊标题与评论使用的翻译语言';
     case 'Translation timeout': return '翻译超时';
@@ -807,7 +828,11 @@ export function zhText(text: string): string {
     case 'DeepSeek API key': return 'DeepSeek API 密钥';
     case 'Stored locally and sent only to DeepSeek': return '仅保存在本机，并只发送给 DeepSeek';
     case 'DeepSeek model': return 'DeepSeek 模型';
-    case 'OpenAI-compatible model name': return 'OpenAI 兼容模型名称';
+    case 'Fetch available models or enter a model name': return '自动获取可用模型，或手动输入模型名称';
+    case 'OpenAI API key': return 'OpenAI API 密钥';
+    case 'Stored locally and sent only to OpenAI': return '仅保存在本机，并只发送给 OpenAI';
+    case 'OpenAI model': return 'OpenAI 模型';
+    case 'Fetch available OpenAI models or enter a model name': return '自动获取可用的 OpenAI 模型，或手动输入名称';
     case 'API base URL': return 'API 基础地址';
     case 'Base URL ending in /v1, or a complete /chat/completions URL': return '以 /v1 结尾的基础地址，或完整的 /chat/completions 地址';
     case 'API key': return 'API 密钥';
@@ -817,7 +842,16 @@ export function zhText(text: string): string {
     case 'Gemini API key': return 'Gemini API 密钥';
     case 'Stored locally and sent only to Google Gemini': return '仅保存在本机，并只发送给 Google Gemini';
     case 'Gemini model': return 'Gemini 模型';
-    case 'Gemini generateContent model name': return 'Gemini generateContent 模型名称';
+    case 'Fetch available Gemini models or enter a model name': return '自动获取可用的 Gemini 模型，或手动输入名称';
+    case 'Saved API': return '已保存的 API';
+    case 'Choose a saved API or create a new configuration': return '选择已保存的 API，或新建配置';
+    case 'New...': return '新建…';
+    case 'API name': return 'API 名称';
+    case 'Name shown in the saved API list': return '在已保存 API 列表中显示的名称';
+    case 'API address': return 'API 地址';
+    case 'Base URL ending in /v1 or a complete chat completions URL': return '以 /v1 结尾的基础地址，或完整的聊天补全地址';
+    case 'Stored separately for this saved API': return '为当前已保存 API 单独存储';
+    case 'Fetch models from this API or enter a model name': return '从当前 API 获取模型，或手动输入模型名称';
     case 'Public translation notice': return '公共翻译服务说明';
     case 'Public providers require no token but may be rate-limited or unavailable; translated text is sent to the selected service': return '公共服务无需密钥，但可能限流或不可用；待翻译文字会发送给所选服务';
     case 'Experimental': return '实验性';
@@ -826,8 +860,28 @@ export function zhText(text: string): string {
     case 'Traditional Chinese': return '繁体中文';
     case 'Japanese': return '日语';
     case 'Korean': return '韩语';
-    case 'OpenAI compatible': return 'OpenAI 兼容';
+    case 'OpenAI': return 'OpenAI';
+    case 'Custom API': return '自定义 API';
     case 'Google Web': return 'Google 网页';
+    case 'Bing Web': return '必应网页';
+    case 'Baidu Web': return '百度网页';
+    case 'Youdao Web': return '有道网页';
+    case 'Use custom value': return '使用自定义值';
+    case 'Enter a model name': return '输入模型名称';
+    case 'Loading available models...': return '正在获取可用模型…';
+    case 'Available models could not be loaded': return '无法获取可用模型';
+    case 'Translation timed out': return '翻译超时';
+    case 'Translation API key is missing': return '未填写翻译 API 密钥';
+    case 'Translation model is missing': return '未选择翻译模型';
+    case 'No custom translation API is selected': return '未选择自定义翻译 API';
+    case 'Invalid model list response': return '模型列表响应无效';
+    case 'Bing web translation token is unavailable': return '无法获取必应网页翻译令牌';
+    case 'Bing web translation is unavailable': return '必应网页翻译暂不可用';
+    case 'Baidu web translation is unavailable': return '百度网页翻译暂不可用';
+    case 'Invalid Baidu translation response': return '百度翻译响应无效';
+    case 'Custom API saved': return '自定义 API 已保存';
+    case 'Available models loaded': return '可用模型已加载';
+    case 'No available models were returned': return '服务未返回可用模型';
     case 'Translate titles': return '翻译标题';
     case 'Show original titles': return '显示原标题';
     case 'Test translation': return '测试翻译';
@@ -2700,10 +2754,25 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
 
   if (panel === SettingsPanel.Translation) {
     const provider = settingEntryValue(entries, 'translation_provider', 'Google Web');
+    const providerOptions = ['Google Web', 'Bing Web', 'Baidu Web', 'Youdao Web', 'MyMemory', 'Lingva',
+      'DeepSeek', 'OpenAI', 'Gemini', 'Custom API'];
+    const providerDescriptions = [
+      'Free Google web translation without an API key',
+      'Free Microsoft web translation without an API key',
+      'Free Baidu web translation without an API key',
+      'Free Youdao web translation without an API key',
+      'Public translation memory with a short text limit',
+      'Open-source Google translation proxy',
+      'DeepSeek AI translation using your API key',
+      'OpenAI model translation using your API key',
+      'Google Gemini translation using your API key',
+      'Saved OpenAI-compatible APIs and local model services'
+    ];
     const rows: SettingsRowItem[] = [
+      optionSettingsRow('translation_buttons_enabled', 'Translation feature',
+        'Show translation buttons on gallery lists, details and comments', entries, ON_OFF_OPTIONS),
       optionSettingsRow('translation_provider', 'Translation provider',
-        'Choose a public web service or an API-key based AI provider', entries,
-        ['Google Web', 'MyMemory', 'Lingva', 'DeepSeek', 'OpenAI compatible', 'Gemini']),
+        'Choose a web translation or AI translation service', entries, providerOptions, providerDescriptions),
       optionSettingsRow('translation_target_language', 'Target language',
         'Language used for gallery titles and comments', entries,
         ['Simplified Chinese', 'Traditional Chinese', 'English', 'Japanese', 'Korean']),
@@ -2713,20 +2782,42 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     if (provider === 'DeepSeek') {
       rows.push(textSettingsRow('translation_deepseek_api_key', 'DeepSeek API key',
         'Stored locally and sent only to DeepSeek', entries, ''));
-      rows.push(textSettingsRow('translation_deepseek_model', 'DeepSeek model',
-        'OpenAI-compatible model name', entries, 'deepseek-v4-flash'));
-    } else if (provider === 'OpenAI compatible') {
-      rows.push(textSettingsRow('translation_openai_base_url', 'API base URL',
-        'Base URL ending in /v1, or a complete /chat/completions URL', entries, 'https://api.openai.com/v1'));
-      rows.push(textSettingsRow('translation_openai_api_key', 'API key',
-        'Stored locally and sent only to the configured API endpoint', entries, ''));
-      rows.push(textSettingsRow('translation_openai_model', 'Model',
-        'Model name supported by the configured endpoint', entries, 'gpt-4o-mini'));
+      rows.push(modelSettingsRow('translation_deepseek_model', 'DeepSeek model',
+        'Fetch available models or enter a model name', settingEntryValue(entries, 'translation_deepseek_model',
+          'deepseek-v4-flash')));
+    } else if (provider === 'OpenAI') {
+      rows.push(textSettingsRow('translation_official_openai_api_key', 'OpenAI API key',
+        'Stored locally and sent only to OpenAI', entries, ''));
+      rows.push(modelSettingsRow('translation_official_openai_model', 'OpenAI model',
+        'Fetch available OpenAI models or enter a model name',
+        settingEntryValue(entries, 'translation_official_openai_model', 'gpt-4.1-mini')));
     } else if (provider === 'Gemini') {
       rows.push(textSettingsRow('translation_gemini_api_key', 'Gemini API key',
         'Stored locally and sent only to Google Gemini', entries, ''));
-      rows.push(textSettingsRow('translation_gemini_model', 'Gemini model',
-        'Gemini generateContent model name', entries, 'gemini-3.5-flash'));
+      rows.push(modelSettingsRow('translation_gemini_model', 'Gemini model',
+        'Fetch available Gemini models or enter a model name',
+        settingEntryValue(entries, 'translation_gemini_model', 'gemini-3.5-flash')));
+    } else if (provider === 'Custom API') {
+      const savedApis = parseSavedTranslationApis(settingEntryValue(entries, 'translation_custom_apis', '[]'));
+      const selectedName = settingEntryValue(entries, 'translation_custom_api_selected', '');
+      const selected = findSavedTranslationApi(savedApis, selectedName);
+      const apiNames: string[] = [];
+      for (let i = 0; i < savedApis.length; i++) {
+        apiNames.push(savedApis[i].name);
+      }
+      apiNames.push('New...');
+      rows.push(optionSettingsRow('translation_custom_api_selected', 'Saved API',
+        'Choose a saved API or create a new configuration', entries, apiNames));
+      if (selected !== null) {
+        rows.push(valueSettingsInputRow('translation_custom_api_name', 'API name',
+          'Name shown in the saved API list', selected.name));
+        rows.push(valueSettingsInputRow('translation_custom_api_base_url', 'API address',
+          'Base URL ending in /v1 or a complete chat completions URL', selected.baseUrl));
+        rows.push(valueSettingsInputRow('translation_custom_api_key', 'API key',
+          'Stored separately for this saved API', selected.apiKey));
+        rows.push(modelSettingsRow('translation_custom_api_model', 'Model',
+          'Fetch models from this API or enter a model name', selected.model));
+      }
     } else {
       rows.push(staticSettingsRow('translation_public_notice', 'Public translation notice',
         'Public providers require no token but may be rate-limited or unavailable; translated text is sent to the selected service',
@@ -2820,7 +2911,8 @@ export function identityAuthenticationOptions(): string[] {
   ];
 }
 
-function optionSettingsRow(key: string, title: string, summary: string, entries: SettingEntry[], options: string[]): SettingsRowItem {
+function optionSettingsRow(key: string, title: string, summary: string, entries: SettingEntry[], options: string[],
+  optionDescriptions: string[] = []): SettingsRowItem {
   let rawValue = settingEntryValue(entries, key, options.length > 0 ? options[0] : '');
   if (key === 'theme' && options.length > 0 && options.indexOf(rawValue) < 0) {
     rawValue = options[0];
@@ -2832,7 +2924,8 @@ function optionSettingsRow(key: string, title: string, summary: string, entries:
     summary: summary,
     value: normalizeReaderSettingOption(key, rawValue),
     type: sliderRow ? 'slider' : options.length === 2 && options[0] === 'On' && options[1] === 'Off' ? 'switch' : 'list',
-    options: options
+    options: options,
+    optionDescriptions: optionDescriptions
   };
 }
 
@@ -2982,6 +3075,26 @@ export function textSettingsRow(key: string, title: string, summary: string, ent
     summary: summary,
     value: settingEntryValue(entries, key, fallback),
     type: 'input'
+  };
+}
+
+function valueSettingsInputRow(key: string, title: string, summary: string, value: string): SettingsRowItem {
+  return {
+    key: key,
+    title: title,
+    summary: summary,
+    value: value,
+    type: 'input'
+  };
+}
+
+function modelSettingsRow(key: string, title: string, summary: string, value: string): SettingsRowItem {
+  return {
+    key: key,
+    title: title,
+    summary: summary,
+    value: value,
+    type: 'model'
   };
 }
 

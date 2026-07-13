@@ -9,12 +9,25 @@ import {
   applyReaderWindowStateFromSettings,
   scheduleReaderFullscreenImmersiveMode
 } from '../services/EhWindowImmersive';
-import { THEME_REVISION_KEY, runReaderActiveBackHandler } from '../shared/EhShared';
+import { THEME_REVISION_KEY, runReaderActiveBackHandler, uiStatusText } from '../shared/EhShared';
+import { TRANSLATION_ERROR_MESSAGE_KEY, TRANSLATION_ERROR_REVISION_KEY } from '../services/EhTranslationService';
 
 @Entry
 @Component
 struct ReaderPage {
   @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
+  @StorageProp(TRANSLATION_ERROR_REVISION_KEY) @Watch('onTranslationErrorRevision') translationErrorRevision: number = 0;
+
+  private onTranslationErrorRevision(): void {
+    const message = AppStorage.get<string>(TRANSLATION_ERROR_MESSAGE_KEY);
+    if (message === undefined || message.length === 0) {
+      return;
+    }
+    try {
+      this.getUIContext().getPromptAction().showToast({ message: uiStatusText(message) });
+    } catch (_error) {
+    }
+  }
 
   aboutToAppear(): void {
     this.applyReaderEntryChrome();

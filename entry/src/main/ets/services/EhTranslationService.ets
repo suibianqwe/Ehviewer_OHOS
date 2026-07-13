@@ -1,7 +1,14 @@
 import { http } from '@kit.NetworkKit';
 import { ehSettingsStore } from './EhSettingsStore';
+import {
+  SavedTranslationApi,
+  findSavedTranslationApi,
+  parseSavedTranslationApis
+} from './TranslationApiConfigSupport';
 
 export const TRANSLATION_ENABLED_KEY: string = 'ehviewerTranslationEnabled';
+export const TRANSLATION_ERROR_REVISION_KEY: string = 'ehviewerTranslationErrorRevision';
+export const TRANSLATION_ERROR_MESSAGE_KEY: string = 'ehviewerTranslationErrorMessage';
 
 interface TranslationCacheEntry {
   key: string;
@@ -30,6 +37,30 @@ interface MyMemoryResponse {
 interface LingvaResponse {
   translation?: string;
   error?: string;
+}
+
+interface BingTranslationText {
+  text?: string;
+}
+
+interface BingTranslationResult {
+  translations?: BingTranslationText[];
+}
+
+interface BaiduTranslationItem {
+  dst?: string;
+}
+
+interface BaiduTranslationResponse {
+  data?: BaiduTranslationItem[];
+  trans_result?: BaiduTranslationResponse;
+  errno?: number;
+  errmsg?: string;
+}
+
+interface YoudaoTranslationResponse {
+  translation?: string[];
+  errorCode?: string;
 }
 
 interface ChatMessage {
@@ -89,6 +120,25 @@ interface GeminiResponseBody {
   error?: ChatResponseError;
 }
 
+interface ModelInfo {
+  id?: string;
+}
+
+interface ModelListResponse {
+  data?: ModelInfo[];
+  error?: ChatResponseError;
+}
+
+interface GeminiModelInfo {
+  name?: string;
+  supportedGenerationMethods?: string[];
+}
+
+interface GeminiModelListResponse {
+  models?: GeminiModelInfo[];
+  error?: ChatResponseError;
+}
+
 const MAX_CACHE_ENTRIES: number = 1200;
 const MAX_ACTIVE_REQUESTS: number = 3;
 const DEFAULT_TIMEOUT_MS: number = 15000;
@@ -96,6 +146,8 @@ const TRANSLATION_CACHE: TranslationCacheEntry[] = [];
 const PENDING_TRANSLATIONS: PendingTranslationEntry[] = [];
 const SLOT_WAITERS: TranslationSlotWaiter[] = [];
 let activeRequests: number = 0;
+let lastTranslationErrorAt: number = 0;
+let lastTranslationErrorMessage: string = '';
 
 export class EhTranslationService {
   async translateTitle(text: string): Promise<string> {
@@ -128,6 +180,10 @@ export class EhTranslationService {
         putCachedTranslation(key, normalized);
         return normalized;
       })
+      .catch((error: Error) => {
+        notifyTranslationError(error);
+        throw error;
+      })
       .finally(() => {
         removePendingTranslation(key);
       });
@@ -137,6 +193,62 @@ export class EhTranslationService {
 
   clearCache(): void {
     TRANSLATION_CACHE.splice(0, TRANSLATION_CACHE.length);
+  }
+
+  async fetchAvailableModels(provider: string = ehSettingsStore.getValue('translation_provider', 'Google Web')):
+    Promise<string[]> {
+    if (provider === 'Gemini') {
+      const apiKey = ehSettingsStore.getValue('translation_gemini_api_key', '').trim();
+      if (apiKey.length === 0) {
+        throw new Error('Translation API key is missing');
+      }
+      const body = await requestText('https://generativelanguage.googleapis.com/v1beta/models',
+        http.RequestMethod.GET, '', '', apiKey);
+      const parsed = JSON.parse(body) as GeminiModelListResponse;
+      const result: string[] = [];
+      const models = parsed.models === undefined ? [] : parsed.models;
+      for (let i = 0; i < models.length; i++) {
+        const supportedMethods = models[i].supportedGenerationMethods;
+        const methods: string[] = supportedMethods === undefined ? [] : supportedMethods;
+        if (typeof models[i].name === 'string' && methods.indexOf('generateContent') >= 0) {
+          result.push(stripGeminiModelPrefix(models[i].name as string));
+        }
+      }
+      return uniqueSortedModels(result);
+    }
+    let baseUrl = '';
+    let apiKey = '';
+    if (provider === 'DeepSeek') {
+      baseUrl = 'https://api.deepseek.com';
+      apiKey = ehSettingsStore.getValue('translation_deepseek_api_key', '');
+    } else if (provider === 'OpenAI') {
+      baseUrl = 'https://api.openai.com/v1';
+      apiKey = ehSettingsStore.getValue('translation_official_openai_api_key', '');
+    } else if (provider === 'Custom API') {
+      const custom = activeCustomTranslationApi();
+      if (custom === null) {
+        throw new Error('No custom translation API is selected');
+      }
+      baseUrl = custom.baseUrl;
+      apiKey = custom.apiKey;
+    } else {
+      return [];
+    }
+    if (apiKey.trim().length === 0) {
+      throw new Error('Translation API key is missing');
+    }
+    const body = await requestText(modelsUrl(baseUrl), http.RequestMethod.GET, '', apiKey.trim());
+    const parsed = JSON.parse(body) as ModelListResponse;
+    if (!Array.isArray(parsed.data)) {
+      throw new Error(parsed.error?.message === undefined ? 'Invalid model list response' : parsed.error.message);
+    }
+    const result: string[] = [];
+    for (let i = 0; i < parsed.data.length; i++) {
+      if (typeof parsed.data[i].id === 'string' && (parsed.data[i].id as string).trim().length > 0) {
+        result.push((parsed.data[i].id as string).trim());
+      }
+    }
+    return uniqueSortedModels(result);
   }
 
   private async translateInternal(text: string, provider: string, target: string,
@@ -149,17 +261,34 @@ export class EhTranslationService {
       if (provider === 'Lingva') {
         return await this.translateWithLingva(text, target);
       }
+      if (provider === 'Bing Web') {
+        return await this.translateWithBingWeb(text, target);
+      }
+      if (provider === 'Baidu Web') {
+        return await this.translateWithBaiduWeb(text, target);
+      }
+      if (provider === 'Youdao Web') {
+        return await this.translateWithYoudaoWeb(text, target);
+      }
       if (provider === 'DeepSeek') {
         return await this.translateWithChatApi(text, target, contentKind,
           'https://api.deepseek.com/chat/completions',
           ehSettingsStore.getValue('translation_deepseek_api_key', ''),
           ehSettingsStore.getValue('translation_deepseek_model', 'deepseek-v4-flash'));
       }
-      if (provider === 'OpenAI compatible') {
-        const baseUrl = ehSettingsStore.getValue('translation_openai_base_url', 'https://api.openai.com/v1');
-        return await this.translateWithChatApi(text, target, contentKind, chatCompletionsUrl(baseUrl),
-          ehSettingsStore.getValue('translation_openai_api_key', ''),
-          ehSettingsStore.getValue('translation_openai_model', 'gpt-4o-mini'));
+      if (provider === 'OpenAI') {
+        return await this.translateWithChatApi(text, target, contentKind,
+          'https://api.openai.com/v1/chat/completions',
+          ehSettingsStore.getValue('translation_official_openai_api_key', ''),
+          ehSettingsStore.getValue('translation_official_openai_model', 'gpt-4.1-mini'));
+      }
+      if (provider === 'Custom API') {
+        const custom = activeCustomTranslationApi();
+        if (custom === null) {
+          throw new Error('No custom translation API is selected');
+        }
+        return await this.translateWithChatApi(text, target, contentKind, chatCompletionsUrl(custom.baseUrl),
+          custom.apiKey, custom.model);
       }
       if (provider === 'Gemini') {
         return await this.translateWithGemini(text, target, contentKind);
@@ -235,6 +364,102 @@ export class EhTranslationService {
     return translated.join('\n');
   }
 
+  private async translateWithBingWeb(text: string, target: string): Promise<string> {
+    const chunks = splitTranslationText(text, 900);
+    const translated: string[] = [];
+    const page = await requestText('https://www.bing.com/translator', http.RequestMethod.GET, '', '', '',
+      { 'Accept': 'text/html,application/xhtml+xml' });
+    const ig = firstRegexGroup(page, /IG:\"([^\"]+)\"/);
+    const abuse = /params_AbusePreventionHelper\s*=\s*\[(\d+),\"([^\"]+)/.exec(page);
+    const iid = firstRegexGroup(page, /id=\"rich_tta\" data-iid=\"([^\"]+)/);
+    if (ig.length === 0 || abuse === null || abuse.length < 3) {
+      throw new Error('Bing web translation token is unavailable');
+    }
+    for (let i = 0; i < chunks.length; i++) {
+      const form = formBody([
+        ['fromLang', 'auto-detect'],
+        ['text', chunks[i]],
+        ['to', targetLanguageCode(target, 'bing')],
+        ['token', abuse[2]],
+        ['key', abuse[1]]
+      ]);
+      const url = 'https://www.bing.com/ttranslatev3?isVertical=1&IG=' + encodeURIComponent(ig) + '&IID=' +
+        encodeURIComponent((iid.length > 0 ? iid : 'translator.5025') + '.1');
+      const body = await requestText(url, http.RequestMethod.POST, form, '', '', {
+        'Accept': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'Origin': 'https://www.bing.com',
+        'Referer': 'https://www.bing.com/translator'
+      });
+      const parsed = JSON.parse(body) as BingTranslationResult[];
+      const value = parsed?.[0]?.translations?.[0]?.text;
+      if (typeof value !== 'string' || value.length === 0) {
+        throw new Error('Bing web translation is unavailable');
+      }
+      translated.push(value);
+    }
+    return translated.join('\n');
+  }
+
+  private async translateWithBaiduWeb(text: string, target: string): Promise<string> {
+    const chunks = splitTranslationText(text, 1000);
+    const translated: string[] = [];
+    for (let i = 0; i < chunks.length; i++) {
+      const form = formBody([
+        ['from', 'auto'],
+        ['to', targetLanguageCode(target, 'baidu')],
+        ['query', chunks[i]],
+        ['source', 'txt']
+      ]);
+      const body = await requestText('https://fanyi.baidu.com/transapi', http.RequestMethod.POST, form, '', '', {
+        'Accept': 'application/json, text/plain, */*',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'Origin': 'https://fanyi.baidu.com',
+        'Referer': 'https://fanyi.baidu.com/'
+      });
+      const parsed = JSON.parse(body) as BaiduTranslationResponse;
+      const data = parsed.data === undefined ? parsed.trans_result?.data : parsed.data;
+      if (!Array.isArray(data) || data.length === 0) {
+        throw new Error(parsed.errmsg === undefined ? 'Baidu web translation is unavailable' : parsed.errmsg);
+      }
+      let value = '';
+      for (let j = 0; j < data.length; j++) {
+        if (typeof data[j].dst === 'string') {
+          value += data[j].dst;
+        }
+      }
+      if (value.length === 0) {
+        throw new Error('Invalid Baidu translation response');
+      }
+      translated.push(value);
+    }
+    return translated.join('\n');
+  }
+
+  private async translateWithYoudaoWeb(text: string, target: string): Promise<string> {
+    const chunks = splitTranslationText(text, 900);
+    const translated: string[] = [];
+    for (let i = 0; i < chunks.length; i++) {
+      const form = formBody([
+        ['q', chunks[i]],
+        ['from', 'Auto'],
+        ['to', targetLanguageCode(target, 'youdao')]
+      ]);
+      const body = await requestText('https://aidemo.youdao.com/trans', http.RequestMethod.POST, form, '', '', {
+        'Accept': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'Origin': 'https://fanyi.youdao.com',
+        'Referer': 'https://fanyi.youdao.com/'
+      });
+      const parsed = JSON.parse(body) as YoudaoTranslationResponse;
+      if (!Array.isArray(parsed.translation) || parsed.translation.length === 0) {
+        throw new Error('Youdao web translation failed: ' + (parsed.errorCode === undefined ? 'unknown' : parsed.errorCode));
+      }
+      translated.push(parsed.translation.join('\n'));
+    }
+    return translated.join('\n');
+  }
+
   private async translateWithChatApi(text: string, target: string, contentKind: string, url: string,
     apiKey: string, model: string): Promise<string> {
     if (apiKey.trim().length === 0) {
@@ -290,7 +515,7 @@ export class EhTranslationService {
 export const ehTranslationService: EhTranslationService = new EhTranslationService();
 
 async function requestText(url: string, method: http.RequestMethod, body: string = '', bearerToken: string = '',
-  googleApiKey: string = ''): Promise<string> {
+  googleApiKey: string = '', extraHeaders: Record<string, string> = {}): Promise<string> {
   const request = http.createHttp();
   try {
     const timeout = translationTimeoutMs();
@@ -304,6 +529,10 @@ async function requestText(url: string, method: http.RequestMethod, body: string
     }
     if (googleApiKey.length > 0) {
       headers['x-goog-api-key'] = googleApiKey;
+    }
+    const extraHeaderNames = Object.keys(extraHeaders);
+    for (let i = 0; i < extraHeaderNames.length; i++) {
+      headers[extraHeaderNames[i]] = extraHeaders[extraHeaderNames[i]];
     }
     const options: http.HttpRequestOptions = {
       method: method,
@@ -342,16 +571,37 @@ function translationTimeoutMs(): number {
 
 function targetLanguageCode(target: string, provider: string): string {
   if (target === 'Traditional Chinese') {
-    return provider === 'lingva' ? 'zh_HANT' : 'zh-TW';
+    if (provider === 'lingva') {
+      return 'zh_HANT';
+    }
+    if (provider === 'bing') {
+      return 'zh-Hant';
+    }
+    if (provider === 'baidu') {
+      return 'cht';
+    }
+    if (provider === 'youdao') {
+      return 'zh-CHT';
+    }
+    return 'zh-TW';
   }
   if (target === 'English') {
     return 'en';
   }
   if (target === 'Japanese') {
-    return 'ja';
+    return provider === 'baidu' ? 'jp' : 'ja';
   }
   if (target === 'Korean') {
-    return 'ko';
+    return provider === 'baidu' ? 'kor' : 'ko';
+  }
+  if (provider === 'bing') {
+    return 'zh-Hans';
+  }
+  if (provider === 'baidu') {
+    return 'zh';
+  }
+  if (provider === 'youdao') {
+    return 'zh-CHS';
   }
   return provider === 'lingva' ? 'zh' : 'zh-CN';
 }
@@ -375,12 +625,17 @@ function translationConfigurationKey(provider: string, target: string): string {
   if (provider === 'DeepSeek') {
     return provider + '\n' + target + '\n' + ehSettingsStore.getValue('translation_deepseek_model', 'deepseek-v4-flash');
   }
-  if (provider === 'OpenAI compatible') {
-    return provider + '\n' + target + '\n' + ehSettingsStore.getValue('translation_openai_base_url', '') + '\n' +
-      ehSettingsStore.getValue('translation_openai_model', '');
+  if (provider === 'OpenAI') {
+    return provider + '\n' + target + '\n' +
+      ehSettingsStore.getValue('translation_official_openai_model', 'gpt-4.1-mini');
   }
   if (provider === 'Gemini') {
     return provider + '\n' + target + '\n' + ehSettingsStore.getValue('translation_gemini_model', 'gemini-3.5-flash');
+  }
+  if (provider === 'Custom API') {
+    const custom = activeCustomTranslationApi();
+    return custom === null ? provider + '\n' + target : provider + '\n' + target + '\n' + custom.name + '\n' +
+      custom.baseUrl + '\n' + custom.model;
   }
   return provider + '\n' + target;
 }
@@ -444,6 +699,77 @@ function chatCompletionsUrl(baseUrl: string): string {
     return url;
   }
   return url + '/chat/completions';
+}
+
+function modelsUrl(baseUrl: string): string {
+  let url = baseUrl.trim();
+  while (url.endsWith('/')) {
+    url = url.substring(0, url.length - 1);
+  }
+  if (url.endsWith('/chat/completions')) {
+    url = url.substring(0, url.length - '/chat/completions'.length);
+  }
+  if (url.endsWith('/models')) {
+    return url;
+  }
+  return url + '/models';
+}
+
+function activeCustomTranslationApi(): SavedTranslationApi | null {
+  const items = parseSavedTranslationApis(ehSettingsStore.getValue('translation_custom_apis', '[]'));
+  return findSavedTranslationApi(items, ehSettingsStore.getValue('translation_custom_api_selected', ''));
+}
+
+function stripGeminiModelPrefix(value: string): string {
+  return value.indexOf('models/') === 0 ? value.substring('models/'.length) : value;
+}
+
+function uniqueSortedModels(models: string[]): string[] {
+  const result: string[] = [];
+  for (let i = 0; i < models.length; i++) {
+    if (result.indexOf(models[i]) < 0) {
+      result.push(models[i]);
+    }
+  }
+  result.sort();
+  return result;
+}
+
+function firstRegexGroup(text: string, pattern: RegExp): string {
+  const match = pattern.exec(text);
+  return match === null || match.length < 2 ? '' : match[1];
+}
+
+function formBody(entries: string[][]): string {
+  const result: string[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    if (entries[i].length >= 2) {
+      result.push(encodeURIComponent(entries[i][0]) + '=' + encodeURIComponent(entries[i][1]));
+    }
+  }
+  return result.join('&');
+}
+
+function notifyTranslationError(error: Error): void {
+  const message = friendlyTranslationError(error);
+  const now = Date.now();
+  if (message === lastTranslationErrorMessage && now - lastTranslationErrorAt < 3000) {
+    return;
+  }
+  lastTranslationErrorMessage = message;
+  lastTranslationErrorAt = now;
+  AppStorage.setOrCreate<string>(TRANSLATION_ERROR_MESSAGE_KEY, message);
+  const revision = AppStorage.get<number>(TRANSLATION_ERROR_REVISION_KEY);
+  AppStorage.setOrCreate<number>(TRANSLATION_ERROR_REVISION_KEY, revision === undefined ? 1 : revision + 1);
+}
+
+function friendlyTranslationError(error: Error): string {
+  const detail = error.message.length > 0 ? error.message : String(error);
+  const lower = detail.toLowerCase();
+  if (lower.indexOf('timeout') >= 0 || lower.indexOf('timed out') >= 0 || lower.indexOf('2300028') >= 0) {
+    return 'Translation timed out';
+  }
+  return 'Translation failed: ' + detail.replace(/^Error:\s*/, '');
 }
 
 function getCachedTranslation(key: string): string | null {

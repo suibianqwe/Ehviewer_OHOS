@@ -1,5 +1,6 @@
 import { GalleryComment } from '../../../model/GalleryModels';
 import { TRANSLATION_ENABLED_KEY } from '../../../services/EhTranslationService';
+import { TRANSLATION_BUTTONS_VISIBLE_KEY } from '../../../services/EhSettingsStore';
 import { uiText } from '../../../shared/EhShared';
 import {
   themeDividerColor,
@@ -22,6 +23,7 @@ export struct CommentsScene {
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
   @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
+  @StorageProp(TRANSLATION_BUTTONS_VISIBLE_KEY) translationButtonsVisible: boolean = true;
 
   private statusBarVp(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx);
@@ -32,7 +34,7 @@ export struct CommentsScene {
       EhSubNavBar({
         statusBarHeight: this.statusBarVp(),
         title: uiText('Comments'),
-        showAction: true,
+        showAction: this.translationButtonsVisible,
         actionChecked: this.translationEnabled,
         actionIcon: $r('sys.symbol.book'),
         onBack: this.onBack,

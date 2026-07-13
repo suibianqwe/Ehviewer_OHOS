@@ -14,7 +14,7 @@ import { DEFAULT_ADVANCE_SEARCH, EhUrl, FavListUrlBuilder, ListMode, ListUrlBuil
 import { ehFilterStore } from '../services/EhFilterStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
-import { ehSettingsStore } from '../services/EhSettingsStore';
+import { TRANSLATION_BUTTONS_VISIBLE_KEY, ehSettingsStore } from '../services/EhSettingsStore';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { AsyncRequestGate } from '../services/AsyncRequestGate';
 import { gallerySiteCandidates } from '../services/EhGallerySiteFallback';
@@ -3889,6 +3889,7 @@ export struct GalleryListContent {
   private readonly FAVORITE_DRAWER_WIDTH: number = 288;
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
   @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
+  @StorageProp(TRANSLATION_BUTTONS_VISIBLE_KEY) translationButtonsVisible: boolean = true;
 
   onScrollReset(): void {
     // Scroll back to the top when scrollResetVersion changes.
@@ -4967,17 +4968,19 @@ export struct GalleryListContent {
       // FAB 悬浮按钮
       Column() {
         if (this.shouldShowSearchOnlyFab()) {
-          ActionBubble({
-            label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
-            symbolIcon: $r('sys.symbol.book'),
-            isEnabled: true,
-            checked: this.translationEnabled,
-            directTap: true,
-            onTapAction: () => {
-              this.translationEnabled = !this.translationEnabled;
-            }
-          })
-            .margin({ bottom: 10 })
+          if (this.translationButtonsVisible) {
+            ActionBubble({
+              label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
+              symbolIcon: $r('sys.symbol.book'),
+              isEnabled: true,
+              checked: this.translationEnabled,
+              directTap: true,
+              onTapAction: () => {
+                this.translationEnabled = !this.translationEnabled;
+              }
+            })
+              .margin({ bottom: 10 })
+          }
           ActionBubble({
             label: uiText('Search'),
             symbolIcon: $r('sys.symbol.magnifyingglass'),
@@ -4997,6 +5000,7 @@ export struct GalleryListContent {
             canRandom: this.canRandom,
             canImageSearch: !this.useLocalSearchBar,
             canBookmark: this.showBookmarkButton,
+            showTranslationButton: this.translationButtonsVisible,
             translationEnabled: this.translationEnabled,
             onToggle: this.onToggleActions,
             onFilter: this.onFilter,

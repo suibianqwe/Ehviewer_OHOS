@@ -32,6 +32,15 @@ import {
   SettingEntry,
   defaultSettingEntries
 } from '../services/EhSettingsStore';
+import {
+  SavedTranslationApi,
+  cloneSavedTranslationApis,
+  createSavedTranslationApi,
+  findSavedTranslationApi,
+  parseSavedTranslationApis,
+  serializeSavedTranslationApis,
+  uniqueTranslationApiName
+} from '../services/TranslationApiConfigSupport';
 import { EhHttpClient, NetworkDiagnosticResult } from '../services/EhHttpClient';
 import {
   currentDnsOverHttpsStatusText,
@@ -41,7 +50,7 @@ import {
 } from '../services/EhNetworkConfig';
 import { EhUrl } from '../services/EhUrl';
 import { ehUpdateChecker, ReleaseInfo, UpdateCheckResult } from '../services/EhUpdateChecker';
-import { ehTranslationService } from '../services/EhTranslationService';
+import { TRANSLATION_ENABLED_KEY, ehTranslationService } from '../services/EhTranslationService';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { CacheClearResult, CachePruneResult, readerImageCache } from '../services/ReaderImageCache';
 import { FilterRule, FILTER_MODE_RATING, FILTER_MODE_TITLE, ehFilterStore } from '../services/EhFilterStore';
@@ -84,6 +93,7 @@ import {
   themePrimaryText,
   themeSecondaryText,
   themeScrimColor,
+  themeSelectedBackground,
   themeSurface,
   themeSurfaceVariant,
   themeTertiaryText
@@ -155,6 +165,8 @@ export struct SettingsScene {
   @State optionSummary: string = '';
   @State optionValue: string = '';
   @State optionOptions: string[] = [];
+  @State optionDescriptions: string[] = [];
+  @State optionAllowCustomInput: boolean = false;
   @State downloadMigrationDialogOpen: boolean = false;
   @State downloadMigrationCurrent: string = DOWNLOAD_LOCATION_APP_FILES;
   @State downloadMigrationTarget: string = DOWNLOAD_LOCATION_APP_FILES;
@@ -449,6 +461,9 @@ export struct SettingsScene {
   }
 
   private commitSettingValue(key: string, value: string): void {
+    if (this.updateCustomTranslationApiField(key, value)) {
+      return;
+    }
     if (key === 'proxy_host' && !isValidProxyHostText(value)) {
       this.statusText = 'Invalid proxy host: ' + value;
       return;
@@ -459,6 +474,15 @@ export struct SettingsScene {
     }
     const normalizedValue = this.normalizedSettingValue(key, value);
     ehSettingsStore.setValue(key, normalizedValue);
+    if (key === 'translation_provider' && normalizedValue === 'Custom API') {
+      this.ensureCustomTranslationApi();
+    }
+    if (key === 'translation_buttons_enabled' && normalizedValue !== 'On') {
+      AppStorage.setOrCreate<boolean>(TRANSLATION_ENABLED_KEY, false);
+    }
+    if (isTranslationSettingKey(key)) {
+      ehTranslationService.clearCache();
+    }
     if (key === 'follow_system_dark_mode' && normalizedValue === 'On' &&
       ehSettingsStore.getValue('theme', 'Light') === 'Light') {
       ehSettingsStore.setValue('theme', 'Dark');
@@ -719,6 +743,10 @@ export struct SettingsScene {
     if (this.runSettingAction(row.key)) {
       return;
     }
+    if (row.type === 'model') {
+      this.openTranslationModelPicker(row);
+      return;
+    }
     if (row.options === undefined || row.options.length === 0) {
       this.statusText = row.title + ' is not available yet';
       return;
@@ -740,6 +768,8 @@ export struct SettingsScene {
     this.optionSummary = row.summary;
     this.optionValue = row.value;
     this.optionOptions = cloneStringOptions(row.options);
+    this.optionDescriptions = row.optionDescriptions === undefined ? [] : cloneStringOptions(row.optionDescriptions);
+    this.optionAllowCustomInput = false;
     this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
     this.optionPickerOpen = true;
     this.statusText = '';
@@ -793,6 +823,8 @@ export struct SettingsScene {
     this.optionSummary = '';
     this.optionValue = '';
     this.optionOptions = [];
+    this.optionDescriptions = [];
+    this.optionAllowCustomInput = false;
     this.restoreBackHandler();
   }
 
@@ -801,8 +833,113 @@ export struct SettingsScene {
       this.statusText = 'No setting is selected';
       return;
     }
-    this.saveSettingValue(this.optionKey, value);
+    if (this.optionKey === 'translation_custom_api_selected' && value === 'New...') {
+      this.createAndSelectCustomTranslationApi();
+    } else {
+      this.saveSettingValue(this.optionKey, value);
+    }
     this.closeOptionPicker();
+  }
+
+  private openTranslationModelPicker(row: SettingsRowItem): void {
+    if (row.key === undefined) {
+      return;
+    }
+    const provider = ehSettingsStore.getValue('translation_provider', 'Google Web');
+    this.optionKey = row.key;
+    this.optionTitle = row.title;
+    this.optionSummary = row.summary;
+    this.optionValue = row.value;
+    this.optionOptions = row.value.trim().length > 0 ? [row.value.trim()] : [];
+    this.optionDescriptions = [];
+    this.optionAllowCustomInput = true;
+    this.optionPickerOpen = true;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
+    this.showFloatingStatus('Loading available models...');
+    ehTranslationService.fetchAvailableModels(provider).then((models: string[]) => {
+      const options: string[] = [];
+      if (row.value.trim().length > 0) {
+        options.push(row.value.trim());
+      }
+      for (let i = 0; i < models.length; i++) {
+        if (options.indexOf(models[i]) < 0) {
+          options.push(models[i]);
+        }
+      }
+      this.optionOptions = options;
+      this.statusText = models.length > 0 ? 'Available models loaded' : 'No available models were returned';
+    }).catch((error: Error) => {
+      this.showFloatingStatus('Available models could not be loaded: ' + error.message);
+    });
+  }
+
+  private customTranslationApis(): SavedTranslationApi[] {
+    return parseSavedTranslationApis(ehSettingsStore.getValue('translation_custom_apis', '[]'));
+  }
+
+  private ensureCustomTranslationApi(): void {
+    const items = this.customTranslationApis();
+    const selectedName = ehSettingsStore.getValue('translation_custom_api_selected', '');
+    const selected = findSavedTranslationApi(items, selectedName);
+    if (selected !== null) {
+      if (selectedName !== selected.name) {
+        ehSettingsStore.setValue('translation_custom_api_selected', selected.name);
+      }
+      return;
+    }
+    const created = createSavedTranslationApi(items);
+    items.push(created);
+    ehSettingsStore.setValue('translation_custom_apis', serializeSavedTranslationApis(items));
+    ehSettingsStore.setValue('translation_custom_api_selected', created.name);
+  }
+
+  private createAndSelectCustomTranslationApi(): void {
+    const items = this.customTranslationApis();
+    const created = createSavedTranslationApi(items);
+    items.push(created);
+    ehSettingsStore.setValue('translation_custom_apis', serializeSavedTranslationApis(items));
+    ehSettingsStore.setValue('translation_custom_api_selected', created.name);
+    this.finishCustomTranslationApiSave('Created API: ' + created.name);
+  }
+
+  private updateCustomTranslationApiField(key: string, value: string): boolean {
+    if (!isCustomTranslationApiField(key)) {
+      return false;
+    }
+    const items = cloneSavedTranslationApis(this.customTranslationApis());
+    const selectedName = ehSettingsStore.getValue('translation_custom_api_selected', '');
+    const selected = findSavedTranslationApi(items, selectedName);
+    if (selected === null) {
+      this.statusText = 'No custom translation API is selected';
+      return true;
+    }
+    let nextSelectedName = selected.name;
+    if (key === 'translation_custom_api_name') {
+      nextSelectedName = uniqueTranslationApiName(items, value, selected.name);
+      selected.name = nextSelectedName;
+    } else if (key === 'translation_custom_api_base_url') {
+      selected.baseUrl = value.trim();
+    } else if (key === 'translation_custom_api_key') {
+      selected.apiKey = value;
+    } else if (key === 'translation_custom_api_model') {
+      selected.model = value.trim();
+    }
+    ehSettingsStore.setValue('translation_custom_apis', serializeSavedTranslationApis(items));
+    ehSettingsStore.setValue('translation_custom_api_selected', nextSelectedName);
+    this.finishCustomTranslationApiSave('Custom API saved');
+    return true;
+  }
+
+  private finishCustomTranslationApiSave(status: string): void {
+    this.settingEntries = ehSettingsStore.getEntries();
+    ehTranslationService.clearCache();
+    this.statusText = status;
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSettingsStore.save(context).catch((error: Error) => {
+        this.statusText = 'Save failed: ' + error.message;
+      });
+    }
   }
 
   private runSettingAction(key: string): boolean {
@@ -1813,6 +1950,8 @@ export struct SettingsScene {
           summary: this.optionSummary,
           value: this.optionValue,
           options: this.optionOptions,
+          optionDescriptions: this.optionDescriptions,
+          allowCustomInput: this.optionAllowCustomInput,
           onBack: () => {
             this.closeOptionPicker();
           },
@@ -2217,6 +2356,9 @@ export struct SettingsOptionPanel {
   summary: string = '';
   value: string = '';
   options: string[] = [];
+  optionDescriptions: string[] = [];
+  allowCustomInput: boolean = false;
+  @State customValue: string = '';
   onBack: () => void = () => {};
   onSelect: (value: string) => void = () => {};
 
@@ -2259,15 +2401,27 @@ export struct SettingsOptionPanel {
         }
 
         List({ space: 8 }) {
-          ForEach(this.options, (option: string) => {
+          ForEach(this.options, (option: string, index: number) => {
             ListItem() {
               Button({ type: ButtonType.Normal, stateEffect: true }) {
                 Row() {
                   Text(uiValue(option))
                     .fontSize(15)
                     .fontWeight(option === this.value ? FontWeight.Medium : FontWeight.Regular)
-                    .fontColor(themePrimaryText())
-                    .layoutWeight(1)
+                    .fontColor(option === this.value ? themePrimaryColor() : themePrimaryText())
+                    .constraintSize({ minWidth: 78, maxWidth: 118 })
+                  if (index < this.optionDescriptions.length && this.optionDescriptions[index].length > 0) {
+                    Text(uiText(this.optionDescriptions[index]))
+                      .fontSize(12)
+                      .fontColor(themeSecondaryText())
+                      .maxLines(2)
+                      .textAlign(TextAlign.End)
+                      .layoutWeight(1)
+                      .margin({ left: 8 })
+                  } else {
+                    Row()
+                      .layoutWeight(1)
+                  }
                   if (option === this.value) {
                     Text(uiText('Selected'))
                       .fontSize(12)
@@ -2275,13 +2429,14 @@ export struct SettingsOptionPanel {
                       .padding({ left: 10, right: 10, top: 4, bottom: 4 })
                       .backgroundColor(themePrimaryColor())
                       .borderRadius(14)
+                      .margin({ left: 8 })
                   }
                 }
                 .width('100%')
               }
               .width('100%')
               .padding(14)
-              .backgroundColor(option === this.value ? themeSurfaceVariant() : themeFieldBackground())
+              .backgroundColor(option === this.value ? themeSelectedBackground() : themeFieldBackground())
               .borderRadius(6)
               .onClick(() => {
                 this.onSelect(option);
@@ -2293,6 +2448,39 @@ export struct SettingsOptionPanel {
         .width('100%')
         .constraintSize({ maxHeight: 420 })
         .cachedCount(4)
+
+        if (this.allowCustomInput) {
+          Row({ space: 8 }) {
+            TextInput({ text: this.customValue, placeholder: uiText('Enter a model name') })
+              .height(40)
+              .layoutWeight(1)
+              .fontSize(14)
+              .fontColor(themePrimaryText())
+              .backgroundColor(themeFieldBackground())
+              .onChange((value: string) => {
+                this.customValue = value;
+              })
+              .onSubmit(() => {
+                const value = this.customValue.trim();
+                if (value.length > 0) {
+                  this.onSelect(value);
+                }
+              })
+            Button(uiText('Use custom value'))
+              .height(40)
+              .fontSize(13)
+              .fontColor(themeOnPrimaryText())
+              .backgroundColor(themePrimaryColor())
+              .onClick(() => {
+                const value = this.customValue.trim();
+                if (value.length > 0) {
+                  this.onSelect(value);
+                }
+              })
+          }
+          .width('100%')
+          .margin({ top: 12 })
+        }
       }
       .width('86%')
       .constraintSize({ maxWidth: 420, maxHeight: '82%' })
@@ -2406,7 +2594,8 @@ export struct SettingsStaticRow {
             onOptionSelect: this.onOptionSelect
           })
             .margin({ left: 12 })
-        } else if (this.row.type === 'list' && this.row.options !== undefined && this.row.options.length > 0) {
+        } else if ((this.row.type === 'list' && this.row.options !== undefined && this.row.options.length > 0) ||
+          this.row.type === 'model') {
           Button({ type: ButtonType.Normal, stateEffect: true }) {
             Row({ space: 6 }) {
               Text(uiValue(this.row.value))
@@ -2507,7 +2696,17 @@ function settingsRowActionText(row: SettingsRowItem): string {
 
 function isSecretSettingKey(key: string | undefined): boolean {
   return key === 'proxy_password' || key === 'translation_deepseek_api_key' ||
-    key === 'translation_openai_api_key' || key === 'translation_gemini_api_key';
+    key === 'translation_openai_api_key' || key === 'translation_official_openai_api_key' ||
+    key === 'translation_custom_api_key' || key === 'translation_gemini_api_key';
+}
+
+function isCustomTranslationApiField(key: string): boolean {
+  return key === 'translation_custom_api_name' || key === 'translation_custom_api_base_url' ||
+    key === 'translation_custom_api_key' || key === 'translation_custom_api_model';
+}
+
+function isTranslationSettingKey(key: string): boolean {
+  return key.indexOf('translation_') === 0;
 }
 
 function settingsSliderNumberValue(row: SettingsRowItem): number {

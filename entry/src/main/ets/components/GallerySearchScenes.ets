@@ -839,6 +839,7 @@ export struct QuickActionColumn {
   @Prop canRandom: boolean = false;
   @Prop canImageSearch: boolean = false;
   @Prop canBookmark: boolean = false;
+  @Prop showTranslationButton: boolean = true;
   @Prop translationEnabled: boolean = false;
   onToggle: () => void = () => {};
   onFilter: () => void = () => {};
@@ -876,15 +877,23 @@ export struct QuickActionColumn {
   }
 
   private bookmarkActionIndex(): number {
-    return this.canBookmark ? 4 : -1;
+    return this.canBookmark ? this.optionalActionStartIndex() : -1;
   }
 
   private imageSearchActionIndex(): number {
-    return this.canImageSearch ? 4 + (this.canBookmark ? 1 : 0) : -1;
+    return this.canImageSearch ? this.optionalActionStartIndex() + (this.canBookmark ? 1 : 0) : -1;
   }
 
   private randomActionIndex(): number {
-    return 4 + (this.canBookmark ? 1 : 0) + (this.canImageSearch ? 1 : 0);
+    return this.optionalActionStartIndex() + (this.canBookmark ? 1 : 0) + (this.canImageSearch ? 1 : 0);
+  }
+
+  private translationActionIndex(): number {
+    return this.showTranslationButton ? 3 : -1;
+  }
+
+  private optionalActionStartIndex(): number {
+    return this.showTranslationButton ? 4 : 3;
   }
 
   private hitActionIndex(y: number): number {
@@ -943,7 +952,7 @@ export struct QuickActionColumn {
       this.onJump();
     } else if (index === 2) {
       this.onRefresh();
-    } else if (index === 3) {
+    } else if (index === this.translationActionIndex()) {
       this.onTranslate();
     } else if (index === this.bookmarkActionIndex()) {
       this.onBookmark();
@@ -993,14 +1002,16 @@ export struct QuickActionColumn {
             active: this.activeActionIndex === 2,
             directTap: false
           })
-          ActionBubble({
-            label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
-            symbolIcon: $r('sys.symbol.book'),
-            isEnabled: true,
-            checked: this.translationEnabled,
-            active: this.activeActionIndex === 3,
-            directTap: false
-          })
+          if (this.showTranslationButton) {
+            ActionBubble({
+              label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
+              symbolIcon: $r('sys.symbol.book'),
+              isEnabled: true,
+              checked: this.translationEnabled,
+              active: this.activeActionIndex === this.translationActionIndex(),
+              directTap: false
+            })
+          }
           if (this.canBookmark) {
             ActionBubble({
               label: uiText('Add bookmark'),

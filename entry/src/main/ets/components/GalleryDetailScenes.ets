@@ -4,6 +4,7 @@ import { GalleryTagInfo } from '../model/GalleryModels';
 import { ArchiveOption, ArchiverInfo, ArchiverOption, HathArchiveList, TorrentInfo } from '../model/GalleryModels';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { TRANSLATION_ENABLED_KEY } from '../services/EhTranslationService';
+import { TRANSLATION_BUTTONS_VISIBLE_KEY } from '../services/EhSettingsStore';
 import {
   LANGUAGE_REVISION_KEY,
   STATUS_BAR_HEIGHT_KEY,
@@ -261,6 +262,7 @@ export struct GalleryDetailScene {
   }
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
+  @StorageProp(TRANSLATION_BUTTONS_VISIBLE_KEY) translationButtonsVisible: boolean = true;
 
   private statusBarVp(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx);
@@ -358,7 +360,7 @@ export struct GalleryDetailScene {
           statusBarHeight: this.statusBarVp(),
           title: galleryDisplayTitle(this.detail),
           translateTitle: this.translationEnabled,
-          showAction: true,
+          showAction: this.translationButtonsVisible,
           actionChecked: this.translationEnabled,
           actionIcon: $r('sys.symbol.book'),
           onBack: this.onBack,

@@ -2,6 +2,7 @@ import { GalleryCategory, GalleryDetail, GalleryRoute, GallerySite, TopListBucke
 import { EhHttpClient, TopListLoadResult } from '../services/EhHttpClient';
 import { AsyncRequestGate } from '../services/AsyncRequestGate';
 import { TRANSLATION_ENABLED_KEY } from '../services/EhTranslationService';
+import { TRANSLATION_BUTTONS_VISIBLE_KEY } from '../services/EhSettingsStore';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
 import { DetailSearchRequest } from '../services/GalleryDetailActionSupport';
 import {
@@ -150,6 +151,7 @@ export struct TopListScene {
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   @StorageProp(SPLIT_PANE_RATIO_REVISION_KEY) @Watch('onSplitPaneRatioRevisionChange') splitPaneRatioRevision: number = 0;
   @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
+  @StorageProp(TRANSLATION_BUTTONS_VISIBLE_KEY) translationButtonsVisible: boolean = true;
   private topListScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
   private toolbarRestoring: boolean = false;
@@ -772,17 +774,19 @@ export struct TopListScene {
         }
 
         Column() {
-          ActionBubble({
-            label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
-            symbolIcon: $r('sys.symbol.book'),
-            isEnabled: true,
-            checked: this.translationEnabled,
-            primary: true,
-            directTap: true,
-            onTapAction: () => {
-              this.translationEnabled = !this.translationEnabled;
-            }
-          })
+          if (this.translationButtonsVisible) {
+            ActionBubble({
+              label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
+              symbolIcon: $r('sys.symbol.book'),
+              isEnabled: true,
+              checked: this.translationEnabled,
+              primary: true,
+              directTap: true,
+              onTapAction: () => {
+                this.translationEnabled = !this.translationEnabled;
+              }
+            })
+          }
         }
         .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
         .height('100%')

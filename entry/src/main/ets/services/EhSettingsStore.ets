@@ -1,10 +1,17 @@
 import { common } from '@kit.AbilityKit';
 import { preferences } from '@kit.ArkData';
+import {
+  SavedTranslationApi,
+  parseSavedTranslationApis,
+  serializeSavedTranslationApis,
+  uniqueTranslationApiName
+} from './TranslationApiConfigSupport';
 
 const PREFERENCES_NAME: string = 'ehviewer_settings';
 const VALUES_KEY: string = 'values';
 export const HISTORY_INFO_SIZE_KEY: string = 'history_info_size';
 export const DEFAULT_HISTORY_INFO_SIZE: string = '100';
+export const TRANSLATION_BUTTONS_VISIBLE_KEY: string = 'ehviewer_translation_buttons_visible';
 const HISTORY_INFO_SIZE_OPTIONS: string[] = ['100', '500', '1000', '5000', '10000', '20000'];
 
 export interface SettingEntry {
@@ -37,6 +44,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'split_screen_mode', value: 'On' },
     { key: 'split_screen_ratio', value: '0.42' },
     { key: 'show_eh_limits', value: 'On' },
+    { key: 'translation_buttons_enabled', value: 'On' },
     { key: 'translation_provider', value: 'Google Web' },
     { key: 'translation_target_language', value: 'Simplified Chinese' },
     { key: 'translation_timeout', value: '15s' },
@@ -45,8 +53,12 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'translation_openai_api_key', value: '' },
     { key: 'translation_openai_base_url', value: 'https://api.openai.com/v1' },
     { key: 'translation_openai_model', value: 'gpt-4o-mini' },
+    { key: 'translation_official_openai_api_key', value: '' },
+    { key: 'translation_official_openai_model', value: 'gpt-4.1-mini' },
     { key: 'translation_gemini_api_key', value: '' },
     { key: 'translation_gemini_model', value: 'gemini-3.5-flash' },
+    { key: 'translation_custom_apis', value: '[]' },
+    { key: 'translation_custom_api_selected', value: '' },
     { key: 'cellular_network_warning', value: 'Off' },
     { key: 'screen_rotation', value: 'Default' },
     { key: 'reading_direction', value: 'Right to left' },
@@ -120,10 +132,21 @@ export class EhSettingsStore {
     for (let i = 0; i < this.entries.length; i++) {
       if (this.entries[i].key === key) {
         this.entries[i].value = value;
+        if (key === 'translation_buttons_enabled') {
+          this.syncTranslationButtonVisibility();
+        }
         return;
       }
     }
     this.entries.push({ key: key, value: value });
+    if (key === 'translation_buttons_enabled') {
+      this.syncTranslationButtonVisibility();
+    }
+  }
+
+  syncTranslationButtonVisibility(): void {
+    AppStorage.setOrCreate<boolean>(TRANSLATION_BUTTONS_VISIBLE_KEY,
+      this.getValue('translation_buttons_enabled', 'On') === 'On');
   }
 
   async ensureLoaded(context: common.UIAbilityContext): Promise<void> {
@@ -212,8 +235,35 @@ export class EhSettingsStore {
       if (this.getValue('detail_size', 'Medium') === 'Large') {
         this.setValue('detail_size', 'Loose');
       }
+      this.migrateLegacyTranslationApi();
     } catch (error) {
       throw new Error(String(error));
+    } finally {
+      this.syncTranslationButtonVisibility();
+    }
+  }
+
+  private migrateLegacyTranslationApi(): void {
+    const legacyProvider = this.getValue('translation_provider', 'Google Web');
+    const legacyBaseUrl = this.getValue('translation_openai_base_url', 'https://api.openai.com/v1').trim();
+    const legacyApiKey = this.getValue('translation_openai_api_key', '');
+    const legacyModel = this.getValue('translation_openai_model', 'gpt-4o-mini').trim();
+    const items = parseSavedTranslationApis(this.getValue('translation_custom_apis', '[]'));
+    if (items.length === 0 && (legacyProvider === 'OpenAI compatible' || legacyApiKey.length > 0 ||
+      legacyBaseUrl !== 'https://api.openai.com/v1')) {
+      const name = uniqueTranslationApiName(items, 'Imported API');
+      const imported: SavedTranslationApi = {
+        name: name,
+        baseUrl: legacyBaseUrl.length > 0 ? legacyBaseUrl : 'https://api.openai.com/v1',
+        apiKey: legacyApiKey,
+        model: legacyModel
+      };
+      items.push(imported);
+      this.setValue('translation_custom_apis', serializeSavedTranslationApis(items));
+      this.setValue('translation_custom_api_selected', name);
+    }
+    if (legacyProvider === 'OpenAI compatible') {
+      this.setValue('translation_provider', 'Custom API');
     }
   }
 

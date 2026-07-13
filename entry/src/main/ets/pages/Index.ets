@@ -6,6 +6,7 @@ import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
 import { ehUpdateChecker, ReleaseInfo, UpdateCheckResult } from '../services/EhUpdateChecker';
+import { TRANSLATION_ERROR_MESSAGE_KEY, TRANSLATION_ERROR_REVISION_KEY } from '../services/EhTranslationService';
 import { EhDrawer } from '../components/NavigationComponents';
 import { UpdatePromptOverlay } from '../components/UpdatePromptOverlay';
 import { applyAppChromeImmersiveMode, isEmbeddedReaderActive } from '../services/EhWindowImmersive';
@@ -22,6 +23,7 @@ import {
   getAbilityContext,
   launchRouteFromSetting,
   runActiveBackHandler,
+  uiStatusText,
   uiText
 } from '../shared/EhShared';
 import {
@@ -64,6 +66,18 @@ struct Index {
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
   @StorageProp(IDENTITY_AUTH_LOCKED_KEY) identityAuthLocked: boolean = false;
+  @StorageProp(TRANSLATION_ERROR_REVISION_KEY) @Watch('onTranslationErrorRevision') translationErrorRevision: number = 0;
+
+  private onTranslationErrorRevision(): void {
+    const message = AppStorage.get<string>(TRANSLATION_ERROR_MESSAGE_KEY);
+    if (message === undefined || message.length === 0) {
+      return;
+    }
+    try {
+      this.getUIContext().getPromptAction().showToast({ message: uiStatusText(message) });
+    } catch (_error) {
+    }
+  }
 
   private statusBarVp(): number {
     return this.getUIContext().px2vp(this.statusBarHeight);
