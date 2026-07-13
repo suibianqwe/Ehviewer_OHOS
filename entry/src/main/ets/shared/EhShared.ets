@@ -1501,13 +1501,35 @@ export function zhText(text: string): string {
 
 let activeBackHandler: (() => boolean) | null = null;
 let readerActiveBackHandler: (() => boolean) | null = null;
+const ACTIVE_BACK_HANDLERS: Array<() => boolean> = [];
 const DETAIL_BACK_HANDLERS: Array<() => boolean> = [];
 
 export function setActiveBackHandler(handler: (() => boolean) | null): void {
   activeBackHandler = handler;
 }
 
+export function pushActiveBackHandler(handler: () => boolean): () => void {
+  ACTIVE_BACK_HANDLERS.push(handler);
+  return () => {
+    for (let i = ACTIVE_BACK_HANDLERS.length - 1; i >= 0; i--) {
+      if (ACTIVE_BACK_HANDLERS[i] === handler) {
+        ACTIVE_BACK_HANDLERS.splice(i, 1);
+        return;
+      }
+    }
+  };
+}
+
 export function runActiveBackHandler(): boolean {
+  const handlers = ACTIVE_BACK_HANDLERS.slice();
+  for (let i = handlers.length - 1; i >= 0; i--) {
+    if (handlers[i]()) {
+      return true;
+    }
+  }
+  if (handlers.length > 0) {
+    return false;
+  }
   return activeBackHandler !== null && activeBackHandler();
 }
 

@@ -35,7 +35,7 @@ import {
   mainContentWidthFallbackVp,
   rememberMainContentWidthVp
 } from '../services/EhWindowImmersive';
-import { LANGUAGE_REVISION_KEY, runDetailBackHandler } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, pushActiveBackHandler, runDetailBackHandler } from '../shared/EhShared';
 import { sortedStringKey, toggleStringValue } from '../shared/StringCollectionSupport';
 import {
   themeFieldBackground,
@@ -102,7 +102,6 @@ import {
 import {
   uiText,
   uiStatusText,
-  setActiveBackHandler,
   createEmptyGallery,
   createEmptyDetail,
   cloneGalleryDetail,
@@ -1242,6 +1241,9 @@ export struct GalleryListScene {
   private searchOriginDetailScrollOffset: number = 0;
   private navigationCacheSuppressed: boolean = false;
   private nestedSearchFrames: NestedSearchFrame[] = [];
+  private unregisterActiveBackHandler: () => void = () => {};
+  private activeBackHandlerRegistered: boolean = false;
+  private searchBackTransitionPending: boolean = false;
 
   private cacheKey(): string {
     const mode = this.useForcedMode ? this.forcedMode.toString() : listModeForRoute(this.sourceRoute).toString();
@@ -1540,10 +1542,13 @@ export struct GalleryListScene {
         this.firstRefresh();
       }
     }
-    setActiveBackHandler(() => this.handleSystemBack());
+    this.activateBackHandler();
   }
 
   aboutToDisappear(): void {
+    this.unregisterActiveBackHandler();
+    this.unregisterActiveBackHandler = () => {};
+    this.activeBackHandlerRegistered = false;
     this.saveListCache();
     this.saveNavigationCache();
   }
@@ -2499,6 +2504,17 @@ export struct GalleryListScene {
   }
 
   private closeSearchResultScene(): void {
+    if (this.searchBackTransitionPending) {
+      return;
+    }
+    this.searchBackTransitionPending = true;
+    setTimeout(() => {
+      this.finishCloseSearchResultScene();
+    }, 0);
+  }
+
+  private finishCloseSearchResultScene(): void {
+    this.searchBackTransitionPending = false;
     const frame = this.nestedSearchFrames.pop();
     if (frame !== undefined) {
       this.searchResultDraft = cloneSearchResultDraft(frame.draft);
@@ -2516,11 +2532,10 @@ export struct GalleryListScene {
     }
     this.showSearchResultScene = false;
     this.searchResultDraft = createEmptySearchResultDraft();
+    const restoreRightPane = this.searchOriginShowDetail;
     this.restoreSearchOrigin();
+    this.activeSplitPane = restoreRightPane ? SPLIT_PANE_FOCUS_RIGHT : SPLIT_PANE_FOCUS_LEFT;
     this.saveNavigationCache();
-    setTimeout(() => {
-      setActiveBackHandler(() => this.handleSystemBack());
-    }, 0);
   }
 
   private toggleFilter(): void {
@@ -2697,8 +2712,16 @@ export struct GalleryListScene {
 
   private restoreBackHandler(): void {
     setTimeout(() => {
-      setActiveBackHandler(() => this.handleSystemBack());
+      this.activateBackHandler();
     }, 0);
+  }
+
+  private activateBackHandler(): void {
+    if (this.delegateDetailToHost || this.activeBackHandlerRegistered) {
+      return;
+    }
+    this.unregisterActiveBackHandler = pushActiveBackHandler(() => this.handleSystemBack());
+    this.activeBackHandlerRegistered = true;
   }
 
   private openCardActions(gallery: GalleryInfo): void {
@@ -3156,9 +3179,6 @@ export struct GalleryListScene {
             },
             onLongPressGallery: (gallery: GalleryInfo) => {
               this.openCardActions(gallery);
-            },
-            onSystemBack: () => {
-              return this.handleSystemBack();
             },
             shouldHandleLocalBack: () => {
               return !this.useSplitLayout() || this.activeSplitPane === SPLIT_PANE_FOCUS_LEFT;
@@ -3826,7 +3846,6 @@ export struct GalleryListContent {
   };
   onLongPressGallery: (gallery: GalleryInfo) => void = (_gallery: GalleryInfo) => {
   };
-  onSystemBack: () => boolean = () => false;
   shouldHandleLocalBack: () => boolean = () => true;
   initialScrollOffset: number = 0;
   onScrollUpdate: (offset: number) => void = () => {
@@ -3860,6 +3879,7 @@ export struct GalleryListContent {
   @State bookmarkDrawerOffsetX: number = 288;
   @State bookmarkDrawerOverlayOpacity: number = 0;
   private toolbarRestoring: boolean = false;
+  private unregisterActiveBackHandler: () => void = () => {};
   private barHeight: number = 56; // matches EhNavBar body height
   private readonly FAVORITE_DRAWER_WIDTH: number = 288;
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
@@ -3960,7 +3980,8 @@ export struct GalleryListContent {
   }
 
   aboutToAppear(): void {
-    setActiveBackHandler(() => this.handleContentBack());
+    this.unregisterActiveBackHandler();
+    this.unregisterActiveBackHandler = pushActiveBackHandler(() => this.handleContentBack());
     this.onLayoutWidthHintChanged();
     this.syncContentWidthFromWindow();
     this.syncPageJumpDraft();
@@ -3971,6 +3992,11 @@ export struct GalleryListContent {
     setTimeout(() => {
       this.syncContentWidthFromWindow();
     }, 0);
+  }
+
+  aboutToDisappear(): void {
+    this.unregisterActiveBackHandler();
+    this.unregisterActiveBackHandler = () => {};
   }
 
   private handleContentBack(): boolean {
@@ -3996,7 +4022,7 @@ export struct GalleryListContent {
         return true;
       }
     }
-    return this.onSystemBack();
+    return false;
   }
 
   private syncPageJumpDraft(): void {
