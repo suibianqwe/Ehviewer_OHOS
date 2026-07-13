@@ -471,10 +471,9 @@ export struct GalleryThumbCard {
           Column() {
             Text(galleryDisplayTitle(this.gallery))
               .fontSize(12)
-              .lineHeight(16)
               .fontWeight(FontWeight.Medium)
               .fontColor(themePrimaryText())
-              .maxLines(2)
+              .maxLines(5)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
               .width('100%')
           }
