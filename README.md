@@ -4,7 +4,7 @@
   <img src="entry/src/main/resources/base/media/app_icon.png" width="120" alt="EhViewer HarmonyOS app icon" />
 </p>
 
-这是 [Ehviewer_CN_SXJ](https://github.com/xiaojieonly/Ehviewer_CN_SXJ) 的 HarmonyOS 移植版本，目标是在鸿蒙设备上使用接近原应用的浏览、搜索、阅读、下载和设置体验。目前仍在快速迭代中，欢迎通过 Issue 反馈问题、日志和复现步骤，也欢迎提新功能需求。
+这是 [Ehviewer_CN_SXJ](https://github.com/xiaojieonly/Ehviewer_CN_SXJ) 的 HarmonyOS 移植版本，目标是在鸿蒙设备上提供接近原应用的浏览、搜索、阅读、下载和设置体验。欢迎通过 Issue 反馈问题、日志和复现步骤，也欢迎提出新功能需求。
 
 ## 界面预览
 
@@ -36,10 +36,12 @@
   <tr>
     <td><img src="docs/images/reader-settings.jpg" alt="阅读器设置" width="220" /></td>
     <td><img src="docs/images/gallery-detail-tag-vote.jpg" alt="标签编辑与投票" width="220" /></td>
+    <td><img src="docs/images/split-pane.jpg" alt="宽屏分栏模式" width="440" /></td>
   </tr>
   <tr>
     <td align="center">阅读器设置</td>
     <td align="center">标签编辑与投票</td>
+    <td align="center">宽屏分栏模式</td>
   </tr>
 </table>
 
@@ -48,9 +50,9 @@
 请在 [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases) 中下载最新的 `.hap` 安装包。  
 推荐使用 [小白调试助手](https://github.com/likuai2010/auto-installer) 安装。
 
-当前版本：`0.5.1`
+当前版本：`0.5.2`
 
-最新安装包：[`EhViewer_OHOS_0.5.1.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.5.1/EhViewer_OHOS_0.5.1.hap)
+最新安装包：[`EhViewer_OHOS_0.5.2.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.5.2/EhViewer_OHOS_0.5.2.hap)<br />
 发布包类型：未签名 HAP  
 目标API：`26.0.0`  
 兼容API：`6.0.0(20)`  
@@ -58,12 +60,12 @@ API 20 起可安装；低于 API 23 的设备会自动跳过 SNI 域名前置增
 
 ## 功能特色
 
-- 浏览：支持 E-Hentai/ExHentai、首页、订阅、热门、排行、云端收藏、本地收藏、历史和下载列表。
-- 搜索：支持关键词、多标签、上传者、高级筛选、搜索历史和图片相似/封面搜索。
-- 详情：统一详情页逻辑，支持预览图、评论、收藏、评分、Torrent、归档、H@H、相似画廊、封面搜索、标签编辑和标签投票。
-- 阅读：支持内嵌/独立阅读器、连续阅读、缩放、方向适配、进度控制和本地下载优先读取。
-- 下载：支持任务暂停/继续/删除、多线程下载、本地阅读、恢复本地下载和导出压缩包。
-- 设置：支持主题、语言、启动页、过滤规则、代理/Hosts/域名前置、DoH、隐私防护和身份验证。
+- 浏览：支持 E-Hentai/ExHentai、首页、订阅、热门、排行、云端收藏、本地收藏、历史和下载列表，并可在平板、折叠屏和电脑端使用可拖动分割线的宽屏分栏模式。
+- 搜索：支持关键词、多标签、上传者、高级筛选、搜索书签、搜索历史和图片相似/封面搜索；搜索详情可继续进入下一级搜索并保留各层页面状态。
+- 详情：统一详情页逻辑，支持预览图、评论、收藏、评分、Torrent 磁力链接、存档、H@H、系统分享、相似画廊、封面搜索、标签编辑和标签投票。
+- 阅读：支持内嵌/独立阅读器、连续阅读、缩放、方向适配、进度控制和本地下载优先读取，宽屏状态下始终保持独立全屏。
+- 下载：支持任务暂停/继续/删除、多线程下载、本地阅读、通知栏进度与速度、隐私通知、恢复下载项和导出压缩包；可识别存档、应用导出包及外来画廊 ZIP 并重建元数据。
+- 设置：支持主题、语言、启动页、下载目录、过滤规则、代理/Hosts/域名前置、DoH、站点限制显示、隐私防护和身份验证。
 
 ## 应用数据迁移
 
@@ -83,11 +85,20 @@ API 20 起可安装；低于 API 23 的设备会自动跳过 SNI 域名前置增
 </table>
 
 1. 在文件管理器中找到原安卓应用下载目录，一般为 `我的手机 > 兼容应用数据 > EhViewer > download`，里面每个漫画是一个独立文件夹。
-2. 将需要迁移的漫画文件夹移动或复制到鸿蒙可访问的 `我的手机 > Download > EhViewer > EhViewer` 文件夹中。
+2. 将需要迁移的漫画文件夹移动或复制到鸿蒙可访问的 `我的手机 > Download > EhViewer > EhViewer` 文件夹中；未加密的画廊 ZIP 也可直接放入公共 `Download` 目录等待识别。
 3. 打开 EhViewer OHOS，进入 `设置` -> `下载`，点击 `恢复下载项`。
-4. 应用会扫描下载文件夹、迁移到应用文件目录，并重建下载队列和漫画元数据。重复漫画会尽量保留文件更完整、体积更大的版本。
+4. 应用会扫描下载画廊及公共目录中的压缩包，识别存档文件名或内部目录结构，解压到画廊保存路径并重建下载队列和漫画元数据。重复画廊会尽量保留文件更完整、体积更大的版本。
 
 如果部分漫画缺少元数据，应用会尝试联网抓取详情信息。
+
+## 0.5.2 重点变化
+
+- 搜索结果详情支持连续进入下一级标签或上传者搜索，返回时逐层恢复搜索条件和详情状态。
+- 恢复下载项抓取元数据时优先使用当前站点，登录状态下可从 E-Hentai 回退到 ExHentai。
+- 修复 E-Hentai 站点无法加载收藏画廊的问题。
+- 修复网络请求超时与响应结束同时发生时可能触发的重复销毁崩溃。
+- 修复多列画廊列表首个卡片位置留空、顶部间距不一致的问题。
+- 修复分栏多层连续返回后焦点丢失，以及单次系统返回同时改变左右栏页面的问题。
 
 ## 0.5.1 重点变化
 

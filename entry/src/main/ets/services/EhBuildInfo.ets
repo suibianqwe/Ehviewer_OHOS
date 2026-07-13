@@ -1,4 +1,4 @@
-export const EH_APP_VERSION_NAME: string = '0.5.1';
+export const EH_APP_VERSION_NAME: string = '0.5.2';
 export const EH_APP_VERSION_CODE: number = 601;
 export const EH_TARGET_PLATFORM: string = 'HarmonyOS 26.0.0 / compatible API 6.0.0(20)';
 export const EH_AUTHOR_NAME: string = 'suibianqwe';
