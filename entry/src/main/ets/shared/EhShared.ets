@@ -880,6 +880,8 @@ export function zhText(text: string): string {
     case 'Translation model is missing': return '未选择翻译模型';
     case 'No custom translation API is selected': return '未选择自定义翻译 API';
     case 'Invalid model list response': return '模型列表响应无效';
+    case 'AI translation returned no content': return 'AI 翻译未返回内容';
+    case 'AI translation response was truncated': return 'AI 翻译结果被截断';
     case 'Bing web translation token is unavailable': return '无法获取必应网页翻译令牌';
     case 'Bing web translation is unavailable': return '必应网页翻译暂不可用';
     case 'Baidu web translation is unavailable': return '百度网页翻译暂不可用';
