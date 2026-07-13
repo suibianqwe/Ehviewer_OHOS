@@ -59,7 +59,7 @@ import {
   themeTransparentColor
 } from '../shared/EhTheme';
 import { EhNavBar } from '../components/NavigationComponents';
-import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard } from './GalleryCards';
+import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard, galleryThumbnailAspectRatio } from './GalleryCards';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
 import {
@@ -3870,6 +3870,7 @@ export struct GalleryListContent {
   private listScroller: Scroller = new Scroller();
   private loadMorePending: boolean = false;
   private restoredScroll: boolean = false;
+  private galleryThumbnailAspectRatioAverage: number = 0.75;
   @State private contentOpacity: number = 1;
   @State toolbarOffsetY: number = 0;
   @State favoriteDrawerVisible: boolean = false;
@@ -3898,6 +3899,15 @@ export struct GalleryListContent {
   }
 
   onGalleriesChanged(): void {
+    if (this.galleries.length === 0) {
+      this.galleryThumbnailAspectRatioAverage = 0.75;
+      return;
+    }
+    let ratioSum = 0;
+    for (let i = 0; i < this.galleries.length; i++) {
+      ratioSum += galleryThumbnailAspectRatio(this.galleries[i]);
+    }
+    this.galleryThumbnailAspectRatioAverage = ratioSum / this.galleries.length;
   }
 
   onLayoutWidthHintChanged(): void {
@@ -4194,7 +4204,8 @@ export struct GalleryListContent {
   private estimateContentHeight(): number {
     const columns = Math.max(1, this.galleryColumnCount());
     const rows = Math.ceil(this.galleries.length / columns);
-    const cardHeight = galleryListMode() === 'Thumb' ? Math.max(0, this.galleryCardWidth() / 0.75 + 54) :
+    const cardHeight = galleryListMode() === 'Thumb' ?
+      Math.max(0, this.galleryCardWidth() / this.galleryThumbnailAspectRatioAverage + 69) :
       galleryThumbHeight();
     return this.searchResultStripHeight() + rows * cardHeight +
       Math.max(0, rows - 1) * this.galleryCardGap() +
@@ -4284,6 +4295,19 @@ export struct GalleryListContent {
       return 1;
     }
     return this.galleryColumnCount();
+  }
+
+  private galleryWaterFlowColumnsTemplate(): string {
+    const columns = Math.max(1, this.galleryColumnCount());
+    let template = '';
+    for (let i = 0; i < columns; i++) {
+      template += '1fr ';
+    }
+    return template.trim();
+  }
+
+  private useThumbnailWaterFlow(): boolean {
+    return galleryListMode() === 'Thumb' && !this.shouldShowSearchSuggestions() && this.galleries.length > 0;
   }
 
   private galleryColumnCountForWidth(width: number): number {
@@ -4655,6 +4679,26 @@ export struct GalleryListContent {
   }
 
   @Builder
+  private galleryFlowItem(gallery: GalleryInfo) {
+    FlowItem() {
+      GalleryThumbCard({
+        gallery: gallery,
+        onLongPress: (pressed: GalleryInfo) => {
+          this.onLongPressGallery(pressed);
+        }
+      })
+        .width('100%')
+        .animation({ duration: 220, curve: Curve.EaseOut })
+        .onClick(() => {
+          this.onSelectGallery(gallery);
+        })
+    }
+    .reuseId('gallery-thumb-flow-item')
+    .animation({ duration: 220, curve: Curve.EaseOut })
+    .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+  }
+
+  @Builder
   private galleryListEdgeSpacer() {
     Row()
       .width('100%')
@@ -4680,77 +4724,130 @@ export struct GalleryListContent {
     .width('100%')
   }
 
+  @Builder
+  private galleryStandardList() {
+    List({ space: 0, scroller: this.listScroller }) {
+      if (this.shouldShowSearchSuggestions()) {
+        ListItem() {
+          this.searchSuggestionPlaceholder()
+        }
+      } else if (this.galleries.length === 0) {
+        ListItem() {
+          GalleryListStateView({
+            statusText: this.statusText,
+            requestUrl: this.requestUrl,
+            onRefresh: this.onRefresh
+          })
+            .width('100%')
+            .height('100%')
+        }
+        .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+      } else {
+        ListItemGroup({
+          header: this.galleryListEdgeSpacer(),
+          footer: this.galleryListFooter(),
+          space: this.galleryCardGap()
+        }) {
+          ForEach(this.galleries, (gallery: GalleryInfo) => {
+            this.galleryItem(gallery)
+          }, (gallery: GalleryInfo) => this.galleryCardKey(gallery))
+        }
+      }
+    }
+    .scrollBar(BarState.Auto)
+    .lanes(this.galleryListLanes(), this.galleryCardGap())
+    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
+    .cachedCount(10)
+    .padding({
+      left: this.galleries.length > 0 ? this.galleryContentPadding() : 0,
+      right: this.galleries.length > 0 ? this.galleryContentPadding() : 0
+    })
+    .width('100%')
+    .height(this.listViewportHeight())
+    .onAppear(() => {
+      this.restoreInitialListOffset();
+    })
+    .onScrollFrameBegin((offset: number, _state: ScrollState) => {
+      return { offsetRemain: this.handleScrollFrame(offset) };
+    })
+    .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
+      this.handleGalleryListDidScroll();
+    })
+    .onScrollStop(() => {
+      this.rememberListOffset(normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset));
+    })
+    .onReachEnd(() => {
+      if (!this.shouldShowSearchSuggestions()) {
+        this.triggerLoadMoreIfNear(this.galleries.length);
+      }
+    })
+  }
+
+  @Builder
+  private galleryThumbnailWaterFlow() {
+    WaterFlow({ footer: this.galleryListFooter(), scroller: this.listScroller }) {
+      ForEach(this.galleries, (gallery: GalleryInfo) => {
+        this.galleryFlowItem(gallery)
+      }, (gallery: GalleryInfo) => this.galleryCardKey(gallery))
+    }
+    .columnsTemplate(this.galleryWaterFlowColumnsTemplate())
+    .columnsGap(this.galleryCardGap())
+    .rowsGap(this.galleryCardGap())
+    .scrollBar(BarState.Auto)
+    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
+    .cachedCount(10)
+    .padding({
+      left: this.galleryContentPadding(),
+      right: this.galleryContentPadding(),
+      top: this.galleryCardGap()
+    })
+    .width('100%')
+    .height(this.listViewportHeight())
+    .onAppear(() => {
+      this.restoreInitialListOffset();
+    })
+    .onScrollFrameBegin((offset: number, _state: ScrollState) => {
+      return { offsetRemain: this.handleScrollFrame(offset) };
+    })
+    .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
+      this.handleGalleryListDidScroll();
+    })
+    .onScrollStop(() => {
+      this.rememberListOffset(normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset));
+    })
+    .onReachEnd(() => {
+      this.triggerLoadMoreIfNear(this.galleries.length);
+    })
+  }
+
+  private restoreInitialListOffset(): void {
+    this.syncContentWidthFromWindow();
+    if (!this.restoredScroll && this.initialScrollOffset > 0) {
+      this.restoredScroll = true;
+      setTimeout(() => {
+        this.listScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
+        this.contentOpacity = 1;
+      }, 80);
+    }
+  }
+
+  private handleGalleryListDidScroll(): void {
+    const yOffset = normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset);
+    this.rememberListOffset(yOffset);
+    if (!this.shouldShowSearchSuggestions()) {
+      this.triggerLoadMoreByOffset(yOffset);
+    }
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
         Refresh({ refreshing: this.refreshing }) {
-          List({ space: 0, scroller: this.listScroller }) {
-            if (this.shouldShowSearchSuggestions()) {
-              ListItem() {
-                this.searchSuggestionPlaceholder()
-              }
-            } else if (this.galleries.length === 0) {
-              ListItem() {
-                GalleryListStateView({
-                  statusText: this.statusText,
-                  requestUrl: this.requestUrl,
-                  onRefresh: this.onRefresh
-                })
-                  .width('100%')
-                  .height('100%')
-              }
-              .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
-            } else {
-              ListItemGroup({
-                header: this.galleryListEdgeSpacer(),
-                footer: this.galleryListFooter(),
-                space: this.galleryCardGap()
-              }) {
-                ForEach(this.galleries, (gallery: GalleryInfo) => {
-                  this.galleryItem(gallery)
-                }, (gallery: GalleryInfo) => this.galleryCardKey(gallery))
-              }
-            }
+          if (this.useThumbnailWaterFlow()) {
+            this.galleryThumbnailWaterFlow()
+          } else {
+            this.galleryStandardList()
           }
-          .scrollBar(BarState.Auto)
-          .lanes(this.galleryListLanes(), this.galleryCardGap())
-          .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
-          .cachedCount(10)
-          .padding({
-            left: this.galleries.length > 0 ? this.galleryContentPadding() : 0,
-            right: this.galleries.length > 0 ? this.galleryContentPadding() : 0
-          })
-          .width('100%')
-          .height(this.listViewportHeight())
-          .onAppear(() => {
-            this.syncContentWidthFromWindow();
-            if (!this.restoredScroll && this.initialScrollOffset > 0) {
-              this.restoredScroll = true;
-              setTimeout(() => {
-                this.listScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
-                this.contentOpacity = 1;
-              }, 80);
-            }
-          })
-          .onScrollFrameBegin((offset: number, _state: ScrollState) => {
-            return { offsetRemain: this.handleScrollFrame(offset) };
-          })
-          .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
-            const yOff = normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset);
-            this.rememberListOffset(yOff);
-            if (!this.shouldShowSearchSuggestions()) {
-              this.triggerLoadMoreByOffset(yOff);
-            }
-          })
-          .onScrollStop(() => {
-            const yOff = normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset);
-            this.rememberListOffset(yOff);
-          })
-          .onReachEnd(() => {
-            if (!this.shouldShowSearchSuggestions()) {
-              this.triggerLoadMoreIfNear(this.galleries.length);
-            }
-          })
         }
         .refreshOffset(this.REFRESH_OFFSET)
         .pullToRefresh(true)

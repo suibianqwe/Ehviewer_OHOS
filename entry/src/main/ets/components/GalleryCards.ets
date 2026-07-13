@@ -29,6 +29,17 @@ import {
 
 const GALLERY_THUMB_LOCAL_SOURCE_CACHE: Map<string, string> = new Map<string, string>();
 
+export function galleryThumbnailAspectRatio(gallery: GalleryInfo): number {
+  if (gallery.thumbWidth <= 0 || gallery.thumbHeight <= 0) {
+    return 0.75;
+  }
+  const ratio = gallery.thumbWidth / gallery.thumbHeight;
+  if (Number.isNaN(ratio) || ratio <= 0) {
+    return 0.75;
+  }
+  return Math.max(0.3, Math.min(2.5, ratio));
+}
+
 @Component
 @Reusable
 export struct GalleryListRow {
@@ -454,7 +465,7 @@ export struct GalleryThumbCard {
           heightValue: 0
         })
           .width('100%')
-          .aspectRatio(0.75)
+          .aspectRatio(galleryThumbnailAspectRatio(this.gallery))
 
         Column() {
           Column() {

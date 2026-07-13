@@ -786,6 +786,15 @@ export struct DownloadScene {
     return Math.max(1, Math.floor((availableWidth + gap) / (preferred + gap)));
   }
 
+  private downloadWaterFlowColumnsTemplate(): string {
+    const columns = Math.max(1, this.downloadColumnCount());
+    let template = '';
+    for (let i = 0; i < columns; i++) {
+      template += '1fr ';
+    }
+    return template.trim();
+  }
+
   private updateDownloadContentWidth(width: number): void {
     const normalizedWidth = Math.floor(width);
     if (normalizedWidth <= 0 || Number.isNaN(normalizedWidth) ||
@@ -1298,6 +1307,151 @@ export struct DownloadScene {
     .padding({ left: 8, right: 8, top: 4 })
   }
 
+  @Builder
+  private downloadCardContent(item: DownloadInfo) {
+    Column() {
+      if (galleryListMode() === 'Thumb') {
+        GalleryThumbCard({
+          gallery: item,
+          selected: this.isDownloadSelected(item.gid),
+          onLongPress: (_pressed: GalleryInfo) => {
+            this.toggleDownloadSelection(item);
+          }
+        })
+          .width('100%')
+          .zIndex(2)
+          .onClick(() => {
+            this.handleDownloadCardTap(item);
+          })
+      } else {
+        GalleryListRow({
+          gallery: item,
+          selected: this.isDownloadSelected(item.gid),
+          onLongPress: (_pressed: GalleryInfo) => {
+            this.toggleDownloadSelection(item);
+          }
+        })
+          .width('100%')
+          .zIndex(2)
+          .onClick(() => {
+            this.handleDownloadCardTap(item);
+          })
+      }
+      if (item.state !== DownloadState.Finish) {
+        DownloadCardStatus({
+          item: item,
+          cardState: this.downloadCardStateFor(item.gid),
+          onStatusTap: (downloadItem: DownloadInfo) => {
+            this.toggleItemFromProgress(downloadItem);
+          }
+        })
+          .margin({ top: 4 })
+          .zIndex(1)
+          .transition(TransitionEffect.asymmetric(
+            TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }),
+            TransitionEffect.move(TransitionEdge.TOP)
+              .animation({ duration: 180, curve: Curve.EaseIn })))
+      }
+    }
+    .width('100%')
+    .animation({ duration: 220, curve: Curve.EaseOut })
+  }
+
+  @Builder
+  private downloadStandardList() {
+    List({ space: 0, scroller: this.downloadScroller }) {
+      ForEach(this.visibleItems, (item: DownloadInfo) => {
+        ListItem() {
+          this.downloadCardContent(item)
+        }
+        .margin({ bottom: this.downloadCardGap() })
+        .reuseId('download-card-item')
+        .animation({ duration: 220, curve: Curve.EaseOut })
+        .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
+      }, (item: DownloadInfo) => item.gid.toString())
+    }
+    .width('100%')
+    .height(this.downloadListViewportHeight())
+    .lanes(this.downloadColumnCount(), this.downloadCardGap())
+    .cachedCount(4)
+    .padding({
+      left: this.downloadContentPadding(),
+      right: this.downloadContentPadding(),
+      top: this.downloadCardGap()
+    })
+    .translate({ y: this.downloadContentStartOffset() })
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      this.updateDownloadContentWidthFromArea(newArea.width as number);
+    })
+    .onAppear(() => {
+      this.restoreDownloadScrollOffset();
+    })
+    .onScrollFrameBegin((offset: number, _state: ScrollState) => {
+      return { offsetRemain: this.updateToolbarForScrollFrame(offset) };
+    })
+    .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
+      this.rememberDownloadScrollOffset();
+    })
+    .onScrollStop(() => {
+      this.rememberDownloadScrollOffset();
+    })
+  }
+
+  @Builder
+  private downloadThumbnailWaterFlow() {
+    WaterFlow({ scroller: this.downloadScroller }) {
+      ForEach(this.visibleItems, (item: DownloadInfo) => {
+        FlowItem() {
+          this.downloadCardContent(item)
+        }
+        .reuseId('download-thumb-flow-item')
+        .animation({ duration: 220, curve: Curve.EaseOut })
+        .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
+      }, (item: DownloadInfo) => item.gid.toString())
+    }
+    .columnsTemplate(this.downloadWaterFlowColumnsTemplate())
+    .columnsGap(this.downloadCardGap())
+    .rowsGap(this.downloadCardGap())
+    .width('100%')
+    .height(this.downloadListViewportHeight())
+    .cachedCount(4)
+    .padding({
+      left: this.downloadContentPadding(),
+      right: this.downloadContentPadding(),
+      top: this.downloadCardGap(),
+      bottom: this.downloadCardGap()
+    })
+    .translate({ y: this.downloadContentStartOffset() })
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      this.updateDownloadContentWidthFromArea(newArea.width as number);
+    })
+    .onAppear(() => {
+      this.restoreDownloadScrollOffset();
+    })
+    .onScrollFrameBegin((offset: number, _state: ScrollState) => {
+      return { offsetRemain: this.updateToolbarForScrollFrame(offset) };
+    })
+    .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
+      this.rememberDownloadScrollOffset();
+    })
+    .onScrollStop(() => {
+      this.rememberDownloadScrollOffset();
+    })
+  }
+
+  private restoreDownloadScrollOffset(): void {
+    this.syncDownloadContentWidthFromWindow();
+    if (this.downloadScrollOffset > 0) {
+      setTimeout(() => {
+        this.downloadScroller.scrollTo({ xOffset: 0, yOffset: this.downloadScrollOffset });
+      }, 0);
+    }
+  }
+
+  private rememberDownloadScrollOffset(): void {
+    this.downloadScrollOffset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
+  }
+
   build() {
     if (this.showTagSearch) {
       GalleryListScene({
@@ -1404,92 +1558,11 @@ export struct DownloadScene {
             .justifyContent(FlexAlign.Center)
             .translate({ y: this.downloadContentStartOffset() })
           } else {
-            List({ space: 0, scroller: this.downloadScroller }) {
-              ForEach(this.visibleItems, (item: DownloadInfo) => {
-                ListItem() {
-                  Column() {
-                    if (galleryListMode() === 'Thumb') {
-                      GalleryThumbCard({
-                        gallery: item,
-                        selected: this.isDownloadSelected(item.gid),
-                        onLongPress: (_pressed: GalleryInfo) => {
-                          this.toggleDownloadSelection(item);
-                        }
-                      })
-                        .width('100%')
-                        .zIndex(2)
-                        .onClick(() => {
-                          this.handleDownloadCardTap(item);
-                        })
-                    } else {
-                      GalleryListRow({
-                        gallery: item,
-                        selected: this.isDownloadSelected(item.gid),
-                        onLongPress: (_pressed: GalleryInfo) => {
-                          this.toggleDownloadSelection(item);
-                        }
-                      })
-                        .width('100%')
-                        .zIndex(2)
-                        .onClick(() => {
-                          this.handleDownloadCardTap(item);
-                        })
-                    }
-                    if (item.state !== DownloadState.Finish) {
-                      DownloadCardStatus({
-                        item: item,
-                        cardState: this.downloadCardStateFor(item.gid),
-                        onStatusTap: (downloadItem: DownloadInfo) => {
-                          this.toggleItemFromProgress(downloadItem);
-                        }
-                      })
-                        .margin({ top: 4 })
-                        .zIndex(1)
-                        .transition(TransitionEffect.asymmetric(
-                          TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }),
-                          TransitionEffect.move(TransitionEdge.TOP)
-                            .animation({ duration: 180, curve: Curve.EaseIn })))
-                    }
-                  }
-                  .width('100%')
-                  .animation({ duration: 220, curve: Curve.EaseOut })
-                }
-                .margin({ bottom: this.downloadCardGap() })
-                .reuseId('download-card-item')
-                .animation({ duration: 220, curve: Curve.EaseOut })
-                .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
-              }, (item: DownloadInfo) => item.gid.toString())
+            if (galleryListMode() === 'Thumb') {
+              this.downloadThumbnailWaterFlow()
+            } else {
+              this.downloadStandardList()
             }
-            .width('100%')
-            .height(this.downloadListViewportHeight())
-            .lanes(this.downloadColumnCount(), this.downloadCardGap())
-            .cachedCount(4)
-            .padding({
-              left: this.downloadContentPadding(),
-              right: this.downloadContentPadding(),
-              top: this.downloadCardGap()
-            })
-            .translate({ y: this.downloadContentStartOffset() })
-        .onAreaChange((_oldArea: Area, newArea: Area) => {
-          this.updateDownloadContentWidthFromArea(newArea.width as number);
-        })
-            .onAppear(() => {
-              this.syncDownloadContentWidthFromWindow();
-              if (this.downloadScrollOffset > 0) {
-                setTimeout(() => {
-                  this.downloadScroller.scrollTo({ xOffset: 0, yOffset: this.downloadScrollOffset });
-                }, 0);
-              }
-            })
-            .onScrollFrameBegin((offset: number, _state: ScrollState) => {
-              return { offsetRemain: this.updateToolbarForScrollFrame(offset) };
-            })
-            .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
-              this.downloadScrollOffset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
-            })
-            .onScrollStop(() => {
-              this.downloadScrollOffset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
-            })
           }
         }
         .width('100%')
