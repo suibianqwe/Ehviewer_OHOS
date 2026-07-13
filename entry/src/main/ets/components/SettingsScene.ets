@@ -2543,10 +2543,29 @@ export struct SettingsActionRow {
 export struct SettingsStaticRow {
   row: SettingsRowItem = { title: '', summary: '', value: '', type: '' };
   @Prop renderRevision: number = 0;
+  @State inputValue: string = '';
   onTap: () => void = () => {};
   onTextChange: (key: string, value: string) => void = () => {};
   onSwitchChange: (key: string, isOn: boolean) => void = () => {};
   onOptionSelect: (key: string, value: string) => void = () => {};
+  private committedInputValue: string = '';
+
+  aboutToAppear(): void {
+    this.inputValue = this.row.value;
+    this.committedInputValue = this.row.value;
+  }
+
+  private commitInputValue(): void {
+    if (this.row.key === undefined) {
+      return;
+    }
+    const value = isSecretSettingKey(this.row.key) ? this.inputValue : this.inputValue.trim();
+    if (value === this.committedInputValue) {
+      return;
+    }
+    this.committedInputValue = value;
+    this.onTextChange(this.row.key, value);
+  }
 
   build() {
     Column() {
@@ -2557,7 +2576,7 @@ export struct SettingsStaticRow {
         })
         .layoutWeight(1)
         if (this.row.type === 'input') {
-          TextInput({ text: this.row.value, placeholder: uiText(this.row.summary) })
+          TextInput({ text: this.inputValue, placeholder: uiText(this.row.summary) })
             .width(150)
             .height(38)
             .type(isSecretSettingKey(this.row.key) ? InputType.Password : InputType.Normal)
@@ -2567,9 +2586,13 @@ export struct SettingsStaticRow {
             .backgroundColor(themeFieldBackground())
             .margin({ left: 12 })
             .onChange((value: string) => {
-              if (this.row.key !== undefined) {
-                this.onTextChange(this.row.key, isSecretSettingKey(this.row.key) ? value : value.trim());
-              }
+              this.inputValue = value;
+            })
+            .onSubmit(() => {
+              this.commitInputValue();
+            })
+            .onBlur(() => {
+              this.commitInputValue();
             })
         } else if (this.row.type === 'switch') {
           Row() {

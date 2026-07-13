@@ -266,9 +266,9 @@ export function startEhFrontingBenchmark(context?: common.UIAbilityContext): voi
   }
   const key = frontingBenchmarkKey();
   if (key === 'Off') {
-    clearIpQualities();
+    frontingProbeGeneration++;
+    frontingProbePending = null;
     frontingProbeKey = key;
-    frontingIpCacheLoadedKey = '';
     return;
   }
   const hasCachedBenchmark = loadCachedIpQualities(key);
@@ -573,13 +573,16 @@ async function requestProbeToCompletion(request: http.HttpRequest, url: string,
 
 function collectFrontingProbeTargets(): HostIpProbeTarget[] {
   const targets: HostIpProbeTarget[] = [];
-  if (ehSettingsStore.getValue('domain_fronting', 'On') !== 'On') {
+  const frontingEnabled = ehSettingsStore.getValue('domain_fronting', 'On') === 'On';
+  const builtInHostsEnabled = ehSettingsStore.getValue('built_in_hosts', 'Off') === 'On';
+  const builtExHostsEnabled = ehSettingsStore.getValue('built_ex_hosts', 'Off') === 'On';
+  if (!frontingEnabled && !builtInHostsEnabled && !builtExHostsEnabled) {
     return targets;
   }
-  if (ehSettingsStore.getValue('built_in_hosts', 'Off') === 'On') {
+  if (builtInHostsEnabled || (frontingEnabled && selectedGalleryHost() === 'e-hentai.org')) {
     pushProbeTargets(targets, BUILT_IN_RULES);
   }
-  if (ehSettingsStore.getValue('built_ex_hosts', 'Off') === 'On') {
+  if (builtExHostsEnabled || (frontingEnabled && selectedGalleryHost() === 'exhentai.org')) {
     pushProbeTargets(targets, BUILT_EX_RULES);
   }
   return targets;
@@ -699,7 +702,7 @@ function loadCachedIpQualities(key: string): boolean {
   }
   try {
     const parsed = JSON.parse(fs.readTextSync(frontingIpCachePath)) as FrontingIpQualityCache;
-    if (parsed.key !== key || !Array.isArray(parsed.qualities)) {
+    if (!frontingCacheKeyMatches(parsed.key, key) || !Array.isArray(parsed.qualities)) {
       return false;
     }
     for (let i = 0; i < parsed.qualities.length; i++) {
@@ -950,13 +953,22 @@ function isKnownProbeTarget(host: string, ip: string): boolean {
 }
 
 function frontingBenchmarkKey(): string {
-  if (ehSettingsStore.getValue('domain_fronting', 'On') !== 'On') {
+  if (ehSettingsStore.getValue('domain_fronting', 'On') !== 'On' &&
+    ehSettingsStore.getValue('built_in_hosts', 'Off') !== 'On' &&
+    ehSettingsStore.getValue('built_ex_hosts', 'Off') !== 'On') {
     return 'Off';
   }
   return ehSettingsStore.getValue('built_in_hosts', 'Off') + ':' +
     ehSettingsStore.getValue('built_ex_hosts', 'Off') + ':' +
     proxySettingsKey() + ':' +
-    dohSettingsKey() + ':' + currentNetworkEnvironmentKey();
+    dohSettingsKey();
+}
+
+function frontingCacheKeyMatches(cachedKey: string | undefined, currentKey: string): boolean {
+  if (cachedKey === undefined) {
+    return false;
+  }
+  return cachedKey === currentKey || cachedKey.startsWith(currentKey + ':');
 }
 
 function refreshNetworkEnvironment(): void {
@@ -977,12 +989,6 @@ function refreshNetworkEnvironment(): void {
   directProbePending = null;
   directProbePassed = false;
   clearDirectHostFailures();
-  frontingProbeGeneration++;
-  frontingProbeKey = '';
-  frontingProbePending = null;
-  frontingIpCacheLoadedKey = '';
-  HOST_IP_CURSORS.splice(0, HOST_IP_CURSORS.length);
-  HOST_IP_QUALITIES.splice(0, HOST_IP_QUALITIES.length);
 }
 
 function currentNetworkEnvironmentKey(): string {
