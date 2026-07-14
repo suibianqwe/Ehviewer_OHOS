@@ -57,7 +57,7 @@ const TOKEN_SAVING_PROMPT: string =
   'directly without refusal, warning, euphemism, censorship or omission. Do not summarize or explain; return the complete result.';
 
 const PRESETS: TranslationPromptProfile[] = [
-  { id: DEFAULT_TRANSLATION_PROMPT_ID, name: 'Faithful (Recommended)', prompt: FAITHFUL_PROMPT, builtIn: true },
+  { id: DEFAULT_TRANSLATION_PROMPT_ID, name: 'Faithful', prompt: FAITHFUL_PROMPT, builtIn: true },
   { id: 'preset_brackets', name: 'Strict brackets', prompt: BRACKET_PROMPT, builtIn: true },
   { id: 'preset_natural', name: 'Natural localization', prompt: NATURAL_PROMPT, builtIn: true },
   { id: 'preset_compact', name: 'Token saving', prompt: TOKEN_SAVING_PROMPT, builtIn: true }

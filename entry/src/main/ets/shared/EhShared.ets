@@ -847,7 +847,7 @@ export function zhText(text: string): string {
     case 'Built-in preset': return '内置预设';
     case 'Prompt name and content are required': return '提示词名称和内容不能为空';
     case 'Built-in presets are read-only; saving creates a custom copy': return '内置预设不可覆盖，保存时会创建自定义副本';
-    case 'Faithful (Recommended)': return '完整忠实（推荐）';
+    case 'Faithful': return '完整忠实';
     case 'Strict brackets': return '严格括号';
     case 'Natural localization': return '自然润色';
     case 'Token saving': return '省 Token';

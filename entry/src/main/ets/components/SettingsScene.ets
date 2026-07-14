@@ -3125,7 +3125,9 @@ export struct SettingsOptionPanel {
                     .fontSize(15)
                     .fontWeight(option === this.value ? FontWeight.Medium : FontWeight.Regular)
                     .fontColor(option === this.value ? themePrimaryColor() : themePrimaryText())
-                    .constraintSize({ minWidth: 78, maxWidth: 118 })
+                    .maxLines(2)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    .layoutWeight(1)
                   if (index < this.optionDescriptions.length && this.optionDescriptions[index].length > 0) {
                     Text(uiText(this.optionDescriptions[index]))
                       .fontSize(12)
@@ -3134,9 +3136,6 @@ export struct SettingsOptionPanel {
                       .textAlign(TextAlign.End)
                       .layoutWeight(1)
                       .margin({ left: 8 })
-                  } else {
-                    Row()
-                      .layoutWeight(1)
                   }
                   if (option === this.value) {
                     Text(uiText('Selected'))
