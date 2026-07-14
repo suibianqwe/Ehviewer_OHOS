@@ -50,7 +50,7 @@ export struct SessionScene {
     if (mode === SessionMode.Password) {
       this.statusText = 'Sign in with an E-Hentai forum account';
     } else if (mode === SessionMode.Cookie) {
-      this.statusText = 'Enter ipb_member_id, ipb_pass_hash and optional igneous';
+      this.statusText = 'Enter ipb_member_id and ipb_pass_hash, or paste a full Cookie header';
     } else {
       this.statusText = 'Finish login in the web page; Cookie will be captured automatically';
       this.webCookieCaptured = false;
@@ -298,114 +298,106 @@ export struct SessionScene {
 
   @Builder
   private PasswordSignInPanel() {
-    Stack() {
-      Scroll() {
+    Scroll() {
+      Column() {
+        SignInMark({ label: 'EH' })
+
         Column() {
-          SignInMark({ label: 'EH' })
-
-          Column() {
           TextInput({ text: this.username, placeholder: uiText('Username') })
-              .height(46)
-              .width('100%')
-              .fontColor(themePrimaryText())
-              .placeholderColor(themeSecondaryText())
-              .caretColor(themePrimaryColor())
-              .backgroundColor(themeFieldBackground())
-              .onChange((value: string) => {
-                this.username = value;
-              })
-            TextInput({ text: this.password, placeholder: uiText('Password') })
-              .height(46)
-              .width('100%')
-              .margin({ top: 10 })
-              .type(InputType.Password)
-              .fontColor(themePrimaryText())
-              .placeholderColor(themeSecondaryText())
-              .caretColor(themePrimaryColor())
-              .backgroundColor(themeFieldBackground())
-              .onChange((value: string) => {
-                this.password = value;
-              })
-          }
-          .width('100%')
-          .constraintSize({ maxWidth: 420 })
-          .margin({ top: 8 })
-
-          Text(uiStatusText(this.statusText))
-            .fontSize(13)
-            .fontColor(themeSuccessText())
-            .textAlign(TextAlign.Center)
+            .height(46)
             .width('100%')
-            .constraintSize({ maxWidth: 420 })
-            .margin({ top: 12 })
-
-          Blank()
-            .layoutWeight(1)
-
-          Row() {
-            Button(uiText('Register'))
-              .type(ButtonType.Normal)
-              .fontColor(themePrimaryColor())
-              .backgroundColor(themeTransparentColor())
-              .layoutWeight(1)
-            Button(this.signingIn ? uiText('Signing in...') : uiText('Sign in'))
-              .type(ButtonType.Normal)
-              .fontColor(themePrimaryColor())
-              .fontWeight(FontWeight.Bold)
-              .backgroundColor(themeTransparentColor())
-              .layoutWeight(1)
-              .enabled(!this.signingIn)
-              .onClick(() => {
-                this.signInWithPassword();
-              })
-          }
-          .width('100%')
-          .constraintSize({ maxWidth: 520 })
-          .margin({ top: 22 })
-
-          Text(uiText('Sign in via WebView'))
-            .fontSize(14)
-            .fontColor(themePrimaryColor())
-            .margin({ top: 8 })
-            .onClick(() => {
-              this.prepareWebSignIn();
+            .fontColor(themePrimaryText())
+            .placeholderColor(themeSecondaryText())
+            .caretColor(themePrimaryColor())
+            .backgroundColor(themeFieldBackground())
+            .onChange((value: string) => {
+              this.username = value;
             })
-          Text(uiText('Sign in via Cookies'))
-            .fontSize(14)
-            .fontColor(themePrimaryColor())
+          TextInput({ text: this.password, placeholder: uiText('Password') })
+            .height(46)
+            .width('100%')
             .margin({ top: 10 })
-            .onClick(() => {
-              this.switchMode(SessionMode.Cookie);
-            })
-          Text(uiText('Guest mode'))
-            .fontSize(14)
-            .fontColor(themePrimaryColor())
-            .margin({ top: 10, bottom: 18 })
-            .onClick(() => {
-              this.onSignedIn();
+            .type(InputType.Password)
+            .fontColor(themePrimaryText())
+            .placeholderColor(themeSecondaryText())
+            .caretColor(themePrimaryColor())
+            .backgroundColor(themeFieldBackground())
+            .onChange((value: string) => {
+              this.password = value;
             })
         }
-        .alignItems(HorizontalAlign.Center)
         .width('100%')
-        .height('100%')
-        .padding(20)
-        .backgroundColor(themePageBackground())
+        .constraintSize({ maxWidth: 420 })
+        .margin({ top: 8 })
+
+        Text(uiStatusText(this.statusText))
+          .fontSize(13)
+          .fontColor(themeSuccessText())
+          .textAlign(TextAlign.Center)
+          .width('100%')
+          .constraintSize({ maxWidth: 420 })
+          .margin({ top: 12 })
+
+        Row() {
+          Button(uiText('Register'))
+            .type(ButtonType.Normal)
+            .fontColor(themePrimaryColor())
+            .backgroundColor(themeTransparentColor())
+            .layoutWeight(1)
+          Button(this.signingIn ? uiText('Signing in...') : uiText('Sign in'))
+            .type(ButtonType.Normal)
+            .fontColor(themePrimaryColor())
+            .fontWeight(FontWeight.Bold)
+            .backgroundColor(themeTransparentColor())
+            .layoutWeight(1)
+            .enabled(!this.signingIn)
+            .onClick(() => {
+              this.signInWithPassword();
+            })
+        }
+        .width('100%')
+        .constraintSize({ maxWidth: 520 })
+        .margin({ top: 22 })
+
+        Text(uiText('Sign in via WebView'))
+          .fontSize(14)
+          .fontColor(themePrimaryColor())
+          .margin({ top: 8 })
+          .onClick(() => {
+            this.prepareWebSignIn();
+          })
+        Text(uiText('Sign in via Cookies'))
+          .fontSize(14)
+          .fontColor(themePrimaryColor())
+          .margin({ top: 10 })
+          .onClick(() => {
+            this.switchMode(SessionMode.Cookie);
+          })
+        Text(uiText('Guest mode'))
+          .fontSize(14)
+          .fontColor(themePrimaryColor())
+          .margin({ top: 10, bottom: 18 })
+          .onClick(() => {
+            this.onSignedIn();
+          })
       }
+      .alignItems(HorizontalAlign.Center)
       .width('100%')
-      .height('100%')
+      .padding(20)
       .backgroundColor(themePageBackground())
     }
+    .layoutWeight(1)
+    .width('100%')
     .backgroundColor(themePageBackground())
   }
 
   @Builder
   private CookieSignInPanel() {
     Column() {
-      SignInMark({ label: 'CK' })
-        .margin({ top: 12 })
-
       Scroll() {
         Column() {
+          SignInMark({ label: 'CK' })
+
           Text(uiText('Use this when password login needs captcha, or when importing an ExHentai session.'))
             .fontSize(13)
             .fontColor(themeSecondaryText())
@@ -449,6 +441,20 @@ export struct SessionScene {
             .onChange((value: string) => {
               this.igneous = value;
             })
+          TextArea({ text: this.cookieInput, placeholder: uiText('Full Cookie header') })
+            .height(116)
+            .width('100%')
+            .constraintSize({ maxWidth: 420 })
+            .fontSize(13)
+            .margin({ top: 12 })
+            .fontColor(themePrimaryText())
+            .placeholderColor(themeSecondaryText())
+            .caretColor(themePrimaryColor())
+            .backgroundColor(themeFieldBackground())
+            .onChange((value: string) => {
+              this.cookieInput = value;
+              this.syncCookieFieldsFromInput(value, true);
+            })
           Text(uiStatusText(this.statusText))
             .fontSize(13)
             .fontColor(themeSuccessText())
@@ -459,7 +465,7 @@ export struct SessionScene {
         }
         .alignItems(HorizontalAlign.Center)
         .width('100%')
-        .padding({ left: 20, right: 20, top: 16, bottom: 20 })
+        .padding({ left: 20, right: 20, top: 12, bottom: 20 })
       }
       .layoutWeight(1)
       .width('100%')
@@ -487,7 +493,7 @@ export struct SessionScene {
       .padding({ left: 12, right: 12, bottom: 12 })
     }
     .width('100%')
-    .height('100%')
+    .layoutWeight(1)
     .backgroundColor(themePageBackground())
   }
 
@@ -515,7 +521,7 @@ export struct SessionScene {
         .layoutWeight(1)
     }
     .width('100%')
-    .height('100%')
+    .layoutWeight(1)
     .backgroundColor(themePageBackground())
   }
 }
@@ -525,16 +531,17 @@ export struct SignInMark {
   label: string = '';
 
   build() {
-    Text(this.label)
-      .fontSize(24)
-      .fontWeight(FontWeight.Bold)
-      .fontColor(themeOnPrimaryText())
-      .textAlign(TextAlign.Center)
-      .width(72)
-      .height(72)
-      .lineHeight(72)
-      .backgroundColor(themePrimaryColor())
-      .borderRadius(18)
+    Stack({ alignContent: Alignment.Center }) {
+      Text(this.label)
+        .fontSize(24)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(themeOnPrimaryText())
+        .textAlign(TextAlign.Center)
+    }
+    .width(72)
+    .height(72)
+    .backgroundColor(themePrimaryColor())
+    .borderRadius(18)
   }
 }
 
