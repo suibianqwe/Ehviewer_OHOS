@@ -109,6 +109,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'built_in_hosts', value: 'Off' },
     { key: 'built_ex_hosts', value: 'Off' },
     { key: 'dns_over_https', value: 'Off' },
+    { key: 'dns_over_https_provider', value: 'Yandex' },
     { key: 'domain_fronting', value: 'Off' },
     { key: 'auto_direct_connection', value: 'Off' },
     { key: 'close_auto_updates', value: 'Off' },

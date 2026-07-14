@@ -57,7 +57,6 @@ import {
   currentDnsOverHttpsStatusText,
   ensureEhHostRules,
   isEhDirectConnectionProbeEnabled,
-  isEhFrontingBenchmarkEnabled,
   socks5ProxySupported,
   startEhDirectConnectionProbe,
   startEhFrontingBenchmark
@@ -1829,9 +1828,7 @@ export struct SettingsScene {
     const context = getAbilityContext();
     if (!isEhDirectConnectionProbeEnabled()) {
       ensureEhHostRules().then(() => {
-        if (isEhFrontingBenchmarkEnabled()) {
-          startEhFrontingBenchmark(context);
-        }
+        startEhFrontingBenchmark(context);
       }).catch(() => {});
       return;
     }
@@ -3621,7 +3618,8 @@ function isNetworkSettingKey(key: string): boolean {
   return key === 'proxy' || key === 'proxy_host' || key === 'proxy_port' || key === 'proxy_username' ||
     key === 'proxy_password' || key === 'proxy_exclusion_list' || key === 'proxy_socks_dns' ||
     key === 'built_in_hosts' ||
-    key === 'built_ex_hosts' || key === 'dns_over_https' || key === 'domain_fronting' ||
+    key === 'built_ex_hosts' || key === 'dns_over_https' || key === 'dns_over_https_provider' ||
+    key === 'domain_fronting' ||
     key === 'auto_direct_connection' || key === 'gallery_site';
 }
 

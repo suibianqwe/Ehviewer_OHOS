@@ -5,7 +5,9 @@ import { http } from '@kit.NetworkKit';
 import { connection } from '@kit.NetworkKit';
 import { ehSettingsStore } from './EhSettingsStore';
 
-const DOH_URL: string = 'https://77.88.8.1/dns-query';
+const YANDEX_DOH_URL: string = 'https://common.dot.dns.yandex.net/dns-query';
+const CLOUDFLARE_DOH_URL: string = 'https://cloudflare-dns.com/dns-query';
+const GOOGLE_DOH_URL: string = 'https://dns.google/dns-query';
 const FRONTING_IP_CACHE_FILE_NAME: string = 'eh_fronting_ip_quality.json';
 const FRONTING_IP_CACHE_VERSION: number = 1;
 const FRONTING_PROBE_CONNECT_TIMEOUT_MS: number = 3000;
@@ -239,6 +241,7 @@ export function startEhDirectConnectionProbe(context?: common.UIAbilityContext):
       directProbePassed = passed;
       if (passed) {
         clearDirectHostFailures();
+        cancelFrontingBenchmark();
       }
       directProbePending = null;
     }
@@ -311,9 +314,7 @@ export function startEhFrontingBenchmark(context?: common.UIAbilityContext): voi
   }
   const key = frontingBenchmarkKey();
   if (key === 'Off') {
-    frontingProbeGeneration++;
-    frontingProbePending = null;
-    frontingProbeKey = key;
+    cancelFrontingBenchmark();
     return;
   }
   const hasCachedBenchmark = loadCachedIpQualities(key);
@@ -337,6 +338,12 @@ export function startEhFrontingBenchmark(context?: common.UIAbilityContext): voi
       frontingProbePending = null;
     }
   });
+}
+
+function cancelFrontingBenchmark(): void {
+  frontingProbeGeneration++;
+  frontingProbePending = null;
+  frontingProbeKey = 'Off';
 }
 
 export async function ensureEhHostRules(): Promise<void> {
@@ -612,16 +619,12 @@ async function requestProbeToCompletion(request: http.HttpRequest, url: string,
 
 function collectFrontingProbeTargets(): HostIpProbeTarget[] {
   const targets: HostIpProbeTarget[] = [];
-  const frontingEnabled = ehSettingsStore.getValue('domain_fronting', 'Off') === 'On';
-  const builtInHostsEnabled = ehSettingsStore.getValue('built_in_hosts', 'Off') === 'On';
-  const builtExHostsEnabled = ehSettingsStore.getValue('built_ex_hosts', 'Off') === 'On';
-  if (!frontingEnabled && !builtInHostsEnabled && !builtExHostsEnabled) {
+  if (ehSettingsStore.getValue('domain_fronting', 'Off') !== 'On') {
     return targets;
   }
-  if (builtInHostsEnabled || (frontingEnabled && selectedGalleryHost() === 'e-hentai.org')) {
+  if (selectedGalleryHost() === 'e-hentai.org') {
     pushProbeTargets(targets, BUILT_IN_RULES);
-  }
-  if (builtExHostsEnabled || (frontingEnabled && selectedGalleryHost() === 'exhentai.org')) {
+  } else {
     pushProbeTargets(targets, BUILT_EX_RULES);
   }
   return targets;
@@ -966,7 +969,7 @@ async function probeDirectSelectedSite(): Promise<boolean> {
     applyConfiguredNetworkOptions(options);
     const response = await requestProbeToCompletion(request, 'https://' + host + '/', options);
     const statusCode = Number(response.responseCode);
-    return statusCode > 0 && statusCode < 500;
+    return statusCode >= 200 && statusCode < 300;
   } catch (error) {
     return false;
   } finally {
@@ -988,13 +991,10 @@ function isKnownProbeTarget(host: string, ip: string): boolean {
 }
 
 function frontingBenchmarkKey(): string {
-  if (ehSettingsStore.getValue('domain_fronting', 'Off') !== 'On' &&
-    ehSettingsStore.getValue('built_in_hosts', 'Off') !== 'On' &&
-    ehSettingsStore.getValue('built_ex_hosts', 'Off') !== 'On') {
+  if (ehSettingsStore.getValue('domain_fronting', 'Off') !== 'On') {
     return 'Off';
   }
-  return ehSettingsStore.getValue('built_in_hosts', 'Off') + ':' +
-    ehSettingsStore.getValue('built_ex_hosts', 'Off') + ':' +
+  return selectedGalleryHost() + ':' +
     proxySettingsKey() + ':' +
     dohSettingsKey();
 }
@@ -1135,16 +1135,34 @@ function proxySettingsKey(): string {
 }
 
 export function currentDnsOverHttpsUrl(): string {
-  return ehSettingsStore.getValue('dns_over_https', 'Off') === 'On' ? DOH_URL : '';
+  if (ehSettingsStore.getValue('dns_over_https', 'Off') !== 'On') {
+    return '';
+  }
+  const provider = currentDnsOverHttpsProvider();
+  if (provider === 'Cloudflare') {
+    return CLOUDFLARE_DOH_URL;
+  }
+  if (provider === 'Google') {
+    return GOOGLE_DOH_URL;
+  }
+  return YANDEX_DOH_URL;
 }
 
 export function currentDnsOverHttpsStatusText(): string {
   const url = currentDnsOverHttpsUrl();
-  return url.length > 0 ? 'On ' + url : 'Off';
+  return url.length > 0 ? 'On ' + currentDnsOverHttpsProvider() + ' ' + url : 'Off';
 }
 
 function dohSettingsKey(): string {
-  return ehSettingsStore.getValue('dns_over_https', 'Off');
+  if (ehSettingsStore.getValue('dns_over_https', 'Off') !== 'On') {
+    return 'Off';
+  }
+  return 'On:' + currentDnsOverHttpsProvider();
+}
+
+function currentDnsOverHttpsProvider(): string {
+  const provider = ehSettingsStore.getValue('dns_over_https_provider', 'Yandex');
+  return provider === 'Cloudflare' || provider === 'Google' ? provider : 'Yandex';
 }
 
 function hashText(value: string): string {

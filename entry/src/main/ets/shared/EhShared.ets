@@ -1283,6 +1283,7 @@ export function zhText(text: string): string {
     case 'Built EX hosts': return '内置 EX hosts';
     case 'DNS over HTTPS': return 'DNS over HTTPS';
     case 'Secure DNS (DoH)': return '安全 DNS（DoH）';
+    case 'DoH provider': return 'DoH 提供商';
     case 'Domain fronting': return '域名前置';
     case 'Direct connection check': return '直连检测';
     case 'Direct connection available, domain fronting disabled': return '可直接访问，已关闭域名前置';
@@ -1463,7 +1464,8 @@ export function zhText(text: string): string {
     case 'Force bundled host overrides; leave Off for normal Cloudflare DNS': return '强制使用内置 host；正常 Cloudflare DNS 请保持关闭';
     case 'Force bundled ExHentai host overrides; leave Off unless your network needs them': return '强制使用内置 ExHentai host；仅在网络需要时开启';
     case 'Use DoH resolver': return '使用 DoH 解析器';
-    case 'Resolve DNS pollution in some regions': return '解决某些地区的 DNS 污染问题';
+    case 'Encrypt DNS queries and reduce DNS pollution': return '加密 DNS 查询并减少 DNS 污染';
+    case 'Select a certificate-validated RFC 8484 resolver': return '选择启用证书校验的 RFC 8484 解析服务';
     case 'Bypass SNI blocking using built-in host fronting': return '使用内置 hosts 绕过 SNI 封锁';
     case 'Use direct connection when the selected site responds within 5s': return '所选站点 5 秒内可直连时不使用 hosts 和域名前置';
     case 'Export data': return '导出数据';
@@ -2943,8 +2945,12 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     ];
     rows.push(optionSettingsRow('built_in_hosts', 'Built-in hosts', 'Force bundled host overrides; leave Off for normal Cloudflare DNS', entries, ON_OFF_OPTIONS));
     rows.push(optionSettingsRow('built_ex_hosts', 'Built EX hosts', 'Force bundled ExHentai host overrides; leave Off unless your network needs them', entries, ON_OFF_OPTIONS));
-    rows.push(optionSettingsRow('dns_over_https', 'Secure DNS (DoH)', 'Resolve DNS pollution in some regions',
+    rows.push(optionSettingsRow('dns_over_https', 'Secure DNS (DoH)', 'Encrypt DNS queries and reduce DNS pollution',
       entries, ON_OFF_OPTIONS));
+    if (settingEntryValue(entries, 'dns_over_https', 'Off') === 'On') {
+      rows.push(optionSettingsRow('dns_over_https_provider', 'DoH provider',
+        'Select a certificate-validated RFC 8484 resolver', entries, ['Yandex', 'Cloudflare', 'Google']));
+    }
     rows.push(optionSettingsRow('domain_fronting', 'Domain fronting', 'Bypass SNI blocking using built-in host fronting', entries, ON_OFF_OPTIONS));
     rows.push(optionSettingsRow('auto_direct_connection', 'Direct connection check', 'Use direct connection when the selected site responds within 5s', entries, ON_OFF_OPTIONS));
     rows.push(staticSettingsRow('export_data', 'Export data', 'Save settings, history, downloads and filter rules to a JSON file', 'Export', 'action'));

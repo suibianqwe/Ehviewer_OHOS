@@ -19,7 +19,6 @@ import { EH_SYSTEM_COLOR_MODE_DARK, EH_SYSTEM_COLOR_MODE_KEY } from '../shared/E
 import {
   ensureEhHostRules,
   isEhDirectConnectionProbeEnabled,
-  isEhFrontingBenchmarkEnabled,
   startEhDirectConnectionProbe,
   startEhFrontingBenchmark
 } from '../services/EhNetworkConfig';
@@ -104,9 +103,7 @@ export default class EntryAbility extends UIAbility {
       this.setIdentityAuthLocked(this.identityAuthEnabledInMemory());
       if (!isEhDirectConnectionProbeEnabled()) {
         return ensureEhHostRules().then(() => {
-          if (isEhFrontingBenchmarkEnabled()) {
-            startEhFrontingBenchmark(this.context);
-          }
+          startEhFrontingBenchmark(this.context);
         });
       }
       return startEhDirectConnectionProbe(this.context).then((directAvailable: boolean) => {
