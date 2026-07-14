@@ -4518,16 +4518,12 @@ export struct GalleryListContent {
     return (this.isSearchResultScene || this.useLocalSearchBar) && !this.searchSubmitted;
   }
 
-  private useStandardTagResultNavBar(): boolean {
-    return this.isSearchResultScene && this.searchSubmitted && this.searchModeValue === ListMode.Tag;
-  }
-
   private shouldShowSearchOnlyFab(): boolean {
     return (this.isSearchResultScene || this.useLocalSearchBar) && !this.searchSubmitted;
   }
 
   private shouldShowTranslationAction(): boolean {
-    return this.translationButtonsVisible && !this.shouldShowSearchSuggestions() && !this.useStandardTagResultNavBar();
+    return this.translationButtonsVisible && !this.shouldShowSearchSuggestions();
   }
 
   private refreshSearchSuggestions(namespaces: string[] = this.selectedTagNamespaces): void {
@@ -5259,7 +5255,7 @@ export struct GalleryListContent {
 
       // 浮动导航栏
       Column() {
-        if ((this.isSearchResultScene || this.useLocalSearchBar) && !this.useStandardTagResultNavBar()) {
+        if (this.isSearchResultScene || this.useLocalSearchBar) {
           this.searchResultNavBar()
         } else {
           EhNavBar({
@@ -5272,7 +5268,7 @@ export struct GalleryListContent {
             showFavoriteButton: this.showFavoriteButton,
             showBookmarkButton: this.showBookmarkButton,
             showRefreshButton: false,
-            showBackButton: this.showBackButton || this.useStandardTagResultNavBar(),
+            showBackButton: this.showBackButton,
             translateY: this.toolbarOffsetY,
             onMenu: () => {
               this.onMenu();
