@@ -276,14 +276,19 @@ export class EhTranslationService {
     return this.translate(text, 'gallery comment', priority);
   }
 
-  async translate(text: string, contentKind: string = 'text', priority: number = 2): Promise<string> {
+  async testTranslation(text: string): Promise<string> {
+    return this.translate(text, 'text', 2, true);
+  }
+
+  async translate(text: string, contentKind: string = 'text', priority: number = 2,
+    allowWhenDisabled: boolean = false): Promise<string> {
     const source = text.trim();
     if (source.length === 0) {
       return '';
     }
     const provider = effectiveTranslationProvider();
     const target = ehSettingsStore.getValue('translation_target_language', 'Simplified Chinese');
-    const key = translationSessionRevision.toString() + '\n' +
+    const key = translationSessionRevision.toString() + '\n' + (allowWhenDisabled ? 'test' : 'display') + '\n' +
       translationConfigurationKey(provider, target) + '\n' + contentKind + '\n' + source;
     const cached = getCachedTranslation(key);
     if (cached !== null) {
@@ -294,7 +299,7 @@ export class EhTranslationService {
       promoteTranslationWaiter(key, priority);
       return pending;
     }
-    const promise = this.translateInternal(source, provider, target, contentKind, key, priority)
+    const promise = this.translateInternal(source, provider, target, contentKind, key, priority, allowWhenDisabled)
       .then((translated: string) => {
         const normalized = normalizeTranslationResult(translated, source);
         putCachedTranslation(key, normalized);
@@ -374,35 +379,37 @@ export class EhTranslationService {
   }
 
   private async translateInternal(text: string, provider: string, target: string,
-    contentKind: string, requestKey: string, priority: number): Promise<string> {
+    contentKind: string, requestKey: string, priority: number, allowWhenDisabled: boolean): Promise<string> {
     await acquireTranslationSlot(requestKey, priority);
     try {
       if (provider === 'MyMemory') {
-        return await this.translateWithMyMemory(text, target);
+        return await this.translateWithMyMemory(text, target, allowWhenDisabled);
       }
       if (provider === 'Lingva') {
-        return await this.translateWithLingva(text, target);
+        return await this.translateWithLingva(text, target, allowWhenDisabled);
       }
       if (provider === 'Bing Web') {
-        return await this.translateWithBingWeb(text, target);
+        return await this.translateWithBingWeb(text, target, allowWhenDisabled);
       }
       if (provider === 'Baidu Web') {
-        return await this.translateWithBaiduWeb(text, target);
+        return await this.translateWithBaiduWeb(text, target, allowWhenDisabled);
       }
       if (provider === 'Youdao Web') {
-        return await this.translateWithYoudaoWeb(text, target);
+        return await this.translateWithYoudaoWeb(text, target, allowWhenDisabled);
       }
       if (provider === 'DeepSeek') {
         return await this.translateWithChatApi(text, target, contentKind,
           'https://api.deepseek.com/chat/completions',
           ehSettingsStore.getValue('translation_deepseek_api_key', ''),
-          ehSettingsStore.getValue('translation_deepseek_model', 'deepseek-v4-flash'), true);
+          ehSettingsStore.getValue('translation_deepseek_model', 'deepseek-v4-flash'), true, false,
+          allowWhenDisabled);
       }
       if (provider === 'OpenAI') {
         return await this.translateWithChatApi(text, target, contentKind,
           'https://api.openai.com/v1/chat/completions',
           ehSettingsStore.getValue('translation_official_openai_api_key', ''),
-          ehSettingsStore.getValue('translation_official_openai_model', 'gpt-4.1-mini'), false, true);
+          ehSettingsStore.getValue('translation_official_openai_model', 'gpt-4.1-mini'), false, true,
+          allowWhenDisabled);
       }
       if (provider === 'Custom API') {
         const custom = activeCustomTranslationApi();
@@ -410,30 +417,30 @@ export class EhTranslationService {
           throw new Error('No custom translation API is selected');
         }
         return await this.translateWithChatApi(text, target, contentKind, chatCompletionsUrl(custom.baseUrl),
-          custom.apiKey, custom.model);
+          custom.apiKey, custom.model, false, false, allowWhenDisabled);
       }
       if (provider === 'Gemini') {
-        return await this.translateWithGemini(text, target, contentKind);
+        return await this.translateWithGemini(text, target, contentKind, allowWhenDisabled);
       }
-      return await this.translateWithGoogleWeb(text, target);
+      return await this.translateWithGoogleWeb(text, target, allowWhenDisabled);
     } finally {
       releaseTranslationSlot();
     }
   }
 
-  private async translateWithGoogleWeb(text: string, target: string): Promise<string> {
+  private async translateWithGoogleWeb(text: string, target: string, allowWhenDisabled: boolean): Promise<string> {
     const chunks = splitTranslationText(text, 1800);
     const translated: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
-      translated.push(await this.translateGoogleChunk(chunks[i], target));
+      translated.push(await this.translateGoogleChunk(chunks[i], target, allowWhenDisabled));
     }
     return translated.join('\n');
   }
 
-  private async translateGoogleChunk(text: string, target: string): Promise<string> {
+  private async translateGoogleChunk(text: string, target: string, allowWhenDisabled: boolean): Promise<string> {
     const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=auto&tl=' +
       encodeURIComponent(targetLanguageCode(target, 'google')) + '&q=' + encodeURIComponent(text);
-    const body = await requestText(url, http.RequestMethod.GET);
+    const body = await requestText(url, http.RequestMethod.GET, '', '', '', {}, true, allowWhenDisabled);
     const root = JSON.parse(body) as Object[];
     if (!Array.isArray(root) || root.length === 0 || !Array.isArray(root[0])) {
       throw new Error('Invalid Google translation response');
@@ -452,14 +459,14 @@ export class EhTranslationService {
     return result;
   }
 
-  private async translateWithMyMemory(text: string, target: string): Promise<string> {
+  private async translateWithMyMemory(text: string, target: string, allowWhenDisabled: boolean): Promise<string> {
     const chunks = splitTranslationText(text, 140);
     const translated: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
       const sourceLanguage = detectSourceLanguage(chunks[i]);
       const url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(chunks[i]) + '&langpair=' +
         encodeURIComponent(sourceLanguage + '|' + targetLanguageCode(target, 'mymemory')) + '&mt=1';
-      const body = await requestText(url, http.RequestMethod.GET);
+      const body = await requestText(url, http.RequestMethod.GET, '', '', '', {}, true, allowWhenDisabled);
       const parsed = JSON.parse(body) as MyMemoryResponse;
       const value = parsed.responseData?.translatedText;
       if (typeof value !== 'string' || value.length === 0) {
@@ -470,13 +477,13 @@ export class EhTranslationService {
     return translated.join('\n');
   }
 
-  private async translateWithLingva(text: string, target: string): Promise<string> {
+  private async translateWithLingva(text: string, target: string, allowWhenDisabled: boolean): Promise<string> {
     const chunks = splitTranslationText(text, 1800);
     const translated: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
       const url = 'https://lingva.ml/api/v1/auto/' + targetLanguageCode(target, 'lingva') + '/' +
         encodeURIComponent(chunks[i]);
-      const body = await requestText(url, http.RequestMethod.GET);
+      const body = await requestText(url, http.RequestMethod.GET, '', '', '', {}, true, allowWhenDisabled);
       const parsed = JSON.parse(body) as LingvaResponse;
       if (typeof parsed.translation !== 'string' || parsed.translation.length === 0) {
         throw new Error(parsed.error === undefined ? 'Invalid Lingva response' : parsed.error);
@@ -486,11 +493,11 @@ export class EhTranslationService {
     return translated.join('\n');
   }
 
-  private async translateWithBingWeb(text: string, target: string): Promise<string> {
+  private async translateWithBingWeb(text: string, target: string, allowWhenDisabled: boolean): Promise<string> {
     const chunks = splitTranslationText(text, 900);
     const translated: string[] = [];
     const page = await requestText('https://www.bing.com/translator', http.RequestMethod.GET, '', '', '',
-      { 'Accept': 'text/html,application/xhtml+xml' });
+      { 'Accept': 'text/html,application/xhtml+xml' }, true, allowWhenDisabled);
     const ig = firstRegexGroup(page, /IG:\"([^\"]+)\"/);
     const abuse = /params_AbusePreventionHelper\s*=\s*\[(\d+),\"([^\"]+)/.exec(page);
     const iid = firstRegexGroup(page, /id=\"rich_tta\" data-iid=\"([^\"]+)/);
@@ -512,7 +519,7 @@ export class EhTranslationService {
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'Origin': 'https://www.bing.com',
         'Referer': 'https://www.bing.com/translator'
-      });
+      }, true, allowWhenDisabled);
       const parsed = JSON.parse(body) as BingTranslationResult[];
       const value = parsed?.[0]?.translations?.[0]?.text;
       if (typeof value !== 'string' || value.length === 0) {
@@ -523,7 +530,7 @@ export class EhTranslationService {
     return translated.join('\n');
   }
 
-  private async translateWithBaiduWeb(text: string, target: string): Promise<string> {
+  private async translateWithBaiduWeb(text: string, target: string, allowWhenDisabled: boolean): Promise<string> {
     const chunks = splitTranslationText(text, 1000);
     const translated: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
@@ -538,7 +545,7 @@ export class EhTranslationService {
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'Origin': 'https://fanyi.baidu.com',
         'Referer': 'https://fanyi.baidu.com/'
-      });
+      }, true, allowWhenDisabled);
       const parsed = JSON.parse(body) as BaiduTranslationResponse;
       const data = parsed.data === undefined ? parsed.trans_result?.data : parsed.data;
       if (!Array.isArray(data) || data.length === 0) {
@@ -558,7 +565,7 @@ export class EhTranslationService {
     return translated.join('\n');
   }
 
-  private async translateWithYoudaoWeb(text: string, target: string): Promise<string> {
+  private async translateWithYoudaoWeb(text: string, target: string, allowWhenDisabled: boolean): Promise<string> {
     const chunks = splitTranslationText(text, 900);
     const translated: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
@@ -572,7 +579,7 @@ export class EhTranslationService {
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'Origin': 'https://fanyi.youdao.com',
         'Referer': 'https://fanyi.youdao.com/'
-      });
+      }, true, allowWhenDisabled);
       const parsed = JSON.parse(body) as YoudaoTranslationResponse;
       if (!Array.isArray(parsed.translation) || parsed.translation.length === 0) {
         throw new Error('Youdao web translation failed: ' + (parsed.errorCode === undefined ? 'unknown' : parsed.errorCode));
@@ -584,7 +591,7 @@ export class EhTranslationService {
 
   private async translateWithChatApi(text: string, target: string, contentKind: string, url: string,
     apiKey: string, model: string, disableThinking: boolean = false,
-    openAiPromptCaching: boolean = false): Promise<string> {
+    openAiPromptCaching: boolean = false, allowWhenDisabled: boolean = false): Promise<string> {
     if (apiKey.trim().length === 0) {
       throw new Error('Translation API key is missing');
     }
@@ -595,13 +602,14 @@ export class EhTranslationService {
     const translated: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
       translated.push(await this.translateChatChunk(chunks[i], target, contentKind, url, apiKey.trim(),
-        model.trim(), disableThinking, openAiPromptCaching));
+        model.trim(), disableThinking, openAiPromptCaching, allowWhenDisabled));
     }
     return translated.join('\n');
   }
 
   private async translateChatChunk(text: string, target: string, contentKind: string, url: string,
-    apiKey: string, model: string, disableThinking: boolean, openAiPromptCaching: boolean): Promise<string> {
+    apiKey: string, model: string, disableThinking: boolean, openAiPromptCaching: boolean,
+    allowWhenDisabled: boolean): Promise<string> {
     let truncated = false;
     for (let attempt = 0; attempt < AI_TRANSLATION_MAX_ATTEMPTS; attempt++) {
       const requestBody: ChatRequestBody = {
@@ -619,7 +627,8 @@ export class EhTranslationService {
       if (openAiPromptCaching) {
         requestBody.prompt_cache_key = translationPromptCacheKey(text);
       }
-      const body = await requestText(url, http.RequestMethod.POST, JSON.stringify(requestBody), apiKey);
+      const body = await requestText(url, http.RequestMethod.POST, JSON.stringify(requestBody), apiKey, '', {}, true,
+        allowWhenDisabled);
       const parsed = JSON.parse(body) as ChatResponseBody;
       if (parsed.error?.message !== undefined) {
         throw new Error(parsed.error.message);
@@ -639,7 +648,8 @@ export class EhTranslationService {
     throw new Error('AI translation returned no content');
   }
 
-  private async translateWithGemini(text: string, target: string, contentKind: string): Promise<string> {
+  private async translateWithGemini(text: string, target: string, contentKind: string,
+    allowWhenDisabled: boolean): Promise<string> {
     const apiKey = ehSettingsStore.getValue('translation_gemini_api_key', '').trim();
     const model = ehSettingsStore.getValue('translation_gemini_model', 'gemini-3.5-flash').trim();
     if (apiKey.length === 0) {
@@ -653,13 +663,13 @@ export class EhTranslationService {
     const chunks = splitTranslationText(text, AI_TRANSLATION_CHUNK_LENGTH);
     const translated: string[] = [];
     for (let i = 0; i < chunks.length; i++) {
-      translated.push(await this.translateGeminiChunk(chunks[i], target, contentKind, url, apiKey));
+      translated.push(await this.translateGeminiChunk(chunks[i], target, contentKind, url, apiKey, allowWhenDisabled));
     }
     return translated.join('\n');
   }
 
   private async translateGeminiChunk(text: string, target: string, contentKind: string, url: string,
-    apiKey: string): Promise<string> {
+    apiKey: string, allowWhenDisabled: boolean): Promise<string> {
     let truncated = false;
     for (let attempt = 0; attempt < AI_TRANSLATION_MAX_ATTEMPTS; attempt++) {
       const requestBody: GeminiRequestBody = {
@@ -667,7 +677,8 @@ export class EhTranslationService {
         contents: [{ role: 'user', parts: [{ text: translationUserPrompt(text, target, contentKind, attempt > 0) }] }],
         generationConfig: { temperature: 0.1 }
       };
-      const body = await requestText(url, http.RequestMethod.POST, JSON.stringify(requestBody), '', apiKey);
+      const body = await requestText(url, http.RequestMethod.POST, JSON.stringify(requestBody), '', apiKey, {}, true,
+        allowWhenDisabled);
       const parsed = JSON.parse(body) as GeminiResponseBody;
       if (parsed.error?.message !== undefined) {
         throw new Error(parsed.error.message);
@@ -717,8 +728,8 @@ function isTranslationCancellation(error: Error): boolean {
 
 async function requestText(url: string, method: http.RequestMethod, body: string = '', bearerToken: string = '',
   googleApiKey: string = '', extraHeaders: Record<string, string> = {},
-  translationRequest: boolean = true): Promise<string> {
-  if (translationRequest && AppStorage.get<boolean>(TRANSLATION_ENABLED_KEY) !== true) {
+  translationRequest: boolean = true, allowWhenDisabled: boolean = false): Promise<string> {
+  if (translationRequest && !allowWhenDisabled && AppStorage.get<boolean>(TRANSLATION_ENABLED_KEY) !== true) {
     throw new Error(TRANSLATION_CANCELLED_MESSAGE);
   }
   const request = http.createHttp();
@@ -763,7 +774,7 @@ async function requestText(url: string, method: http.RequestMethod, body: string
     }
     return response.result as string;
   } catch (error) {
-    if (translationRequest && AppStorage.get<boolean>(TRANSLATION_ENABLED_KEY) !== true) {
+    if (translationRequest && !allowWhenDisabled && AppStorage.get<boolean>(TRANSLATION_ENABLED_KEY) !== true) {
       throw new Error(TRANSLATION_CANCELLED_MESSAGE);
     }
     if (error instanceof Error) {

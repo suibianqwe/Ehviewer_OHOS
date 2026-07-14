@@ -1139,7 +1139,7 @@ export struct SettingsScene {
   private testTranslationProvider(): void {
     this.statusText = uiText('Testing translation...');
     ehTranslationService.clearCache();
-    ehTranslationService.translate('Hello, world.', 'text').then((translated: string) => {
+    ehTranslationService.testTranslation('Hello, world.').then((translated: string) => {
       this.statusText = uiText('Translation test succeeded') + ': ' + translated;
       this.showToast(this.statusText);
     }).catch((error: Error) => {
