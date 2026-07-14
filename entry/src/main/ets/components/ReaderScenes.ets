@@ -514,6 +514,7 @@ export struct ReaderScene {
     this.zoomPercent = this.isFixedScaleMode() ? Math.round(this.fixedScale * 100) : 100;
     this.imageActionsVisible = false;
     this.scheduleAutoTransfer();
+    this.syncReaderPageIndexSource();
     try {
       this.swiperController.changeIndex(this.visualIndexForPageIndex(this.currentIndex), false);
     } catch (e) {}
@@ -521,11 +522,13 @@ export struct ReaderScene {
 
   private pageGroupIndexesAscending(): number[] {
     const count = this.totalPages <= 0 ? 1 : this.totalPages;
+    const requestedPage = Math.max(0, Math.min(count - 1, this.pageIndex));
     const pages: number[] = [];
     let index = 0;
     while (index < count) {
       pages.push(index);
-      index += this.shouldPairPage(index) ? 2 : 1;
+      const wouldConsumeRequestedPage = index + 1 === requestedPage;
+      index += !wouldConsumeRequestedPage && this.shouldPairPage(index) ? 2 : 1;
     }
     return pages;
   }
