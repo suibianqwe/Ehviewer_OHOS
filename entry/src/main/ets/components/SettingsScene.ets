@@ -2630,9 +2630,9 @@ export struct SettingsHeaderRow {
       Row() {
         SettingsTextBlock({ title: uiText(this.item.title), summary: uiText(this.item.summary) })
         .layoutWeight(1)
-        Text('>')
+        SymbolGlyph($r('sys.symbol.chevron_right'))
           .fontSize(16)
-          .fontColor(themeTertiaryText())
+          .fontColor([themeTertiaryText()])
       }
       .width('100%')
     }
@@ -2703,6 +2703,7 @@ export struct SettingsDetailPanel {
               summary: this.signedIn ? uiText('Cookie session is available. Open to replace or inspect cookies.') :
                 uiText('Open password, WebView or Cookie sign-in and manage the current session.'),
               value: this.signedIn ? uiText('Signed in') : uiText('Tourist'),
+              navigation: true,
               onTap: this.onOpenSession
             })
           }
@@ -3152,6 +3153,7 @@ export struct SettingsActionRow {
   summary: string = '';
   value: string = '';
   isEnabled: boolean = true;
+  navigation: boolean = false;
   onTap: () => void = () => {};
 
   build() {
@@ -3163,13 +3165,20 @@ export struct SettingsActionRow {
           isEnabled: this.isEnabled
         })
         .layoutWeight(1)
-        Text(this.value)
-          .fontSize(12)
-          .fontColor(this.isEnabled ? themeOnPrimaryText() : themeTertiaryText())
-          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-          .backgroundColor(this.isEnabled ? themePrimaryColor() : themeSurfaceVariant())
-          .borderRadius(14)
-          .margin({ left: 12 })
+        if (this.navigation) {
+          SymbolGlyph($r('sys.symbol.chevron_right'))
+            .fontSize(16)
+            .fontColor([themeTertiaryText()])
+            .margin({ left: 12 })
+        } else {
+          Text(this.value)
+            .fontSize(12)
+            .fontColor(this.isEnabled ? themeOnPrimaryText() : themeTertiaryText())
+            .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+            .backgroundColor(this.isEnabled ? themePrimaryColor() : themeSurfaceVariant())
+            .borderRadius(14)
+            .margin({ left: 12 })
+        }
       }
       .width('100%')
     }
@@ -3268,7 +3277,7 @@ export struct SettingsStaticRow {
           })
             .margin({ left: 12 })
         } else if ((this.row.type === 'list' && this.row.options !== undefined && this.row.options.length > 0) ||
-          this.row.type === 'model') {
+          this.row.type === 'model' || this.row.type === 'dialog') {
           Button({ type: ButtonType.Normal, stateEffect: true }) {
             Row({ space: 6 }) {
               Text(uiValue(this.row.value))
@@ -3290,6 +3299,11 @@ export struct SettingsStaticRow {
             .onClick(() => {
               this.onTap();
             })
+        } else if (this.row.type === 'navigation') {
+          SymbolGlyph($r('sys.symbol.chevron_right'))
+            .fontSize(16)
+            .fontColor([themeTertiaryText()])
+            .margin({ left: 12 })
         } else if (this.row.type === 'section') {
           Row()
             .width(0)

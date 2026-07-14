@@ -2715,11 +2715,11 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     const followSystemDarkMode = settingEntryValue(entries, 'follow_system_dark_mode', 'Off') === 'On';
     const listMode = settingEntryValue(entries, 'list_mode', 'Detail');
     const rows: SettingsRowItem[] = [
-      staticSettingsRow('identity_cookie', 'Identity cookies', 'View or import ipb_member_id, ipb_pass_hash and igneous', 'Session', 'action'),
+      staticSettingsRow('identity_cookie', 'Identity cookies', 'View or import ipb_member_id, ipb_pass_hash and igneous', '', 'navigation'),
       optionSettingsRow('gallery_site', 'Gallery site', 'Select E-Hentai or ExHentai for browsing and requests', entries, ['E-Hentai', 'ExHentai']),
-      staticSettingsRow('u_config', 'UConfig', 'Account configuration page, requires sign in', 'Open', 'action'),
+      staticSettingsRow('u_config', 'UConfig', 'Account configuration page, requires sign in', '', 'navigation'),
       optionSettingsRow('use_account_default_filter', 'Use account filters', 'Use filtering options captured from UConfig', entries, ON_OFF_OPTIONS),
-      staticSettingsRow('my_tags', 'My Tags', 'Manage watched and hidden tags, requires sign in', 'Open', 'action'),
+      staticSettingsRow('my_tags', 'My Tags', 'Manage watched and hidden tags, requires sign in', '', 'navigation'),
       optionSettingsRow('launch_page', 'Launch page', 'Default start scene after warnings and sign-in checks', entries, ['Homepage', 'Subscription', 'What\'s Hot', 'Favorites']),
       optionSettingsRow('list_mode', 'List mode', 'Choose detail, thumbnail or extended gallery cards', entries, ['Detail', 'Thumb', 'Extended'])
     ];
@@ -2747,7 +2747,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
         followSystemDarkMode ? 'Choose Dark or Black when the system enters dark mode' :
           'Choose Light, Dark or Black for the app interface',
         entries, followSystemDarkMode ? ['Dark', 'Black'] : ['Light', 'Dark', 'Black']),
-      staticSettingsRow('filter', 'Filter', 'Keyword/gallery filtering rules', 'Open', 'action'),
+      staticSettingsRow('filter', 'Filter', 'Keyword/gallery filtering rules', '', 'navigation'),
       optionSettingsRow('show_eh_limits', 'Show EH limits', 'Display account and image limits in the drawer', entries, ON_OFF_OPTIONS),
       optionSettingsRow('cellular_network_warning', 'Cellular network warning', 'Warn before network-heavy operations on mobile data', entries, ON_OFF_OPTIONS)
     );
@@ -2899,7 +2899,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     }
     if (aiEnabled) {
       rows.push(staticSettingsRow('translation_prompt_settings', 'System prompts',
-        'Choose, edit and save prompts used by AI translation', 'Open', 'action'));
+        'Choose, edit and save prompts used by AI translation', '', 'navigation'));
     }
     rows.push(staticSettingsRow('translation_test', 'Test translation',
       'Translate a short sample with the current provider', 'Run', 'action'));
@@ -2916,7 +2916,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
         ['160 MB', '320 MB', '640 MB', '1 GB', '2 GB']),
       optionSettingsRow('app_language', 'App language', 'Language override', entries, ['System', 'English', 'zh-CN']),
       staticSettingsRow('proxy_settings', 'Proxy',
-        'Configure direct, system, HTTP or SOCKS5 proxy', settingEntryValue(entries, 'proxy', 'System'), 'action'),
+        'Configure direct, system, HTTP or SOCKS5 proxy', settingEntryValue(entries, 'proxy', 'System'), 'dialog'),
       staticSettingsRow('network_diagnostics', 'Network diagnostics', 'Test E, EX, forums and repo connectivity with current settings', 'Run', 'action'),
     ];
     rows.push(optionSettingsRow('built_in_hosts', 'Built-in hosts', 'Force bundled host overrides; leave Off for normal Cloudflare DNS', entries, ON_OFF_OPTIONS));
