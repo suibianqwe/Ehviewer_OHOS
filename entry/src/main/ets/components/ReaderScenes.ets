@@ -74,6 +74,8 @@ export { CommentsScene, PlaceholderScene } from './reader/scenes/ReaderAuxScenes
 
 const SLIDER_AUTO_HIDE_DELAY: number = 3000;
 const READER_SCREEN_TAP_DELAY: number = 220;
+const READER_DUAL_PAGE_OVERFLOW_RATIO: number = 1.15;
+const READER_PAGE_GROUP_REFRESH_DELAY: number = 220;
 
 function mediaAssetTitle(fileName: string): string {
   const dotIndex = fileName.lastIndexOf('.');
@@ -152,6 +154,7 @@ export struct ReaderScene {
   private readerPageIndexesReversed: boolean = false;
   private readerPageIndexesSignature: string = '';
   private readerPageImageSizes: ReaderPageImageSize[] = [];
+  private pageGroupRefreshTimer: number = -1;
   private continuousScroller: Scroller = new Scroller();
   private activeImageWidth: number = 0;
   private activeImageHeight: number = 0;
@@ -294,6 +297,7 @@ export struct ReaderScene {
 
   private cleanupReaderScene(): void {
     this.readerWindowActive = false;
+    this.clearPageGroupRefreshTimer();
     this.clearSliderTimer();
     this.clearScreenTapTimer();
     this.clearAutoTransferTimer();
@@ -370,9 +374,9 @@ export struct ReaderScene {
   }
 
   onTotalPagesChange(): void {
-    this.syncReaderPageIndexSource();
     this.currentIndex = this.pageGroupAnchorForPageIndex(this.currentIndex);
     this.sliderLiveIndex = this.clampReaderPageIndex(this.currentIndex);
+    this.syncReaderPageIndexSource();
   }
 
   private statusBarHeightVp(): number {
@@ -515,14 +519,31 @@ export struct ReaderScene {
         }
         this.readerPageImageSizes[i].width = width;
         this.readerPageImageSizes[i].height = height;
-        this.syncReaderPageIndexSource();
-        this.normalizeCurrentPageGroup();
+        this.schedulePageGroupRefresh();
         return;
       }
     }
     this.readerPageImageSizes.push({ index: index, width: width, height: height });
-    this.syncReaderPageIndexSource();
-    this.normalizeCurrentPageGroup();
+    this.schedulePageGroupRefresh();
+  }
+
+  private clearPageGroupRefreshTimer(): void {
+    if (this.pageGroupRefreshTimer !== -1) {
+      clearTimeout(this.pageGroupRefreshTimer);
+      this.pageGroupRefreshTimer = -1;
+    }
+  }
+
+  private schedulePageGroupRefresh(): void {
+    this.clearPageGroupRefreshTimer();
+    this.pageGroupRefreshTimer = setTimeout(() => {
+      this.pageGroupRefreshTimer = -1;
+      if (!this.readerWindowActive) {
+        return;
+      }
+      this.normalizeCurrentPageGroup();
+      this.syncReaderPageIndexSource();
+    }, READER_PAGE_GROUP_REFRESH_DELAY) as number;
   }
 
   private shouldPairPage(index: number): boolean {
@@ -542,14 +563,14 @@ export struct ReaderScene {
       }
       const combinedHeight = this.readerLayoutWidth * first.height / first.width +
         this.readerLayoutWidth * second.height / second.width;
-      return combinedHeight <= this.readerLayoutHeight + 1;
+      return combinedHeight <= this.readerLayoutHeight * READER_DUAL_PAGE_OVERFLOW_RATIO + 1;
     }
     if (first.height <= first.width || second.height <= second.width) {
       return false;
     }
     const combinedWidth = this.readerLayoutHeight * first.width / first.height +
       this.readerLayoutHeight * second.width / second.height;
-    return combinedWidth <= this.readerLayoutWidth + 1;
+    return combinedWidth <= this.readerLayoutWidth * READER_DUAL_PAGE_OVERFLOW_RATIO + 1;
   }
 
   private pageGroupAnchorForPageIndex(index: number): number {
@@ -574,11 +595,6 @@ export struct ReaderScene {
     this.currentIndex = anchor;
     this.sliderLiveIndex = anchor;
     this.imageActionPageIndex = anchor;
-    this.onJump(anchor);
-    try {
-      this.swiperController.changeIndex(this.visualIndexForPageIndex(anchor), false);
-    } catch (error) {
-    }
   }
 
   private pageForIndex(index: number): GalleryPage {
@@ -614,10 +630,6 @@ export struct ReaderScene {
     this.readerPageIndexesReversed = this.swiperReversed;
     this.readerPageIndexesSignature = signature;
     this.readerPageIndexesSource.setItems(pages);
-    try {
-      this.swiperController.changeIndex(this.visualIndexForPageIndex(this.currentIndex), false);
-    } catch (error) {
-    }
   }
 
   private visualIndexForPageIndex(index: number): number {
@@ -735,8 +747,8 @@ export struct ReaderScene {
     this.adaptiveDualPage = this.menuAdaptiveDualPage;
     this.startPosition = normalizeStartPositionOption(this.menuStartPosition);
     this.readerPageIndexesCount = -1;
-    this.syncReaderPageIndexSource();
     this.currentIndex = this.pageGroupAnchorForPageIndex(this.currentIndex);
+    this.syncReaderPageIndexSource();
     this.issueViewportCommand(nextFitMode === 'Fixed scale' ? 'fixed_scale' : 'reset');
     this.syncOverlayState();
     this.syncDirectionState();
@@ -1322,6 +1334,9 @@ export struct ReaderScene {
     if (this.autoTransferPlaying) {
       this.scheduleAutoTransfer();
     }
+    if (index === this.pageGroupAnchorForPageIndex(this.pageIndex)) {
+      return;
+    }
     this.onJump(index);
   }
 
@@ -1414,15 +1429,40 @@ export struct ReaderScene {
     }, READER_SCREEN_TAP_DELAY) as number;
   }
 
-  private pairedPageDisplayExtent(index: number): number {
-    const size = this.pageImageSize(index);
+  private pairedPageScale(index: number): number {
+    const first = this.pageImageSize(index);
+    const second = this.pageImageSize(index + 1);
+    if (first === null || second === null || first.width <= 0 || first.height <= 0 ||
+      second.width <= 0 || second.height <= 0) {
+      return 1;
+    }
+    if (this.readerLayoutHeight >= this.readerLayoutWidth) {
+      const combinedHeight = this.readerLayoutWidth * first.height / first.width +
+        this.readerLayoutWidth * second.height / second.width;
+      return combinedHeight > 0 ? Math.min(1, this.readerLayoutHeight / combinedHeight) : 1;
+    }
+    const combinedWidth = this.readerLayoutHeight * first.width / first.height +
+      this.readerLayoutHeight * second.width / second.height;
+    return combinedWidth > 0 ? Math.min(1, this.readerLayoutWidth / combinedWidth) : 1;
+  }
+
+  private pairedPageCrossExtent(index: number): number {
+    const scale = this.pairedPageScale(index);
+    if (this.readerLayoutHeight >= this.readerLayoutWidth) {
+      return Math.max(1, this.readerLayoutWidth * scale);
+    }
+    return Math.max(1, this.readerLayoutHeight * scale);
+  }
+
+  private pairedPageDisplayExtent(groupIndex: number, pageIndex: number): number {
+    const size = this.pageImageSize(pageIndex);
     if (size === null || size.width <= 0 || size.height <= 0) {
       return 1;
     }
     if (this.readerLayoutHeight >= this.readerLayoutWidth) {
-      return Math.max(1, this.readerLayoutWidth * size.height / size.width);
+      return Math.max(1, this.pairedPageCrossExtent(groupIndex) * size.height / size.width);
     }
-    return Math.max(1, this.readerLayoutHeight * size.width / size.height);
+    return Math.max(1, this.pairedPageCrossExtent(groupIndex) * size.width / size.height);
   }
 
   @Builder
@@ -1486,23 +1526,23 @@ export struct ReaderScene {
       if (this.shouldPairPage(index)) {
         if (this.readerLayoutHeight >= this.readerLayoutWidth) {
           Column({ space: 0 }) {
-            this.ReaderPageViewport(index, '100%', this.pairedPageDisplayExtent(index))
-            this.ReaderPageViewport(index + 1, '100%', this.pairedPageDisplayExtent(index + 1))
+            this.ReaderPageViewport(index, '100%', this.pairedPageDisplayExtent(index, index))
+            this.ReaderPageViewport(index + 1, '100%', this.pairedPageDisplayExtent(index, index + 1))
           }
-          .width('100%')
-          .height(this.pairedPageDisplayExtent(index) + this.pairedPageDisplayExtent(index + 1))
+          .width(this.pairedPageCrossExtent(index))
+          .height(this.pairedPageDisplayExtent(index, index) + this.pairedPageDisplayExtent(index, index + 1))
         } else {
           Row({ space: 0 }) {
             if (this.swiperReversed) {
-              this.ReaderPageViewport(index + 1, this.pairedPageDisplayExtent(index + 1), '100%')
-              this.ReaderPageViewport(index, this.pairedPageDisplayExtent(index), '100%')
+              this.ReaderPageViewport(index + 1, this.pairedPageDisplayExtent(index, index + 1), '100%')
+              this.ReaderPageViewport(index, this.pairedPageDisplayExtent(index, index), '100%')
             } else {
-              this.ReaderPageViewport(index, this.pairedPageDisplayExtent(index), '100%')
-              this.ReaderPageViewport(index + 1, this.pairedPageDisplayExtent(index + 1), '100%')
+              this.ReaderPageViewport(index, this.pairedPageDisplayExtent(index, index), '100%')
+              this.ReaderPageViewport(index + 1, this.pairedPageDisplayExtent(index, index + 1), '100%')
             }
           }
-          .width(this.pairedPageDisplayExtent(index) + this.pairedPageDisplayExtent(index + 1))
-          .height('100%')
+          .width(this.pairedPageDisplayExtent(index, index) + this.pairedPageDisplayExtent(index, index + 1))
+          .height(this.pairedPageCrossExtent(index))
         }
       } else {
         this.ReaderPageViewport(index, '100%', '100%')
@@ -1811,8 +1851,8 @@ export struct ReaderScene {
         layoutChanged = true;
       }
       if (layoutChanged) {
-        this.syncReaderPageIndexSource();
         this.normalizeCurrentPageGroup();
+        this.syncReaderPageIndexSource();
       }
     })
     .backgroundColor(readerBackgroundColor())
