@@ -224,6 +224,7 @@ interface EhThemeAccent {
 
 const THEME_ACCENTS: EhThemeAccent[] = [
   { name: 'Blue', light: '#2F6F8F', dark: '#24586F', black: '#173E50', indicator: '#8ED8F0' },
+  { name: 'Sky Blue', light: '#1976B8', dark: '#155A8A', black: '#0D3B5C', indicator: '#7ED2FF' },
   { name: 'Teal', light: '#287D78', dark: '#205F5B', black: '#153F3D', indicator: '#79DDD5' },
   { name: 'Green', light: '#397A48', dark: '#2E613A', black: '#1D4127', indicator: '#91DDA1' },
   { name: 'Purple', light: '#74549C', dark: '#594178', black: '#3B2B51', indicator: '#C8ABEC' },

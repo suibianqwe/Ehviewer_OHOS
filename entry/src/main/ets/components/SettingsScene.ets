@@ -63,7 +63,11 @@ import {
 } from '../services/EhNetworkConfig';
 import { EhUrl } from '../services/EhUrl';
 import { ehUpdateChecker, ReleaseInfo, UpdateCheckResult } from '../services/EhUpdateChecker';
-import { ehTagTranslationStore, EhTagTranslationUpdateResult } from '../services/EhTagTranslationStore';
+import {
+  ehTagTranslationStore,
+  EhTagTranslationUpdatePhase,
+  EhTagTranslationUpdateResult
+} from '../services/EhTagTranslationStore';
 import {
   TRANSLATION_ENABLED_KEY,
   effectiveAiTranslationProvider,
@@ -1605,8 +1609,11 @@ export struct SettingsScene {
       this.showFloatingStatus('Tag translation database update needs an ability context');
       return;
     }
-    this.showBlockingBusy('Updating tag translation database...');
-    ehTagTranslationStore.update(context).then((result: EhTagTranslationUpdateResult) => {
+    this.showBlockingBusy('Checking tag translation database...');
+    ehTagTranslationStore.update(context, (phase: EhTagTranslationUpdatePhase) => {
+      this.blockingBusyMessage = phase === 'downloading' ? 'Downloading tag translation database...' :
+        'Checking tag translation database...';
+    }).then((result: EhTagTranslationUpdateResult) => {
       this.hideBlockingBusy();
       if (result.updated) {
         notifyLanguageChanged();
@@ -2267,6 +2274,9 @@ export struct SettingsScene {
 
       if (this.blockingBusyVisible) {
         BlockingBusyOverlay({ message: this.blockingBusyMessage })
+          .width(this.settingsLayerWidth())
+          .height('100%')
+          .position({ x: this.settingsLayerTranslateX(), y: 0 })
           .zIndex(60)
           .transition(TransitionEffect.OPACITY.animation({ duration: 140, curve: Curve.EaseOut }))
       }

@@ -24,6 +24,9 @@ export interface EhTagTranslationUpdateResult {
   sha: string;
 }
 
+export type EhTagTranslationUpdatePhase = 'checking' | 'downloading';
+export type EhTagTranslationUpdateProgressCallback = (phase: EhTagTranslationUpdatePhase) => void;
+
 interface TagDatabaseMetadata {
   sha?: string;
   sourceUpdatedAt?: number;
@@ -89,6 +92,7 @@ class EhTagTranslationStore {
   private entries: EhTagSuggestion[] = [];
   private translations: Map<string, string> = new Map<string, string>();
   private pendingUpdate: Promise<EhTagTranslationUpdateResult> | null = null;
+  private pendingUpdatePhase: EhTagTranslationUpdatePhase = 'checking';
 
   suggest(keyword: string, limit: number = 0, namespaces: string[] = []): EhTagSuggestion[] {
     const normalized = keyword.trim().toLowerCase();
@@ -118,11 +122,16 @@ class EhTagTranslationStore {
     return translated === undefined ? '' : translated;
   }
 
-  async update(context: common.UIAbilityContext): Promise<EhTagTranslationUpdateResult> {
+  async update(context: common.UIAbilityContext, onProgress?: EhTagTranslationUpdateProgressCallback):
+    Promise<EhTagTranslationUpdateResult> {
     if (this.pendingUpdate !== null) {
+      if (onProgress !== undefined) {
+        onProgress(this.pendingUpdatePhase);
+      }
       return this.pendingUpdate;
     }
-    this.pendingUpdate = this.updateInternal(context);
+    this.reportUpdateProgress('checking', onProgress);
+    this.pendingUpdate = this.updateInternal(context, onProgress);
     try {
       return await this.pendingUpdate;
     } finally {
@@ -130,7 +139,8 @@ class EhTagTranslationStore {
     }
   }
 
-  private async updateInternal(context: common.UIAbilityContext): Promise<EhTagTranslationUpdateResult> {
+  private async updateInternal(context: common.UIAbilityContext, onProgress?: EhTagTranslationUpdateProgressCallback):
+    Promise<EhTagTranslationUpdateResult> {
     const latestSha = (await requestTagDatabaseText(TAG_TRANSLATION_LATEST_SHA_URL, 'text/plain')).trim().toLowerCase();
     if (!isValidSha(latestSha)) {
       throw new Error('invalid database version');
@@ -144,6 +154,7 @@ class EhTagTranslationStore {
         sha: latestSha
       };
     }
+    this.reportUpdateProgress('downloading', onProgress);
     const body = await requestTagDatabaseText(TAG_TRANSLATION_LATEST_DATA_URL, 'application/json');
     const parsed = this.parseDatabaseDocument(body, latestSha);
     this.saveOverride(context, parsed);
@@ -155,6 +166,14 @@ class EhTagTranslationStore {
       count: parsed.entries.length,
       sha: parsed.sha
     };
+  }
+
+  private reportUpdateProgress(phase: EhTagTranslationUpdatePhase,
+    onProgress?: EhTagTranslationUpdateProgressCallback): void {
+    this.pendingUpdatePhase = phase;
+    if (onProgress !== undefined) {
+      onProgress(phase);
+    }
   }
 
   private ensureLoaded(): void {

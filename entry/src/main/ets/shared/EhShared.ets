@@ -1511,7 +1511,8 @@ export function zhText(text: string): string {
     case 'Check the latest GitHub release': return '检查 GitHub 最新发布版本';
     case 'Update tag translation database': return '更新标签翻译数据库';
     case 'Check for and download the latest Chinese tag translations': return '检查并下载最新的中文标签翻译数据';
-    case 'Updating tag translation database...': return '正在更新标签翻译数据库...';
+    case 'Checking tag translation database...': return '正在检查标签翻译数据库...';
+    case 'Downloading tag translation database...': return '正在下载标签翻译数据库...';
     case 'Tag translation database is up to date': return '标签翻译数据库已是最新版本';
     case 'Tag translation database update needs an ability context': return '更新标签翻译数据库需要 Ability 上下文';
     case 'invalid database version': return '数据库版本无效';
@@ -1536,6 +1537,7 @@ export function zhText(text: string): string {
     case 'Theme color': return '主题色';
     case 'Choose the accent color used by app bars, buttons and selected items': return '选择标题栏、按钮和选中项使用的强调色';
     case 'Blue': return '蓝色';
+    case 'Sky Blue': return '天蓝色';
     case 'Teal': return '青绿色';
     case 'Green': return '绿色';
     case 'Purple': return '紫色';
@@ -2805,7 +2807,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
         entries, followSystemDarkMode ? ['Dark', 'Black'] : ['Light', 'Dark', 'Black']),
       optionSettingsRow('theme_color', 'Theme color',
         'Choose the accent color used by app bars, buttons and selected items', entries,
-        ['Blue', 'Teal', 'Green', 'Purple', 'Orange', 'Rose']),
+        ['Blue', 'Sky Blue', 'Teal', 'Green', 'Purple', 'Orange', 'Rose']),
       staticSettingsRow('filter', 'Filter', 'Keyword/gallery filtering rules', '', 'navigation'),
       optionSettingsRow('show_eh_limits', 'Show EH limits', 'Display account and image limits in the drawer', entries, ON_OFF_OPTIONS),
       optionSettingsRow('cellular_network_warning', 'Cellular network warning', 'Warn before network-heavy operations on mobile data', entries, ON_OFF_OPTIONS)
