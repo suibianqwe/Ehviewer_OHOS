@@ -6,6 +6,7 @@ import { userAuth } from '@kit.UserAuthenticationKit';
 import {
   EMBEDDED_READER_ACTIVE_KEY,
   MAIN_WINDOW_KEY,
+  applyAppChromeImmersiveMode,
   prepareAppChromeBeforeContent,
   rememberMainWindow,
   rememberMainWindowWidthPx
@@ -86,7 +87,9 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate<boolean>(IDENTITY_AUTH_LOCKED_KEY, false);
     AppStorage.setOrCreate<boolean>(EMBEDDED_READER_ACTIVE_KEY, false);
     this.updateSystemColorMode(this.context.config.colorMode);
+    let mainWindow: window.Window | undefined = undefined;
     const windowReady = stage.getMainWindow().then((win) => {
+      mainWindow = win;
       rememberMainWindow(win);
       win.on('windowSizeChange', (size: window.Size) => {
         rememberMainWindowWidthPx(size.width);
@@ -105,7 +108,18 @@ export default class EntryAbility extends UIAbility {
       this.initializeNetworkRuntime();
     }).catch(() => {});
     Promise.all([windowReady, settingsReady]).then(() => {
-      this.loadIndexContent(stage);
+      const readyWindow = mainWindow;
+      if (readyWindow === undefined) {
+        this.loadIndexContent(stage);
+        return;
+      }
+      // Settings and window creation run in parallel. Apply the persisted accent
+      // once more before mounting ArkUI so the startup transition uses it.
+      prepareAppChromeBeforeContent(readyWindow).then(() => {
+        this.loadIndexContent(stage);
+      }).catch(() => {
+        this.loadIndexContent(stage);
+      });
     }).catch(() => {
       this.loadIndexContent(stage);
     });
@@ -121,6 +135,7 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate<number>(EH_SYSTEM_COLOR_MODE_KEY, normalized);
     if (previous !== undefined && previous !== normalized) {
       notifyThemeChanged();
+      applyAppChromeImmersiveMode();
     }
   }
 

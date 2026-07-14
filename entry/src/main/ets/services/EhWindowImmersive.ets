@@ -1,6 +1,11 @@
 import { window } from '@kit.ArkUI';
 import { ehSettingsStore } from './EhSettingsStore';
-import { isDarkTheme, themeSystemBarContentColor, themeTransparentColor } from '../shared/EhTheme';
+import {
+  isDarkTheme,
+  themePrimaryColor,
+  themeSystemBarContentColor,
+  themeTransparentColor
+} from '../shared/EhTheme';
 
 export const MAIN_WINDOW_KEY: string = 'mainWindow';
 export const READER_WINDOW_KEY: string = 'readerWindow';
@@ -174,6 +179,7 @@ export function scheduleReaderFullscreenImmersiveMode(win: window.Window, delayM
 
 async function applyAppChromeImmersiveModeAsync(target: window.Window): Promise<void> {
   const useLightSystemBarIcons = isDarkTheme();
+  setWindowBackgroundColorQuietly(target, themePrimaryColor(), 'set app theme background');
   await setWindowLayoutFullScreenQuietly(target, true, 'set app full-screen layout');
   await setWindowSystemBarEnableQuietly(target, VISIBLE_SYSTEM_BARS, 'show app system bars');
   await setSpecificSystemBarEnabledQuietly(target, 'status', true, 'show app status bar');
@@ -307,6 +313,7 @@ export async function restoreAppWindowState(target: window.Window): Promise<void
 
 async function restoreAppWindowChrome(target: window.Window): Promise<void> {
   const useLightSystemBarIcons = isDarkTheme();
+  setWindowBackgroundColorQuietly(target, themePrimaryColor(), 'restore app theme background');
   await setWindowSystemBarEnableQuietly(target, VISIBLE_SYSTEM_BARS, 'restore app system bar set');
   await setSpecificSystemBarEnabledQuietly(target, 'status', true, 'restore app status bar');
   await setSpecificSystemBarEnabledQuietly(target, 'navigationIndicator', false, 'restore app navigation indicator');
@@ -407,6 +414,14 @@ async function setWindowSystemBarPropertiesQuietly(target: window.Window, proper
   operation: string): Promise<void> {
   try {
     await target.setWindowSystemBarProperties(properties);
+  } catch (error) {
+    logWindowError(operation, error);
+  }
+}
+
+function setWindowBackgroundColorQuietly(target: window.Window, color: string, operation: string): void {
+  try {
+    target.setWindowBackgroundColor(color);
   } catch (error) {
     logWindowError(operation, error);
   }
