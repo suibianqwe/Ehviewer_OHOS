@@ -63,6 +63,7 @@ import {
 } from '../services/EhNetworkConfig';
 import { EhUrl } from '../services/EhUrl';
 import { ehUpdateChecker, ReleaseInfo, UpdateCheckResult } from '../services/EhUpdateChecker';
+import { ehTagTranslationStore, EhTagTranslationUpdateResult } from '../services/EhTagTranslationStore';
 import {
   TRANSLATION_ENABLED_KEY,
   effectiveAiTranslationProvider,
@@ -1090,6 +1091,10 @@ export struct SettingsScene {
       this.checkForUpdatesManually();
       return true;
     }
+    if (key === 'update_tag_translation_database') {
+      this.updateTagTranslationDatabase();
+      return true;
+    }
     if (key === 'translation_test') {
       this.testTranslationProvider();
       return true;
@@ -1591,6 +1596,28 @@ export struct SettingsScene {
     }).catch((error: Error) => {
       this.hideBlockingBusy();
       this.showFloatingStatus('Restore downloads failed: ' + error.message);
+    });
+  }
+
+  private updateTagTranslationDatabase(): void {
+    const context = getAbilityContext();
+    if (context === undefined) {
+      this.showFloatingStatus('Tag translation database update needs an ability context');
+      return;
+    }
+    this.showBlockingBusy('Updating tag translation database...');
+    ehTagTranslationStore.update(context).then((result: EhTagTranslationUpdateResult) => {
+      this.hideBlockingBusy();
+      if (result.updated) {
+        notifyLanguageChanged();
+        this.settingsRenderRevision++;
+        this.showFloatingStatus('Tag translation database updated: ' + result.count.toString() + ' tags');
+      } else {
+        this.showFloatingStatus('Tag translation database is up to date');
+      }
+    }).catch((error: Error) => {
+      this.hideBlockingBusy();
+      this.showFloatingStatus('Tag translation database update failed: ' + error.message);
     });
   }
 

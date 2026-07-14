@@ -715,6 +715,12 @@ const UI_STATUS_PREFIX_TRANSLATIONS: UiStatusPrefixTranslation[] = [
   { source: 'Stopped ', target: '已停止 ' },
   { source: 'Tag definition failed: ', target: '标签定义加载失败：' },
   { source: 'Tag refresh failed: ', target: '标签刷新失败：' },
+  { source: 'Tag translation database updated: ', target: '标签翻译数据库已更新：' },
+  { source: 'Tag translation database update failed: ', target: '标签翻译数据库更新失败：' },
+  { source: 'database save failed: ', target: '数据库保存失败：' },
+  { source: 'create database directory failed: ', target: '创建数据库目录失败：' },
+  { source: 'write database file failed: ', target: '写入数据库文件失败：' },
+  { source: 'replace database file failed: ', target: '替换数据库文件失败：' },
   { source: 'Tag vote failed: ', target: '标签投票失败：' },
   { source: 'Torrent failed: ', target: '种子加载失败：' },
   { source: 'Translation failed: ', target: '翻译失败：' },
@@ -738,6 +744,7 @@ const UI_STATUS_FRAGMENT_TRANSLATIONS: UiStatusPrefixTranslation[] = [
   { source: ' loaded', target: ' 已加载' },
   { source: ' unavailable', target: ' 不可用' },
   { source: ' pages', target: ' 页' },
+  { source: ' tags', target: ' 个标签' },
   { source: ' failed', target: ' 失败' }
 ];
 
@@ -746,7 +753,9 @@ function translateCompositeUiStatus(text: string): string {
   for (let i = 0; i < UI_STATUS_PREFIX_TRANSLATIONS.length; i++) {
     const item = UI_STATUS_PREFIX_TRANSLATIONS[i];
     if (text.startsWith(item.source)) {
-      translated = item.target + zhText(text.substring(item.source.length));
+      const remainder = text.substring(item.source.length);
+      const nested = translateCompositeUiStatus(remainder);
+      translated = item.target + (nested === remainder ? zhText(remainder) : nested);
       break;
     }
   }
@@ -1500,6 +1509,17 @@ export function zhText(text: string): string {
     case 'Branch and describe from the build workspace': return '构建工作区分支和 describe 信息';
     case 'Check for updates': return '检查更新';
     case 'Check the latest GitHub release': return '检查 GitHub 最新发布版本';
+    case 'Update tag translation database': return '更新标签翻译数据库';
+    case 'Check for and download the latest Chinese tag translations': return '检查并下载最新的中文标签翻译数据';
+    case 'Updating tag translation database...': return '正在更新标签翻译数据库...';
+    case 'Tag translation database is up to date': return '标签翻译数据库已是最新版本';
+    case 'Tag translation database update needs an ability context': return '更新标签翻译数据库需要 Ability 上下文';
+    case 'invalid database version': return '数据库版本无效';
+    case 'invalid database JSON': return '数据库 JSON 无效';
+    case 'database version mismatch': return '数据库版本校验不一致';
+    case 'database has no tag data': return '数据库中没有标签数据';
+    case 'database contains too few tags': return '数据库标签数量异常';
+    case 'network request failed': return '网络请求失败';
     case 'Disable startup update check': return '关闭启动时自动检查更新';
     case 'New version available': return '发现新版本';
     case 'New version found': return '发现新版本';
@@ -2989,6 +3009,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       staticSettingsRow('issue_help', 'Issue help', 'Open the project issue tracker', 'Issues', 'url'),
       staticSettingsRow('license', 'License', 'Open-source license used by this project', 'GPL-3.0', 'url'),
       staticSettingsRow('check_for_updates', 'Check for updates', 'Check the latest GitHub release', 'Run', 'action'),
+      staticSettingsRow('update_tag_translation_database', 'Update tag translation database',
+        'Check for and download the latest Chinese tag translations', 'Run', 'action'),
       optionSettingsRow('close_auto_updates', 'Close automatic updates', 'Disable startup update check', entries, ON_OFF_OPTIONS),
       staticSettingsRow('donate', 'Donate', 'Support project development', 'Unavailable', 'url')
     ];
