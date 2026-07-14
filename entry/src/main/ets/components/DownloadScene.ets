@@ -703,8 +703,8 @@ export struct DownloadScene {
     return this.selectedDownloadGids.indexOf(this.selectedKey(gid)) >= 0;
   }
 
-  private toggleDownloadSelection(item: DownloadInfo): void {
-    const key = this.selectedKey(item.gid);
+  private toggleDownloadSelection(gid: number): void {
+    const key = this.selectedKey(gid);
     if (this.selectedDownloadGids.indexOf(key) >= 0) {
       this.selectedDownloadGids = this.selectedDownloadGids.replace(key, '|');
       if (this.selectedDownloadGids === '|') {
@@ -716,14 +716,14 @@ export struct DownloadScene {
     if (this.selectedDownloadGids.length === 0) {
       this.selectedDownloadGids = key;
     } else {
-      this.selectedDownloadGids += item.gid.toString() + '|';
+      this.selectedDownloadGids += gid.toString() + '|';
     }
     this.downloadActionsExpanded = true;
   }
 
   private handleDownloadCardTap(item: DownloadInfo): void {
     if (this.downloadSelectionCount() > 0) {
-      this.toggleDownloadSelection(item);
+      this.toggleDownloadSelection(item.gid);
       return;
     }
     this.openDetail(item);
@@ -1356,8 +1356,8 @@ export struct DownloadScene {
           selected: this.isDownloadSelected(item.gid),
           translateTitle: this.translationEnabled,
           translationPriority: this.translationPriorityFor(index),
-          onLongPress: (_pressed: GalleryInfo) => {
-            this.toggleDownloadSelection(item);
+          onLongPress: (pressed: GalleryInfo) => {
+            this.toggleDownloadSelection(pressed.gid);
           }
         })
           .width('100%')
@@ -1371,8 +1371,8 @@ export struct DownloadScene {
           selected: this.isDownloadSelected(item.gid),
           translateTitle: this.translationEnabled,
           translationPriority: this.translationPriorityFor(index),
-          onLongPress: (_pressed: GalleryInfo) => {
-            this.toggleDownloadSelection(item);
+          onLongPress: (pressed: GalleryInfo) => {
+            this.toggleDownloadSelection(pressed.gid);
           }
         })
           .width('100%')
