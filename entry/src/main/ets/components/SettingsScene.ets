@@ -41,6 +41,17 @@ import {
   serializeSavedTranslationApis,
   uniqueTranslationApiName
 } from '../services/TranslationApiConfigSupport';
+import {
+  TranslationPromptProfile,
+  activeTranslationPromptProfile,
+  allTranslationPromptProfiles,
+  cloneTranslationPromptProfiles,
+  createTranslationPromptId,
+  findTranslationPromptProfile,
+  parseCustomTranslationPromptProfiles,
+  serializeCustomTranslationPromptProfiles,
+  uniqueTranslationPromptName
+} from '../services/TranslationPromptSupport';
 import { EhHttpClient, NetworkDiagnosticResult } from '../services/EhHttpClient';
 import {
   currentDnsOverHttpsStatusText,
@@ -53,7 +64,11 @@ import {
 } from '../services/EhNetworkConfig';
 import { EhUrl } from '../services/EhUrl';
 import { ehUpdateChecker, ReleaseInfo, UpdateCheckResult } from '../services/EhUpdateChecker';
-import { TRANSLATION_ENABLED_KEY, ehTranslationService } from '../services/EhTranslationService';
+import {
+  TRANSLATION_ENABLED_KEY,
+  effectiveAiTranslationProvider,
+  ehTranslationService
+} from '../services/EhTranslationService';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { CacheClearResult, CachePruneResult, readerImageCache } from '../services/ReaderImageCache';
 import { FilterRule, FILTER_MODE_RATING, FILTER_MODE_TITLE, ehFilterStore } from '../services/EhFilterStore';
@@ -492,7 +507,7 @@ export struct SettingsScene {
     }
     const normalizedValue = this.normalizedSettingValue(key, value);
     ehSettingsStore.setValue(key, normalizedValue);
-    if (key === 'translation_provider' && normalizedValue === 'Custom API') {
+    if (key === 'translation_ai_provider' && normalizedValue === 'Custom API') {
       this.ensureCustomTranslationApi();
     }
     if (key === 'translation_buttons_enabled' && normalizedValue !== 'On') {
@@ -864,7 +879,7 @@ export struct SettingsScene {
     if (row.key === undefined) {
       return;
     }
-    const provider = ehSettingsStore.getValue('translation_provider', 'Google Web');
+    const provider = effectiveAiTranslationProvider();
     const requestVersion = ++this.modelPickerRequestVersion;
     this.optionKey = row.key;
     this.optionTitle = row.title;
@@ -1037,6 +1052,10 @@ export struct SettingsScene {
       this.testTranslationProvider();
       return true;
     }
+    if (key === 'translation_prompt_settings') {
+      this.openPanel(SettingsPanel.TranslationPrompt);
+      return true;
+    }
     if (key === 'donate') {
       this.statusText = 'Donation is not available in this version.';
       return true;
@@ -1104,6 +1123,20 @@ export struct SettingsScene {
       this.statusText = uiText('Translation test failed') + ': ' + error.message;
       this.showToast(this.statusText);
     });
+  }
+
+  private saveTranslationPrompt(selectedId: string, customProfiles: string, status: string): void {
+    ehSettingsStore.setValue('translation_prompt_selected', selectedId);
+    ehSettingsStore.setValue('translation_prompt_custom_profiles', customProfiles);
+    this.settingEntries = ehSettingsStore.getEntries();
+    ehTranslationService.clearCache();
+    this.showFloatingStatus(status);
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSettingsStore.save(context).catch((error: Error) => {
+        this.showFloatingStatus('Save failed: ' + error.message);
+      });
+    }
   }
 
   private openExternalUrl(url: string, label: string): void {
@@ -2009,6 +2042,29 @@ export struct SettingsScene {
         .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
         .transition(TransitionEffect.move(TransitionEdge.END)
           .animation({ duration: 300, curve: Curve.EaseOut }))
+      } else if (this.panel === SettingsPanel.TranslationPrompt) {
+        TranslationPromptPanel({
+          selectedId: settingEntryValue(this.settingEntries, 'translation_prompt_selected', 'preset_faithful'),
+          customProfiles: settingEntryValue(this.settingEntries, 'translation_prompt_custom_profiles', '[]'),
+          onBack: () => {
+            this.closePanel();
+          },
+          onSave: (selectedId: string, customProfiles: string, status: string) => {
+            this.saveTranslationPrompt(selectedId, customProfiles, status);
+          }
+        })
+          .width(this.settingsLayerWidth())
+          .height('100%')
+          .position({ x: this.settingsLayerTranslateX(), y: 0 })
+          .onTouch((event: TouchEvent) => {
+            if (shouldUpdateSplitPaneFocus(event)) {
+              this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
+            }
+          })
+          .zIndex(10)
+          .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
+          .transition(TransitionEffect.move(TransitionEdge.END)
+            .animation({ duration: 300, curve: Curve.EaseOut }))
       } else if (this.panel === SettingsPanel.Session) {
         Column() {
           SettingsSubToolbar({
@@ -2726,6 +2782,221 @@ export struct SettingsDetailPanel {
 }
 
 @Component
+struct TranslationPromptPanel {
+  @Prop selectedId: string = 'preset_faithful';
+  @Prop customProfiles: string = '[]';
+  @State profiles: TranslationPromptProfile[] = [];
+  @State activeId: string = 'preset_faithful';
+  @State editingId: string = '';
+  @State promptName: string = '';
+  @State promptText: string = '';
+  @State localCustomProfiles: string = '[]';
+  onBack: () => void = () => {};
+  onSave: (selectedId: string, customProfiles: string, status: string) => void = () => {};
+
+  aboutToAppear(): void {
+    this.localCustomProfiles = this.customProfiles;
+    this.profiles = allTranslationPromptProfiles(this.localCustomProfiles);
+    const active = activeTranslationPromptProfile(this.selectedId, this.localCustomProfiles);
+    this.activeId = active.id;
+    this.loadProfile(active);
+  }
+
+  private loadProfile(profile: TranslationPromptProfile): void {
+    this.editingId = profile.id;
+    this.promptName = profile.builtIn ? uiText(profile.name) : profile.name;
+    this.promptText = profile.prompt;
+    this.activeId = profile.id;
+  }
+
+  private chooseProfile(profile: TranslationPromptProfile): void {
+    this.loadProfile(profile);
+    this.onSave(profile.id, this.localCustomProfiles, 'Prompt selected');
+  }
+
+  private beginNewPrompt(): void {
+    this.editingId = '';
+    this.promptName = uiText('Custom prompt');
+  }
+
+  private savePrompt(): void {
+    const name = this.promptName.trim();
+    const prompt = this.promptText.trim();
+    if (name.length === 0 || prompt.length === 0) {
+      this.onSave(this.activeId, this.localCustomProfiles, 'Prompt name and content are required');
+      return;
+    }
+    const allProfiles = allTranslationPromptProfiles(this.localCustomProfiles);
+    const current = findTranslationPromptProfile(allProfiles, this.editingId);
+    const customProfiles = cloneTranslationPromptProfiles(parseCustomTranslationPromptProfiles(this.localCustomProfiles));
+    let id = this.editingId;
+    if (current === null || current.builtIn) {
+      id = createTranslationPromptId();
+      customProfiles.push({
+        id: id,
+        name: uniqueTranslationPromptName(allProfiles, name),
+        prompt: prompt,
+        builtIn: false
+      });
+    } else {
+      const saved = findTranslationPromptProfile(customProfiles, current.id);
+      if (saved === null) {
+        id = createTranslationPromptId();
+        customProfiles.push({
+          id: id,
+          name: uniqueTranslationPromptName(allProfiles, name),
+          prompt: prompt,
+          builtIn: false
+        });
+      } else {
+        saved.name = uniqueTranslationPromptName(allProfiles, name, saved.id);
+        saved.prompt = prompt;
+      }
+    }
+    this.localCustomProfiles = serializeCustomTranslationPromptProfiles(customProfiles);
+    this.profiles = allTranslationPromptProfiles(this.localCustomProfiles);
+    const selected = findTranslationPromptProfile(this.profiles, id);
+    if (selected !== null) {
+      this.loadProfile(selected);
+    }
+    this.onSave(id, this.localCustomProfiles, 'Prompt saved');
+  }
+
+  build() {
+    Column() {
+      AppSubToolbar({
+        title: uiText('System prompts'),
+        onBack: this.onBack
+      })
+
+      Scroll() {
+        Column({ space: 10 }) {
+          Text(uiText('Prompt preset'))
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(themePrimaryText())
+            .width('100%')
+          Text(uiText('Built-in presets and saved custom prompts'))
+            .fontSize(12)
+            .fontColor(themeSecondaryText())
+            .width('100%')
+
+          ForEach(this.profiles, (profile: TranslationPromptProfile) => {
+            Button({ type: ButtonType.Normal, stateEffect: true }) {
+              Row() {
+                Column({ space: 4 }) {
+                  Text(profile.builtIn ? uiText(profile.name) : profile.name)
+                    .fontSize(14)
+                    .fontWeight(profile.id === this.activeId ? FontWeight.Medium : FontWeight.Regular)
+                    .fontColor(profile.id === this.activeId ? themePrimaryColor() : themePrimaryText())
+                    .width('100%')
+                  Text(uiText(profile.builtIn ? 'Built-in preset' : 'Custom prompt'))
+                    .fontSize(11)
+                    .fontColor(themeSecondaryText())
+                    .width('100%')
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
+                if (profile.id === this.activeId) {
+                  Text(uiText('Selected'))
+                    .fontSize(11)
+                    .fontColor(themeOnPrimaryText())
+                    .padding({ left: 9, right: 9, top: 4, bottom: 4 })
+                    .backgroundColor(themePrimaryColor())
+                    .borderRadius(12)
+                    .margin({ left: 8 })
+                }
+              }
+              .width('100%')
+            }
+            .width('100%')
+            .padding(12)
+            .backgroundColor(profile.id === this.activeId ? themeSelectedBackground() : themeSurface())
+            .borderRadius(6)
+            .onClick(() => {
+              this.chooseProfile(profile);
+            })
+          }, (profile: TranslationPromptProfile) => profile.id)
+
+          Button(uiText('New prompt'))
+            .height(40)
+            .width('100%')
+            .fontSize(13)
+            .fontColor(themePrimaryColor())
+            .backgroundColor(themeSurfaceVariant())
+            .borderRadius(6)
+            .onClick(() => {
+              this.beginNewPrompt();
+            })
+
+          Text(uiText('Prompt name'))
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(themePrimaryText())
+            .width('100%')
+            .margin({ top: 6 })
+          TextInput({ text: this.promptName, placeholder: uiText('Name used in the prompt list') })
+            .height(44)
+            .width('100%')
+            .fontSize(14)
+            .fontColor(themePrimaryText())
+            .placeholderColor(themeSecondaryText())
+            .caretColor(themePrimaryColor())
+            .backgroundColor(themeFieldBackground())
+            .onChange((value: string) => {
+              this.promptName = value;
+            })
+
+          Text(uiText('System prompt'))
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(themePrimaryText())
+            .width('100%')
+          TextArea({ text: this.promptText, placeholder: uiText('Instructions sent to the AI translation service') })
+            .height(320)
+            .width('100%')
+            .fontSize(13)
+            .fontColor(themePrimaryText())
+            .placeholderColor(themeSecondaryText())
+            .caretColor(themePrimaryColor())
+            .backgroundColor(themeFieldBackground())
+            .onChange((value: string) => {
+              this.promptText = value;
+            })
+
+          if (findTranslationPromptProfile(this.profiles, this.editingId)?.builtIn === true) {
+            Text(uiText('Built-in presets are read-only; saving creates a custom copy'))
+              .fontSize(12)
+              .fontColor(themeSecondaryText())
+              .width('100%')
+          }
+
+          Button(uiText('Save'))
+            .height(44)
+            .width('100%')
+            .fontSize(14)
+            .fontColor(themeOnPrimaryText())
+            .backgroundColor(themePrimaryColor())
+            .borderRadius(6)
+            .onClick(() => {
+              this.savePrompt();
+            })
+            .margin({ bottom: 16 })
+        }
+        .width('100%')
+        .padding({ left: 12, right: 12, top: 12 })
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .edgeEffect(EdgeEffect.None)
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor(themePageBackground())
+  }
+}
+
+@Component
 export struct SettingsOptionPanel {
   @Prop title: string = '';
   @Prop summary: string = '';
@@ -3019,6 +3290,9 @@ export struct SettingsStaticRow {
             .onClick(() => {
               this.onTap();
             })
+        } else if (this.row.type === 'section') {
+          Row()
+            .width(0)
         } else if (this.row.type === 'info') {
           Text(uiValue(this.row.value))
             .fontSize(12)
@@ -3042,12 +3316,13 @@ export struct SettingsStaticRow {
       .width('100%')
     }
     .width('100%')
-    .padding(14)
-    .backgroundColor(themeSurface())
+    .padding(this.row.type === 'section' ? { left: 4, right: 4, top: 12, bottom: 2 } :
+      { left: 14, right: 14, top: 14, bottom: 14 })
+    .backgroundColor(this.row.type === 'section' ? themePageBackground() : themeSurface())
     .borderRadius(6)
     .onClick(() => {
       if (this.row.type !== 'input' && this.row.type !== 'switch' && this.row.type !== 'info' &&
-        this.row.type !== 'slider' && this.row.key !== 'theme') {
+        this.row.type !== 'slider' && this.row.type !== 'section' && this.row.key !== 'theme') {
         this.onTap();
       }
     })

@@ -124,6 +124,7 @@ export enum SettingsPanel {
   Download = 'download',
   Privacy = 'privacy',
   Translation = 'translation',
+  TranslationPrompt = 'translation_prompt',
   Advanced = 'advanced',
   About = 'about',
   Session = 'session',
@@ -816,6 +817,33 @@ export function zhText(text: string): string {
     case 'Show translation buttons on gallery lists, details and comments': return '在画廊列表、详情和评论中显示翻译按钮';
     case 'Translation provider': return '翻译服务';
     case 'Choose a web translation or AI translation service': return '选择网页翻译或 AI 翻译服务';
+    case 'Machine translation': return '普通机翻';
+    case 'Machine translation provider': return '普通机翻服务';
+    case 'Choose a web translation service used when AI translation is off': return '选择关闭 AI 翻译时使用的网页翻译服务';
+    case 'AI translation': return 'AI 翻译';
+    case 'Use the selected AI service instead of ordinary machine translation': return '使用所选 AI 服务代替普通机翻';
+    case 'AI translation provider': return 'AI 翻译服务';
+    case 'Choose the AI service used while AI translation is enabled': return '选择启用 AI 翻译时使用的服务';
+    case 'System prompts': return '系统提示词';
+    case 'Choose, edit and save prompts used by AI translation': return '选择、编辑并保存 AI 翻译使用的提示词';
+    case 'Prompt preset': return '提示词预设';
+    case 'Built-in presets and saved custom prompts': return '内置预设与已保存的自定义提示词';
+    case 'Prompt name': return '提示词名称';
+    case 'Name used in the prompt list': return '在提示词列表中显示的名称';
+    case 'System prompt': return '系统提示词';
+    case 'Instructions sent to the AI translation service': return '发送给 AI 翻译服务的固定指令';
+    case 'New prompt': return '新建提示词';
+    case 'Create a custom prompt from the current content': return '以当前内容新建自定义提示词';
+    case 'Prompt saved': return '提示词已保存';
+    case 'Prompt selected': return '已切换提示词';
+    case 'Built-in preset': return '内置预设';
+    case 'Prompt name and content are required': return '提示词名称和内容不能为空';
+    case 'Built-in presets are read-only; saving creates a custom copy': return '内置预设不可覆盖，保存时会创建自定义副本';
+    case 'Faithful (Recommended)': return '完整忠实（推荐）';
+    case 'Strict brackets': return '严格括号';
+    case 'Natural localization': return '自然润色';
+    case 'Token saving': return '省 Token';
+    case 'Custom prompt': return '自定义提示词';
     case 'Free Google web translation without an API key': return '无需密钥的免费 Google 网页翻译';
     case 'Free Microsoft web translation without an API key': return '无需密钥的免费微软网页翻译';
     case 'Free Baidu web translation without an API key': return '无需密钥的免费百度网页翻译';
@@ -2676,6 +2704,9 @@ export function settingsPanelTitle(panel: SettingsPanel): string {
   if (panel === SettingsPanel.MyTags) {
     return 'My Tags';
   }
+  if (panel === SettingsPanel.TranslationPrompt) {
+    return 'System prompts';
+  }
   return 'Settings';
 }
 
@@ -2782,16 +2813,20 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
   }
 
   if (panel === SettingsPanel.Translation) {
-    const provider = settingEntryValue(entries, 'translation_provider', 'Google Web');
-    const providerOptions = ['Google Web', 'Bing Web', 'Baidu Web', 'Youdao Web', 'MyMemory', 'Lingva',
-      'DeepSeek', 'OpenAI', 'Gemini', 'Custom API'];
-    const providerDescriptions = [
+    const machineProvider = settingEntryValue(entries, 'translation_machine_provider', 'Google Web');
+    const aiEnabled = settingEntryValue(entries, 'translation_ai_enabled', 'Off') === 'On';
+    const aiProvider = settingEntryValue(entries, 'translation_ai_provider', 'DeepSeek');
+    const machineProviderOptions = ['Google Web', 'Bing Web', 'Baidu Web', 'Youdao Web', 'MyMemory', 'Lingva'];
+    const machineProviderDescriptions = [
       'Free Google web translation without an API key',
       'Free Microsoft web translation without an API key',
       'Free Baidu web translation without an API key',
       'Free Youdao web translation without an API key',
       'Public translation memory with a short text limit',
-      'Open-source Google translation proxy',
+      'Open-source Google translation proxy'
+    ];
+    const aiProviderOptions = ['DeepSeek', 'OpenAI', 'Gemini', 'Custom API'];
+    const aiProviderDescriptions = [
       'DeepSeek AI translation using your API key',
       'OpenAI model translation using your API key',
       'Google Gemini translation using your API key',
@@ -2800,33 +2835,47 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     const rows: SettingsRowItem[] = [
       optionSettingsRow('translation_buttons_enabled', 'Translation feature',
         'Show translation buttons on gallery lists, details and comments', entries, ON_OFF_OPTIONS),
-      optionSettingsRow('translation_provider', 'Translation provider',
-        'Choose a web translation or AI translation service', entries, providerOptions, providerDescriptions),
       optionSettingsRow('translation_target_language', 'Target language',
         'Language used for gallery titles and comments', entries,
         ['Simplified Chinese', 'Traditional Chinese', 'English', 'Japanese', 'Korean']),
       optionSettingsRow('translation_timeout', 'Translation timeout',
-        'Maximum wait time for a translation request', entries, ['10s', '15s', '20s', '30s', '45s', '60s'])
+        'Maximum wait time for a translation request', entries, ['10s', '15s', '20s', '30s', '45s', '60s']),
+      staticSettingsRow('translation_machine_section', 'Machine translation',
+        'Choose a web translation service used when AI translation is off', '', 'section'),
+      optionSettingsRow('translation_machine_provider', 'Machine translation provider',
+        'Choose a web translation service used when AI translation is off', entries, machineProviderOptions,
+        machineProviderDescriptions),
+      staticSettingsRow('translation_public_notice', 'Public translation notice',
+        'Public providers require no token but may be rate-limited or unavailable; translated text is sent to the selected service',
+        machineProvider === 'Google Web' ? 'Experimental' : 'Public service', 'info'),
+      staticSettingsRow('translation_ai_section', 'AI translation',
+        'Use the selected AI service instead of ordinary machine translation', '', 'section'),
+      optionSettingsRow('translation_ai_enabled', 'AI translation',
+        'Use the selected AI service instead of ordinary machine translation', entries, ON_OFF_OPTIONS)
     ];
-    if (provider === 'DeepSeek') {
+    if (aiEnabled) {
+      rows.push(optionSettingsRow('translation_ai_provider', 'AI translation provider',
+        'Choose the AI service used while AI translation is enabled', entries, aiProviderOptions, aiProviderDescriptions));
+    }
+    if (aiEnabled && aiProvider === 'DeepSeek') {
       rows.push(textSettingsRow('translation_deepseek_api_key', 'DeepSeek API key',
         'Stored locally and sent only to DeepSeek', entries, ''));
       rows.push(modelSettingsRow('translation_deepseek_model', 'DeepSeek model',
         'Fetch available models or enter a model name', settingEntryValue(entries, 'translation_deepseek_model',
           'deepseek-v4-flash')));
-    } else if (provider === 'OpenAI') {
+    } else if (aiEnabled && aiProvider === 'OpenAI') {
       rows.push(textSettingsRow('translation_official_openai_api_key', 'OpenAI API key',
         'Stored locally and sent only to OpenAI', entries, ''));
       rows.push(modelSettingsRow('translation_official_openai_model', 'OpenAI model',
         'Fetch available OpenAI models or enter a model name',
         settingEntryValue(entries, 'translation_official_openai_model', 'gpt-4.1-mini')));
-    } else if (provider === 'Gemini') {
+    } else if (aiEnabled && aiProvider === 'Gemini') {
       rows.push(textSettingsRow('translation_gemini_api_key', 'Gemini API key',
         'Stored locally and sent only to Google Gemini', entries, ''));
       rows.push(modelSettingsRow('translation_gemini_model', 'Gemini model',
         'Fetch available Gemini models or enter a model name',
         settingEntryValue(entries, 'translation_gemini_model', 'gemini-3.5-flash')));
-    } else if (provider === 'Custom API') {
+    } else if (aiEnabled && aiProvider === 'Custom API') {
       const savedApis = parseSavedTranslationApis(settingEntryValue(entries, 'translation_custom_apis', '[]'));
       const selectedName = settingEntryValue(entries, 'translation_custom_api_selected', '');
       const selected = findSavedTranslationApi(savedApis, selectedName);
@@ -2847,10 +2896,10 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
         rows.push(modelSettingsRow('translation_custom_api_model', 'Model',
           'Fetch models from this API or enter a model name', selected.model));
       }
-    } else {
-      rows.push(staticSettingsRow('translation_public_notice', 'Public translation notice',
-        'Public providers require no token but may be rate-limited or unavailable; translated text is sent to the selected service',
-        provider === 'Google Web' ? 'Experimental' : 'Public service', 'info'));
+    }
+    if (aiEnabled) {
+      rows.push(staticSettingsRow('translation_prompt_settings', 'System prompts',
+        'Choose, edit and save prompts used by AI translation', 'Open', 'action'));
     }
     rows.push(staticSettingsRow('translation_test', 'Test translation',
       'Translate a short sample with the current provider', 'Run', 'action'));

@@ -46,6 +46,9 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'show_eh_limits', value: 'On' },
     { key: 'translation_buttons_enabled', value: 'On' },
     { key: 'translation_provider', value: 'Google Web' },
+    { key: 'translation_machine_provider', value: 'Google Web' },
+    { key: 'translation_ai_enabled', value: 'Off' },
+    { key: 'translation_ai_provider', value: 'DeepSeek' },
     { key: 'translation_target_language', value: 'Simplified Chinese' },
     { key: 'translation_timeout', value: '15s' },
     { key: 'translation_deepseek_api_key', value: '' },
@@ -59,6 +62,9 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'translation_gemini_model', value: 'gemini-3.5-flash' },
     { key: 'translation_custom_apis', value: '[]' },
     { key: 'translation_custom_api_selected', value: '' },
+    { key: 'translation_prompt_selected', value: 'preset_faithful' },
+    { key: 'translation_prompt_custom_profiles', value: '[]' },
+    { key: 'translation_provider_split_20260714', value: 'Applied' },
     { key: 'cellular_network_warning', value: 'Off' },
     { key: 'screen_rotation', value: 'Default' },
     { key: 'reading_direction', value: 'Right to left' },
@@ -187,6 +193,7 @@ export class EhSettingsStore {
       let hasProxyMigration = false;
       let hasProxyApi24Migration = false;
       let hasPassthroughMigration = false;
+      let hasTranslationProviderSplit = false;
       for (let i = 0; i < parsed.length; i++) {
         const item = parsed[i];
         if (typeof item.key === 'string' && typeof item.value === 'string') {
@@ -204,6 +211,9 @@ export class EhSettingsStore {
           }
           if (item.key === 'network_passthrough_20260714') {
             hasPassthroughMigration = true;
+          }
+          if (item.key === 'translation_provider_split_20260714') {
+            hasTranslationProviderSplit = true;
           }
           this.setValue(item.key, item.value);
         }
@@ -254,7 +264,10 @@ export class EhSettingsStore {
         this.setValue('detail_size', 'Loose');
       }
       this.migrateLegacyTranslationApi();
-      if (!hasPassthroughMigration) {
+      if (!hasTranslationProviderSplit) {
+        this.migrateTranslationProviderSplit();
+      }
+      if (!hasPassthroughMigration || !hasTranslationProviderSplit) {
         try {
           await prefs.put(VALUES_KEY, JSON.stringify(this.entries));
           await prefs.flush();
@@ -292,6 +305,18 @@ export class EhSettingsStore {
     }
   }
 
+  private migrateTranslationProviderSplit(): void {
+    const provider = this.getValue('translation_provider', 'Google Web');
+    if (isAiTranslationProvider(provider)) {
+      this.setValue('translation_ai_enabled', 'On');
+      this.setValue('translation_ai_provider', provider);
+    } else {
+      this.setValue('translation_ai_enabled', 'Off');
+      this.setValue('translation_machine_provider', isMachineTranslationProvider(provider) ? provider : 'Google Web');
+    }
+    this.setValue('translation_provider_split_20260714', 'Applied');
+  }
+
   async save(context: common.UIAbilityContext): Promise<void> {
     try {
       const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
@@ -301,6 +326,15 @@ export class EhSettingsStore {
       throw new Error(String(error));
     }
   }
+}
+
+function isAiTranslationProvider(provider: string): boolean {
+  return provider === 'DeepSeek' || provider === 'OpenAI' || provider === 'Gemini' || provider === 'Custom API';
+}
+
+function isMachineTranslationProvider(provider: string): boolean {
+  return provider === 'Google Web' || provider === 'Bing Web' || provider === 'Baidu Web' ||
+    provider === 'Youdao Web' || provider === 'MyMemory' || provider === 'Lingva';
 }
 
 export function historyInfoSizeOptions(): string[] {
