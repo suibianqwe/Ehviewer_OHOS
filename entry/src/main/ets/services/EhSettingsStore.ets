@@ -70,6 +70,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'screen_rotation', value: 'Default' },
     { key: 'reading_direction', value: 'Right to left' },
     { key: 'page_scaling', value: 'Fit screen' },
+    { key: 'adaptive_dual_page', value: 'Off' },
     { key: 'start_position', value: 'Top right' },
     { key: 'start_transfer_time', value: '5s' },
     { key: 'reader_standalone', value: 'On' },
@@ -138,19 +139,44 @@ export class EhSettingsStore {
   }
 
   setValue(key: string, value: string): void {
+    let found = false;
     for (let i = 0; i < this.entries.length; i++) {
       if (this.entries[i].key === key) {
         this.entries[i].value = value;
-        if (key === 'translation_buttons_enabled') {
-          this.syncTranslationButtonVisibility();
-        }
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      this.entries.push({ key: key, value: value });
+    }
+    this.enforceAdaptiveDualPageConstraints();
+    if (key === 'translation_buttons_enabled') {
+      this.syncTranslationButtonVisibility();
+    }
+  }
+
+  private enforceAdaptiveDualPageConstraints(): void {
+    if (this.getValue('adaptive_dual_page', 'Off') !== 'On') {
+      return;
+    }
+    this.replaceEntryValue('page_scaling', 'Fit screen');
+    if (this.getValue('reading_direction', 'Right to left') === 'Top to bottom') {
+      this.replaceEntryValue('reading_direction', 'Right to left');
+    }
+    if (this.getValue('screen_rotation', 'Default') === 'Match image') {
+      this.replaceEntryValue('screen_rotation', 'Default');
+    }
+  }
+
+  private replaceEntryValue(key: string, value: string): void {
+    for (let i = 0; i < this.entries.length; i++) {
+      if (this.entries[i].key === key) {
+        this.entries[i].value = value;
         return;
       }
     }
     this.entries.push({ key: key, value: value });
-    if (key === 'translation_buttons_enabled') {
-      this.syncTranslationButtonVisibility();
-    }
   }
 
   syncTranslationButtonVisibility(): void {

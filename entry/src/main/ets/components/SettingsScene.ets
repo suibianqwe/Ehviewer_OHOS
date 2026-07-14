@@ -121,6 +121,7 @@ import {
 import { EhBackupBundle, SessionMode, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, uiStatusText, setActiveBackHandler, padTwo, getAbilityContext, downloadSizeText, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, cloneStringOptions, settingMigrationMessage, isValidProxyHostText, isValidProxyPortText, normalizeProxyOption, formatNetworkDiagnostics, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption, normalizeIdentityAuthenticationOption, normalizeReaderCacheSizeOption } from '../shared/EhShared';
 import { FilterPanel } from './DownloadMigrationScenes';
 import { BlockingBusyOverlay } from './BlockingBusyOverlay';
+import { ConfirmActionOverlay } from './ConfirmActionOverlay';
 import { MyTagsPanel } from './MyTagsPanel';
 import { AppSubToolbar, AppToolbar } from './NavigationComponents';
 import {
@@ -199,6 +200,7 @@ export struct SettingsScene {
   @State downloadMigrationDialogOpen: boolean = false;
   @State downloadMigrationCurrent: string = DOWNLOAD_LOCATION_APP_FILES;
   @State downloadMigrationTarget: string = DOWNLOAD_LOCATION_APP_FILES;
+  @State signOutConfirmationVisible: boolean = false;
   @State webViewUrl: string = '';
   @State webViewTitle: string = '';
   @State filterRules: FilterRule[] = [];
@@ -264,6 +266,10 @@ export struct SettingsScene {
   }
 
   private handleSystemBack(): boolean {
+    if (this.signOutConfirmationVisible) {
+      this.signOutConfirmationVisible = false;
+      return true;
+    }
     if (this.proxySettingsOpen) {
       this.closeProxySettings();
       return true;
@@ -291,6 +297,7 @@ export struct SettingsScene {
     this.optionPickerOpen = false;
     this.proxySettingsOpen = false;
     this.downloadMigrationDialogOpen = false;
+    this.signOutConfirmationVisible = false;
     this.updateDialogVisible = false;
     this.webViewUrl = '';
     this.webViewTitle = '';
@@ -480,6 +487,7 @@ export struct SettingsScene {
   }
 
   private signOut(): void {
+    this.signOutConfirmationVisible = false;
     clearAllWebCookies();
     const context = getAbilityContext();
     if (context === undefined) {
@@ -542,7 +550,8 @@ export struct SettingsScene {
       ehSettingsStore.getValue('theme', 'Light') === 'Light') {
       ehSettingsStore.setValue('theme', 'Dark');
     }
-    if (key === 'reading_direction' && normalizedValue === 'Top to bottom') {
+    if (key === 'reading_direction' && normalizedValue === 'Top to bottom' &&
+      ehSettingsStore.getValue('adaptive_dual_page', 'Off') !== 'On') {
       ehSettingsStore.setValue('screen_rotation', 'Default');
       ehSettingsStore.setValue('page_scaling', 'Fixed scale');
     }
@@ -616,6 +625,17 @@ export struct SettingsScene {
   }
 
   private normalizedSettingValue(key: string, value: string): string {
+    const adaptiveDualPage = key === 'adaptive_dual_page' ? value === 'On' :
+      settingEntryValue(this.settingEntries, 'adaptive_dual_page', 'Off') === 'On';
+    if (adaptiveDualPage && key === 'screen_rotation' && value === 'Match image') {
+      return 'Default';
+    }
+    if (adaptiveDualPage && key === 'reading_direction' && value === 'Top to bottom') {
+      return 'Right to left';
+    }
+    if (adaptiveDualPage && key === 'page_scaling') {
+      return 'Fit screen';
+    }
     if (key === 'screen_rotation' &&
       settingEntryValue(this.settingEntries, 'reading_direction', 'Right to left') === 'Top to bottom' &&
       value === 'Match image') {
@@ -1946,7 +1966,7 @@ export struct SettingsScene {
             this.openPanel(SettingsPanel.Session);
           },
           onSignOut: () => {
-            this.signOut();
+            this.signOutConfirmationVisible = true;
           },
           onCycleSetting: (row: SettingsRowItem) => {
             this.cycleSetting(row);
@@ -2181,6 +2201,25 @@ export struct SettingsScene {
         })
           .zIndex(20)
           .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
+      }
+
+      if (this.signOutConfirmationVisible) {
+        ConfirmActionOverlay({
+          title: 'Sign out',
+          message: 'The saved login session will be removed.',
+          confirmLabel: 'Sign out',
+          onCancel: () => {
+            this.signOutConfirmationVisible = false;
+          },
+          onConfirm: () => {
+            this.signOut();
+          }
+        })
+          .width(this.settingsLayerWidth())
+          .height('100%')
+          .position({ x: this.settingsLayerTranslateX(), y: 0 })
+          .zIndex(28)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
       }
 
       if (this.updateDialogVisible && this.updateRelease !== null) {

@@ -1196,6 +1196,7 @@ export function zhText(text: string): string {
     case 'Selected': return '已选择';
     case 'Sign in': return '登录';
     case 'Sign out': return '退出登录';
+    case 'The saved login session will be removed.': return '将清除已保存的登录会话，是否继续？';
     case 'Signed in': return '已登录';
     case 'Tourist': return '游客';
     case 'Guest mode': return '游客模式';
@@ -1209,6 +1210,8 @@ export function zhText(text: string): string {
     case 'Use this when password login needs captcha, or when importing an ExHentai session.': return '当密码登录需要验证码，或导入 ExHentai 会话时使用。';
     case 'Full Cookie header': return '完整 Cookie 头';
     case 'Clear': return '清除';
+    case 'Clear Cookie': return '清除 Cookie';
+    case 'Saved identity cookies and web cookies will be removed.': return '将清除已保存的身份 Cookie 和网页 Cookie，是否继续？';
     case 'OK': return '确定';
     case 'Session': return '会话';
     case 'UConfig': return '账号配置';
@@ -1356,6 +1359,8 @@ export function zhText(text: string): string {
     case 'Left-to-right, right-to-left or vertical reader movement': return '从左到右、从右到左或纵向阅读';
     case 'Page scaling': return '页面缩放';
     case 'Choose how reader pages fit the screen': return '选择阅读页面适应屏幕的方式';
+    case 'Adaptive dual page': return '自适应一屏双页';
+    case 'Show two wide or narrow pages together when both fit on screen': return '当两张横向或纵向页面能够容纳时在一屏内同时显示';
     case 'Start position': return '开页位置';
     case 'Where a gallery starts when opened': return '页面打开时的初始对齐位置';
     case 'Auto transfer time': return '自动翻页时间';
@@ -2768,14 +2773,18 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
   if (panel === SettingsPanel.Read) {
     const readingDirection = normalizeReadingDirectionOption(settingEntryValue(entries, 'reading_direction', 'Right to left'));
     const continuousMode = readingDirection === 'Top to bottom';
+    const adaptiveDualPage = settingEntryValue(entries, 'adaptive_dual_page', 'Off') === 'On';
     return [
       optionSettingsRow('screen_rotation', 'Screen rotation', 'Reader orientation policy', entries,
-        continuousMode ? ['Default', 'Portrait', 'Landscape', 'Auto rotate'] :
+        continuousMode || adaptiveDualPage ? ['Default', 'Portrait', 'Landscape', 'Auto rotate'] :
           ['Default', 'Portrait', 'Landscape', 'Auto rotate', 'Match image']),
-      optionSettingsRow('reading_direction', 'Reading direction', 'Left-to-right, right-to-left or vertical reader movement', entries, ['Left to right', 'Right to left', 'Top to bottom']),
+      optionSettingsRow('reading_direction', 'Reading direction', 'Left-to-right, right-to-left or vertical reader movement', entries,
+        adaptiveDualPage ? ['Left to right', 'Right to left'] : ['Left to right', 'Right to left', 'Top to bottom']),
       optionSettingsRow('page_scaling', 'Page scaling', 'Choose how reader pages fit the screen', entries,
-        continuousMode ? ['Actual size', 'Fit width', 'Fixed scale'] :
+        adaptiveDualPage ? ['Fit screen'] : continuousMode ? ['Actual size', 'Fit width', 'Fixed scale'] :
           ['Actual size', 'Fit width', 'Fit height', 'Fit screen', 'Fixed scale']),
+      optionSettingsRow('adaptive_dual_page', 'Adaptive dual page',
+        'Show two wide or narrow pages together when both fit on screen', entries, ON_OFF_OPTIONS),
       optionSettingsRow('start_position', 'Start position', 'Where a gallery starts when opened', entries, ['Top left', 'Top right', 'Bottom left', 'Bottom right', 'Center']),
       optionSettingsRow('start_transfer_time', 'Auto transfer time', 'Delay before automatically advancing to the next page', entries, readerAutoTransferTimeOptions()),
       optionSettingsRow('reader_standalone', 'Standalone reader', 'Open reader in a standalone ability', entries, ON_OFF_OPTIONS),

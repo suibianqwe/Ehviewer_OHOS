@@ -351,6 +351,7 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuScreenRotation: string = 'Default';
   @Prop menuReadingDirection: string = 'Right to left';
   @Prop menuPageScaling: string = 'Fit screen';
+  @Prop menuAdaptiveDualPage: boolean = false;
   @Prop menuStartPosition: string = 'Top right';
   @Prop menuAutoTransferTime: string = '5s';
   @Prop menuKeepScreenOn: boolean = false;
@@ -363,12 +364,14 @@ export struct ReaderSettingsMenuOverlay {
   @State customBrightnessVisible: boolean = false;
   @State ultraDarkVisible: boolean = false;
   @Prop screenRotationOptions: string[] = [];
+  @Prop readingDirectionOptions: string[] = [];
   @Prop pageScalingOptions: string[] = [];
   onDismiss: () => void = () => {};
   onBack: () => void = () => {};
   onScreenRotationChange: (value: string) => void = (_value: string) => {};
   onReadingDirectionChange: (value: string) => void = (_value: string) => {};
   onPageScalingChange: (value: string) => void = (_value: string) => {};
+  onAdaptiveDualPageChange: (value: boolean) => void = (_value: boolean) => {};
   onStartPositionChange: (value: string) => void = (_value: string) => {};
   onAutoTransferTimeChange: (value: string) => void = (_value: string) => {};
   onKeepScreenOnChange: (value: boolean) => void = (_value: boolean) => {};
@@ -452,7 +455,7 @@ export struct ReaderSettingsMenuOverlay {
 
             ReaderMenuSelect({
               label: uiText('Reading direction'),
-              options: ['Left to right', 'Right to left', 'Top to bottom'],
+              options: this.readingDirectionOptions,
               value: this.menuReadingDirection,
               onChange: this.onReadingDirectionChange
             })
@@ -463,6 +466,13 @@ export struct ReaderSettingsMenuOverlay {
               options: this.pageScalingOptions,
               value: this.menuPageScaling,
               onChange: this.onPageScalingChange
+            })
+            ReaderMenuDivider()
+
+            ReaderMenuToggle({
+              label: uiText('Adaptive dual page'),
+              value: this.menuAdaptiveDualPage,
+              onChange: this.onAdaptiveDualPageChange
             })
             ReaderMenuDivider()
 

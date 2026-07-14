@@ -359,7 +359,7 @@ export struct ReaderImageViewport {
   }
 
   private reportImageSize(): void {
-    if (!this.isActive || this.sourceImageWidth <= 0 || this.sourceImageHeight <= 0) {
+    if (this.sourceImageWidth <= 0 || this.sourceImageHeight <= 0) {
       return;
     }
     this.onImageSizeChange(this.sourceImageWidth, this.sourceImageHeight);

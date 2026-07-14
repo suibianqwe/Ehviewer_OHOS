@@ -3,10 +3,11 @@ import { ehCookieStore } from '../services/EhCookieStore';
 import { EhHttpClient, SignInResult } from '../services/EhHttpClient';
 import { EhUrl } from '../services/EhUrl';
 import { applyAppChromeImmersiveMode } from '../services/EhWindowImmersive';
-import { LANGUAGE_REVISION_KEY } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, setActiveBackHandler } from '../shared/EhShared';
 import { themeFieldBackground, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSuccessText, themeSurface, themeTransparentColor } from '../shared/EhTheme';
 import { SessionMode, uiText, uiStatusText, getAbilityContext } from '../shared/EhShared';
 import { AppSubToolbar } from './NavigationComponents';
+import { ConfirmActionOverlay } from './ConfirmActionOverlay';
 
 @Component
 export struct SessionScene {
@@ -24,6 +25,7 @@ export struct SessionScene {
   @State webCookieCaptured: boolean = false;
   @State webUrl: string = EhUrl.URL_SIGN_IN;
   @State statusText: string = 'Sign in with an E-Hentai forum account';
+  @State clearCookieConfirmationVisible: boolean = false;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @Prop initialMode: SessionMode = SessionMode.Password;
   onBack: () => void = () => {};
@@ -31,6 +33,7 @@ export struct SessionScene {
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
+    setActiveBackHandler(() => this.handleSystemBack());
     this.mode = this.initialMode;
     this.cookieInput = ehCookieStore.getEditableCookieHeader();
     const context = getAbilityContext();
@@ -73,6 +76,15 @@ export struct SessionScene {
       return;
     }
     this.onBack();
+  }
+
+  private handleSystemBack(): boolean {
+    if (this.clearCookieConfirmationVisible) {
+      this.clearCookieConfirmationVisible = false;
+      return true;
+    }
+    this.handleBack();
+    return true;
   }
 
   private signInWithPassword(): void {
@@ -251,7 +263,12 @@ export struct SessionScene {
     return true;
   }
 
+  private requestClearCookie(): void {
+    this.clearCookieConfirmationVisible = true;
+  }
+
   private clearCookie(): void {
+    this.clearCookieConfirmationVisible = false;
     clearAllWebCookies();
     const context = getAbilityContext();
     if (context === undefined) {
@@ -276,24 +293,44 @@ export struct SessionScene {
   }
 
   build() {
-    Column() {
-      AppSubToolbar({
-        title: uiText(this.modeTitle()),
-        onBack: () => {
-          this.handleBack();
+    Stack() {
+      Column() {
+        AppSubToolbar({
+          title: uiText(this.modeTitle()),
+          onBack: () => {
+            this.handleBack();
+          }
+        })
+        if (this.mode === SessionMode.Web) {
+          this.WebSignInPanel()
+        } else if (this.mode === SessionMode.Cookie) {
+          this.CookieSignInPanel()
+        } else {
+          this.PasswordSignInPanel()
         }
-      })
-      if (this.mode === SessionMode.Web) {
-        this.WebSignInPanel()
-      } else if (this.mode === SessionMode.Cookie) {
-        this.CookieSignInPanel()
-      } else {
-        this.PasswordSignInPanel()
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor(themePageBackground())
+
+      if (this.clearCookieConfirmationVisible) {
+        ConfirmActionOverlay({
+          title: 'Clear Cookie',
+          message: 'Saved identity cookies and web cookies will be removed.',
+          confirmLabel: 'Clear',
+          onCancel: () => {
+            this.clearCookieConfirmationVisible = false;
+          },
+          onConfirm: () => {
+            this.clearCookie();
+          }
+        })
+          .zIndex(20)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
       }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(themePageBackground())
   }
 
   @Builder
@@ -477,7 +514,7 @@ export struct SessionScene {
           .backgroundColor(themeTransparentColor())
           .layoutWeight(1)
           .onClick(() => {
-            this.clearCookie();
+            this.requestClearCookie();
           })
         Button(uiText('OK'))
           .type(ButtonType.Normal)
