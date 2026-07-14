@@ -818,6 +818,7 @@ export function zhText(text: string): string {
     case 'Title and comment translation providers': return '标题与评论翻译服务';
     case 'Translation feature': return '翻译功能';
     case 'Show translation buttons on gallery lists, details and comments': return '在画廊列表、详情和评论中显示翻译按钮';
+    case 'The translation toggle is in the lower-right toolbar': return '翻译开关在右下角工具栏中';
     case 'Translation provider': return '翻译服务';
     case 'Choose a web translation or AI translation service': return '选择网页翻译或 AI 翻译服务';
     case 'Machine translation': return '普通机翻';

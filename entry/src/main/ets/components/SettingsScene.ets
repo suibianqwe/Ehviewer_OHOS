@@ -524,12 +524,16 @@ export struct SettingsScene {
       return;
     }
     const normalizedValue = this.normalizedSettingValue(key, value);
+    const previousValue = ehSettingsStore.getValue(key, '');
     ehSettingsStore.setValue(key, normalizedValue);
     if (key === 'translation_ai_provider' && normalizedValue === 'Custom API') {
       this.ensureCustomTranslationApi();
     }
     if (key === 'translation_buttons_enabled' && normalizedValue !== 'On') {
       ehTranslationService.setEnabled(false);
+    }
+    if (key === 'translation_buttons_enabled' && normalizedValue === 'On' && previousValue !== 'On') {
+      this.showToast('The translation toggle is in the lower-right toolbar');
     }
     if (isTranslationSettingKey(key)) {
       ehTranslationService.clearCache();
@@ -2871,11 +2875,6 @@ struct TranslationPromptPanel {
     }
   }
 
-  private beginNewPrompt(): void {
-    this.editingId = '';
-    this.promptName = uiText('Custom prompt');
-  }
-
   private savePrompt(): void {
     const name = this.promptName.trim();
     const prompt = this.promptText.trim();
@@ -2947,8 +2946,7 @@ struct TranslationPromptPanel {
           onBack: this.onBack
         })
 
-        Scroll() {
-          Column({ space: 10 }) {
+        Column({ space: 10 }) {
           Button({ type: ButtonType.Normal, stateEffect: true }) {
             Row() {
               Text(uiText('Prompt preset'))
@@ -2977,17 +2975,6 @@ struct TranslationPromptPanel {
             this.profileSelectorVisible = true;
           })
 
-          Button(uiText('New prompt'))
-            .height(40)
-            .width('100%')
-            .fontSize(13)
-            .fontColor(themePrimaryColor())
-            .backgroundColor(themeSurfaceVariant())
-            .borderRadius(6)
-            .onClick(() => {
-              this.beginNewPrompt();
-            })
-
           Text(uiText('Prompt name'))
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
@@ -3012,7 +2999,8 @@ struct TranslationPromptPanel {
             .fontColor(themePrimaryText())
             .width('100%')
           TextArea({ text: this.promptText, placeholder: uiText('Instructions sent to the AI translation service') })
-            .height(320)
+            .layoutWeight(1)
+            .constraintSize({ minHeight: 80 })
             .width('100%')
             .fontSize(13)
             .fontColor(themePrimaryText())
@@ -3048,13 +3036,10 @@ struct TranslationPromptPanel {
           }
           .width('100%')
           .margin({ bottom: 16 })
-          }
-          .width('100%')
-          .padding({ left: 12, right: 12, top: 12 })
         }
         .width('100%')
         .layoutWeight(1)
-        .edgeEffect(EdgeEffect.None)
+        .padding({ left: 12, right: 12, top: 12 })
       }
       .width('100%')
       .height('100%')
