@@ -851,6 +851,7 @@ export function zhText(text: string): string {
     case 'Move down': return '下移';
     case 'Local Favorites': return '本地收藏';
     case 'Add to favorites': return '添加到收藏';
+    case 'Remove from favorites': return '移出收藏';
     case 'Remember favorite collection': return '记住收藏夹';
     case 'Choose favorite collection': return '选择收藏夹';
     case 'Adding to local favorites...': return '正在添加到本地收藏...';
@@ -1243,6 +1244,8 @@ export function zhText(text: string): string {
     case 'Updating': return '更新中';
     case 'Invalid': return '无效';
     case 'Status': return '状态';
+    case 'Download status': return '下载状态';
+    case 'Select statuses to display': return '选择要显示的下载状态';
     case 'Current status filter': return '当前状态筛选';
     case 'Sort': return '排序';
     case 'Selected': return '已选择';
@@ -2427,15 +2430,18 @@ export function saveDownloadsQuietly(): void {
   ehDownloadStore.save(context).catch(() => {});
 }
 
-export function filterDownloadItems(items: DownloadInfo[], query: string, statusFilter: string, labelFilter: string,
+export const DOWNLOAD_STATUS_FILTER_OPTIONS: string[] = [
+  'Idle', 'Waiting', 'Downloading', 'Downloaded', 'Failed', 'Updating', 'Invalid'
+];
+
+export function filterDownloadItems(items: DownloadInfo[], query: string, statusFilters: string[], labelFilter: string,
   sortMode: string, categoryFilter: string = 'All'): DownloadInfo[] {
   const normalizedQuery = query.toLowerCase().trim();
   const filtered: DownloadInfo[] = [];
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const stateLabel = downloadStateLabel(item.state);
-    const statusMatched = statusFilter === 'All' || stateLabel === statusFilter ||
-      (statusFilter === 'Downloading' && stateLabel === 'Waiting');
+    const statusMatched = statusFilters.indexOf(stateLabel) >= 0;
     if (!statusMatched) {
       continue;
     }
@@ -2496,7 +2502,7 @@ export function sortDownloadItems(items: DownloadInfo[], sortMode: string): void
 }
 
 export function nextDownloadStatusFilter(current: string): string {
-  const options: string[] = ['All', 'Idle', 'Waiting', 'Downloading', 'Downloaded', 'Failed'];
+  const options: string[] = ['All'].concat(DOWNLOAD_STATUS_FILTER_OPTIONS);
   return nextStringOption(current, options);
 }
 

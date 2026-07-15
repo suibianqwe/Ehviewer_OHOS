@@ -9,6 +9,7 @@ import { ehCookieStore } from '../services/EhCookieStore';
 import {
   EhHttpClient,
   GalleryListLoadResult,
+  ToggleFavoriteResult,
 } from '../services/EhHttpClient';
 import { DEFAULT_ADVANCE_SEARCH, EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder, buildJumpSeekUrl } from '../services/EhUrl';
 import { ehFilterStore } from '../services/EhFilterStore';
@@ -2811,6 +2812,49 @@ export struct GalleryListScene {
     });
   }
 
+  private removeFavoriteGallery(gallery: GalleryInfo): void {
+    const context = getAbilityContext();
+    this.closeCardActions();
+    if (this.sourceRoute !== GalleryRoute.Favorites || gallery.gid <= 0 || gallery.token.length === 0) {
+      return;
+    }
+    if (gallery.favoriteSlot === -1) {
+      if (context === undefined) {
+        this.statusText = 'Local favorites unavailable';
+        this.renderVersion++;
+        return;
+      }
+      this.statusText = 'Removing from local favorites...';
+      this.renderVersion++;
+      ehLocalFavoritesStore.ensureLoaded(context).then(() => {
+        ehLocalFavoritesStore.removeGallery(gallery.gid);
+        this.favoriteLocalCount = ehLocalFavoritesStore.count();
+        this.galleries = this.galleries.filter((item: GalleryInfo) => item.gid !== gallery.gid);
+        this.statusText = 'Removed from local favorites';
+        this.renderVersion++;
+        this.saveListCache();
+      }).catch((error: Error) => {
+        this.statusText = 'Favorite failed: ' + error.message;
+        this.renderVersion++;
+      });
+      return;
+    }
+    this.statusText = 'Removing from favorites...';
+    this.renderVersion++;
+    this.client.toggleFavorite(gallery.gid, gallery.token, true, this.activeSite)
+      .then((result: ToggleFavoriteResult) => {
+        this.statusText = result.message;
+        if (result.ok) {
+          this.galleries = this.galleries.filter((item: GalleryInfo) => item.gid !== gallery.gid);
+          this.saveListCache();
+        }
+        this.renderVersion++;
+      }).catch((error: Error) => {
+        this.statusText = 'Favorite failed: ' + error.message;
+        this.renderVersion++;
+      });
+  }
+
   private openSearchResult(request: DetailSearchRequest): void {
     this.showReader = false;
     this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
@@ -3391,6 +3435,7 @@ export struct GalleryListScene {
             GalleryCardActionOverlay({
               gallery: this.cardActionGallery,
               isHistory: this.sourceRoute === GalleryRoute.History,
+              isFavorite: this.sourceRoute === GalleryRoute.Favorites,
               onDismiss: () => {
                 this.closeCardActions();
               },
@@ -3402,6 +3447,9 @@ export struct GalleryListScene {
               },
               onDeleteHistory: (gallery: GalleryInfo) => {
                 this.deleteHistoryGallery(gallery);
+              },
+              onRemoveFavorite: (gallery: GalleryInfo) => {
+                this.removeFavoriteGallery(gallery);
               }
             })
               .zIndex(30)
@@ -3662,6 +3710,7 @@ struct ImageSearchPanel {
 export struct GalleryCardActionOverlay {
   @Prop gallery: GalleryInfo = createEmptyGallery();
   @Prop isHistory: boolean = false;
+  @Prop isFavorite: boolean = false;
   onDismiss: () => void = () => {
   };
   onShare: (gallery: GalleryInfo) => void = (_gallery: GalleryInfo) => {
@@ -3669,6 +3718,8 @@ export struct GalleryCardActionOverlay {
   onDownload: (gallery: GalleryInfo) => void = (_gallery: GalleryInfo) => {
   };
   onDeleteHistory: (gallery: GalleryInfo) => void = (_gallery: GalleryInfo) => {
+  };
+  onRemoveFavorite: (gallery: GalleryInfo) => void = (_gallery: GalleryInfo) => {
   };
 
   @Builder
@@ -3740,6 +3791,14 @@ export struct GalleryCardActionOverlay {
 
           this.actionRow('Delete history', $r('sys.symbol.trash'), themeDangerText(), () => {
             this.onDeleteHistory(this.gallery);
+          })
+        }
+
+        if (this.isFavorite) {
+          this.divider()
+
+          this.actionRow('Remove from favorites', $r('sys.symbol.trash'), themeDangerText(), () => {
+            this.onRemoveFavorite(this.gallery);
           })
         }
       }

@@ -56,12 +56,12 @@ import {
   downloadSizeText,
   downloadStateColor,
   downloadStateLabel,
+  DOWNLOAD_STATUS_FILTER_OPTIONS,
   filterDownloadItems,
   galleryDetailCardPreferredWidth,
   galleryListMode,
   galleryThumbnailPreferredColumnWidth,
   getAbilityContext,
-  nextDownloadStatusFilter,
   uiText,
   uiStatusText,
   uiValue
@@ -75,6 +75,8 @@ import {
   themePrimaryText,
   themeScrimColor,
   themeSecondaryText,
+  themeSelectedBackground,
+  themeSelectedText,
   themeShadowColor,
   themeSurface,
   themeTertiaryText
@@ -199,7 +201,9 @@ export struct DownloadScene {
   @State searchSuggestionItems: SearchSuggestionItem[] = [];
   @State searchSuggestionRevision: number = 0;
   @State selectedTagNamespaces: string[] = [];
-  @State statusFilter: string = 'All';
+  @State statusFilters: string[] = DOWNLOAD_STATUS_FILTER_OPTIONS.slice();
+  @State statusFilterDraft: string[] = DOWNLOAD_STATUS_FILTER_OPTIONS.slice();
+  @State statusFilterPanelVisible: boolean = false;
   @State sortMode: string = 'Default';
   @State categoryFilter: string = 'All';
   @State statusText: string = 'Downloads: idle';
@@ -284,6 +288,10 @@ export struct DownloadScene {
   }
 
   private handleSystemBack(): boolean {
+    if (this.statusFilterPanelVisible) {
+      this.closeDownloadStatusPanel();
+      return true;
+    }
     if (this.advancedPanelVisible) {
       this.closeAdvancedPanel();
       return true;
@@ -333,6 +341,7 @@ export struct DownloadScene {
     this.searchBarVisible = false;
     this.advancedPanelVisible = false;
     this.downloadActionsExpanded = false;
+    this.statusFilterPanelVisible = false;
     this.downloadJumpPanelVisible = false;
     this.showTagSearch = false;
     this.showReader = false;
@@ -530,7 +539,8 @@ export struct DownloadScene {
   }
 
   private computeVisibleDownloadItems(): DownloadInfo[] {
-    const visible = filterDownloadItems(this.items, '', this.statusFilter, 'All', this.sortMode, this.categoryFilter);
+    const visible = filterDownloadItems(this.items, '', this.statusFilters, 'All', this.sortMode,
+      this.categoryFilter);
     const filtered: DownloadInfo[] = [];
     const options = this.downloadSearchOptions();
     for (let i = 0; i < visible.length; i++) {
@@ -582,13 +592,66 @@ export struct DownloadScene {
   }
 
   private showDownloadStatusHint(): void {
-    this.statusHintText = uiText('Current status filter') + ': ' + uiText(this.statusFilter);
+    this.statusHintText = uiText('Current status filter') + ': ' + this.downloadStatusSummary(this.statusFilters);
     this.statusHintVisible = true;
     setTimeout(() => {
       this.getUIContext().animateTo({ duration: 160, curve: Curve.EaseOut }, () => {
         this.statusHintVisible = false;
       });
     }, 1500);
+  }
+
+  private downloadStatusSummary(statuses: string[]): string {
+    if (statuses.length === DOWNLOAD_STATUS_FILTER_OPTIONS.length) {
+      return uiText('All');
+    }
+    if (statuses.length === 0) {
+      return '—';
+    }
+    const labels: string[] = [];
+    for (let i = 0; i < DOWNLOAD_STATUS_FILTER_OPTIONS.length; i++) {
+      const status = DOWNLOAD_STATUS_FILTER_OPTIONS[i];
+      if (statuses.indexOf(status) >= 0) {
+        labels.push(uiText(status));
+      }
+    }
+    return labels.join(', ');
+  }
+
+  private openDownloadStatusPanel(): void {
+    this.downloadActionsExpanded = false;
+    this.downloadJumpPanelVisible = false;
+    this.statusFilterDraft = this.statusFilters.slice();
+    this.statusFilterPanelVisible = true;
+  }
+
+  private closeDownloadStatusPanel(): void {
+    this.statusFilterPanelVisible = false;
+  }
+
+  private toggleDownloadStatus(status: string): void {
+    const next = this.statusFilterDraft.slice();
+    const index = next.indexOf(status);
+    if (index >= 0) {
+      next.splice(index, 1);
+    } else {
+      next.push(status);
+    }
+    this.statusFilterDraft = next;
+  }
+
+  private toggleAllDownloadStatuses(): void {
+    this.statusFilterDraft = this.statusFilterDraft.length === DOWNLOAD_STATUS_FILTER_OPTIONS.length ? [] :
+      DOWNLOAD_STATUS_FILTER_OPTIONS.slice();
+  }
+
+  private applyDownloadStatusFilter(): void {
+    this.statusFilters = this.statusFilterDraft.slice();
+    this.statusFilterPanelVisible = false;
+    this.downloadJumpPageIndex = 0;
+    this.downloadScrollOffset = 0;
+    this.refreshDownloadRows();
+    this.showDownloadStatusHint();
   }
 
   private clearDownloadSearchFilters(): void {
@@ -1752,10 +1815,7 @@ export struct DownloadScene {
                 this.downloadActionsExpanded = !this.downloadActionsExpanded;
               },
               onStatus: () => {
-                this.statusFilter = nextDownloadStatusFilter(this.statusFilter);
-                this.downloadJumpPageIndex = 0;
-                this.refreshDownloadRows();
-                this.showDownloadStatusHint();
+                this.openDownloadStatusPanel();
               },
               onJump: () => {
                 this.openDownloadJumpPanel();
@@ -1878,6 +1938,26 @@ export struct DownloadScene {
           .zIndex(21)
         }
 
+        if (this.statusFilterPanelVisible) {
+          DownloadStatusFilterOverlay({
+            selectedStatuses: this.statusFilterDraft,
+            onToggleAll: () => {
+              this.toggleAllDownloadStatuses();
+            },
+            onToggleStatus: (status: string) => {
+              this.toggleDownloadStatus(status);
+            },
+            onCancel: () => {
+              this.closeDownloadStatusPanel();
+            },
+            onApply: () => {
+              this.applyDownloadStatusFilter();
+            }
+          })
+            .zIndex(24)
+            .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+        }
+
         if (this.blockingBusyVisible) {
           BlockingBusyOverlay({ message: this.blockingBusyMessage })
             .zIndex(40)
@@ -1986,6 +2066,125 @@ export struct DownloadScene {
       const removed = ehDownloadFileStore.removeFiles(result.processedPaths);
       this.showFloatingStatus('Deleted processed ZIP archives: ' + removed.toString());
     }).catch(() => {});
+  }
+}
+
+@Component
+struct DownloadStatusFilterOverlay {
+  @Prop selectedStatuses: string[] = [];
+  onToggleAll: () => void = () => {};
+  onToggleStatus: (status: string) => void = (_status: string) => {};
+  onCancel: () => void = () => {};
+  onApply: () => void = () => {};
+
+  private isSelected(status: string): boolean {
+    return this.selectedStatuses.indexOf(status) >= 0;
+  }
+
+  private allSelected(): boolean {
+    return this.selectedStatuses.length === DOWNLOAD_STATUS_FILTER_OPTIONS.length;
+  }
+
+  @Builder
+  private optionRow(label: string, selected: boolean, onTap: () => void) {
+    Button({ type: ButtonType.Normal, stateEffect: true }) {
+      Row() {
+        Text(uiText(label))
+          .fontSize(15)
+          .fontColor(selected ? themeSelectedText() : themePrimaryText())
+          .layoutWeight(1)
+          .textAlign(TextAlign.Start)
+
+        SymbolGlyph(selected ? $r('sys.symbol.checkmark_circle_fill') : $r('sys.symbol.circle'))
+          .fontSize(21)
+          .fontColor([selected ? themeSelectedText() : themeTertiaryText()])
+      }
+      .width('100%')
+      .padding({ left: 14, right: 14 })
+    }
+    .width('100%')
+    .height(46)
+    .backgroundColor(selected ? themeSelectedBackground() : Color.Transparent)
+    .borderRadius(8)
+    .onClick(onTap)
+  }
+
+  build() {
+    Stack({ alignContent: Alignment.Center }) {
+      Column()
+        .width('100%')
+        .height('100%')
+        .backgroundColor(themeScrimColor())
+        .onClick(() => {
+          this.onCancel();
+        })
+
+      Column({ space: 10 }) {
+        Text(uiText('Download status'))
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(themePrimaryText())
+          .width('100%')
+
+        Text(uiText('Select statuses to display'))
+          .fontSize(13)
+          .fontColor(themeSecondaryText())
+          .width('100%')
+
+        List({ space: 6 }) {
+          ListItem() {
+            this.optionRow('All', this.allSelected(), () => {
+              this.onToggleAll();
+            })
+          }
+
+          ForEach(DOWNLOAD_STATUS_FILTER_OPTIONS, (status: string) => {
+            ListItem() {
+              this.optionRow(status, this.isSelected(status), () => {
+                this.onToggleStatus(status);
+              })
+            }
+          }, (status: string) => status)
+        }
+        .width('100%')
+        .layoutWeight(1)
+        .scrollBar(BarState.Auto)
+
+        Row({ space: 10 }) {
+          Button(uiText('Cancel'))
+            .height(40)
+            .layoutWeight(1)
+            .fontSize(14)
+            .fontColor(themePrimaryText())
+            .backgroundColor(themeFieldBackground())
+            .borderRadius(8)
+            .onClick(() => {
+              this.onCancel();
+            })
+
+          Button(uiText('OK'))
+            .height(40)
+            .layoutWeight(1)
+            .fontSize(14)
+            .fontColor(themeOnPrimaryText())
+            .backgroundColor(themePrimaryColor())
+            .borderRadius(8)
+            .onClick(() => {
+              this.onApply();
+            })
+        }
+        .width('100%')
+      }
+      .width('82%')
+      .height('72%')
+      .constraintSize({ maxWidth: 380, maxHeight: 560 })
+      .padding(16)
+      .backgroundColor(themeSurface())
+      .borderRadius(12)
+      .shadow({ radius: 18, color: themeShadowColor(), offsetY: 8 })
+    }
+    .width('100%')
+    .height('100%')
   }
 }
 
