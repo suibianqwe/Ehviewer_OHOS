@@ -36,7 +36,27 @@ interface OcrDecodeSize {
   height: number;
 }
 
+interface OcrBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface OcrLineCandidate {
+  text: string;
+  bounds: OcrBounds;
+  vertical: boolean;
+}
+
+interface OcrTextGroup {
+  lines: OcrLineCandidate[];
+  bounds: OcrBounds;
+  vertical: boolean;
+}
+
 const MAX_OCR_IMAGE_EDGE: number = 4096;
+const READER_TRANSLATION_LAYOUT_VERSION: number = 2;
 
 export class ReaderComicTranslationService {
   private queue: ReaderComicTranslationTask[] = [];
@@ -49,11 +69,12 @@ export class ReaderComicTranslationService {
   async loadStored(context: common.UIAbilityContext, gallery: GalleryInfo,
     pageIndex: number): Promise<ReaderPageTranslation | null> {
     const downloaded = ehDownloadFileStore.getReaderTranslation(context, gallery, pageIndex);
-    if (downloaded !== null) {
+    if (downloaded !== null && downloaded.layoutVersion === READER_TRANSLATION_LAYOUT_VERSION) {
       return downloaded;
     }
     await ehHistoryStore.ensureLoaded(context);
-    return ehHistoryStore.getReaderTranslation(gallery.gid, pageIndex);
+    const history = ehHistoryStore.getReaderTranslation(gallery.gid, pageIndex);
+    return history !== null && history.layoutVersion === READER_TRANSLATION_LAYOUT_VERSION ? history : null;
   }
 
   request(context: common.UIAbilityContext, gallery: GalleryInfo, pageIndex: number, imagePath: string,
@@ -191,14 +212,16 @@ export class ReaderComicTranslationService {
       }
       const lines = collectOcrLines(result.blocks);
       await Promise.all(lines.map(async (line: ReaderTranslationLine) => {
-        line.translatedText = await ehTranslationService.translate(line.sourceText, 'comic dialogue', priority, true);
+        const contentKind = line.isVertical === true ? 'vertical comic dialogue' : 'comic dialogue';
+        line.translatedText = await ehTranslationService.translate(line.sourceText, contentKind, priority, true);
       }));
       return {
         pageIndex: pageIndex,
         imageWidth: size.width,
         imageHeight: size.height,
         lines: lines,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
+        layoutVersion: READER_TRANSLATION_LAYOUT_VERSION
       };
     } finally {
       if (pixelMap !== undefined) {
@@ -218,24 +241,247 @@ export class ReaderComicTranslationService {
 }
 
 function collectOcrLines(blocks: textRecognition.TextBlock[]): ReaderTranslationLine[] {
-  const result: ReaderTranslationLine[] = [];
+  const groups: OcrTextGroup[] = [];
   for (let i = 0; i < blocks.length; i++) {
+    const lines: OcrLineCandidate[] = [];
     for (let j = 0; j < blocks[i].lines.length; j++) {
-      const source = blocks[i].lines[j].value.trim();
-      if (source.length === 0 || blocks[i].lines[j].cornerPoints.length < 2) {
-        continue;
+      const candidate = createOcrLineCandidate(blocks[i].lines[j]);
+      if (candidate !== null) {
+        lines.push(candidate);
       }
-      const points: ReaderTranslationPoint[] = [];
-      for (let k = 0; k < blocks[i].lines[j].cornerPoints.length; k++) {
-        points.push({
-          x: blocks[i].lines[j].cornerPoints[k].x,
-          y: blocks[i].lines[j].cornerPoints[k].y
-        });
-      }
-      result.push({ sourceText: source, translatedText: '', cornerPoints: points });
+    }
+    if (lines.length > 0) {
+      groups.push(createOcrTextGroup(lines));
     }
   }
+  mergeNearbyOcrTextGroups(groups);
+  const result: ReaderTranslationLine[] = [];
+  for (let i = 0; i < groups.length; i++) {
+    const source = groupedOcrSource(groups[i]);
+    if (source.length === 0) {
+      continue;
+    }
+    result.push({
+      sourceText: source,
+      translatedText: '',
+      cornerPoints: boundsCornerPoints(groups[i].bounds),
+      isVertical: groups[i].vertical
+    });
+  }
   return result;
+}
+
+function createOcrLineCandidate(line: textRecognition.TextLine): OcrLineCandidate | null {
+  const source = line.value.trim();
+  if (source.length === 0 || line.cornerPoints.length < 2) {
+    return null;
+  }
+  const points: ReaderTranslationPoint[] = [];
+  for (let i = 0; i < line.cornerPoints.length; i++) {
+    points.push({ x: line.cornerPoints[i].x, y: line.cornerPoints[i].y });
+  }
+  const bounds = pointsBounds(points);
+  return {
+    text: source,
+    bounds: bounds,
+    vertical: isVerticalOcrLine(line, bounds)
+  };
+}
+
+function isVerticalOcrLine(line: textRecognition.TextLine, bounds: OcrBounds): boolean {
+  if (line.words.length >= 2) {
+    let minX = Number.MAX_VALUE;
+    let maxX = -Number.MAX_VALUE;
+    let minY = Number.MAX_VALUE;
+    let maxY = -Number.MAX_VALUE;
+    for (let i = 0; i < line.words.length; i++) {
+      const center = wordCenter(line.words[i]);
+      minX = Math.min(minX, center.x);
+      maxX = Math.max(maxX, center.x);
+      minY = Math.min(minY, center.y);
+      maxY = Math.max(maxY, center.y);
+    }
+    if (maxX >= minX && maxY >= minY && Math.max(maxX - minX, maxY - minY) > 0) {
+      return maxY - minY > (maxX - minX) * 1.15;
+    }
+  }
+  return bounds.height > bounds.width * 1.35;
+}
+
+function wordCenter(word: textRecognition.TextWord): ReaderTranslationPoint {
+  if (word.cornerPoints.length === 0) {
+    return { x: 0, y: 0 };
+  }
+  let x = 0;
+  let y = 0;
+  for (let i = 0; i < word.cornerPoints.length; i++) {
+    x += word.cornerPoints[i].x;
+    y += word.cornerPoints[i].y;
+  }
+  return { x: x / word.cornerPoints.length, y: y / word.cornerPoints.length };
+}
+
+function createOcrTextGroup(lines: OcrLineCandidate[]): OcrTextGroup {
+  let verticalWeight = 0;
+  let totalWeight = 0;
+  let bounds = lines[0].bounds;
+  for (let i = 0; i < lines.length; i++) {
+    const weight = Math.max(1, lines[i].text.length);
+    totalWeight += weight;
+    if (lines[i].vertical) {
+      verticalWeight += weight;
+    }
+    if (i > 0) {
+      bounds = unionOcrBounds(bounds, lines[i].bounds);
+    }
+  }
+  return {
+    lines: lines,
+    bounds: bounds,
+    vertical: verticalWeight > totalWeight / 2
+  };
+}
+
+function mergeNearbyOcrTextGroups(groups: OcrTextGroup[]): void {
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < groups.length && !changed; i++) {
+      for (let j = i + 1; j < groups.length; j++) {
+        if (!shouldMergeOcrTextGroups(groups[i], groups[j])) {
+          continue;
+        }
+        const lines: OcrLineCandidate[] = [];
+        for (let k = 0; k < groups[i].lines.length; k++) {
+          lines.push(groups[i].lines[k]);
+        }
+        for (let k = 0; k < groups[j].lines.length; k++) {
+          lines.push(groups[j].lines[k]);
+        }
+        groups[i] = createOcrTextGroup(lines);
+        groups.splice(j, 1);
+        changed = true;
+        break;
+      }
+    }
+  }
+}
+
+function shouldMergeOcrTextGroups(left: OcrTextGroup, right: OcrTextGroup): boolean {
+  if (left.vertical !== right.vertical) {
+    return false;
+  }
+  const xOverlap = axisOverlap(left.bounds.x, left.bounds.width, right.bounds.x, right.bounds.width);
+  const yOverlap = axisOverlap(left.bounds.y, left.bounds.height, right.bounds.y, right.bounds.height);
+  const xOverlapRatio = xOverlap / Math.max(1, Math.min(left.bounds.width, right.bounds.width));
+  const yOverlapRatio = yOverlap / Math.max(1, Math.min(left.bounds.height, right.bounds.height));
+  const xGap = axisGap(left.bounds.x, left.bounds.width, right.bounds.x, right.bounds.width);
+  const yGap = axisGap(left.bounds.y, left.bounds.height, right.bounds.y, right.bounds.height);
+  const thickness = Math.max(groupAverageThickness(left), groupAverageThickness(right));
+  if (xOverlapRatio >= 0.25 && yOverlapRatio >= 0.25) {
+    return true;
+  }
+  if (left.vertical) {
+    const sameColumnFragments = xOverlapRatio >= 0.55 && yGap <= thickness * 1.1;
+    const neighboringColumns = yOverlapRatio >= 0.55 && xGap <= thickness * 1.1;
+    return sameColumnFragments || neighboringColumns;
+  }
+  const sameRowFragments = yOverlapRatio >= 0.55 && xGap <= thickness * 1.1;
+  const neighboringRows = xOverlapRatio >= 0.55 && yGap <= thickness * 1.1;
+  return sameRowFragments || neighboringRows;
+}
+
+function groupAverageThickness(group: OcrTextGroup): number {
+  let total = 0;
+  for (let i = 0; i < group.lines.length; i++) {
+    total += group.vertical ? group.lines[i].bounds.width : group.lines[i].bounds.height;
+  }
+  return total / Math.max(1, group.lines.length);
+}
+
+function groupedOcrSource(group: OcrTextGroup): string {
+  const lines: OcrLineCandidate[] = [];
+  for (let i = 0; i < group.lines.length; i++) {
+    lines.push(group.lines[i]);
+  }
+  const tolerance = Math.max(1, groupAverageThickness(group) * 0.65);
+  lines.sort((left: OcrLineCandidate, right: OcrLineCandidate) => {
+    const leftCenterX = left.bounds.x + left.bounds.width / 2;
+    const rightCenterX = right.bounds.x + right.bounds.width / 2;
+    const leftCenterY = left.bounds.y + left.bounds.height / 2;
+    const rightCenterY = right.bounds.y + right.bounds.height / 2;
+    if (group.vertical) {
+      if (Math.abs(leftCenterX - rightCenterX) <= tolerance) {
+        return leftCenterY - rightCenterY;
+      }
+      return rightCenterX - leftCenterX;
+    }
+    if (Math.abs(leftCenterY - rightCenterY) <= tolerance) {
+      return leftCenterX - rightCenterX;
+    }
+    return leftCenterY - rightCenterY;
+  });
+  const values: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    values.push(normalizeOcrLineText(lines[i].text, group.vertical));
+  }
+  return values.join('\n').trim();
+}
+
+function normalizeOcrLineText(value: string, vertical: boolean): string {
+  const text = value.trim();
+  if (vertical && /[\u3040-\u30ff\u3400-\u9fff]/.test(text)) {
+    return text.replace(/\s+/g, '');
+  }
+  return text.replace(/[ \t]+/g, ' ');
+}
+
+function pointsBounds(points: ReaderTranslationPoint[]): OcrBounds {
+  let minX = points[0].x;
+  let maxX = points[0].x;
+  let minY = points[0].y;
+  let maxY = points[0].y;
+  for (let i = 1; i < points.length; i++) {
+    minX = Math.min(minX, points[i].x);
+    maxX = Math.max(maxX, points[i].x);
+    minY = Math.min(minY, points[i].y);
+    maxY = Math.max(maxY, points[i].y);
+  }
+  return { x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
+}
+
+function unionOcrBounds(left: OcrBounds, right: OcrBounds): OcrBounds {
+  const x = Math.min(left.x, right.x);
+  const y = Math.min(left.y, right.y);
+  return {
+    x: x,
+    y: y,
+    width: Math.max(left.x + left.width, right.x + right.width) - x,
+    height: Math.max(left.y + left.height, right.y + right.height) - y
+  };
+}
+
+function boundsCornerPoints(bounds: OcrBounds): ReaderTranslationPoint[] {
+  return [
+    { x: bounds.x, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+    { x: bounds.x, y: bounds.y + bounds.height }
+  ];
+}
+
+function axisOverlap(leftStart: number, leftSize: number, rightStart: number, rightSize: number): number {
+  return Math.max(0, Math.min(leftStart + leftSize, rightStart + rightSize) - Math.max(leftStart, rightStart));
+}
+
+function axisGap(leftStart: number, leftSize: number, rightStart: number, rightSize: number): number {
+  if (leftStart + leftSize < rightStart) {
+    return rightStart - leftStart - leftSize;
+  }
+  if (rightStart + rightSize < leftStart) {
+    return leftStart - rightStart - rightSize;
+  }
+  return 0;
 }
 
 function ocrDecodeSize(width: number, height: number): OcrDecodeSize {

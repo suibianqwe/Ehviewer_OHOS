@@ -7,6 +7,7 @@ export interface ReaderTranslationLine {
   sourceText: string;
   translatedText: string;
   cornerPoints: ReaderTranslationPoint[];
+  isVertical?: boolean;
 }
 
 export interface ReaderPageTranslation {
@@ -15,6 +16,7 @@ export interface ReaderPageTranslation {
   imageHeight: number;
   lines: ReaderTranslationLine[];
   updatedAt: number;
+  layoutVersion?: number;
 }
 
 export function cloneReaderPageTranslation(value: ReaderPageTranslation): ReaderPageTranslation {
@@ -30,7 +32,8 @@ export function cloneReaderPageTranslation(value: ReaderPageTranslation): Reader
     lines.push({
       sourceText: value.lines[i].sourceText,
       translatedText: value.lines[i].translatedText,
-      cornerPoints: points
+      cornerPoints: points,
+      isVertical: value.lines[i].isVertical
     });
   }
   return {
@@ -38,7 +41,8 @@ export function cloneReaderPageTranslation(value: ReaderPageTranslation): Reader
     imageWidth: value.imageWidth,
     imageHeight: value.imageHeight,
     lines: lines,
-    updatedAt: value.updatedAt
+    updatedAt: value.updatedAt,
+    layoutVersion: value.layoutVersion
   };
 }
 
