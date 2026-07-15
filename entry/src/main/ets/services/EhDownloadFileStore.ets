@@ -216,10 +216,44 @@ export class EhDownloadFileStore {
     }
   }
 
-  prepareGallery(context: common.UIAbilityContext, detail: GalleryDetail): string {
+  findExistingGalleryDirectory(context: common.UIAbilityContext, gallery: GalleryInfo): string {
+    const candidates: string[] = [];
+    const archiveUri = galleryArchiveUri(gallery);
+    appendDirectoryCandidate(candidates, archiveUri);
+    appendDirectoryCandidate(candidates, this.galleryDirectory(context, gallery));
+
+    const root = this.downloadRoot(context);
+    const prefix = gallery.gid.toString() + '-';
+    try {
+      const names = fs.listFileSync(root);
+      for (let i = 0; i < names.length; i++) {
+        if (names[i].startsWith(prefix)) {
+          appendDirectoryCandidate(candidates, root + '/' + names[i]);
+        }
+      }
+    } catch (error) {
+    }
+
+    let best = '';
+    let bestImages = -1;
+    let bestBytes = -1;
+    for (let i = 0; i < candidates.length; i++) {
+      const images = countImageFiles(candidates[i]);
+      const bytes = this.directorySizeByPath(candidates[i]);
+      if (images > bestImages || (images === bestImages && bytes > bestBytes)) {
+        best = candidates[i];
+        bestImages = images;
+        bestBytes = bytes;
+      }
+    }
+    return best;
+  }
+
+  prepareGallery(context: common.UIAbilityContext, detail: GalleryDetail, existingDirectory: string = ''): string {
     const root = this.downloadRoot(context);
     ensureDirectory(root);
-    const directory = this.galleryDirectory(context, detail);
+    const directory = existingDirectory.length > 0 && isDirectory(existingDirectory) ?
+      existingDirectory : this.galleryDirectory(context, detail);
     ensureDirectory(directory);
     this.rewriteGalleryMetadataByDirectory(directory, detail);
     return directory;
@@ -250,8 +284,9 @@ export class EhDownloadFileStore {
   }
 
   savePageImage(context: common.UIAbilityContext, detail: GalleryDetail, page: GalleryPage, index: number,
-    cachedPath: string): string {
-    const directory = this.galleryDirectory(context, detail);
+    cachedPath: string, downloadDirectory: string = ''): string {
+    const directory = downloadDirectory.length > 0 && isDirectory(downloadDirectory) ?
+      downloadDirectory : this.galleryDirectory(context, detail);
     ensureDirectory(directory);
     const destination = directory + '/' + pageFileName(index, imageExtension(page, cachedPath));
     try {
@@ -262,8 +297,10 @@ export class EhDownloadFileStore {
     return destination;
   }
 
-  findPageImage(context: common.UIAbilityContext, gallery: GalleryInfo, index: number): string {
-    const directory = this.downloadedGalleryDirectory(context, gallery);
+  findPageImage(context: common.UIAbilityContext, gallery: GalleryInfo, index: number,
+    downloadDirectory: string = ''): string {
+    const directory = downloadDirectory.length > 0 && isDirectory(downloadDirectory) ?
+      downloadDirectory : this.downloadedGalleryDirectory(context, gallery);
     for (let i = 0; i < SUPPORTED_IMAGE_EXTENSIONS.length; i++) {
       const path = directory + '/' + pageFileName(index, SUPPORTED_IMAGE_EXTENSIONS[i]);
       if (exists(path)) {
@@ -872,6 +909,18 @@ function containsNumber(values: number[], value: number): boolean {
     }
   }
   return false;
+}
+
+function appendDirectoryCandidate(candidates: string[], path: string): void {
+  if (path.length === 0 || !isDirectory(path)) {
+    return;
+  }
+  for (let i = 0; i < candidates.length; i++) {
+    if (candidates[i] === path) {
+      return;
+    }
+  }
+  candidates.push(path);
 }
 
 function normalizeGalleryImageNames(directory: string): void {

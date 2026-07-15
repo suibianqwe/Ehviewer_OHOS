@@ -198,17 +198,18 @@ export class EhDownloadManager {
 
       const detail = mergeDownloadDetailTitles(await this.loadCompleteDownloadDetail(detailResult.detail,
         detailResult.url), item);
+      const existingDownloadDirectory = ehDownloadFileStore.findExistingGalleryDirectory(context, item);
       ehDownloadStore.updateGallery(detail);
       const total = Math.max(detail.pages, detail.previewSet.length);
-      const downloadDirectory = ehDownloadFileStore.prepareGallery(context, detail);
+      const downloadDirectory = ehDownloadFileStore.prepareGallery(context, detail, existingDownloadDirectory);
       ehDownloadStore.setProgress(item.gid, 0, total, 0);
       ehDownloadStore.setStorage(item.gid, downloadDirectory, 0);
       await this.publishProgress(item, 0, total);
 
       let finished = 0;
-      let fileSize = ehDownloadFileStore.directorySize(context, detail);
+      let fileSize = ehDownloadFileStore.directorySizeByPath(downloadDirectory);
       for (let i = 0; i < detail.previewSet.length; i++) {
-        if (ehDownloadFileStore.findPageImage(context, detail, i).length > 0) {
+        if (ehDownloadFileStore.findPageImage(context, detail, i, downloadDirectory).length > 0) {
           finished++;
         }
       }
@@ -297,14 +298,15 @@ export class EhDownloadManager {
 
       const pageIndex = pageIndexes[orderIndex];
       const preview = detail.previewSet[pageIndex];
-      if (preview.pageUrl.length === 0 || ehDownloadFileStore.findPageImage(context, detail, pageIndex).length > 0) {
+      if (preview.pageUrl.length === 0 ||
+        ehDownloadFileStore.findPageImage(context, detail, pageIndex, downloadDirectory).length > 0) {
         continue;
       }
 
       try {
         const downloaded = await this.downloadPageWithRetry(context, item, detail, detailUrl, pageIndex, total, state);
         const savedPath = ehDownloadFileStore.savePageImage(context, detail, downloaded.page, pageIndex,
-          downloaded.cachedPath);
+          downloaded.cachedPath, downloadDirectory);
         state.fileSize += ehDownloadFileStore.statFileSize(savedPath);
         state.finished++;
         state.averagePageBytes = state.finished > 0 ? Math.max(1, Math.round(state.fileSize / state.finished)) :
