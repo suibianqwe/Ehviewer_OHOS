@@ -48,6 +48,7 @@ interface OcrLineCandidate {
   bounds: OcrBounds;
   vertical: boolean;
   blockIndex: number;
+  fontSize: number;
 }
 
 interface OcrTextGroup {
@@ -57,7 +58,7 @@ interface OcrTextGroup {
 }
 
 const MAX_OCR_IMAGE_EDGE: number = 4096;
-const READER_TRANSLATION_LAYOUT_VERSION: number = 3;
+const READER_TRANSLATION_LAYOUT_VERSION: number = 4;
 
 export class ReaderComicTranslationService {
   private queue: ReaderComicTranslationTask[] = [];
@@ -279,12 +280,47 @@ function createOcrLineCandidate(line: textRecognition.TextLine, blockIndex: numb
     points.push({ x: line.cornerPoints[i].x, y: line.cornerPoints[i].y });
   }
   const bounds = pointsBounds(points);
+  const vertical = isVerticalOcrLine(line, bounds);
   return {
     text: source,
     bounds: bounds,
-    vertical: isVerticalOcrLine(line, bounds),
-    blockIndex: blockIndex
+    vertical: vertical,
+    blockIndex: blockIndex,
+    fontSize: estimateOcrFontSize(line, bounds, vertical)
   };
+}
+
+function estimateOcrFontSize(line: textRecognition.TextLine, bounds: OcrBounds, vertical: boolean): number {
+  const sizes: number[] = [];
+  for (let i = 0; i < line.words.length; i++) {
+    const wordBounds = textWordBounds(line.words[i]);
+    if (wordBounds !== null) {
+      sizes.push(vertical ? wordBounds.width : wordBounds.height);
+    }
+  }
+  if (sizes.length === 0) {
+    return Math.max(1, vertical ? bounds.width : bounds.height);
+  }
+  sizes.sort((left: number, right: number) => left - right);
+  const middle = Math.floor(sizes.length / 2);
+  return sizes.length % 2 === 0 ? (sizes[middle - 1] + sizes[middle]) / 2 : sizes[middle];
+}
+
+function textWordBounds(word: textRecognition.TextWord): OcrBounds | null {
+  if (word.cornerPoints.length === 0) {
+    return null;
+  }
+  let minX = word.cornerPoints[0].x;
+  let maxX = minX;
+  let minY = word.cornerPoints[0].y;
+  let maxY = minY;
+  for (let i = 1; i < word.cornerPoints.length; i++) {
+    minX = Math.min(minX, word.cornerPoints[i].x);
+    maxX = Math.max(maxX, word.cornerPoints[i].x);
+    minY = Math.min(minY, word.cornerPoints[i].y);
+    maxY = Math.max(maxY, word.cornerPoints[i].y);
+  }
+  return { x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
 }
 
 function isVerticalOcrLine(line: textRecognition.TextLine, bounds: OcrBounds): boolean {
@@ -370,9 +406,11 @@ function shouldMergeOcrTextGroups(left: OcrTextGroup, right: OcrTextGroup, sameB
   if (left.vertical !== right.vertical) {
     return false;
   }
-  const leftThickness = groupAverageThickness(left);
-  const rightThickness = groupAverageThickness(right);
-  if (Math.max(leftThickness, rightThickness) / Math.max(1, Math.min(leftThickness, rightThickness)) > 2.2) {
+  const leftThickness = groupAverageFontSize(left);
+  const rightThickness = groupAverageFontSize(right);
+  const fontSizeRatio = Math.max(leftThickness, rightThickness) /
+    Math.max(1, Math.min(leftThickness, rightThickness));
+  if (fontSizeRatio > (sameBlock ? 1.65 : 1.4)) {
     return false;
   }
   const xOverlap = axisOverlap(left.bounds.x, left.bounds.width, right.bounds.x, right.bounds.width);
@@ -390,11 +428,17 @@ function shouldMergeOcrTextGroups(left: OcrTextGroup, right: OcrTextGroup, sameB
   let nearby = false;
   if (left.vertical) {
     const sameColumnFragments = xOverlapRatio >= 0.7 && yGap <= fragmentGapLimit;
-    const neighboringColumns = yOverlapRatio >= 0.72 && xGap <= neighboringGapLimit;
+    const longitudinalOverlap = yOverlap / Math.max(1, Math.max(left.bounds.height, right.bounds.height));
+    const neighboringColumns = yOverlapRatio >= 0.72 &&
+      longitudinalOverlap >= (sameBlock ? 0.32 : 0.48) && xGap <= neighboringGapLimit &&
+      groupAxisSpacingIsConsistent(left, right, true, thickness);
     nearby = sameColumnFragments || neighboringColumns;
   } else {
     const sameRowFragments = yOverlapRatio >= 0.7 && xGap <= fragmentGapLimit;
-    const neighboringRows = xOverlapRatio >= 0.72 && yGap <= neighboringGapLimit;
+    const longitudinalOverlap = xOverlap / Math.max(1, Math.max(left.bounds.width, right.bounds.width));
+    const neighboringRows = xOverlapRatio >= 0.72 &&
+      longitudinalOverlap >= (sameBlock ? 0.32 : 0.48) && yGap <= neighboringGapLimit &&
+      groupAxisSpacingIsConsistent(left, right, false, thickness);
     nearby = sameRowFragments || neighboringRows;
   }
   return nearby && mergedOcrGroupIsCompact(left, right, sameBlock);
@@ -417,7 +461,7 @@ function groupSingleSourceBlock(group: OcrTextGroup): number {
 
 function mergedOcrGroupIsCompact(left: OcrTextGroup, right: OcrTextGroup, sameBlock: boolean): boolean {
   const bounds = unionOcrBounds(left.bounds, right.bounds);
-  const thickness = Math.max(groupAverageThickness(left), groupAverageThickness(right));
+  const thickness = Math.max(groupAverageFontSize(left), groupAverageFontSize(right));
   const crossAxisSpan = left.vertical ? bounds.width : bounds.height;
   if (crossAxisSpan > thickness * (sameBlock ? 7 : 4.5)) {
     return false;
@@ -441,10 +485,46 @@ function groupLineArea(group: OcrTextGroup): number {
   return area;
 }
 
-function groupAverageThickness(group: OcrTextGroup): number {
+function groupAxisSpacingIsConsistent(left: OcrTextGroup, right: OcrTextGroup, vertical: boolean,
+  fontSize: number): boolean {
+  const centers: number[] = [];
+  appendGroupAxisCenters(centers, left, vertical);
+  appendGroupAxisCenters(centers, right, vertical);
+  centers.sort((first: number, second: number) => first - second);
+  const axes: number[] = [];
+  const sameAxisTolerance = fontSize * 0.5;
+  for (let i = 0; i < centers.length; i++) {
+    if (axes.length === 0 || centers[i] - axes[axes.length - 1] > sameAxisTolerance) {
+      axes.push(centers[i]);
+    } else {
+      axes[axes.length - 1] = (axes[axes.length - 1] + centers[i]) / 2;
+    }
+  }
+  if (axes.length <= 2) {
+    return true;
+  }
+  let minimumGap = Number.MAX_VALUE;
+  let maximumGap = 0;
+  for (let i = 1; i < axes.length; i++) {
+    const gap = axes[i] - axes[i - 1];
+    minimumGap = Math.min(minimumGap, gap);
+    maximumGap = Math.max(maximumGap, gap);
+  }
+  return maximumGap - minimumGap <= fontSize * 0.75 &&
+    maximumGap / Math.max(1, minimumGap) <= 1.8;
+}
+
+function appendGroupAxisCenters(result: number[], group: OcrTextGroup, vertical: boolean): void {
+  for (let i = 0; i < group.lines.length; i++) {
+    result.push(vertical ? group.lines[i].bounds.x + group.lines[i].bounds.width / 2 :
+      group.lines[i].bounds.y + group.lines[i].bounds.height / 2);
+  }
+}
+
+function groupAverageFontSize(group: OcrTextGroup): number {
   let total = 0;
   for (let i = 0; i < group.lines.length; i++) {
-    total += group.vertical ? group.lines[i].bounds.width : group.lines[i].bounds.height;
+    total += group.lines[i].fontSize;
   }
   return total / Math.max(1, group.lines.length);
 }
@@ -454,7 +534,7 @@ function groupedOcrSource(group: OcrTextGroup): string {
   for (let i = 0; i < group.lines.length; i++) {
     lines.push(group.lines[i]);
   }
-  const tolerance = Math.max(1, groupAverageThickness(group) * 0.65);
+  const tolerance = Math.max(1, groupAverageFontSize(group) * 0.65);
   lines.sort((left: OcrLineCandidate, right: OcrLineCandidate) => {
     const leftCenterX = left.bounds.x + left.bounds.width / 2;
     const rightCenterX = right.bounds.x + right.bounds.width / 2;
