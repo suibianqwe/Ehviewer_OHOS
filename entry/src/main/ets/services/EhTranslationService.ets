@@ -8,6 +8,7 @@ import {
 } from './TranslationApiConfigSupport';
 import { activeTranslationPromptProfile } from './TranslationPromptSupport';
 import { aiTranslationConversationLog } from './AiTranslationConversationLog';
+import { retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
 
 export const TRANSLATION_ENABLED_KEY: string = 'ehviewerTranslationEnabled';
 export const TRANSLATION_ERROR_REVISION_KEY: string = 'ehviewerTranslationErrorRevision';
@@ -229,7 +230,6 @@ const TRANSLATION_CANCELLED_MESSAGE: string = 'Translation request cancelled';
 const TRANSLATION_CACHE: TranslationCacheEntry[] = [];
 const PENDING_TRANSLATIONS: PendingTranslationEntry[] = [];
 const SLOT_WAITERS: TranslationSlotWaiter[] = [];
-const ACTIVE_TRANSLATION_HTTP_REQUESTS: http.HttpRequest[] = [];
 let activeRequests: number = 0;
 let lastTranslationErrorAt: number = 0;
 let lastTranslationErrorMessage: string = '';
@@ -916,25 +916,11 @@ export class EhTranslationService {
 export const ehTranslationService: EhTranslationService = new EhTranslationService();
 
 function cancelTranslationRequests(): void {
-  const active = ACTIVE_TRANSLATION_HTTP_REQUESTS.splice(0, ACTIVE_TRANSLATION_HTTP_REQUESTS.length);
-  for (let i = 0; i < active.length; i++) {
-    try {
-      active[i].destroy();
-    } catch (_error) {
-    }
-  }
   while (SLOT_WAITERS.length > 0) {
     const waiter = SLOT_WAITERS.shift();
     if (waiter !== undefined) {
       waiter.resume();
     }
-  }
-}
-
-function removeActiveTranslationRequest(request: http.HttpRequest): void {
-  const index = ACTIVE_TRANSLATION_HTTP_REQUESTS.indexOf(request);
-  if (index >= 0) {
-    ACTIVE_TRANSLATION_HTTP_REQUESTS.splice(index, 1);
   }
 }
 
@@ -949,9 +935,7 @@ async function requestText(url: string, method: http.RequestMethod, body: string
     throw new Error(TRANSLATION_CANCELLED_MESSAGE);
   }
   const request = http.createHttp();
-  if (translationRequest) {
-    ACTIVE_TRANSLATION_HTTP_REQUESTS.push(request);
-  }
+  trackHttpRequest(request);
   try {
     const timeout = translationTimeoutMs();
     const headers: Record<string, string> = {
@@ -988,6 +972,9 @@ async function requestText(url: string, method: http.RequestMethod, body: string
       const detail = apiErrorMessage(responseBody);
       throw new Error('HTTP ' + statusCode.toString() + (detail.length > 0 ? ': ' + detail : ''));
     }
+    if (translationRequest && !allowWhenDisabled && AppStorage.get<boolean>(TRANSLATION_ENABLED_KEY) !== true) {
+      throw new Error(TRANSLATION_CANCELLED_MESSAGE);
+    }
     return response.result as string;
   } catch (error) {
     if (translationRequest && !allowWhenDisabled && AppStorage.get<boolean>(TRANSLATION_ENABLED_KEY) !== true) {
@@ -998,13 +985,7 @@ async function requestText(url: string, method: http.RequestMethod, body: string
     }
     throw new Error(String(error));
   } finally {
-    if (translationRequest) {
-      removeActiveTranslationRequest(request);
-    }
-    try {
-      request.destroy();
-    } catch (_error) {
-    }
+    retireHttpRequest(request);
   }
 }
 

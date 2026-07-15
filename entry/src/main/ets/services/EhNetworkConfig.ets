@@ -4,6 +4,7 @@ import { fileIo as fs } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
 import { connection } from '@kit.NetworkKit';
 import { ehSettingsStore } from './EhSettingsStore';
+import { retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
 
 const YANDEX_DOH_URL: string = 'https://common.dot.dns.yandex.net/dns-query';
 const CLOUDFLARE_DOH_URL: string = 'https://cloudflare-dns.com/dns-query';
@@ -575,6 +576,7 @@ async function runFrontingProbeWorker(targets: HostIpProbeTarget[], generation: 
 
 async function probeFrontingIp(target: HostIpProbeTarget): Promise<HostIpQuality> {
   const request = http.createHttp();
+  trackHttpRequest(request);
   const startedAt = Date.now();
   try {
     const options: http.HttpRequestOptions = {
@@ -618,10 +620,7 @@ async function probeFrontingIp(target: HostIpProbeTarget): Promise<HostIpQuality
       testedAt: Date.now()
     };
   } finally {
-    try {
-      request.destroy();
-    } catch (error) {
-    }
+    retireHttpRequest(request);
   }
 }
 
@@ -967,6 +966,7 @@ function selectedGalleryHost(): string {
 
 async function probeDirectSelectedSite(): Promise<boolean> {
   const request = http.createHttp();
+  trackHttpRequest(request);
   try {
     const host = selectedGalleryHost();
     const options: http.HttpRequestOptions = {
@@ -990,10 +990,7 @@ async function probeDirectSelectedSite(): Promise<boolean> {
   } catch (error) {
     return false;
   } finally {
-    try {
-      request.destroy();
-    } catch (error) {
-    }
+    retireHttpRequest(request);
   }
 }
 

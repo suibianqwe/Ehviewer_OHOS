@@ -12,6 +12,7 @@ import {
 } from './EhNetworkConfig';
 import { ehSettingsStore } from './EhSettingsStore';
 import { hathQualityStore } from './HathQualityStore';
+import { retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
 
 interface PendingImageDownload {
   url: string;
@@ -230,6 +231,7 @@ export class ReaderImageCache {
   private async downloadOnce(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
     attempt: number, onProgress?: ImageDownloadProgressCallback): Promise<string> {
     const request = http.createHttp();
+    trackHttpRequest(request);
     let plan: EhRequestPlan | null = null;
     const startedAt = Date.now();
     let outcomeRecorded = false;
@@ -283,10 +285,7 @@ export class ReaderImageCache {
       }
       throw new Error(imageNetworkErrorMessage(error));
     } finally {
-      try {
-        request.destroy();
-      } catch (error) {
-      }
+      retireHttpRequest(request);
     }
   }
 

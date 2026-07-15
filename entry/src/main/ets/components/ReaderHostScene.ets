@@ -57,6 +57,7 @@ export struct ReaderSessionScene {
   private readerPreviewPageSize: number = 0;
   private readerTranslationLoads: string[] = [];
   private readerTranslationRefreshing: number[] = [];
+  private readerPreloadRevision: number = 0;
 
   aboutToAppear(): void {
     if (!this.restoreAppChromeOnExit) {
@@ -73,6 +74,7 @@ export struct ReaderSessionScene {
   }
 
   private loadCurrentSession(): void {
+    this.readerPreloadRevision++;
     const session = readerSessionStore.getSession();
     if (session === null || session.detail.gid <= 0) {
       this.statusText = 'Reader session is empty';
@@ -126,6 +128,7 @@ export struct ReaderSessionScene {
   }
 
   aboutToDisappear(): void {
+    this.readerPreloadRevision++;
     this.persistSession();
     if (!this.restoreAppChromeOnExit) {
       setReaderActiveBackHandler(null);
@@ -276,6 +279,7 @@ export struct ReaderSessionScene {
   }
 
   private async preloadReaderPages(index: number): Promise<void> {
+    const revision = ++this.readerPreloadRevision;
     const configuredCount = readerPreloadCount();
     const dualPageCount = ehSettingsStore.getValue('adaptive_dual_page', 'Off') === 'On' ?
       Math.max(1, configuredCount) : configuredCount;
@@ -284,6 +288,9 @@ export struct ReaderSessionScene {
       return;
     }
     for (let offset = 1; offset <= count; offset++) {
+      if (revision !== this.readerPreloadRevision || index !== this.pageIndex) {
+        return;
+      }
       const targets: number[] = [];
       if (offset <= dualPageCount) {
         targets.push(index - offset);
@@ -295,6 +302,9 @@ export struct ReaderSessionScene {
           continue;
         }
         const preview = await this.ensureReaderPreview(nextIndex, true);
+        if (revision !== this.readerPreloadRevision || index !== this.pageIndex) {
+          return;
+        }
         if (preview === null || preview.pageUrl.length === 0) {
           continue;
         }
@@ -310,6 +320,9 @@ export struct ReaderSessionScene {
         try {
           const result = await this.client.loadGalleryPage(preview.pageUrl, this.site,
             readerPageReferer(this.detailRequestUrl, this.detail.previewSet, nextIndex, this.site));
+          if (revision !== this.readerPreloadRevision || index !== this.pageIndex) {
+            return;
+          }
           if (result.ok && result.page !== null) {
             const cacheUrl = result.page.pageUrl.length > 0 ? result.page.pageUrl : preview.pageUrl;
             galleryPageCache.put(cacheUrl, result.page);

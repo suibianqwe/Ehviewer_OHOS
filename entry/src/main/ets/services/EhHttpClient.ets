@@ -37,6 +37,7 @@ import {
 } from './EhNetworkConfig';
 import { TopListParseResult, parseTopList } from './TopListParser';
 import { parseTorrentList } from './TorrentParser';
+import { retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
 
 export interface EhHttpResponse {
   statusCode: number;
@@ -277,6 +278,7 @@ export class EhHttpClient {
   private async getTextOnce(url: string, referer: string, cookieHeader: string,
     cacheTtlMs: number, requestOptions?: EhTextRequestOptions): Promise<EhHttpResponse> {
     const request = http.createHttp();
+    trackHttpRequest(request);
     let plan: EhRequestPlan | null = null;
     const startedAt = Date.now();
     let outcomeRecorded = false;
@@ -310,10 +312,7 @@ export class EhHttpClient {
       }
       throw new Error(networkErrorMessage(error));
     } finally {
-      try {
-        request.destroy();
-      } catch (error) {
-      }
+      retireHttpRequest(request);
       releaseTextSlot();
     }
   }
@@ -384,6 +383,7 @@ export class EhHttpClient {
   private async postFormOnce(url: string, body: string, referer: string, origin: string,
     cookieHeader: string): Promise<EhHttpResponse> {
     const request = http.createHttp();
+    trackHttpRequest(request);
     let plan: EhRequestPlan | null = null;
     const startedAt = Date.now();
     let outcomeRecorded = false;
@@ -418,10 +418,7 @@ export class EhHttpClient {
       }
       throw new Error(networkErrorMessage(error));
     } finally {
-      try {
-        request.destroy();
-      } catch (error) {
-      }
+      retireHttpRequest(request);
       releaseTextSlot();
     }
   }
@@ -436,6 +433,7 @@ export class EhHttpClient {
   private async postJsonOnce(url: string, body: string, referer: string = '',
     origin: string = '', requestOptions?: EhTextRequestOptions): Promise<EhHttpResponse> {
     const request = http.createHttp();
+    trackHttpRequest(request);
     let plan: EhRequestPlan | null = null;
     const startedAt = Date.now();
     let outcomeRecorded = false;
@@ -475,10 +473,7 @@ export class EhHttpClient {
       }
       throw new Error(networkErrorMessage(error));
     } finally {
-      try {
-        request.destroy();
-      } catch (error) {
-      }
+      retireHttpRequest(request);
       releaseTextSlot();
     }
   }
@@ -1325,6 +1320,7 @@ export class EhHttpClient {
   private async postMultipartOnce(url: string, body: ArrayBuffer, contentType: string, referer: string,
     origin: string, timeoutMs: number): Promise<EhHttpResponse> {
     const request = http.createHttp();
+    trackHttpRequest(request);
     let plan: EhRequestPlan | null = null;
     const startedAt = Date.now();
     let outcomeRecorded = false;
@@ -1381,9 +1377,9 @@ export class EhHttpClient {
     } finally {
       try {
         request.off('headersReceive');
-        request.destroy();
       } catch (error) {
       }
+      retireHttpRequest(request);
       releaseTextSlot();
     }
   }
