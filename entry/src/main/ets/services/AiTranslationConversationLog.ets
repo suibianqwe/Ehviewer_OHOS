@@ -10,16 +10,18 @@ const RETAINED_LOG_CHARACTERS: number = 4 * 1024 * 1024;
 
 export class AiTranslationConversationLog {
   private pendingBlocks: string[] = [];
+  private activeConversationIds: string[] = [];
   private flushScheduled: boolean = false;
   private sequence: number = 0;
 
   recordRequest(provider: string, model: string, endpoint: string, requestBody: string): string {
-    if (ehSettingsStore.getValue(AI_TRANSLATION_CONVERSATION_LOG_SETTING_KEY, 'Off') !== 'On') {
+    if (!this.isEnabled()) {
       return '';
     }
     this.sequence++;
     const now = new Date();
     const id = now.getTime().toString(36) + '-' + this.sequence.toString(36);
+    this.activeConversationIds.push(id);
     this.enqueue('\n================================================================================\n' +
       '会话编号：' + id + '\n' +
       '发送时间：' + now.toISOString() + '\n' +
@@ -31,7 +33,7 @@ export class AiTranslationConversationLog {
   }
 
   recordResponse(id: string, content: string, status: string = '完成'): void {
-    if (id.length === 0) {
+    if (id.length === 0 || !this.isEnabled() || !this.consumeConversation(id)) {
       return;
     }
     this.enqueue('会话编号：' + id + '\n' +
@@ -41,7 +43,7 @@ export class AiTranslationConversationLog {
   }
 
   recordError(id: string, error: string): void {
-    if (id.length === 0) {
+    if (id.length === 0 || !this.isEnabled() || !this.consumeConversation(id)) {
       return;
     }
     this.enqueue('会话编号：' + id + '\n' +
@@ -56,6 +58,21 @@ export class AiTranslationConversationLog {
       return fs.readTextSync(this.logPath(context));
     } catch (error) {
       return '';
+    }
+  }
+
+  clear(context?: common.UIAbilityContext): void {
+    this.pendingBlocks.splice(0, this.pendingBlocks.length);
+    this.activeConversationIds.splice(0, this.activeConversationIds.length);
+    this.flushScheduled = false;
+    this.sequence = 0;
+    const targetContext = context === undefined ? AppStorage.get<common.UIAbilityContext>('abilityContext') : context;
+    if (targetContext === undefined) {
+      return;
+    }
+    try {
+      fs.unlinkSync(this.logPath(targetContext));
+    } catch (error) {
     }
   }
 
@@ -125,6 +142,19 @@ export class AiTranslationConversationLog {
 
   private logPath(context: common.UIAbilityContext): string {
     return context.filesDir + '/' + LOG_FILE_NAME;
+  }
+
+  private isEnabled(): boolean {
+    return ehSettingsStore.getValue(AI_TRANSLATION_CONVERSATION_LOG_SETTING_KEY, 'Off') === 'On';
+  }
+
+  private consumeConversation(id: string): boolean {
+    const index = this.activeConversationIds.indexOf(id);
+    if (index < 0) {
+      return false;
+    }
+    this.activeConversationIds.splice(index, 1);
+    return true;
   }
 }
 

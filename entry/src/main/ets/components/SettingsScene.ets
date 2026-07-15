@@ -543,6 +543,9 @@ export struct SettingsScene {
     const normalizedValue = this.normalizedSettingValue(key, value);
     const previousValue = ehSettingsStore.getValue(key, '');
     ehSettingsStore.setValue(key, normalizedValue);
+    if (key === AI_TRANSLATION_CONVERSATION_LOG_SETTING_KEY && normalizedValue !== 'On') {
+      aiTranslationConversationLog.clear(getAbilityContext());
+    }
     if (key === 'translation_ai_provider' && normalizedValue === 'Custom API') {
       this.ensureCustomTranslationApi();
     }

@@ -893,7 +893,7 @@ export function zhText(text: string): string {
     case 'AI translation provider': return 'AI 翻译服务';
     case 'Choose the AI service used while AI translation is enabled': return '选择启用 AI 翻译时使用的服务';
     case 'Record AI conversations': return '记录 AI 翻译对话';
-    case 'Save prompts sent to AI services and their returned text locally': return '在本机记录发送给 AI 的提示词及其返回内容';
+    case 'Save prompts sent to AI services and their returned text locally; disabling clears all records': return '在本机记录发送给 AI 的提示词及其返回内容；关闭时清空全部记录';
     case 'Export AI conversation records': return '导出 AI 翻译记录';
     case 'Export recorded AI translation conversations to public Downloads': return '将记录的 AI 翻译对话导出到公共下载目录';
     case 'No AI translation records yet': return '暂无 AI 翻译记录';
@@ -3057,7 +3057,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       rows.push(optionSettingsRow('translation_ai_provider', 'AI translation provider',
         'Choose the AI service used while AI translation is enabled', entries, aiProviderOptions, aiProviderDescriptions));
       rows.push(optionSettingsRow('translation_ai_conversation_log', 'Record AI conversations',
-        'Save prompts sent to AI services and their returned text locally', entries, ON_OFF_OPTIONS));
+        'Save prompts sent to AI services and their returned text locally; disabling clears all records', entries,
+        ON_OFF_OPTIONS));
       rows.push(staticSettingsRow('translation_ai_log_export', 'Export AI conversation records',
         'Export recorded AI translation conversations to public Downloads', 'Export', 'action'));
     }

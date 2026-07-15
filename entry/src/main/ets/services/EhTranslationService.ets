@@ -188,11 +188,17 @@ const AI_BATCH_MAX_ITEMS: number = 5;
 const AI_BATCH_CHARACTER_LIMIT: number = 2200;
 const AI_TRANSLATION_MAX_ATTEMPTS: number = 2;
 const OPENAI_PROMPT_CACHE_SHARDS: number = 4;
-const AI_TRANSLATION_PROMPT_VERSION: string = '8';
+const AI_TRANSLATION_PROMPT_VERSION: string = '9';
 const DEFAULT_TIMEOUT_MS: number = 15000;
 const WEB_TRANSLATION_USER_AGENT: string =
   'Mozilla/5.0 (Linux; Android 10; HarmonyOS) AppleWebKit/537.36 (KHTML, like Gecko) ' +
   'Chrome/131.0.0.0 Mobile Safari/537.36';
+const RETRY_TRANSLATION_PROMPT: string =
+  '# Retry translation\nThe previous response was empty, truncated, or incomplete. Start again at the first source ' +
+  'character and produce a fresh complete translation instead of patching only the final label. Check every source ' +
+  'segment and every bracket pair in order before returning. For a Chinese gallery title, account for every Japanese ' +
+  'kana run in Chinese; do not return a result that keeps the Japanese main title while translating only a language or ' +
+  'edition label.';
 const TRANSLATION_CANCELLED_MESSAGE: string = 'Translation request cancelled';
 const TRANSLATION_CACHE: TranslationCacheEntry[] = [];
 const PENDING_TRANSLATIONS: PendingTranslationEntry[] = [];
@@ -739,7 +745,7 @@ export class EhTranslationService {
       const requestBody: ChatRequestBody = {
         model: model,
         messages: [
-          { role: 'system', content: translationRequestSystemPrompt(text, target, contentKind) },
+          { role: 'system', content: translationRequestSystemPrompt(text, target, contentKind, attempt > 0) },
           { role: 'user', content: text }
         ],
         stream: false,
@@ -823,7 +829,7 @@ export class EhTranslationService {
     let incompleteResponse = false;
     for (let attempt = 0; attempt < AI_TRANSLATION_MAX_ATTEMPTS; attempt++) {
       const requestBody: GeminiRequestBody = {
-        systemInstruction: { parts: [{ text: translationRequestSystemPrompt(text, target, contentKind) }] },
+        systemInstruction: { parts: [{ text: translationRequestSystemPrompt(text, target, contentKind, attempt > 0) }] },
         contents: [{ role: 'user', parts: [{ text: text }] }],
         generationConfig: { temperature: attempt > 0 ? 0.2 : 0.1 }
       };
@@ -1045,14 +1051,17 @@ function translationSystemPrompt(target: string, contentKind: string): string {
     .split('{{content_kind}}').join(contentKind);
 }
 
-function translationRequestSystemPrompt(text: string, target: string, contentKind: string): string {
-  const prompt = translationSystemPrompt(target, contentKind);
-  if (text.indexOf('<ehviewer_batch_separator_') < 0) {
-    return prompt;
+function translationRequestSystemPrompt(text: string, target: string, contentKind: string, retry: boolean): string {
+  let prompt = translationSystemPrompt(target, contentKind);
+  if (retry) {
+    prompt += '\n\n' + RETRY_TRANSLATION_PROMPT;
   }
-  return prompt + '\n\n# Batch translation\nPreserve every <ehviewer_batch_separator_N/> token exactly in its ' +
-    'original position. Translate each segment independently and output exactly one complete translated segment on each ' +
-    'side of every separator. Do not add, remove, rename, translate, or surround a separator with other markup.';
+  if (text.indexOf('<ehviewer_batch_separator_') >= 0) {
+    prompt += '\n\n# Batch translation\nPreserve every <ehviewer_batch_separator_N/> token exactly in its ' +
+      'original position. Translate each segment independently and output exactly one complete translated segment on ' +
+      'each side of every separator. Do not add, remove, rename, translate, or surround a separator with other markup.';
+  }
+  return prompt;
 }
 
 function translationPromptCacheKey(text: string): string {
