@@ -16,6 +16,9 @@ export interface ReaderOcrOverlayDebugItem {
   layoutY: number;
   layoutWidth: number;
   layoutHeight: number;
+  fontSize: number;
+  lineHeight: number;
+  estimatedLines: number;
 }
 
 const LOG_FILE_NAME: string = 'ehviewer_reader_ocr_debug.log';
@@ -69,6 +72,8 @@ export class ReaderOcrDebugLog {
         items[i].sourceHeight));
       lines.push('  布局框=' + debugRect(items[i].layoutX, items[i].layoutY, items[i].layoutWidth,
         items[i].layoutHeight));
+      lines.push('  文本布局=字号 ' + roundDebugNumber(items[i].fontSize) + '，行高 ' +
+        roundDebugNumber(items[i].lineHeight) + '，预计 ' + items[i].estimatedLines.toString() + ' 行');
       lines.push('  位移=(' + roundDebugNumber(items[i].layoutX - items[i].sourceX) + ',' +
         roundDebugNumber(items[i].layoutY - items[i].sourceY) + ')');
     }

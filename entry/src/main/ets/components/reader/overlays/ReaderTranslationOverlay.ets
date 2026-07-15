@@ -21,7 +21,7 @@ interface ReaderTranslationLayout extends ReaderTranslationBounds {
   text: string;
   fontSize: number;
   lineHeight: number;
-  maxLines: number;
+  estimatedLines: number;
   sourceX: number;
   sourceY: number;
   sourceWidth: number;
@@ -31,6 +31,7 @@ interface ReaderTranslationLayout extends ReaderTranslationBounds {
 }
 
 const TRANSLATION_LAYOUT_GAP: number = 2;
+const TRANSLATION_TEXT_PADDING: number = 3;
 
 @Component
 export struct ReaderTranslationOverlay {
@@ -66,12 +67,17 @@ export struct ReaderTranslationOverlay {
     const source = this.sourceBounds(line);
     const fontSize = Math.max(10, Math.min(24, source.height * 0.72));
     const preferredWidth = Math.max(source.width,
-      Math.min(this.displayWidth * 0.42, line.translatedText.length * fontSize * 0.82 + 6));
+      Math.min(this.displayWidth * 0.42, estimateUnwrappedTextWidth(line.translatedText, fontSize) +
+        TRANSLATION_TEXT_PADDING * 2 + fontSize * 0.5));
     const width = Math.max(24, Math.min(this.displayWidth, preferredWidth));
-    const availableTextWidth = Math.max(8, width - 4);
-    const maxLines = Math.max(1, Math.ceil(line.translatedText.length * fontSize * 0.82 / availableTextWidth));
+    // Leave a small glyph-width margin because ArkUI's actual font metrics and line breaking can differ from the
+    // estimate. maxLines must not be used here: an underestimated line count silently clips the final wrapped line.
+    const availableTextWidth = Math.max(8,
+      width - TRANSLATION_TEXT_PADDING * 2 - fontSize * 0.25);
+    const estimatedLines = estimateWrappedTextLines(line.translatedText, availableTextWidth, fontSize);
     const lineHeight = fontSize * 1.12;
-    const height = Math.min(this.displayHeight, Math.max(source.height, maxLines * lineHeight + 4));
+    const height = Math.min(this.displayHeight, Math.max(source.height,
+      estimatedLines * lineHeight + TRANSLATION_TEXT_PADDING * 2 + 2));
     const anchorX = source.x + source.width / 2 - width / 2;
     const anchorY = source.y + source.height / 2 - height / 2;
     const x = Math.max(0, Math.min(this.displayWidth - width, anchorX));
@@ -86,7 +92,7 @@ export struct ReaderTranslationOverlay {
       height: height,
       fontSize: fontSize,
       lineHeight: lineHeight,
-      maxLines: maxLines,
+      estimatedLines: estimatedLines,
       sourceX: source.x,
       sourceY: source.y,
       sourceWidth: source.width,
@@ -161,7 +167,7 @@ export struct ReaderTranslationOverlay {
       height: item.height,
       fontSize: item.fontSize,
       lineHeight: item.lineHeight,
-      maxLines: item.maxLines,
+      estimatedLines: item.estimatedLines,
       sourceX: item.sourceX,
       sourceY: item.sourceY,
       sourceWidth: item.sourceWidth,
@@ -187,7 +193,10 @@ export struct ReaderTranslationOverlay {
         layoutX: layouts[i].x,
         layoutY: layouts[i].y,
         layoutWidth: layouts[i].width,
-        layoutHeight: layouts[i].height
+        layoutHeight: layouts[i].height,
+        fontSize: layouts[i].fontSize,
+        lineHeight: layouts[i].lineHeight,
+        estimatedLines: layouts[i].estimatedLines
       });
     }
     readerOcrDebugLog.recordOverlaySnapshot(this.translation, this.displayWidth, this.displayHeight, items);
@@ -266,9 +275,13 @@ export struct ReaderTranslationOverlay {
             .fontSize(item.fontSize)
             .fontColor(Color.Black)
             .lineHeight(item.lineHeight)
-            .maxLines(item.maxLines)
             .textAlign(TextAlign.Center)
-            .padding({ left: 2, right: 2, top: 2, bottom: 2 })
+            .padding({
+              left: TRANSLATION_TEXT_PADDING,
+              right: TRANSLATION_TEXT_PADDING,
+              top: TRANSLATION_TEXT_PADDING,
+              bottom: TRANSLATION_TEXT_PADDING
+            })
             .textShadow([
               { radius: 5, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: 0 },
               { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: 1, offsetY: 0 },
@@ -286,6 +299,41 @@ export struct ReaderTranslationOverlay {
     .clip(true)
     .hitTestBehavior(HitTestMode.Transparent)
   }
+}
+
+function estimateUnwrappedTextWidth(value: string, fontSize: number): number {
+  const rows = value.split('\n');
+  let maximumUnits = 0;
+  for (let i = 0; i < rows.length; i++) {
+    maximumUnits = Math.max(maximumUnits, estimateTextUnits(rows[i]));
+  }
+  return maximumUnits * fontSize;
+}
+
+function estimateWrappedTextLines(value: string, availableWidth: number, fontSize: number): number {
+  const rows = value.split('\n');
+  let total = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const estimatedWidth = estimateTextUnits(rows[i]) * fontSize;
+    total += Math.max(1, Math.ceil(estimatedWidth / availableWidth));
+  }
+  return Math.max(1, total);
+}
+
+function estimateTextUnits(value: string): number {
+  let units = 0;
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code === 9 || code === 32) {
+      units += 0.35;
+    } else if (code <= 0x7F) {
+      units += 0.62;
+    } else {
+      // CJK glyphs and full-width punctuation are approximately one em wide.
+      units += 1;
+    }
+  }
+  return units;
 }
 
 function candidateLayoutOffsets(limit: number, step: number): number[] {
