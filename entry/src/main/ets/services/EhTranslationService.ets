@@ -188,7 +188,7 @@ const AI_BATCH_MAX_ITEMS: number = 5;
 const AI_BATCH_CHARACTER_LIMIT: number = 2200;
 const AI_TRANSLATION_MAX_ATTEMPTS: number = 2;
 const OPENAI_PROMPT_CACHE_SHARDS: number = 4;
-const AI_TRANSLATION_PROMPT_VERSION: string = '6';
+const AI_TRANSLATION_PROMPT_VERSION: string = '7';
 const DEFAULT_TIMEOUT_MS: number = 15000;
 const WEB_TRANSLATION_USER_AGENT: string =
   'Mozilla/5.0 (Linux; Android 10; HarmonyOS) AppleWebKit/537.36 (KHTML, like Gecko) ' +
@@ -1129,14 +1129,42 @@ function translationRequestSystemPrompt(text: string, target: string, contentKin
     'translate every ordinary word and phrase inside (), [], and all other bracket pairs. Preserve the bracket ' +
     'characters, not untranslated interior text. Do not treat brackets, title metadata, or tags as no-translate zones. ' +
     'Only true names, brands, handles, URLs, codes, identifiers, and text already in the target language may remain ' +
-    'unchanged.' + batchInstruction + '\nReturn only the complete translation.';
+    'unchanged.' + chineseGalleryTitleInstruction(target, contentKind) + batchInstruction +
+    '\nReturn only the complete translation.';
   if (retry) {
     task += '\n# Retry requirement\nThe previous attempt was empty, incomplete, or copied translatable text inside ' +
-      'brackets. Restart from the source. Inspect each bracket pair one by one, translate its complete human-readable ' +
-      'interior, reinsert the original bracket characters, and provide the entire translation without referring to the ' +
-      'previous attempt.';
+      'brackets. Do not patch only the final language or edition label. Discard the previous wording and restart at the ' +
+      'first source character. Translate the creator block, main title, subtitle, parenthetical title, language label, ' +
+      'and edition label in order. Inspect each bracket pair one by one, translate its complete human-readable interior, ' +
+      'reinsert the original bracket characters, and provide the entire translation without referring to the previous ' +
+      'attempt.' + chineseRetryInstruction(target, contentKind);
   }
   return translationSystemPrompt(openAiPromptCaching) + '\n\n' + task;
+}
+
+function chineseGalleryTitleInstruction(target: string, contentKind: string): string {
+  if ((target !== 'Simplified Chinese' && target !== 'Traditional Chinese') || contentKind !== 'gallery title') {
+    return '';
+  }
+  const translatedExample = target === 'Traditional Chinese' ?
+    '[皇家婊子 (haruhisky)] 妙醬老師啪啪啪3 文化祭泡泡浴篇 (妙醬老師如是說) [英文翻譯] [DL版]' :
+    '[皇家婊子 (haruhisky)] 妙酱老师啪啪啪3 文化祭泡泡浴篇 (妙酱老师如是说) [英文翻译] [DL版]';
+  return '\nCHINESE TITLE RULE: Japanese script is not a protected identifier. Translate or transliterate every ' +
+    'human-readable Japanese segment into Chinese, including kana or kanji circle names, creator names, nicknames, ' +
+    'character names, series names, puns, actions, sound effects, subtitles, and metadata. Do not leave hiragana or ' +
+    'katakana merely because a segment could be a title or name. Preserve an adjacent Latin handle, URL, product code, ' +
+    'or identifier separately. Example:\nSOURCE: [ろいやるびっち (haruhisky)] みょーちゃん先生かくパコりき3 ' +
+    '文化祭ソープ編 (みょーちゃん先生はかく語りき) [英訳] [DL版]\nCOMPLETE TRANSLATION: ' + translatedExample +
+    '\nWRONG: copying the Japanese title and changing only [英訳].';
+}
+
+function chineseRetryInstruction(target: string, contentKind: string): string {
+  if ((target !== 'Simplified Chinese' && target !== 'Traditional Chinese') || contentKind !== 'gallery title') {
+    return '';
+  }
+  return '\nFor this Chinese retry, make a silent list of every hiragana and katakana run in the source and account ' +
+    'for each one in Chinese. Before returning, scan the result from left to right. If Japanese kana remains outside a ' +
+    'literal machine identifier, revise that segment instead of returning the partial translation.';
 }
 
 function translationPromptCacheKey(text: string): string {
