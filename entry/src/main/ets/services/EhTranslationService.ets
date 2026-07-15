@@ -188,7 +188,7 @@ const AI_BATCH_MAX_ITEMS: number = 5;
 const AI_BATCH_CHARACTER_LIMIT: number = 2200;
 const AI_TRANSLATION_MAX_ATTEMPTS: number = 2;
 const OPENAI_PROMPT_CACHE_SHARDS: number = 4;
-const AI_TRANSLATION_PROMPT_VERSION: string = '10';
+const AI_TRANSLATION_PROMPT_VERSION: string = '11';
 const DEFAULT_TIMEOUT_MS: number = 15000;
 const WEB_TRANSLATION_USER_AGENT: string =
   'Mozilla/5.0 (Linux; Android 10; HarmonyOS) AppleWebKit/537.36 (KHTML, like Gecko) ' +
