@@ -16,6 +16,7 @@ import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehAppLog } from '../services/EhAppLog';
 import { DOWNLOAD_NOTIFICATION_OPEN_DIRECTORY_KEY } from '../services/DownloadNotificationSupport';
 import { readerImageCache } from '../services/ReaderImageCache';
+import { ehDownloadManager } from '../services/EhDownloadManager';
 import { EH_SYSTEM_COLOR_MODE_DARK, EH_SYSTEM_COLOR_MODE_KEY } from '../shared/EhTheme';
 import {
   ensureEhHostRules,
@@ -314,6 +315,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
+    ehDownloadManager.onAppForeground(this.context);
     this.applyPersistedSecureScreen();
     if (this.authPending) {
       return;
@@ -328,6 +330,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onBackground(): void {
+    ehDownloadManager.onAppBackground(this.context);
     if (this.authPending) {
       return;
     }

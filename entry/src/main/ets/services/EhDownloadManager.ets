@@ -35,6 +35,8 @@ const DOWNLOAD_SLOW_HATH_SKIP_LIMIT: number = 2;
 const DOWNLOAD_NOTIFICATION_ID: number = 8001;
 const DOWNLOAD_RESULT_NOTIFICATION_ID: number = 8002;
 const DOWNLOAD_NOTIFICATION_TEMPLATE: string = 'downloadTemplate';
+const DOWNLOAD_NOTIFICATION_RETRY_DELAY_MS: number = 10000;
+const DOWNLOAD_WORKER_START_STAGGER_MS: number = 120;
 
 interface DownloadWorkerState {
   cursor: number;
@@ -53,6 +55,13 @@ interface DownloadWorkerState {
 interface DownloadedPageResult {
   page: GalleryPage;
   cachedPath: string;
+}
+
+interface DownloadProgressSnapshot {
+  item: DownloadInfo;
+  finished: number;
+  total: number;
+  speed: number;
 }
 
 type DownloadStatusListener = (status: string) => void;
@@ -99,9 +108,50 @@ export class EhDownloadManager {
   private stoppedGids: number[] = [];
   private listeners: DownloadStatusListener[] = [];
   private backgroundRunning: boolean = false;
+  private backgroundSuspended: boolean = false;
+  private appInBackground: boolean = false;
   private notificationId: number = DOWNLOAD_NOTIFICATION_ID;
-  private templateSupported: boolean = false;
-  private templateChecked: boolean = false;
+  private continuousTaskId: number = -1;
+  private observerContext: common.UIAbilityContext | undefined = undefined;
+  private cancelObserverRegistered: boolean = false;
+  private suspendObserverRegistered: boolean = false;
+  private activeObserverRegistered: boolean = false;
+  private backgroundRecoveryPromise: Promise<void> | null = null;
+  private notificationPublishPending: boolean = false;
+  private pendingNotification: DownloadProgressSnapshot | null = null;
+  private notificationRetryAfter: number = 0;
+
+  private continuousTaskCancelCallback:
+    (info: backgroundTaskManager.ContinuousTaskCancelInfo) => void =
+    (info: backgroundTaskManager.ContinuousTaskCancelInfo): void => {
+      if (this.continuousTaskId >= 0 && info.id !== this.continuousTaskId) {
+        return;
+      }
+      this.backgroundRunning = false;
+      this.backgroundSuspended = false;
+      this.continuousTaskId = -1;
+      this.logContinuousTask('warn', 'Continuous task cancelled, reason=' + info.reason.toString());
+    };
+
+  private continuousTaskSuspendCallback:
+    (info: backgroundTaskManager.ContinuousTaskSuspendInfo) => void =
+    (info: backgroundTaskManager.ContinuousTaskSuspendInfo): void => {
+      if (this.continuousTaskId >= 0 && info.continuousTaskId !== this.continuousTaskId) {
+        return;
+      }
+      this.backgroundSuspended = info.suspendState;
+      this.logContinuousTask('warn', 'Continuous task suspended, reason=' + info.suspendReason.toString());
+    };
+
+  private continuousTaskActiveCallback:
+    (info: backgroundTaskManager.ContinuousTaskActiveInfo) => void =
+    (info: backgroundTaskManager.ContinuousTaskActiveInfo): void => {
+      if (this.continuousTaskId >= 0 && info.id !== this.continuousTaskId) {
+        return;
+      }
+      this.backgroundSuspended = false;
+      this.logContinuousTask('info', 'Continuous task resumed');
+    };
 
   subscribe(listener: DownloadStatusListener): () => void {
     this.listeners.push(listener);
@@ -118,7 +168,32 @@ export class EhDownloadManager {
 
   startQueue(context: common.UIAbilityContext): void {
     this.shouldStop = false;
+    this.observerContext = context;
+    this.registerContinuousTaskObservers(context);
     this.runDownloadQueue(context);
+  }
+
+  onAppForeground(context: common.UIAbilityContext): void {
+    this.appInBackground = false;
+    this.observerContext = context;
+    this.registerContinuousTaskObservers(context);
+    if (!this.isProcessing) {
+      return;
+    }
+    const recovery = this.reconcileBackgroundTask(context).catch((error: Error) => {
+      ehAppLog.warn(context, 'DownloadManager', 'Continuous task recovery failed: ' + error.message);
+    });
+    this.backgroundRecoveryPromise = recovery;
+    recovery.finally(() => {
+      if (this.backgroundRecoveryPromise === recovery) {
+        this.backgroundRecoveryPromise = null;
+      }
+    });
+  }
+
+  onAppBackground(context: common.UIAbilityContext): void {
+    this.appInBackground = true;
+    this.observerContext = context;
   }
 
   stopAll(): void {
@@ -295,6 +370,9 @@ export class EhDownloadManager {
       if (orderIndex >= pageIndexes.length) {
         return;
       }
+      if (orderIndex > 0 && orderIndex < 4) {
+        await wait(orderIndex * DOWNLOAD_WORKER_START_STAGGER_MS);
+      }
 
       const pageIndex = pageIndexes[orderIndex];
       const preview = detail.previewSet[pageIndex];
@@ -334,8 +412,12 @@ export class EhDownloadManager {
     let lastError = '';
     let previousPage: GalleryPage | null = null;
     for (let attempt = 0; attempt <= DOWNLOAD_PAGE_RETRY_LIMIT; attempt++) {
+      await this.waitForDownloadExecution(item.gid);
       if (this.shouldStop || this.isStopped(item.gid)) {
         throw new Error('Download stopped');
+      }
+      if (state.failedMessage.length > 0) {
+        throw new Error(state.failedMessage);
       }
       try {
         const downloaded = await this.downloadPageOnce(context, item, detail, detailUrl, pageIndex, total, state,
@@ -352,7 +434,8 @@ export class EhDownloadManager {
         }
         this.publishStatus('Retry ' + (attempt + 1).toString() + '/' + DOWNLOAD_PAGE_RETRY_LIMIT.toString() +
           ' page ' + (pageIndex + 1).toString() + ': ' + item.title);
-        await wait(500 * (attempt + 1));
+        await this.waitForDownloadExecution(item.gid);
+        await wait(500 * (attempt + 1) + pageIndex % 4 * 120);
       }
     }
     throw new Error('Page ' + (pageIndex + 1).toString() + ' failed after ' +
@@ -500,7 +583,10 @@ export class EhDownloadManager {
       return;
     }
     try {
-      await ensureDownloadNotificationEnabled(context);
+      const notificationEnabled = await ensureDownloadNotificationEnabled(context);
+      if (!notificationEnabled) {
+        throw new Error('Download notification is disabled');
+      }
       const agentInfo: wantAgent.WantAgentInfo = {
         wants: [
           {
@@ -518,13 +604,25 @@ export class EhDownloadManager {
       if (notification.notificationId !== undefined) {
         this.notificationId = notification.notificationId;
       }
+      this.continuousTaskId = notification.continuousTaskId ?? -1;
       this.backgroundRunning = true;
+      this.backgroundSuspended = false;
+      this.notificationRetryAfter = 0;
+      ehAppLog.info(context, 'DownloadManager', 'Continuous task started, notificationId=' +
+        this.notificationId.toString() + ', continuousTaskId=' + this.continuousTaskId.toString());
     } catch (error) {
       this.backgroundRunning = false;
+      this.backgroundSuspended = false;
+      this.continuousTaskId = -1;
+      ehAppLog.error(context, 'DownloadManager', 'Continuous task start failed: ' + String(error));
     }
   }
 
   private async stopBackgroundTask(context: common.UIAbilityContext): Promise<void> {
+    const recovery = this.backgroundRecoveryPromise;
+    if (recovery !== null) {
+      await recovery;
+    }
     if (!this.backgroundRunning) {
       return;
     }
@@ -533,23 +631,50 @@ export class EhDownloadManager {
     } catch (error) {
     }
     this.backgroundRunning = false;
+    this.backgroundSuspended = false;
+    this.continuousTaskId = -1;
   }
 
   private async publishProgress(item: DownloadInfo, finished: number, total: number,
     speed: number = 0): Promise<void> {
+    this.pendingNotification = {
+      item: item,
+      finished: finished,
+      total: total,
+      speed: speed
+    };
+    if (this.notificationPublishPending) {
+      return;
+    }
+    this.notificationPublishPending = true;
+    try {
+      while (this.pendingNotification !== null) {
+        const snapshot = this.pendingNotification;
+        this.pendingNotification = null;
+        await this.publishProgressNow(snapshot);
+      }
+    } finally {
+      this.notificationPublishPending = false;
+    }
+  }
+
+  private async publishProgressNow(snapshot: DownloadProgressSnapshot): Promise<void> {
+    if (!this.backgroundRunning || Date.now() < this.notificationRetryAfter) {
+      return;
+    }
+    const item = snapshot.item;
+    const finished = snapshot.finished;
+    const total = snapshot.total;
+    const speed = snapshot.speed;
     const progress = total > 0 ? Math.max(0, Math.min(100, Math.round(finished * 100 / total))) : 0;
     const progressText = finished.toString() + '/' + total.toString();
-    let speedText = '';
+    let transferText = progressText;
     if (speed > 0) {
-      speedText = downloadSizeText(speed) + '/s';
+      transferText += ' · ' + downloadSizeText(speed) + '/s';
     }
     try {
-      if (!this.templateChecked) {
-        this.templateSupported = await notificationManager.isSupportTemplate(DOWNLOAD_NOTIFICATION_TEMPLATE);
-        this.templateChecked = true;
-      }
       const status = total > 0 && finished >= total ? 'Download completed' : 'Downloading';
-      const notificationText: DownloadNotificationText = downloadNotificationText(item.title, status, speedText);
+      const notificationText: DownloadNotificationText = downloadNotificationText(item.title, status, transferText);
       const request: notificationManager.NotificationRequest = {
         id: this.notificationId,
         content: {
@@ -557,24 +682,110 @@ export class EhDownloadManager {
           systemLiveView: {
             typeCode: 8,
             title: notificationText.title,
-            text: notificationText.fileName,
-            additionalText: progressText
+            text: notificationText.fileName
           }
         },
         notificationSlotType: notificationManager.SlotType.LIVE_VIEW,
-        isOngoing: finished < total,
-        template: this.templateSupported ? {
+        template: {
           name: DOWNLOAD_NOTIFICATION_TEMPLATE,
           data: {
             title: notificationText.title,
             fileName: notificationText.fileName,
             progressValue: progress
           }
-        } : undefined
+        }
       };
       await notificationManager.publish(request);
+      this.notificationRetryAfter = 0;
     } catch (error) {
+      this.notificationRetryAfter = Date.now() + DOWNLOAD_NOTIFICATION_RETRY_DELAY_MS;
+      if (this.observerContext !== undefined) {
+        ehAppLog.warn(this.observerContext, 'DownloadManager', 'Progress notification failed: ' + String(error));
+      }
     }
+  }
+
+  private registerContinuousTaskObservers(context: common.UIAbilityContext): void {
+    if (!this.cancelObserverRegistered) {
+      try {
+        backgroundTaskManager.on('continuousTaskCancel', this.continuousTaskCancelCallback);
+        this.cancelObserverRegistered = true;
+      } catch (error) {
+        ehAppLog.warn(context, 'DownloadManager', 'Register continuous task cancel observer failed: ' + String(error));
+      }
+    }
+    if (!this.suspendObserverRegistered) {
+      try {
+        backgroundTaskManager.on('continuousTaskSuspend', this.continuousTaskSuspendCallback);
+        this.suspendObserverRegistered = true;
+      } catch (error) {
+        ehAppLog.warn(context, 'DownloadManager', 'Register continuous task suspend observer failed: ' + String(error));
+      }
+    }
+    if (!this.activeObserverRegistered) {
+      try {
+        backgroundTaskManager.on('continuousTaskActive', this.continuousTaskActiveCallback);
+        this.activeObserverRegistered = true;
+      } catch (error) {
+        ehAppLog.warn(context, 'DownloadManager', 'Register continuous task active observer failed: ' + String(error));
+      }
+    }
+  }
+
+  private async reconcileBackgroundTask(context: common.UIAbilityContext): Promise<void> {
+    let tasks: backgroundTaskManager.ContinuousTaskInfo[] = [];
+    try {
+      tasks = await backgroundTaskManager.getAllContinuousTasks(context);
+    } catch (error) {
+      ehAppLog.warn(context, 'DownloadManager', 'Query continuous task failed: ' + String(error));
+      if (!this.backgroundRunning) {
+        await this.startBackgroundTask(context);
+      }
+      return;
+    }
+    let matched: backgroundTaskManager.ContinuousTaskInfo | null = null;
+    for (let i = 0; i < tasks.length; i++) {
+      if (tasks[i].abilityName === 'EntryAbility' && tasks[i].backgroundModes.indexOf('dataTransfer') >= 0) {
+        matched = tasks[i];
+        break;
+      }
+    }
+    if (matched !== null) {
+      this.backgroundRunning = true;
+      this.backgroundSuspended = matched.suspendState;
+      this.notificationId = matched.notificationId;
+      this.continuousTaskId = matched.continuousTaskId;
+      return;
+    }
+    this.backgroundRunning = false;
+    this.backgroundSuspended = false;
+    this.continuousTaskId = -1;
+    await this.startBackgroundTask(context);
+  }
+
+  private async waitForDownloadExecution(gid: number): Promise<void> {
+    while (this.appInBackground && (!this.backgroundRunning || this.backgroundSuspended)) {
+      if (this.shouldStop || this.isStopped(gid)) {
+        throw new Error('Download stopped');
+      }
+      await wait(500);
+    }
+    const recovery = this.backgroundRecoveryPromise;
+    if (recovery !== null) {
+      await recovery;
+    }
+  }
+
+  private logContinuousTask(level: string, message: string): void {
+    const context = this.observerContext;
+    if (context === undefined) {
+      return;
+    }
+    if (level === 'warn') {
+      ehAppLog.warn(context, 'DownloadManager', message);
+      return;
+    }
+    ehAppLog.info(context, 'DownloadManager', message);
   }
 
   private publishStatus(status: string): void {
