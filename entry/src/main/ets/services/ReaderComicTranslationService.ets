@@ -47,6 +47,7 @@ interface OcrLineCandidate {
   text: string;
   bounds: OcrBounds;
   vertical: boolean;
+  blockIndex: number;
 }
 
 interface OcrTextGroup {
@@ -56,7 +57,7 @@ interface OcrTextGroup {
 }
 
 const MAX_OCR_IMAGE_EDGE: number = 4096;
-const READER_TRANSLATION_LAYOUT_VERSION: number = 2;
+const READER_TRANSLATION_LAYOUT_VERSION: number = 3;
 
 export class ReaderComicTranslationService {
   private queue: ReaderComicTranslationTask[] = [];
@@ -171,7 +172,7 @@ export class ReaderComicTranslationService {
       }
     }
     await this.ensureInitialized();
-    const translation = await this.recognizeAndTranslate(task.imagePath, task.pageIndex, task.priority);
+    const translation = await this.recognizeAndTranslate(task.imagePath, task.pageIndex, task.priority, task.force);
     if (!ehDownloadFileStore.setReaderTranslation(task.context, task.gallery, translation)) {
       await ehHistoryStore.ensureLoaded(task.context);
       ehHistoryStore.setReaderTranslation(task.gallery.gid, translation);
@@ -195,7 +196,7 @@ export class ReaderComicTranslationService {
   }
 
   private async recognizeAndTranslate(path: string, pageIndex: number,
-    priority: number): Promise<ReaderPageTranslation> {
+    priority: number, forceRefresh: boolean): Promise<ReaderPageTranslation> {
     let imageSource: image.ImageSource | undefined = undefined;
     let pixelMap: image.PixelMap | undefined = undefined;
     try {
@@ -213,7 +214,8 @@ export class ReaderComicTranslationService {
       const lines = collectOcrLines(result.blocks);
       await Promise.all(lines.map(async (line: ReaderTranslationLine) => {
         const contentKind = line.isVertical === true ? 'vertical comic dialogue' : 'comic dialogue';
-        line.translatedText = await ehTranslationService.translate(line.sourceText, contentKind, priority, true);
+        line.translatedText = await ehTranslationService.translate(line.sourceText, contentKind, priority, true,
+          true, forceRefresh);
       }));
       return {
         pageIndex: pageIndex,
@@ -243,15 +245,11 @@ export class ReaderComicTranslationService {
 function collectOcrLines(blocks: textRecognition.TextBlock[]): ReaderTranslationLine[] {
   const groups: OcrTextGroup[] = [];
   for (let i = 0; i < blocks.length; i++) {
-    const lines: OcrLineCandidate[] = [];
     for (let j = 0; j < blocks[i].lines.length; j++) {
-      const candidate = createOcrLineCandidate(blocks[i].lines[j]);
+      const candidate = createOcrLineCandidate(blocks[i].lines[j], i);
       if (candidate !== null) {
-        lines.push(candidate);
+        groups.push(createOcrTextGroup([candidate]));
       }
-    }
-    if (lines.length > 0) {
-      groups.push(createOcrTextGroup(lines));
     }
   }
   mergeNearbyOcrTextGroups(groups);
@@ -271,7 +269,7 @@ function collectOcrLines(blocks: textRecognition.TextBlock[]): ReaderTranslation
   return result;
 }
 
-function createOcrLineCandidate(line: textRecognition.TextLine): OcrLineCandidate | null {
+function createOcrLineCandidate(line: textRecognition.TextLine, blockIndex: number): OcrLineCandidate | null {
   const source = line.value.trim();
   if (source.length === 0 || line.cornerPoints.length < 2) {
     return null;
@@ -284,7 +282,8 @@ function createOcrLineCandidate(line: textRecognition.TextLine): OcrLineCandidat
   return {
     text: source,
     bounds: bounds,
-    vertical: isVerticalOcrLine(line, bounds)
+    vertical: isVerticalOcrLine(line, bounds),
+    blockIndex: blockIndex
   };
 }
 
@@ -348,7 +347,7 @@ function mergeNearbyOcrTextGroups(groups: OcrTextGroup[]): void {
     changed = false;
     for (let i = 0; i < groups.length && !changed; i++) {
       for (let j = i + 1; j < groups.length; j++) {
-        if (!shouldMergeOcrTextGroups(groups[i], groups[j])) {
+        if (!shouldMergeOcrTextGroups(groups[i], groups[j], groupsHaveSameSingleSourceBlock(groups[i], groups[j]))) {
           continue;
         }
         const lines: OcrLineCandidate[] = [];
@@ -367,8 +366,13 @@ function mergeNearbyOcrTextGroups(groups: OcrTextGroup[]): void {
   }
 }
 
-function shouldMergeOcrTextGroups(left: OcrTextGroup, right: OcrTextGroup): boolean {
+function shouldMergeOcrTextGroups(left: OcrTextGroup, right: OcrTextGroup, sameBlock: boolean): boolean {
   if (left.vertical !== right.vertical) {
+    return false;
+  }
+  const leftThickness = groupAverageThickness(left);
+  const rightThickness = groupAverageThickness(right);
+  if (Math.max(leftThickness, rightThickness) / Math.max(1, Math.min(leftThickness, rightThickness)) > 2.2) {
     return false;
   }
   const xOverlap = axisOverlap(left.bounds.x, left.bounds.width, right.bounds.x, right.bounds.width);
@@ -377,18 +381,64 @@ function shouldMergeOcrTextGroups(left: OcrTextGroup, right: OcrTextGroup): bool
   const yOverlapRatio = yOverlap / Math.max(1, Math.min(left.bounds.height, right.bounds.height));
   const xGap = axisGap(left.bounds.x, left.bounds.width, right.bounds.x, right.bounds.width);
   const yGap = axisGap(left.bounds.y, left.bounds.height, right.bounds.y, right.bounds.height);
-  const thickness = Math.max(groupAverageThickness(left), groupAverageThickness(right));
-  if (xOverlapRatio >= 0.25 && yOverlapRatio >= 0.25) {
-    return true;
+  const thickness = Math.max(leftThickness, rightThickness);
+  if (xOverlapRatio >= 0.4 && yOverlapRatio >= 0.4) {
+    return mergedOcrGroupIsCompact(left, right, sameBlock);
   }
+  const fragmentGapLimit = thickness * (sameBlock ? 0.7 : 0.35);
+  const neighboringGapLimit = thickness * (sameBlock ? 0.65 : 0.25);
+  let nearby = false;
   if (left.vertical) {
-    const sameColumnFragments = xOverlapRatio >= 0.55 && yGap <= thickness * 1.1;
-    const neighboringColumns = yOverlapRatio >= 0.55 && xGap <= thickness * 1.1;
-    return sameColumnFragments || neighboringColumns;
+    const sameColumnFragments = xOverlapRatio >= 0.7 && yGap <= fragmentGapLimit;
+    const neighboringColumns = yOverlapRatio >= 0.72 && xGap <= neighboringGapLimit;
+    nearby = sameColumnFragments || neighboringColumns;
+  } else {
+    const sameRowFragments = yOverlapRatio >= 0.7 && xGap <= fragmentGapLimit;
+    const neighboringRows = xOverlapRatio >= 0.72 && yGap <= neighboringGapLimit;
+    nearby = sameRowFragments || neighboringRows;
   }
-  const sameRowFragments = yOverlapRatio >= 0.55 && xGap <= thickness * 1.1;
-  const neighboringRows = xOverlapRatio >= 0.55 && yGap <= thickness * 1.1;
-  return sameRowFragments || neighboringRows;
+  return nearby && mergedOcrGroupIsCompact(left, right, sameBlock);
+}
+
+function groupsHaveSameSingleSourceBlock(left: OcrTextGroup, right: OcrTextGroup): boolean {
+  const leftBlock = groupSingleSourceBlock(left);
+  return leftBlock >= 0 && leftBlock === groupSingleSourceBlock(right);
+}
+
+function groupSingleSourceBlock(group: OcrTextGroup): number {
+  const block = group.lines[0].blockIndex;
+  for (let i = 1; i < group.lines.length; i++) {
+    if (group.lines[i].blockIndex !== block) {
+      return -1;
+    }
+  }
+  return block;
+}
+
+function mergedOcrGroupIsCompact(left: OcrTextGroup, right: OcrTextGroup, sameBlock: boolean): boolean {
+  const bounds = unionOcrBounds(left.bounds, right.bounds);
+  const thickness = Math.max(groupAverageThickness(left), groupAverageThickness(right));
+  const crossAxisSpan = left.vertical ? bounds.width : bounds.height;
+  if (crossAxisSpan > thickness * (sameBlock ? 7 : 4.5)) {
+    return false;
+  }
+  const unionArea = Math.max(1, bounds.width * bounds.height);
+  const occupiedArea = groupLineArea(left) + groupLineArea(right);
+  const minimumCoverage = sameBlock ? 0.14 : 0.24;
+  if (occupiedArea / unionArea < minimumCoverage) {
+    return false;
+  }
+  const sourceArea = Math.max(1, left.bounds.width * left.bounds.height +
+    right.bounds.width * right.bounds.height);
+  return unionArea / sourceArea <= (sameBlock ? 2.4 : 1.65);
+}
+
+function groupLineArea(group: OcrTextGroup): number {
+  let area = 0;
+  for (let i = 0; i < group.lines.length; i++) {
+    area += group.lines[i].bounds.width * group.lines[i].bounds.height;
+  }
+  return area;
 }
 
 function groupAverageThickness(group: OcrTextGroup): number {

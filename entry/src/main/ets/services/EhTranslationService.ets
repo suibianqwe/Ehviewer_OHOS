@@ -235,6 +235,7 @@ let lastTranslationErrorAt: number = 0;
 let lastTranslationErrorMessage: string = '';
 let translationSessionRevision: number = 0;
 let translationWaiterSequence: number = 0;
+let translationRefreshSequence: number = 0;
 
 export class EhTranslationService {
   private translationBatchQueue: TranslationBatchItem[] = [];
@@ -269,7 +270,8 @@ export class EhTranslationService {
   }
 
   async translate(text: string, contentKind: string = 'text', priority: number = 2,
-    allowWhenDisabled: boolean = false, notifyErrors: boolean = true): Promise<string> {
+    allowWhenDisabled: boolean = false, notifyErrors: boolean = true,
+    forceRefresh: boolean = false): Promise<string> {
     const source = text.trim();
     if (source.length === 0) {
       return '';
@@ -278,17 +280,20 @@ export class EhTranslationService {
     const target = ehSettingsStore.getValue('translation_target_language', 'Simplified Chinese');
     const key = translationSessionRevision.toString() + '\n' + (allowWhenDisabled ? 'test' : 'display') + '\n' +
       translationConfigurationKey(provider, target) + '\n' + contentKind + '\n' + source;
-    const cached = getCachedTranslation(key);
-    if (cached !== null) {
-      return cached;
+    if (!forceRefresh) {
+      const cached = getCachedTranslation(key);
+      if (cached !== null) {
+        return cached;
+      }
+      const pending = getPendingTranslation(key);
+      if (pending !== null) {
+        promoteTranslationWaiter(key, priority);
+        this.promoteTranslationBatchPriority(key, priority);
+        return pending;
+      }
     }
-    const pending = getPendingTranslation(key);
-    if (pending !== null) {
-      promoteTranslationWaiter(key, priority);
-      this.promoteTranslationBatchPriority(key, priority);
-      return pending;
-    }
-    const promise = this.translateInternal(source, provider, target, contentKind, key, priority, allowWhenDisabled)
+    const requestKey = forceRefresh ? key + '\nrefresh:' + (translationRefreshSequence++).toString() : key;
+    const promise = this.translateInternal(source, provider, target, contentKind, requestKey, priority, allowWhenDisabled)
       .then((translated: string) => {
         const normalized = normalizeTranslationResult(translated, source);
         putCachedTranslation(key, normalized);
@@ -301,9 +306,9 @@ export class EhTranslationService {
         throw error;
       })
       .finally(() => {
-        removePendingTranslation(key);
+        removePendingTranslation(requestKey);
       });
-    PENDING_TRANSLATIONS.push({ key: key, promise: promise });
+    PENDING_TRANSLATIONS.push({ key: requestKey, promise: promise });
     return promise;
   }
 
