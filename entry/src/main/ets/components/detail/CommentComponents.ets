@@ -114,38 +114,46 @@ export struct CommentLinkedText {
   private translationRequestVersion: number = 0;
 
   aboutToAppear(): void {
-    this.updateTranslation();
+    this.resetTranslation();
   }
 
   onContentChanged(): void {
-    this.updateTranslation();
+    this.resetTranslation();
   }
 
   onTranslationChanged(): void {
-    this.updateTranslation();
+    this.resetTranslation();
   }
 
   onTranslationPriorityChanged(): void {
-    this.updateTranslation();
+    this.requestTranslationIfNeeded();
   }
 
-  private updateTranslation(): void {
+  private resetTranslation(): void {
     this.translationRequestVersion++;
-    const version = this.translationRequestVersion;
     this.translatedText = '';
+    this.requestTranslationIfNeeded();
+  }
+
+  private requestTranslationIfNeeded(): void {
     if (!this.translateComment || this.translationPriority <= 0) {
+      return;
+    }
+    if (this.translatedText.length > 0) {
       return;
     }
     const source = commentPlainTextFromHtml(this.html);
     if (source.length === 0) {
       return;
     }
+    this.translationRequestVersion++;
+    const version = this.translationRequestVersion;
     ehTranslationService.translateComment(source, this.translationPriority).then((translated: string) => {
       if (version === this.translationRequestVersion && this.translateComment) {
         this.translatedText = translated;
       }
     }).catch(() => {
-      if (version === this.translationRequestVersion) {
+      if (version === this.translationRequestVersion && this.translatedText.length === 0) {
         this.translatedText = '';
       }
     });
