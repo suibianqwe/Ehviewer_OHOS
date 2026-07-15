@@ -2053,7 +2053,7 @@ export struct ReaderScene {
         .width(READER_TRANSLATION_BUTTON_SIZE)
         .height(READER_TRANSLATION_BUTTON_SIZE)
         .backgroundColor(this.comicTranslationActive ? '#167A9A' : '#34454D')
-        .opacity(0.68)
+        .opacity(0.46)
         .shadow({ radius: 8, color: 'rgba(0,0,0,0.28)', offsetX: 0, offsetY: 2 })
         .position({ x: this.comicTranslationButtonX, y: this.comicTranslationButtonY })
         .accessibilityText(uiText('Comic translation'))
