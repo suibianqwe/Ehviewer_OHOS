@@ -81,6 +81,10 @@ export class ReaderOcrDebugLog {
   }
 
   read(context: common.UIAbilityContext): string {
+    if (!this.isEnabled()) {
+      this.clear(context);
+      return '';
+    }
     this.flush(context);
     try {
       return fs.readTextSync(this.logPath(context));

@@ -32,6 +32,7 @@ interface ReaderTranslationLayout extends ReaderTranslationBounds {
 
 const TRANSLATION_LAYOUT_GAP: number = 2;
 const TRANSLATION_TEXT_PADDING: number = 3;
+const TRANSLATION_SOURCE_WIDTH_HINT_RATIO: number = 0.30;
 
 @Component
 export struct ReaderTranslationOverlay {
@@ -65,8 +66,10 @@ export struct ReaderTranslationOverlay {
 
   private baseLayout(line: ReaderTranslationLine, index: number): ReaderTranslationLayout {
     const source = this.sourceBounds(line);
-    const fontSize = Math.max(10, Math.min(24, source.height * 0.72));
-    const preferredWidth = Math.max(source.width,
+    const sourceThickness = line.isVertical === true ? source.width : source.height;
+    const fontSize = Math.max(10, Math.min(24, sourceThickness * 0.72));
+    const sourceWidthHint = Math.min(source.width, this.displayWidth * TRANSLATION_SOURCE_WIDTH_HINT_RATIO);
+    const preferredWidth = Math.max(24, sourceWidthHint,
       Math.min(this.displayWidth * 0.42, estimateUnwrappedTextWidth(line.translatedText, fontSize) +
         TRANSLATION_TEXT_PADDING * 2 + fontSize * 0.5));
     const width = Math.max(24, Math.min(this.displayWidth, preferredWidth));
@@ -76,8 +79,8 @@ export struct ReaderTranslationOverlay {
       width - TRANSLATION_TEXT_PADDING * 2 - fontSize * 0.25);
     const estimatedLines = estimateWrappedTextLines(line.translatedText, availableTextWidth, fontSize);
     const lineHeight = fontSize * 1.12;
-    const height = Math.min(this.displayHeight, Math.max(source.height,
-      estimatedLines * lineHeight + TRANSLATION_TEXT_PADDING * 2 + 2));
+    const height = Math.min(this.displayHeight,
+      estimatedLines * lineHeight + TRANSLATION_TEXT_PADDING * 2 + 2);
     const anchorX = source.x + source.width / 2 - width / 2;
     const anchorY = source.y + source.height / 2 - height / 2;
     const x = Math.max(0, Math.min(this.displayWidth - width, anchorX));
@@ -132,17 +135,17 @@ export struct ReaderTranslationOverlay {
       return item;
     }
     const step = Math.max(2, Math.min(6, item.lineHeight / 3));
-    const maxShiftX = Math.max(step, Math.min(this.displayWidth * 0.07, item.fontSize * 4));
-    const maxShiftY = Math.max(step, Math.min(this.displayHeight * 0.05, item.fontSize * 4));
-    const xOffsets = candidateLayoutOffsets(maxShiftX, step);
-    const yOffsets = candidateLayoutOffsets(maxShiftY, step);
+    const xPositions = this.candidateAxisPositions(item.anchorX, this.displayWidth - item.width, item.width,
+      placed, true, step);
+    const yPositions = this.candidateAxisPositions(item.anchorY, this.displayHeight - item.height, item.height,
+      placed, false, step);
     let best = this.copyLayout(item, item.x, item.y);
     let bestOverlap = this.overlapArea(best, placed);
     let bestDistance = 0;
-    for (let i = 0; i < yOffsets.length; i++) {
-      for (let j = 0; j < xOffsets.length; j++) {
-        const x = Math.max(0, Math.min(this.displayWidth - item.width, item.anchorX + xOffsets[j]));
-        const y = Math.max(0, Math.min(this.displayHeight - item.height, item.anchorY + yOffsets[i]));
+    for (let i = 0; i < yPositions.length; i++) {
+      for (let j = 0; j < xPositions.length; j++) {
+        const x = xPositions[j];
+        const y = yPositions[i];
         const candidate = this.copyLayout(item, x, y);
         const overlap = this.overlapArea(candidate, placed);
         const distance = Math.pow(x - item.anchorX, 2) + Math.pow(y - item.anchorY, 2);
@@ -154,6 +157,30 @@ export struct ReaderTranslationOverlay {
       }
     }
     return best;
+  }
+
+  private candidateAxisPositions(anchor: number, maximum: number, itemSize: number,
+    placed: ReaderTranslationLayout[], horizontal: boolean, step: number): number[] {
+    const result: number[] = [];
+    const safeMaximum = Math.max(0, maximum);
+    appendUniqueLayoutPosition(result, Math.max(0, Math.min(safeMaximum, anchor)));
+    const nearLimit = Math.max(step, Math.min(horizontal ? this.displayWidth * 0.07 : this.displayHeight * 0.05,
+      step * 12));
+    const offsets = candidateLayoutOffsets(nearLimit, step);
+    for (let i = 0; i < offsets.length; i++) {
+      appendUniqueLayoutPosition(result, Math.max(0, Math.min(safeMaximum, anchor + offsets[i])));
+    }
+    appendUniqueLayoutPosition(result, 0);
+    appendUniqueLayoutPosition(result, safeMaximum);
+    for (let i = 0; i < placed.length; i++) {
+      const start = horizontal ? placed[i].x : placed[i].y;
+      const size = horizontal ? placed[i].width : placed[i].height;
+      appendUniqueLayoutPosition(result,
+        Math.max(0, Math.min(safeMaximum, start - itemSize - TRANSLATION_LAYOUT_GAP)));
+      appendUniqueLayoutPosition(result,
+        Math.max(0, Math.min(safeMaximum, start + size + TRANSLATION_LAYOUT_GAP)));
+    }
+    return result;
   }
 
   private copyLayout(item: ReaderTranslationLayout, x: number, y: number): ReaderTranslationLayout {
@@ -343,6 +370,15 @@ function candidateLayoutOffsets(limit: number, step: number): number[] {
     result.push(-value);
   }
   return result;
+}
+
+function appendUniqueLayoutPosition(result: number[], value: number): void {
+  for (let i = 0; i < result.length; i++) {
+    if (Math.abs(result[i] - value) < 0.1) {
+      return;
+    }
+  }
+  result.push(value);
 }
 
 function rectanglesOverlap(left: ReaderTranslationBounds, right: ReaderTranslationBounds, gap: number): boolean {
