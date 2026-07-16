@@ -8,6 +8,7 @@ export interface ReaderTranslationLine {
   translatedText: string;
   cornerPoints: ReaderTranslationPoint[];
   isVertical?: boolean;
+  estimatedFontSize?: number;
 }
 
 export interface ReaderPageTranslation {
@@ -33,7 +34,8 @@ export function cloneReaderPageTranslation(value: ReaderPageTranslation): Reader
       sourceText: value.lines[i].sourceText,
       translatedText: value.lines[i].translatedText,
       cornerPoints: points,
-      isVertical: value.lines[i].isVertical
+      isVertical: value.lines[i].isVertical,
+      estimatedFontSize: value.lines[i].estimatedFontSize
     });
   }
   return {

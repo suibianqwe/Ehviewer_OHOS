@@ -16,6 +16,7 @@ export interface ReaderOcrOverlayDebugItem {
   layoutY: number;
   layoutWidth: number;
   layoutHeight: number;
+  sourceFontSize: number;
   fontSize: number;
   lineHeight: number;
   estimatedLines: number;
@@ -72,7 +73,8 @@ export class ReaderOcrDebugLog {
         items[i].sourceHeight));
       lines.push('  布局框=' + debugRect(items[i].layoutX, items[i].layoutY, items[i].layoutWidth,
         items[i].layoutHeight));
-      lines.push('  文本布局=字号 ' + roundDebugNumber(items[i].fontSize) + '，行高 ' +
+      lines.push('  文本布局=原图缩放字号 ' + roundDebugNumber(items[i].sourceFontSize) + '，实际字号 ' +
+        roundDebugNumber(items[i].fontSize) + '，行高 ' +
         roundDebugNumber(items[i].lineHeight) + '，预计 ' + items[i].estimatedLines.toString() + ' 行');
       lines.push('  位移=(' + roundDebugNumber(items[i].layoutX - items[i].sourceX) + ',' +
         roundDebugNumber(items[i].layoutY - items[i].sourceY) + ')');

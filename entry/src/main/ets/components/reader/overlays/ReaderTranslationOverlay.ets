@@ -26,6 +26,7 @@ interface ReaderTranslationLayout extends ReaderTranslationBounds {
   sourceY: number;
   sourceWidth: number;
   sourceHeight: number;
+  sourceFontSize: number;
   anchorX: number;
   anchorY: number;
 }
@@ -67,7 +68,11 @@ export struct ReaderTranslationOverlay {
   private baseLayout(line: ReaderTranslationLine, index: number): ReaderTranslationLayout {
     const source = this.sourceBounds(line);
     const sourceThickness = line.isVertical === true ? source.width : source.height;
-    const fontSize = Math.max(10, Math.min(24, sourceThickness * 0.72));
+    const sourceScale = Math.min(this.displayWidth / Math.max(1, this.translation?.imageWidth ?? 1),
+      this.displayHeight / Math.max(1, this.translation?.imageHeight ?? 1));
+    const sourceFontSize = line.estimatedFontSize !== undefined && line.estimatedFontSize > 0 ?
+      line.estimatedFontSize * sourceScale : sourceThickness * 0.72;
+    const fontSize = Math.max(11, Math.min(40, sourceFontSize * 0.95));
     const sourceWidthHint = Math.min(source.width, this.displayWidth * TRANSLATION_SOURCE_WIDTH_HINT_RATIO);
     const preferredWidth = Math.max(24, sourceWidthHint,
       Math.min(this.displayWidth * 0.42, estimateUnwrappedTextWidth(line.translatedText, fontSize) +
@@ -100,6 +105,7 @@ export struct ReaderTranslationOverlay {
       sourceY: source.y,
       sourceWidth: source.width,
       sourceHeight: source.height,
+      sourceFontSize: sourceFontSize,
       anchorX: x,
       anchorY: y
     };
@@ -199,6 +205,7 @@ export struct ReaderTranslationOverlay {
       sourceY: item.sourceY,
       sourceWidth: item.sourceWidth,
       sourceHeight: item.sourceHeight,
+      sourceFontSize: item.sourceFontSize,
       anchorX: item.anchorX,
       anchorY: item.anchorY
     };
@@ -221,6 +228,7 @@ export struct ReaderTranslationOverlay {
         layoutY: layouts[i].y,
         layoutWidth: layouts[i].width,
         layoutHeight: layouts[i].height,
+        sourceFontSize: layouts[i].sourceFontSize,
         fontSize: layouts[i].fontSize,
         lineHeight: layouts[i].lineHeight,
         estimatedLines: layouts[i].estimatedLines
@@ -310,11 +318,15 @@ export struct ReaderTranslationOverlay {
               bottom: TRANSLATION_TEXT_PADDING
             })
             .textShadow([
-              { radius: 5, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: 0 },
-              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: 1, offsetY: 0 },
-              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: -1, offsetY: 0 },
-              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: 1 },
-              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: -1 }
+              { radius: 6, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: 0 },
+              { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: 1.6, offsetY: 0 },
+              { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: -1.6, offsetY: 0 },
+              { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: 1.6 },
+              { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: -1.6 },
+              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: 1.2, offsetY: 1.2 },
+              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: -1.2, offsetY: 1.2 },
+              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: 1.2, offsetY: -1.2 },
+              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: -1.2, offsetY: -1.2 }
             ])
             .position({ x: item.x, y: item.y })
             .id('reader-translation-text-' + item.key)

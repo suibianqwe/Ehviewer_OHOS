@@ -60,7 +60,7 @@ interface OcrTextGroup {
 }
 
 const MAX_OCR_IMAGE_EDGE: number = 4096;
-const READER_TRANSLATION_LAYOUT_VERSION: number = 5;
+const READER_TRANSLATION_LAYOUT_VERSION: number = 6;
 
 export class ReaderComicTranslationService {
   private queue: ReaderComicTranslationTask[] = [];
@@ -295,12 +295,13 @@ function collectOcrLines(blocks: textRecognition.TextBlock[], debug: string[]): 
     }
     debug.push('组 ' + i.toString() + '：成员=' + ocrGroupMemberText(groups[i]) + '，框=' +
       formatOcrBounds(groups[i].bounds) + '，方向=' + (groups[i].vertical ? '竖排' : '横排') +
-      '，原文=' + JSON.stringify(source));
+      '，估算字号=' + roundOcrNumber(groupAverageFontSize(groups[i])) + '，原文=' + JSON.stringify(source));
     result.push({
       sourceText: source,
       translatedText: '',
       cornerPoints: boundsCornerPoints(groups[i].bounds),
-      isVertical: groups[i].vertical
+      isVertical: groups[i].vertical,
+      estimatedFontSize: groupAverageFontSize(groups[i])
     });
   }
   return result;
@@ -619,7 +620,7 @@ function groupedOcrSource(group: OcrTextGroup): string {
   for (let i = 0; i < group.lines.length; i++) {
     lines.push(group.lines[i]);
   }
-  const tolerance = Math.max(1, groupAverageFontSize(group) * 0.65);
+  const tolerance = Math.max(1, groupAverageFontSize(group) * (group.vertical ? 0.32 : 0.65));
   lines.sort((left: OcrLineCandidate, right: OcrLineCandidate) => {
     const leftCenterX = left.bounds.x + left.bounds.width / 2;
     const rightCenterX = right.bounds.x + right.bounds.width / 2;
