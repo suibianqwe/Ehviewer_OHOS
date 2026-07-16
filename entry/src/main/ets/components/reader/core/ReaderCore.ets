@@ -11,6 +11,7 @@ export const READER_MAX_SCALE: number = 4;
 export const READER_DOUBLE_TAP_SCALE: number = 2.25;
 export const READER_INERTIA_DURATION: number = 180;
 export const READER_OFFSCREEN_RENDER_COUNT: number = 2;
+const READER_PAN_OVERFLOW_TOLERANCE: number = 2;
 
 export interface ReaderImageCompleteEvent {
   width: number;
@@ -350,12 +351,14 @@ export class ReaderPreviewModel {
 
   private maxOffsetX(): number {
     const scaledWidth = this.imageWidth * this.currentScale;
-    return scaledWidth > this.componentWidth ? (scaledWidth - this.componentWidth) / 2 : 0;
+    const overflow = scaledWidth - this.componentWidth;
+    return overflow > READER_PAN_OVERFLOW_TOLERANCE ? overflow / 2 : 0;
   }
 
   private maxOffsetY(): number {
     const scaledHeight = this.imageHeight * this.currentScale;
-    return scaledHeight > this.componentHeight ? (scaledHeight - this.componentHeight) / 2 : 0;
+    const overflow = scaledHeight - this.componentHeight;
+    return overflow > READER_PAN_OVERFLOW_TOLERANCE ? overflow / 2 : 0;
   }
 
   private restrictBoundary(): void {

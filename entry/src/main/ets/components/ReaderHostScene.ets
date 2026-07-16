@@ -57,6 +57,7 @@ export struct ReaderSessionScene {
   private readerPageLoadRequests: Map<string, Promise<GalleryPageLoadResult>> = new Map();
   private readerPreviewPageSize: number = 0;
   private readerTranslationLoads: string[] = [];
+  private readerTranslationLoadPriorities: Map<string, number> = new Map();
   private readerTranslationRefreshing: number[] = [];
   private readerTranslationScope: string = '';
   private readerPreloadRevision: number = 0;
@@ -90,6 +91,7 @@ export struct ReaderSessionScene {
     this.readerPageLoadRequests.clear();
     this.readerPreviewPageSize = 0;
     this.readerTranslationLoads = [];
+    this.readerTranslationLoadPriorities.clear();
     this.readerTranslationRefreshing = [];
     this.readerTranslations = [];
     this.comicTranslationActive = false;
@@ -544,8 +546,9 @@ export struct ReaderSessionScene {
   }
 
   private requestReaderTranslationWindow(forceCurrent: boolean = false): void {
+    const first = Math.max(0, this.pageIndex - 1);
     const last = Math.min(this.readerTotalPages() - 1, this.pageIndex + 2);
-    for (let index = this.pageIndex; index <= last; index++) {
+    for (let index = first; index <= last; index++) {
       const page = this.readerPageForTranslation(index);
       if (page !== null) {
         this.queueReaderTranslationIfNeeded(index, page, forceCurrent && index === this.pageIndex);
@@ -553,8 +556,22 @@ export struct ReaderSessionScene {
     }
   }
 
+  private readerTranslationPriority(index: number): number {
+    const distance = index - this.pageIndex;
+    if (distance === 0) {
+      return 4;
+    }
+    if (distance === 1) {
+      return 3;
+    }
+    if (distance === 2) {
+      return 2;
+    }
+    return 1;
+  }
+
   private queueReaderTranslationIfNeeded(index: number, page: GalleryPage, force: boolean): void {
-    if (!this.comicTranslationActive || index < this.pageIndex || index > this.pageIndex + 2) {
+    if (!this.comicTranslationActive || index < this.pageIndex - 1 || index > this.pageIndex + 2) {
       if (force) {
         this.finishReaderTranslationRefresh(index);
       }
@@ -572,11 +589,17 @@ export struct ReaderSessionScene {
       return;
     }
     const loadKey = index.toString() + ':' + (force ? 'force' : 'normal');
+    const priority = this.readerTranslationPriority(index);
     if (this.readerTranslationLoads.indexOf(loadKey) >= 0) {
+      const previousPriority = this.readerTranslationLoadPriorities.get(loadKey);
+      if (previousPriority === undefined || priority > previousPriority) {
+        this.readerTranslationLoadPriorities.set(loadKey, priority);
+        readerComicTranslationService.promote(this.readerTranslationScope, index, priority);
+      }
       return;
     }
     this.readerTranslationLoads.push(loadKey);
-    const priority = Math.max(1, 3 - (index - this.pageIndex));
+    this.readerTranslationLoadPriorities.set(loadKey, priority);
     const imagePath = this.readerTranslationImagePath(page);
     const load = force ? Promise.resolve<ReaderPageTranslation | null>(null) :
       readerComicTranslationService.loadStored(context, this.detail, index);
@@ -597,7 +620,9 @@ export struct ReaderSessionScene {
         }
         return;
       }
-      return readerComicTranslationService.request(context, this.detail, index, imagePath, priority, force, scope)
+      const requestPriority = this.readerTranslationLoadPriorities.get(loadKey);
+      return readerComicTranslationService.request(context, this.detail, index, imagePath,
+        requestPriority === undefined ? priority : requestPriority, force, scope)
         .then((translation: ReaderPageTranslation) => {
           if (scope !== this.readerTranslationScope) {
             return;
@@ -634,6 +659,7 @@ export struct ReaderSessionScene {
         }
       }
       this.readerTranslationLoads = next;
+      this.readerTranslationLoadPriorities.delete(loadKey);
     });
   }
 

@@ -135,6 +135,19 @@ export class ReaderComicTranslationService {
     return 'reader-translation:' + (this.scopeSequence++).toString();
   }
 
+  promote(scope: string, pageIndex: number, priority: number): void {
+    if (scope.length === 0) {
+      return;
+    }
+    for (let i = 0; i < this.pending.length; i++) {
+      const task = this.pending[i].task;
+      if (task.scope === scope && task.pageIndex === pageIndex && priority > task.priority) {
+        task.priority = priority;
+      }
+    }
+    this.sortQueue();
+  }
+
   cancelScope(scope: string): void {
     if (scope.length === 0 || this.isScopeCancelled(scope)) {
       return;
