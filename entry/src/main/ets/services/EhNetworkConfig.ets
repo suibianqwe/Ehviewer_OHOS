@@ -15,7 +15,9 @@ const FRONTING_PROBE_CONNECT_TIMEOUT_MS: number = 3000;
 const FRONTING_PROBE_READ_TIMEOUT_MS: number = 3000;
 const FRONTING_PROBE_DEADLINE_MS: number = 4500;
 const FRONTING_PROBE_CONCURRENCY: number = 2;
-const FRONTING_FAST_IP_LIMIT: number = 3;
+const FRONTING_PREFERRED_IP_LIMIT: number = 3;
+const FRONTING_TAIL_SAMPLE_RATE: number = 0.08;
+const FRONTING_WEIGHT_SCORE_BASE: number = 500;
 const DIRECT_PROBE_TIMEOUT_MS: number = 5000;
 const DIRECT_HOST_FAILURE_THRESHOLD: number = 1;
 const DIRECT_HOST_BLOCK_MS: number = 120000;
@@ -47,13 +49,15 @@ const BUILT_EX_RULES: HostRule[] = [
 ];
 let appliedHostRulesKey: string = '';
 let pendingHostRules: Promise<void> | null = null;
-const HOST_IP_CURSORS: HostIpCursor[] = [];
 const HOST_IP_QUALITIES: HostIpQuality[] = [];
 let frontingProbeKey: string = '';
+let frontingProbeNetworkEnvironmentKey: string = '';
 let frontingProbeGeneration: number = 0;
 let frontingProbePending: Promise<void> | null = null;
 let frontingIpCachePath: string = '';
 let frontingIpCacheLoadedKey: string = '';
+let frontingIpCacheLoadedSuccessfully: boolean = false;
+let frontingCachedNetworkEnvironmentKey: string = '';
 let directProbeKey: string = '';
 let directProbeGeneration: number = 0;
 let directProbePending: Promise<boolean> | null = null;
@@ -65,11 +69,6 @@ const DIRECT_HOST_FAILURES: DirectHostFailure[] = [];
 interface HostRule {
   host: string;
   ips: string[];
-}
-
-interface HostIpCursor {
-  host: string;
-  next: number;
 }
 
 interface HostIpQuality {
@@ -98,6 +97,7 @@ interface FrontingIpQualityCache {
   version?: number;
   key?: string;
   updatedAt?: number;
+  networkEnvironmentKey?: string;
   qualities?: HostIpQuality[];
 }
 
@@ -117,10 +117,14 @@ export function createEhRequestPlan(url: string): EhRequestPlan {
       fronted: false
     };
   }
-  if (isEhDirectConnectionProbeEnabled()) {
-    refreshNetworkEnvironment();
+  let networkChanged = false;
+  if (isEhDirectConnectionProbeEnabled() || isEhFrontingBenchmarkEnabled()) {
+    networkChanged = refreshNetworkEnvironment();
   }
   ensureFrontingQualityCacheLoaded();
+  if (networkChanged && isEhFrontingBenchmarkEnabled()) {
+    startEhFrontingBenchmark(undefined, true);
+  }
   if (shouldUseDirectConnection(host)) {
     return {
       url: url,
@@ -288,7 +292,16 @@ export function recordEhRequestOutcome(plan: EhRequestPlan, ok: boolean, elapsed
     return;
   }
   const current = qualityForHostIp(host, ip);
-  const now = Date.now();
+  applyIpQualityMeasurement(current, ok, elapsedMs, Date.now());
+  if (ok) {
+    saveCachedIpQualitiesThrottled(frontingBenchmarkKey());
+  } else {
+    saveCachedIpQualities(frontingBenchmarkKey());
+  }
+}
+
+function applyIpQualityMeasurement(current: HostIpQuality, ok: boolean, elapsedMs: number,
+  now: number): void {
   const successCount = current.successCount === undefined ? 0 : current.successCount;
   const failureCount = current.failureCount === undefined ? 0 : current.failureCount;
   if (ok) {
@@ -311,14 +324,9 @@ export function recordEhRequestOutcome(plan: EhRequestPlan, ok: boolean, elapsed
   }
   current.testedAt = now;
   current.lastResultAt = now;
-  if (ok) {
-    saveCachedIpQualitiesThrottled(frontingBenchmarkKey());
-  } else {
-    saveCachedIpQualities(frontingBenchmarkKey());
-  }
 }
 
-export function startEhFrontingBenchmark(context?: common.UIAbilityContext): void {
+export function startEhFrontingBenchmark(context?: common.UIAbilityContext, forceRefresh: boolean = false): void {
   if (context !== undefined) {
     frontingIpCachePath = context.filesDir + '/' + FRONTING_IP_CACHE_FILE_NAME;
   }
@@ -328,19 +336,32 @@ export function startEhFrontingBenchmark(context?: common.UIAbilityContext): voi
     return;
   }
   const hasCachedBenchmark = loadCachedIpQualities(key);
-  if (key === frontingProbeKey && frontingProbePending !== null) {
+  const currentEnvironmentKey = currentNetworkEnvironmentKey();
+  if (observedNetworkEnvironmentKey.length === 0 && currentEnvironmentKey.length > 0) {
+    observedNetworkEnvironmentKey = currentEnvironmentKey;
+  }
+  const cachedNetworkChanged = hasCachedBenchmark && currentEnvironmentKey.length > 0 &&
+    frontingCachedNetworkEnvironmentKey !== currentEnvironmentKey;
+  const preserveScores = forceRefresh || cachedNetworkChanged;
+  if (key === frontingProbeKey && frontingProbePending !== null &&
+    frontingProbeNetworkEnvironmentKey === currentEnvironmentKey) {
     return;
   }
-  if (hasCachedBenchmark || hasUsableIpQualities()) {
+  if (!preserveScores && (hasCachedBenchmark || hasUsableIpQualities())) {
     return;
   }
   frontingProbeKey = key;
+  frontingProbeNetworkEnvironmentKey = currentEnvironmentKey;
   frontingProbeGeneration++;
   const generation = frontingProbeGeneration;
   frontingProbePending = runEhFrontingBenchmark(generation).then((results: HostIpQuality[]) => {
     if (generation === frontingProbeGeneration) {
-      replaceIpQualities(results);
-      saveCachedIpQualities(key);
+      if (preserveScores) {
+        mergeIpQualityMeasurements(results);
+      } else {
+        replaceIpQualities(results);
+      }
+      saveCachedIpQualities(key, true);
       frontingProbePending = null;
     }
   }).catch(() => {
@@ -354,6 +375,7 @@ function cancelFrontingBenchmark(): void {
   frontingProbeGeneration++;
   frontingProbePending = null;
   frontingProbeKey = 'Off';
+  frontingProbeNetworkEnvironmentKey = '';
 }
 
 export async function ensureEhHostRules(): Promise<void> {
@@ -453,27 +475,7 @@ function rotatingIpv4ForHost(host: string, rules: HostRule[]): string {
   if (fallbackIps.length === 0) {
     return '';
   }
-  let cursor = cursorForHost(host);
-  if (cursor.next < 0 || cursor.next >= fallbackIps.length) {
-    cursor.next = Math.floor(Math.random() * fallbackIps.length);
-  }
-  const fallbackIp = fallbackIps[cursor.next];
-  cursor.next = (cursor.next + 1) % fallbackIps.length;
-  return fallbackIp;
-}
-
-function cursorForHost(host: string): HostIpCursor {
-  for (let i = 0; i < HOST_IP_CURSORS.length; i++) {
-    if (HOST_IP_CURSORS[i].host === host) {
-      return HOST_IP_CURSORS[i];
-    }
-  }
-  const cursor: HostIpCursor = {
-    host: host,
-    next: -1
-  };
-  HOST_IP_CURSORS.push(cursor);
-  return cursor;
+  return fallbackIps[Math.floor(Math.random() * fallbackIps.length)];
 }
 
 function ipv4ListForHost(host: string, rules: HostRule[]): string[] {
@@ -514,14 +516,38 @@ function weightedIpv4ForHost(host: string, rules: HostRule[]): string {
     }
     return left.ip.localeCompare(right.ip);
   });
-  const limit = Math.min(FRONTING_FAST_IP_LIMIT, results.length);
-  const cursor = cursorForHost(host);
-  if (cursor.next < 0 || cursor.next >= limit) {
-    cursor.next = 0;
+  const preferredLimit = Math.min(FRONTING_PREFERRED_IP_LIMIT, results.length);
+  if (results.length > preferredLimit && Math.random() < FRONTING_TAIL_SAMPLE_RATE) {
+    return weightedRandomIp(results, preferredLimit, results.length);
   }
-  const selected = results[cursor.next];
-  cursor.next = (cursor.next + 1) % limit;
-  return selected.ip;
+  return weightedRandomIp(results, 0, preferredLimit);
+}
+
+function weightedRandomIp(results: HostIpQuality[], start: number, end: number): string {
+  if (start >= end) {
+    return '';
+  }
+  const bestScore = ipQualityScore(results[0]);
+  let totalWeight = 0;
+  const weights: number[] = [];
+  for (let i = start; i < end; i++) {
+    const scoreDistance = Math.max(0, ipQualityScore(results[i]) - bestScore);
+    const healthWeight = results[i].ok ? 1 : 0.15;
+    const weight = healthWeight / (FRONTING_WEIGHT_SCORE_BASE + scoreDistance);
+    weights.push(weight);
+    totalWeight += weight;
+  }
+  if (totalWeight <= 0) {
+    return results[start].ip;
+  }
+  let cursor = Math.random() * totalWeight;
+  for (let i = 0; i < weights.length; i++) {
+    cursor -= weights[i];
+    if (cursor <= 0) {
+      return results[start + i].ip;
+    }
+  }
+  return results[end - 1].ip;
 }
 
 async function runEhFrontingBenchmark(generation: number): Promise<HostIpQuality[]> {
@@ -721,19 +747,32 @@ function replaceIpQualities(results: HostIpQuality[]): boolean {
   return true;
 }
 
+function mergeIpQualityMeasurements(results: HostIpQuality[]): boolean {
+  let merged = false;
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    if (!isKnownProbeTarget(result.host, result.ip)) {
+      continue;
+    }
+    const current = qualityForHostIp(result.host, result.ip);
+    applyIpQualityMeasurement(current, result.ok, result.latencyMs, result.testedAt);
+    merged = true;
+  }
+  return merged;
+}
+
 function clearIpQualities(): void {
   HOST_IP_QUALITIES.splice(0, HOST_IP_QUALITIES.length);
-  for (let i = 0; i < HOST_IP_CURSORS.length; i++) {
-    HOST_IP_CURSORS[i].next = -1;
-  }
 }
 
 function loadCachedIpQualities(key: string): boolean {
   if (frontingIpCacheLoadedKey === key) {
-    return true;
+    return frontingIpCacheLoadedSuccessfully;
   }
   clearIpQualities();
   frontingIpCacheLoadedKey = key;
+  frontingIpCacheLoadedSuccessfully = false;
+  frontingCachedNetworkEnvironmentKey = '';
   if (frontingIpCachePath.length === 0) {
     return false;
   }
@@ -742,6 +781,7 @@ function loadCachedIpQualities(key: string): boolean {
     if (!frontingCacheKeyMatches(parsed.key, key) || !Array.isArray(parsed.qualities)) {
       return false;
     }
+    let loadedCount = 0;
     for (let i = 0; i < parsed.qualities.length; i++) {
       const item = parsed.qualities[i];
       if (isValidIpQuality(item)) {
@@ -755,15 +795,19 @@ function loadCachedIpQualities(key: string): boolean {
           failureCount: typeof item.failureCount === 'number' ? item.failureCount : 0,
           lastResultAt: typeof item.lastResultAt === 'number' ? item.lastResultAt : item.testedAt
         });
+        loadedCount++;
       }
     }
-    return true;
+    frontingIpCacheLoadedSuccessfully = loadedCount > 0;
+    frontingCachedNetworkEnvironmentKey = typeof parsed.networkEnvironmentKey === 'string' ?
+      parsed.networkEnvironmentKey : '';
+    return frontingIpCacheLoadedSuccessfully;
   } catch (error) {
     return false;
   }
 }
 
-function saveCachedIpQualities(key: string): void {
+function saveCachedIpQualities(key: string, benchmarkCompleted: boolean = false): void {
   if (frontingIpCachePath.length === 0) {
     return;
   }
@@ -779,13 +823,20 @@ function saveCachedIpQualities(key: string): void {
   try {
     const file = fs.openSync(frontingIpCachePath, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
     fd = file.fd;
+    const networkEnvironmentKey = currentNetworkEnvironmentKey();
+    if (benchmarkCompleted && networkEnvironmentKey.length > 0) {
+      frontingCachedNetworkEnvironmentKey = networkEnvironmentKey;
+    }
     const payload: FrontingIpQualityCache = {
       version: FRONTING_IP_CACHE_VERSION,
       key: key,
       updatedAt: Date.now(),
+      networkEnvironmentKey: frontingCachedNetworkEnvironmentKey,
       qualities: qualities
     };
     fs.writeSync(fd, JSON.stringify(payload));
+    frontingIpCacheLoadedKey = key;
+    frontingIpCacheLoadedSuccessfully = qualities.length > 0;
   } catch (error) {
   } finally {
     if (fd >= 0) {
@@ -1005,17 +1056,17 @@ function frontingCacheKeyMatches(cachedKey: string | undefined, currentKey: stri
   return cachedKey === currentKey || cachedKey.startsWith(currentKey + ':');
 }
 
-function refreshNetworkEnvironment(): void {
+function refreshNetworkEnvironment(): boolean {
   const key = currentNetworkEnvironmentKey();
   if (key.length === 0) {
-    return;
+    return false;
   }
   if (observedNetworkEnvironmentKey.length === 0) {
     observedNetworkEnvironmentKey = key;
-    return;
+    return false;
   }
   if (observedNetworkEnvironmentKey === key) {
-    return;
+    return false;
   }
   observedNetworkEnvironmentKey = key;
   directProbeGeneration++;
@@ -1023,6 +1074,7 @@ function refreshNetworkEnvironment(): void {
   directProbePending = null;
   directProbePassed = false;
   clearDirectHostFailures();
+  return true;
 }
 
 function currentNetworkEnvironmentKey(): string {
