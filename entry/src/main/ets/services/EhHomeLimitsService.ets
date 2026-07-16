@@ -1,6 +1,5 @@
 import { GallerySite } from '../model/GalleryModels';
 import { EhHttpClient } from './EhHttpClient';
-import { ehSettingsStore } from './EhSettingsStore';
 import { EhUrl } from './EhUrl';
 
 export interface EhHomeLimits {
@@ -32,28 +31,31 @@ const EMPTY_LIMITS: EhHomeLimits = {
 
 class EhHomeLimitsService {
   private client: EhHttpClient = new EhHttpClient();
-  private cachedSite: GallerySite = GallerySite.E;
   private cachedLimits: EhHomeLimits | null = null;
   private pendingLoad: Promise<EhHomeLimitsResult> | null = null;
+  private pendingReset: Promise<EhHomeLimitsResult> | null = null;
 
   getCached(): EhHomeLimits | null {
-    const site = this.currentSite();
-    if (this.cachedLimits === null || site !== this.cachedSite) {
+    if (this.cachedLimits === null) {
       return null;
     }
     return cloneLimits(this.cachedLimits);
   }
 
   async load(force: boolean = false): Promise<EhHomeLimitsResult> {
-    const site = this.currentSite();
-    if (!force && this.cachedLimits !== null && site === this.cachedSite) {
-      return successResult(this.cachedLimits);
-    }
-    if (!force && this.pendingLoad !== null) {
+    // A forced refresh must replace the cached value, but it must not create another native HTTP task while the
+    // previous refresh is still running. The panel can be rebuilt while a request is in flight on large screens.
+    if (this.pendingLoad !== null) {
       return this.pendingLoad;
     }
+    if (this.pendingReset !== null) {
+      return this.pendingReset;
+    }
+    if (!force && this.cachedLimits !== null) {
+      return successResult(this.cachedLimits);
+    }
 
-    const pending = this.requestLimits(site, false);
+    const pending = this.requestLimits(false);
     this.pendingLoad = pending;
     try {
       return await pending;
@@ -65,15 +67,34 @@ class EhHomeLimitsService {
   }
 
   async reset(): Promise<EhHomeLimitsResult> {
-    return this.requestLimits(this.currentSite(), true);
+    if (this.pendingReset !== null) {
+      return this.pendingReset;
+    }
+    const pending = this.resetAfterPendingLoad();
+    this.pendingReset = pending;
+    try {
+      return await pending;
+    } finally {
+      if (this.pendingReset === pending) {
+        this.pendingReset = null;
+      }
+    }
   }
 
-  private async requestLimits(site: GallerySite, reset: boolean): Promise<EhHomeLimitsResult> {
-    const url = EhUrl.getHomeUrl(site);
+  private async resetAfterPendingLoad(): Promise<EhHomeLimitsResult> {
+    if (this.pendingLoad !== null) {
+      await this.pendingLoad;
+    }
+    return this.requestLimits(true);
+  }
+
+  private async requestLimits(reset: boolean): Promise<EhHomeLimitsResult> {
+    const url = EhUrl.getHomeUrl(GallerySite.E);
+    const referer = EhUrl.getReferer(GallerySite.E);
     try {
       const response = reset ?
-        await this.client.postForm(url, 'reset_imagelimit=Reset+Limit', EhUrl.getReferer(site), EhUrl.getReferer(site)) :
-        await this.client.getText(url, EhUrl.getReferer(site), 0);
+        await this.client.postForm(url, 'reset_imagelimit=Reset+Limit', referer, referer) :
+        await this.client.getText(url, referer, 0);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return failureResult(response.statusCode, 'HTTP ' + response.statusCode.toString());
       }
@@ -81,7 +102,6 @@ class EhHomeLimitsService {
       if (limits === null) {
         return failureResult(response.statusCode, 'EH limits were not found in the account page');
       }
-      this.cachedSite = site;
       this.cachedLimits = cloneLimits(limits);
       return successResult(limits, response.statusCode);
     } catch (error) {
@@ -89,9 +109,6 @@ class EhHomeLimitsService {
     }
   }
 
-  private currentSite(): GallerySite {
-    return ehSettingsStore.getValue('gallery_site', 'E-Hentai') === 'ExHentai' ? GallerySite.Ex : GallerySite.E;
-  }
 }
 
 export function parseEhHomeLimits(body: string): EhHomeLimits | null {

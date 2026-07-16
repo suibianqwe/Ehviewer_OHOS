@@ -16,14 +16,14 @@ const FRONTING_IP_CACHE_VERSION: number = 1;
 const FRONTING_PROBE_CONNECT_TIMEOUT_MS: number = 3000;
 const FRONTING_PROBE_READ_TIMEOUT_MS: number = 3000;
 const FRONTING_PROBE_DEADLINE_MS: number = 4500;
-const FRONTING_PROBE_CONCURRENCY: number = 4;
+const FRONTING_PROBE_CONCURRENCY: number = 2;
 const FRONTING_FAST_IP_LIMIT: number = 3;
 const DIRECT_PROBE_TIMEOUT_MS: number = 5000;
 const DIRECT_HOST_FAILURE_THRESHOLD: number = 1;
 const DIRECT_HOST_BLOCK_MS: number = 120000;
 const IP_FAILURE_LATENCY_PENALTY_MS: number = 2500;
 const IP_SUCCESS_LATENCY_BONUS_MS: number = 120;
-const IP_RETRY_DEMOTE_THRESHOLD: number = 2;
+const IP_RETRY_DEMOTE_THRESHOLD: number = 1;
 const IP_UNTESTED_LATENCY_MS: number = 2200;
 const IP_QUALITY_SAVE_THROTTLE_MS: number = 30000;
 const IP_SLOW_RESPONSE_THRESHOLD_MS: number = 4000;
@@ -179,6 +179,11 @@ export function applyEhNetworkOptions(options: http.HttpRequestOptions, plan: Eh
   applyConfiguredNetworkOptions(options);
   if (plan.fronted) {
     options.remoteValidation = 'skip';
+    // API 26 can explicitly prevent the system HTTP/2 pool from reusing an IP connection for another Host/SNI
+    // combination. Connection: close alone is not sufficient on affected HarmonyOS 6.1 builds.
+    if (deviceInfo.apiAvailable('26.0.0')) {
+      options.reuseConnections = false;
+    }
     if (deviceInfo.apiAvailable(23)) {
       if (plan.sniHostName !== undefined && plan.sniHostName.length > 0) {
         options.sniHostName = plan.sniHostName;
@@ -517,21 +522,13 @@ function weightedIpv4ForHost(host: string, rules: HostRule[]): string {
     return left.ip.localeCompare(right.ip);
   });
   const limit = Math.min(FRONTING_FAST_IP_LIMIT, results.length);
-  let totalWeight = 0;
-  for (let i = 0; i < limit; i++) {
-    totalWeight += ipQualityWeight(results[i]);
+  const cursor = cursorForHost(host);
+  if (cursor.next < 0 || cursor.next >= limit) {
+    cursor.next = 0;
   }
-  if (totalWeight <= 0) {
-    return results[0].ip;
-  }
-  let ticket = Math.random() * totalWeight;
-  for (let i = 0; i < limit; i++) {
-    ticket -= ipQualityWeight(results[i]);
-    if (ticket <= 0) {
-      return results[i].ip;
-    }
-  }
-  return results[0].ip;
+  const selected = results[cursor.next];
+  cursor.next = (cursor.next + 1) % limit;
+  return selected.ip;
 }
 
 async function runEhFrontingBenchmark(generation: number): Promise<HostIpQuality[]> {
@@ -601,6 +598,9 @@ async function probeFrontingIp(target: HostIpProbeTarget): Promise<HostIpQuality
       if (sniHostName.length > 0) {
         options.sniHostName = sniHostName;
       }
+    }
+    if (deviceInfo.apiAvailable('26.0.0')) {
+      options.reuseConnections = false;
     }
     applyConfiguredNetworkOptions(options);
     await requestProbeToCompletion(request, 'https://' + target.ip + '/', options);
@@ -715,14 +715,6 @@ function ipQualityScore(item: HostIpQuality): number {
   const okPenalty = item.ok ? 0 : IP_FAILURE_LATENCY_PENALTY_MS;
   return item.latencyMs + testedPenalty + okPenalty + failureCount * IP_FAILURE_LATENCY_PENALTY_MS -
     Math.min(1200, successCount * IP_SUCCESS_LATENCY_BONUS_MS);
-}
-
-function ipQualityWeight(item: HostIpQuality): number {
-  const score = Math.max(100, ipQualityScore(item));
-  const successCount = item.successCount === undefined ? 0 : item.successCount;
-  const failureCount = item.failureCount === undefined ? 0 : item.failureCount;
-  const reliability = Math.max(1, 8 + successCount * 2 - failureCount * 5);
-  return Math.max(1, Math.round(100000 * reliability / score));
 }
 
 function replaceIpQualities(results: HostIpQuality[]): boolean {
@@ -995,9 +987,15 @@ async function probeDirectSelectedSite(): Promise<boolean> {
 }
 
 function isKnownProbeTarget(host: string, ip: string): boolean {
-  const targets = collectFrontingProbeTargets();
-  for (let i = 0; i < targets.length; i++) {
-    if (targets[i].host === host && targets[i].ip === ip) {
+  if (ehSettingsStore.getValue('domain_fronting', 'Off') !== 'On') {
+    return false;
+  }
+  return ruleContainsHostIp(BUILT_IN_RULES, host, ip) || ruleContainsHostIp(BUILT_EX_RULES, host, ip);
+}
+
+function ruleContainsHostIp(rules: HostRule[], host: string, ip: string): boolean {
+  for (let i = 0; i < rules.length; i++) {
+    if (rules[i].host === host && rules[i].ips.indexOf(ip) >= 0) {
       return true;
     }
   }
