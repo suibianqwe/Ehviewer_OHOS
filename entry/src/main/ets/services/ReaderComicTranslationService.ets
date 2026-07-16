@@ -63,7 +63,7 @@ interface OcrTextGroup {
 
 const MAX_OCR_IMAGE_EDGE: number = 4096;
 const MAX_CONCURRENT_OCR_TASKS: number = 1;
-const READER_TRANSLATION_LAYOUT_VERSION: number = 8;
+const READER_TRANSLATION_LAYOUT_VERSION: number = 9;
 const READER_TRANSLATION_CANCELLED_MESSAGE: string = 'Reader translation request cancelled';
 
 export class ReaderComicTranslationService {
@@ -286,8 +286,9 @@ export class ReaderComicTranslationService {
       await Promise.all(lines.map(async (line: ReaderTranslationLine) => {
         this.ensureTaskActive(task);
         const contentKind = line.isVertical === true ? 'vertical comic dialogue' : 'comic dialogue';
-        line.translatedText = await ehTranslationService.translate(line.sourceText, contentKind, task.priority, true,
-          true, task.force, task.cancellationToken);
+        const translationSource = groupedOcrTranslationSource(line.sourceText);
+        line.translatedText = await ehTranslationService.translate(translationSource, contentKind, task.priority,
+          true, true, task.force, task.cancellationToken);
       }));
       this.ensureTaskActive(task);
       debug.push('[最终翻译]');
@@ -729,6 +730,39 @@ function groupedOcrSource(group: OcrTextGroup): string {
     values.push(normalizeOcrLineText(lines[i].text, group.vertical));
   }
   return values.join('\n').trim();
+}
+
+function groupedOcrTranslationSource(value: string): string {
+  const sourceRows = value.split(/\r\n|\r|\n|\\n/g);
+  let result = '';
+  for (let i = 0; i < sourceRows.length; i++) {
+    const row = sourceRows[i].replace(/[ \t]+/g, ' ').trim();
+    if (row.length === 0) {
+      continue;
+    }
+    if (result.length > 0 && ocrTranslationBoundaryNeedsSpace(result, row)) {
+      result += ' ';
+    }
+    result += row;
+  }
+  return result.trim();
+}
+
+function ocrTranslationBoundaryNeedsSpace(left: string, right: string): boolean {
+  const leftCharacter = left[left.length - 1];
+  const rightCharacter = right[0];
+  if (isCjkOcrCharacter(leftCharacter) || isCjkOcrCharacter(rightCharacter)) {
+    return false;
+  }
+  if (/[（「『【《〈〔［｛(]/.test(leftCharacter) ||
+    /[、。！？…，．：；,.!?:;））」』】》〉〕］｝)]/.test(rightCharacter)) {
+    return false;
+  }
+  return true;
+}
+
+function isCjkOcrCharacter(value: string): boolean {
+  return /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/.test(value);
 }
 
 function normalizeOcrLineText(value: string, vertical: boolean): string {
