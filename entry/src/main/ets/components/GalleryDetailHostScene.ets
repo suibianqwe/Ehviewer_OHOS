@@ -52,7 +52,7 @@ import {
   loadGalleryDetailModule
 } from '../services/GalleryDetailModule';
 import { DetailPreviewPager, loadGalleryPreviewPage, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
-import { readerImageCache } from '../services/ReaderImageCache';
+import { IMAGE_DOWNLOAD_PRIORITY_INTERACTIVE, readerImageCache } from '../services/ReaderImageCache';
 import { AsyncRequestGate } from '../services/AsyncRequestGate';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
@@ -1284,8 +1284,9 @@ export struct GalleryDetailHostScene {
         const result = await this.client.loadGalleryPageFast(previewPageUrl, this.detailLink.site, referer);
         if (result.ok && result.page !== null && result.page.imageUrl.length > 0) {
           const pageReferer = result.page.pageUrl.length > 0 ? result.page.pageUrl : previewPageUrl;
-          const path = await readerImageCache.ensureCached(context, result.page.imageUrl, pageReferer, true, undefined,
-            readerPageImageCacheKey(result.page, false), { retryLimit: 3 });
+          const path = await readerImageCache.ensureCached(context, result.page.imageUrl, pageReferer,
+            IMAGE_DOWNLOAD_PRIORITY_INTERACTIVE, undefined, readerPageImageCacheKey(result.page, false),
+            { retryLimit: 3 });
           if (path.length > 0) {
             return path;
           }
@@ -1298,7 +1299,8 @@ export struct GalleryDetailHostScene {
     if (thumb.length === 0) {
       return '';
     }
-    return readerImageCache.ensureCached(context, thumb, referer, true, undefined, detailCoverCacheKey(this.detail));
+    return readerImageCache.ensureCached(context, thumb, referer, IMAGE_DOWNLOAD_PRIORITY_INTERACTIVE, undefined,
+      detailCoverCacheKey(this.detail));
   }
 
   private openTagSearch(namespace: string, tag: string): void {

@@ -1,6 +1,10 @@
 import { GalleryPage } from '../../../model/GalleryModels';
 import { ReaderPageTranslation } from '../../../model/ReaderTranslationModels';
-import { ImageDownloadProgress, readerImageCache } from '../../../services/ReaderImageCache';
+import {
+  IMAGE_DOWNLOAD_PRIORITY_READER,
+  ImageDownloadProgress,
+  readerImageCache
+} from '../../../services/ReaderImageCache';
 import {
   createEmptyPage,
   getAbilityContext,
@@ -31,7 +35,7 @@ export struct ReaderContinuousImageItem {
   @Prop @Watch('onFitModeChange') fitMode: string = 'Fixed scale';
   @Prop @Watch('onZoomScaleChange') zoomScale: number = READER_BASE_SCALE;
   @Prop sharedOffsetX: number = 0;
-  @Prop isActive: boolean = false;
+  @Prop @Watch('onActiveChange') isActive: boolean = false;
   @Prop translation: ReaderPageTranslation | null = null;
   onTap: (x: number, y: number, w: number, h: number) => void =
     (_x: number, _y: number, _w: number, _h: number) => {};
@@ -62,6 +66,12 @@ export struct ReaderContinuousImageItem {
   aboutToAppear(): void {
     this.onImageSourceChange();
     this.onFitModeChange();
+  }
+
+  onActiveChange(): void {
+    if (this.isActive) {
+      this.startDownloadProgressMonitor();
+    }
   }
 
   private imageUrl(): string {
@@ -136,17 +146,21 @@ export struct ReaderContinuousImageItem {
     if (this.localSourceImagePath().length > 0) {
       return;
     }
+    if (!this.isActive) {
+      return;
+    }
     const context = getAbilityContext();
     const sourceUrl = this.sourceImageUrl();
     if (context === undefined || sourceUrl.length === 0) {
       return;
     }
-    readerImageCache.ensureCached(context, sourceUrl, this.page.pageUrl, true, (progress: ImageDownloadProgress) => {
-      if (requestId !== this.downloadProgressRequestId) {
-        return;
-      }
-      this.downloadProgress = readerDownloadProgressPercent(progress);
-    }, this.sourceImageCacheKey()).then(() => {
+    readerImageCache.ensureCached(context, sourceUrl, this.page.pageUrl, IMAGE_DOWNLOAD_PRIORITY_READER,
+      (progress: ImageDownloadProgress) => {
+        if (requestId !== this.downloadProgressRequestId) {
+          return;
+        }
+        this.downloadProgress = readerDownloadProgressPercent(progress);
+      }, this.sourceImageCacheKey()).then(() => {
       if (requestId === this.downloadProgressRequestId) {
         this.downloadProgress = 100;
       }

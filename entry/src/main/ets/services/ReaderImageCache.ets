@@ -20,12 +20,19 @@ interface PendingImageDownload {
   promise: Promise<string>;
   listeners: ImageDownloadProgressCallback[];
   lastProgress: ImageDownloadProgress;
+  priority: number;
+}
+
+interface WaitingImageSlot {
+  key: string;
+  priority: number;
+  sequence: number;
+  resolve: () => void;
 }
 
 const PENDING_IMAGE_DOWNLOADS: PendingImageDownload[] = [];
-const WAITING_IMAGE_SLOTS: (() => void)[] = [];
+const WAITING_IMAGE_SLOTS: WaitingImageSlot[] = [];
 const ACTIVE_IMAGE_TEMP_PATHS: string[] = [];
-const MAX_ACTIVE_IMAGE_DOWNLOADS: number = 6;
 const DEFAULT_IMAGE_CACHE_BYTES: number = 160 * 1024 * 1024;
 const IMAGE_RETRY_DELAYS_MS: number[] = [300, 900, 1800, 3200];
 const IMAGE_CONNECT_TIMEOUT_MS: number = 4500;
@@ -38,6 +45,12 @@ const IMAGE_UNKNOWN_TOTAL_TIMEOUT_MS: number = 5 * 60 * 1000;
 const IMAGE_MAX_TOTAL_TIMEOUT_MS: number = 10 * 60 * 1000;
 let activeImageDownloads: number = 0;
 let imageTempFileSequence: number = 0;
+let imageSlotSequence: number = 0;
+
+export const IMAGE_DOWNLOAD_PRIORITY_BACKGROUND: number = 0;
+export const IMAGE_DOWNLOAD_PRIORITY_DOWNLOAD: number = 10;
+export const IMAGE_DOWNLOAD_PRIORITY_INTERACTIVE: number = 50;
+export const IMAGE_DOWNLOAD_PRIORITY_READER: number = 100;
 
 interface CachedImageFile {
   path: string;
@@ -84,7 +97,8 @@ interface ImageRequestHeader {
 
 export class ReaderImageCache {
   async ensureCached(context: common.UIAbilityContext, imageUrl: string, referer: string,
-    priority: boolean = false, onProgress?: ImageDownloadProgressCallback, cacheKey: string = '',
+    priority: number = IMAGE_DOWNLOAD_PRIORITY_BACKGROUND, onProgress?: ImageDownloadProgressCallback,
+    cacheKey: string = '',
     options?: ImageDownloadOptions): Promise<string> {
     if (imageUrl.length === 0) {
       return '';
@@ -102,6 +116,10 @@ export class ReaderImageCache {
     const pendingKey = imageDownloadPendingKey(imageUrl, cacheKey);
     const pending = getPending(pendingKey);
     if (pending !== null) {
+      if (priority > pending.priority) {
+        pending.priority = priority;
+        promoteImageSlot(pendingKey, priority);
+      }
       if (onProgress !== undefined) {
         addPendingProgressListener(pendingKey, onProgress);
       }
@@ -115,8 +133,8 @@ export class ReaderImageCache {
     const progressCallback: ImageDownloadProgressCallback = (progress: ImageDownloadProgress): void => {
       publishPendingProgress(pendingKey, progress);
     };
-    const promise = this.download(context, imageUrl, referer, path, priority, progressCallback, options);
-    putPending(pendingKey, promise, listeners);
+    const promise = this.download(context, imageUrl, referer, path, pendingKey, priority, progressCallback, options);
+    putPending(pendingKey, promise, listeners, priority);
     try {
       return await promise;
     } finally {
@@ -198,9 +216,10 @@ export class ReaderImageCache {
   }
 
   private async download(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
-    priority: boolean, onProgress?: ImageDownloadProgressCallback, options?: ImageDownloadOptions): Promise<string> {
+    pendingKey: string, priority: number, onProgress?: ImageDownloadProgressCallback,
+    options?: ImageDownloadOptions): Promise<string> {
     ensureDirectory(readerImageCacheDirectory(context));
-    await acquireImageSlot(priority);
+    await acquireImageSlot(pendingKey, priority);
     try {
       return await this.downloadWithRetry(context, imageUrl, referer, path, onProgress, options);
     } finally {
@@ -1036,13 +1055,15 @@ function getPending(url: string): PendingImageDownload | null {
   return null;
 }
 
-function putPending(url: string, promise: Promise<string>, listeners: ImageDownloadProgressCallback[]): void {
+function putPending(url: string, promise: Promise<string>, listeners: ImageDownloadProgressCallback[],
+  priority: number): void {
   removePending(url);
   PENDING_IMAGE_DOWNLOADS.push({
     url: url,
     promise: promise,
     listeners: listeners,
-    lastProgress: { receivedBytes: 0, totalBytes: 0 }
+    lastProgress: { receivedBytes: 0, totalBytes: 0 },
+    priority: priority
   });
 }
 
@@ -1083,30 +1104,55 @@ function publishPendingProgress(url: string, progress: ImageDownloadProgress): v
   }
 }
 
-function acquireImageSlot(priority: boolean): Promise<void> {
-  if (activeImageDownloads < MAX_ACTIVE_IMAGE_DOWNLOADS) {
-    activeImageDownloads++;
-    return Promise.resolve();
+function configuredImageDownloadLimit(): number {
+  const value = Number.parseInt(ehSettingsStore.getValue('download_thread', '3'));
+  if (Number.isNaN(value) || value <= 0) {
+    return 1;
   }
+  return Math.max(1, Math.min(value, 10));
+}
 
+function acquireImageSlot(key: string, priority: number): Promise<void> {
   return new Promise<void>((resolve: (value: void | PromiseLike<void>) => void) => {
-    const resume = () => {
-      activeImageDownloads++;
-      resolve();
-    };
-    if (priority) {
-      WAITING_IMAGE_SLOTS.unshift(resume);
-    } else {
-      WAITING_IMAGE_SLOTS.push(resume);
-    }
+    WAITING_IMAGE_SLOTS.push({
+      key: key,
+      priority: priority,
+      sequence: imageSlotSequence++,
+      resolve: resolve
+    });
+    dispatchWaitingImageSlots();
   });
 }
 
 function releaseImageSlot(): void {
   activeImageDownloads = Math.max(0, activeImageDownloads - 1);
-  const next = WAITING_IMAGE_SLOTS.shift();
-  if (next !== undefined) {
-    next();
+  dispatchWaitingImageSlots();
+}
+
+function promoteImageSlot(key: string, priority: number): void {
+  for (let i = 0; i < WAITING_IMAGE_SLOTS.length; i++) {
+    if (WAITING_IMAGE_SLOTS[i].key === key && priority > WAITING_IMAGE_SLOTS[i].priority) {
+      WAITING_IMAGE_SLOTS[i].priority = priority;
+    }
+  }
+  dispatchWaitingImageSlots();
+}
+
+function dispatchWaitingImageSlots(): void {
+  const limit = configuredImageDownloadLimit();
+  while (activeImageDownloads < limit && WAITING_IMAGE_SLOTS.length > 0) {
+    let bestIndex = 0;
+    for (let i = 1; i < WAITING_IMAGE_SLOTS.length; i++) {
+      const candidate = WAITING_IMAGE_SLOTS[i];
+      const best = WAITING_IMAGE_SLOTS[bestIndex];
+      if (candidate.priority > best.priority ||
+        (candidate.priority === best.priority && candidate.sequence < best.sequence)) {
+        bestIndex = i;
+      }
+    }
+    const next = WAITING_IMAGE_SLOTS.splice(bestIndex, 1)[0];
+    activeImageDownloads++;
+    next.resolve();
   }
 }
 

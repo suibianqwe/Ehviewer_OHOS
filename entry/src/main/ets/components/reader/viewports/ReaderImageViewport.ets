@@ -1,6 +1,10 @@
 import { GalleryPage } from '../../../model/GalleryModels';
 import { ReaderPageTranslation } from '../../../model/ReaderTranslationModels';
-import { ImageDownloadProgress, readerImageCache } from '../../../services/ReaderImageCache';
+import {
+  IMAGE_DOWNLOAD_PRIORITY_READER,
+  ImageDownloadProgress,
+  readerImageCache
+} from '../../../services/ReaderImageCache';
 import {
   createEmptyPage,
   getAbilityContext,
@@ -231,12 +235,15 @@ export struct ReaderImageViewport {
     if (this.localSourceImagePath().length > 0) {
       return;
     }
+    if (!this.isActive) {
+      return;
+    }
     const context = getAbilityContext();
     const sourceUrl = this.sourceImageUrl();
     if (context === undefined || sourceUrl.length === 0) {
       return;
     }
-    readerImageCache.ensureCached(context, sourceUrl, this.page.pageUrl, this.isActive,
+    readerImageCache.ensureCached(context, sourceUrl, this.page.pageUrl, IMAGE_DOWNLOAD_PRIORITY_READER,
       (progress: ImageDownloadProgress) => {
       if (requestId !== this.downloadProgressRequestId) {
         return;

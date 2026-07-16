@@ -26,7 +26,7 @@ import {
 } from '../services/EhWindowImmersive';
 import { READER_TRANSLATION_BUTTON_VISIBLE_KEY, ehSettingsStore } from '../services/EhSettingsStore';
 import { galleryPageCache } from '../services/GalleryPageCache';
-import { readerImageCache } from '../services/ReaderImageCache';
+import { IMAGE_DOWNLOAD_PRIORITY_READER, readerImageCache } from '../services/ReaderImageCache';
 import {
   createEmptyPage,
   getAbilityContext,
@@ -1378,7 +1378,8 @@ export struct ReaderScene {
       if (imageUrl.length === 0) {
         return '';
       }
-      sourcePath = await readerImageCache.ensureCached(context, imageUrl, page.pageUrl, true, undefined,
+      sourcePath = await readerImageCache.ensureCached(context, imageUrl, page.pageUrl,
+        IMAGE_DOWNLOAD_PRIORITY_READER, undefined,
         readerPageImageCacheKey(page, this.preferOriginal && page.originImageUrl.length > 0));
     }
     return sourcePath;

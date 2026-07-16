@@ -15,7 +15,11 @@ import {
 } from '../services/EhSettingsStore';
 import { GalleryListLoadResult, NetworkDiagnosticResult } from '../services/EhHttpClient';
 import { EhUrl, ListMode } from '../services/EhUrl';
-import { readerImageCache } from '../services/ReaderImageCache';
+import {
+  IMAGE_DOWNLOAD_PRIORITY_BACKGROUND,
+  IMAGE_DOWNLOAD_PRIORITY_READER,
+  readerImageCache
+} from '../services/ReaderImageCache';
 import { previewThumbnailCache } from '../services/PreviewThumbnailCache';
 import { FilterRule, ehFilterStore } from '../services/EhFilterStore';
 import { LocalFavoriteBackupInfo } from '../services/EhLocalFavoritesStore';
@@ -1488,7 +1492,7 @@ export function zhText(text: string): string {
     case 'Multi-thread download': return '多线程下载';
     case 'Number of images downloaded at the same time': return '同时下载的图片数量';
     case 'Preload image': return '预加载图片';
-    case 'Reader/download prefetch count': return '阅读器/下载预取数量';
+    case 'Number of following reader images loaded in advance': return '提前加载的后续阅读器图片数量';
     case 'Download list pagination': return '下载列表分页';
     case 'Paginate large download lists': return '大型下载列表分页显示';
     case 'Image resolution': return '图片分辨率';
@@ -3008,7 +3012,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('download_location', 'Download location', 'App internal storage or public Downloads directory', entries, ['App files', 'Downloads']),
       optionSettingsRow('download_thread', 'Multi-thread download', 'Number of images downloaded at the same time',
         entries, ['1', '2', '3', '4', '5', '8', '10']),
-      optionSettingsRow('preload_image', 'Preload image', 'Reader/download prefetch count', entries, ['0', '3', '5', '10', '20']),
+      optionSettingsRow('preload_image', 'Preload image', 'Number of following reader images loaded in advance',
+        entries, ['0', '3', '5', '10', '20']),
       optionSettingsRow('download_list_pagination', 'Download list pagination', 'Paginate large download lists', entries, ON_OFF_OPTIONS),
       optionSettingsRow('image_size', 'Image resolution', 'Requested E-Hentai image size', entries,
         ['Auto', '780x', '1280x', '1600x', '2400x', 'Original']),
@@ -3588,7 +3593,7 @@ export function readerDisplayImageUrl(page: GalleryPage, preferOriginal: boolean
 
 export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: GalleryPage) => void,
   gallery?: GalleryInfo, index?: number, abilityContext?: common.UIAbilityContext,
-  onError?: (message: string) => void, priority: boolean = true): Promise<void> {
+  onError?: (message: string) => void, priority: number = IMAGE_DOWNLOAD_PRIORITY_READER): Promise<void> {
   const context = abilityContext !== undefined ? abilityContext : getAbilityContext();
   if (context === undefined) {
     if (onError !== undefined) {
@@ -3682,7 +3687,8 @@ export function cacheThumbnailImage(url: string, onReady: (path: string) => void
     return;
   }
 
-  readerImageCache.ensureCached(context, url, EhUrl.getReferer(currentGallerySite()), false, undefined, '',
+  readerImageCache.ensureCached(context, url, EhUrl.getReferer(currentGallerySite()),
+    IMAGE_DOWNLOAD_PRIORITY_BACKGROUND, undefined, '',
     { retryLimit: THUMBNAIL_RETRY_LIMIT }).then((path: string) => {
     if (path.length > 0) {
       enqueueThumbnailReady(path, onReady);

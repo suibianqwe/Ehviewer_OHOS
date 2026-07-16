@@ -13,6 +13,7 @@ import {
   READER_SESSION_REVISION_KEY
 } from '../services/ReaderSessionStore';
 import { readerComicTranslationService } from '../services/ReaderComicTranslationService';
+import { IMAGE_DOWNLOAD_PRIORITY_READER } from '../services/ReaderImageCache';
 import {
   cacheReaderImageForPage,
   cloneGalleryDetail,
@@ -21,6 +22,7 @@ import {
   createEmptyDetail,
   createEmptyPage,
   createReaderLoadingPage,
+  downloadThreadLimit,
   getAbilityContext,
   readerPageReferer,
   readerPreloadCount,
@@ -236,7 +238,7 @@ export struct ReaderSessionScene {
       });
   }
 
-  private cacheReaderImage(index: number, page: GalleryPage, priority: boolean = true): Promise<void> {
+  private cacheReaderImage(index: number, page: GalleryPage): Promise<void> {
     return cacheReaderImageForPage(page, (cachedPage: GalleryPage) => {
       galleryPageCache.put(cachedPage.pageUrl.length > 0 ? cachedPage.pageUrl : page.pageUrl, cachedPage);
       this.setReaderPage(index, cachedPage);
@@ -252,7 +254,7 @@ export struct ReaderSessionScene {
         this.renderVersion++;
         this.persistSession();
       }
-    }, priority);
+    }, IMAGE_DOWNLOAD_PRIORITY_READER);
   }
 
   private tryUseDownloadedPage(index: number, preview: GalleryPreview): boolean {
@@ -314,7 +316,7 @@ export struct ReaderSessionScene {
     const cached = galleryPageCache.get(preview.pageUrl);
     if (cached !== null) {
       this.setReaderPage(index, cached);
-      await this.cacheReaderImage(index, cached, false);
+      await this.cacheReaderImage(index, cached);
       return;
     }
     try {
@@ -326,23 +328,9 @@ export struct ReaderSessionScene {
       galleryPageCache.put(cacheUrl, result.page);
       galleryPageCache.put(preview.pageUrl, result.page);
       this.setReaderPage(index, result.page);
-      await this.cacheReaderImage(index, result.page, false);
+      await this.cacheReaderImage(index, result.page);
     } catch (error) {
     }
-  }
-
-  private readerPreloadBatch(index: number, offset: number, backwardCount: number,
-    forwardCount: number, galleryId: number): Promise<void>[] {
-    const batch: Promise<void>[] = [];
-    const nextIndex = index + offset;
-    if (offset <= forwardCount && nextIndex < this.readerTotalPages()) {
-      batch.push(this.preloadReaderPage(nextIndex, galleryId));
-    }
-    const previousIndex = index - offset;
-    if (offset <= backwardCount && previousIndex >= 0) {
-      batch.push(this.preloadReaderPage(previousIndex, galleryId));
-    }
-    return batch;
   }
 
   private async preloadReaderPages(index: number): Promise<void> {
@@ -355,20 +343,20 @@ export struct ReaderSessionScene {
       return;
     }
     const galleryId = this.detail.gid;
-    const urgentCount = Math.min(2, forwardCount);
-    const urgent: Promise<void>[] = [];
-    for (let offset = 1; offset <= urgentCount; offset++) {
-      const batch = this.readerPreloadBatch(index, offset, dualPageCount, forwardCount, galleryId);
-      for (let i = 0; i < batch.length; i++) {
-        urgent.push(batch[i]);
-      }
-    }
-    await Promise.all(urgent);
-    for (let offset = urgentCount + 1; offset <= forwardCount; offset++) {
+    const parallelCount = downloadThreadLimit();
+    for (let batchStart = 1; batchStart <= forwardCount; batchStart += parallelCount) {
       if (revision !== this.readerPreloadRevision || galleryId !== this.detail.gid) {
         return;
       }
-      await Promise.all(this.readerPreloadBatch(index, offset, dualPageCount, forwardCount, galleryId));
+      const batch: Promise<void>[] = [];
+      const batchEnd = Math.min(forwardCount, batchStart + parallelCount - 1);
+      for (let offset = batchStart; offset <= batchEnd; offset++) {
+        const nextIndex = index + offset;
+        if (nextIndex < this.readerTotalPages()) {
+          batch.push(this.preloadReaderPage(nextIndex, galleryId));
+        }
+      }
+      await Promise.all(batch);
     }
   }
 

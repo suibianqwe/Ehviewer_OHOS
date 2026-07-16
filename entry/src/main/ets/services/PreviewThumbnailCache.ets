@@ -2,7 +2,11 @@ import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { image } from '@kit.ImageKit';
 import { GalleryPreview } from '../model/GalleryModels';
-import { readerImageCache, readerImageCacheDirectory } from './ReaderImageCache';
+import {
+  IMAGE_DOWNLOAD_PRIORITY_BACKGROUND,
+  readerImageCache,
+  readerImageCacheDirectory
+} from './ReaderImageCache';
 
 interface PendingPreviewCrop {
   key: string;
@@ -20,7 +24,7 @@ export class PreviewThumbnailCache {
       return '';
     }
     if (!canCropPreview(preview)) {
-      return readerImageCache.ensureCached(context, preview.imageUrl, referer, false);
+      return readerImageCache.ensureCached(context, preview.imageUrl, referer, IMAGE_DOWNLOAD_PRIORITY_BACKGROUND);
     }
 
     const path = this.pathFor(context, preview);
@@ -53,7 +57,8 @@ export class PreviewThumbnailCache {
 
   private async crop(context: common.UIAbilityContext, preview: GalleryPreview, referer: string,
     outputPath: string): Promise<string> {
-    const sourcePath = await readerImageCache.ensureCached(context, preview.imageUrl, referer, false);
+    const sourcePath = await readerImageCache.ensureCached(context, preview.imageUrl, referer,
+      IMAGE_DOWNLOAD_PRIORITY_BACKGROUND);
     if (sourcePath.length === 0) {
       return '';
     }

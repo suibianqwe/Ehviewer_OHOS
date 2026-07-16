@@ -1,7 +1,11 @@
 import { common, wantAgent, WantAgent } from '@kit.AbilityKit';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { notificationManager } from '@kit.NotificationKit';
-import { ImageDownloadProgress, readerImageCache } from './ReaderImageCache';
+import {
+  IMAGE_DOWNLOAD_PRIORITY_DOWNLOAD,
+  ImageDownloadProgress,
+  readerImageCache
+} from './ReaderImageCache';
 import { ehDownloadFileStore } from './EhDownloadFileStore';
 import { DownloadInfo, DownloadState, ehDownloadStore } from './EhDownloadStore';
 import { EhHttpClient } from './EhHttpClient';
@@ -487,8 +491,8 @@ export class EhDownloadManager {
     let cachedPath = existingCachedPath;
     if (cachedPath.length === 0) {
       try {
-        cachedPath = await readerImageCache.ensureCached(context, imageUrl, page.pageUrl, true, onProgress, cacheKey,
-          { retryLimit: DOWNLOAD_IMAGE_RETRY_LIMIT });
+        cachedPath = await readerImageCache.ensureCached(context, imageUrl, page.pageUrl,
+          IMAGE_DOWNLOAD_PRIORITY_DOWNLOAD, onProgress, cacheKey, { retryLimit: DOWNLOAD_IMAGE_RETRY_LIMIT });
       } catch (error) {
         throw new DownloadImageError(String(error), page);
       }
