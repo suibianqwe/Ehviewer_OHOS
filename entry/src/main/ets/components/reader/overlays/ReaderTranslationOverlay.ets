@@ -114,13 +114,13 @@ export struct ReaderTranslationOverlay {
     const sourceFontSize = line.estimatedFontSize !== undefined && line.estimatedFontSize > 0 ?
       line.estimatedFontSize : sourceThickness * 0.72;
     const coordinateScale = this.coordinateScale();
-    const fontSize = Math.max(TRANSLATION_REFERENCE_MIN_FONT_SIZE * coordinateScale,
+    let fontSize = Math.max(TRANSLATION_REFERENCE_MIN_FONT_SIZE * coordinateScale,
       Math.min(TRANSLATION_REFERENCE_MAX_FONT_SIZE * coordinateScale, sourceFontSize * 0.95));
     const padding = this.textPadding();
     const canvasWidth = this.canvasWidth();
     const canvasHeight = this.canvasHeight();
     const minimumWidth = TRANSLATION_REFERENCE_MIN_WIDTH * coordinateScale;
-    const lineHeight = fontSize * 1.12;
+    let lineHeight = fontSize * 1.12;
     const vertical = line.isVertical === true;
     let width: number;
     let height: number;
@@ -136,14 +136,20 @@ export struct ReaderTranslationOverlay {
       height = verticalLayout.height;
       estimatedLines = verticalLayout.rows;
     } else {
-      const preferredWidth = Math.max(minimumWidth, source.width,
-        Math.min(canvasWidth * TRANSLATION_HORIZONTAL_MAX_WIDTH_RATIO,
-          estimateUnwrappedTextWidth(line.translatedText, fontSize) + padding * 2 + fontSize * 0.5));
-      width = Math.max(minimumWidth, Math.min(canvasWidth, preferredWidth));
-      // Leave a small glyph-width margin because ArkUI's actual font metrics and line breaking can differ from the
-      // estimate. maxLines must not be used here: an underestimated line count silently clips the final wrapped line.
-      const availableTextWidth = Math.max(8 * coordinateScale, width - padding * 2 - fontSize * 0.25);
-      estimatedLines = estimateWrappedTextLines(line.translatedText, availableTextWidth, fontSize);
+      width = horizontalTranslationWidth(line.translatedText, source.width, fontSize, padding, minimumWidth,
+        canvasWidth);
+      estimatedLines = horizontalTranslationLines(line.translatedText, width, fontSize, padding, coordinateScale);
+      const targetHeight = Math.max(source.height * 1.15, lineHeight + padding * 2);
+      const minimumFittedFontSize = 18 * coordinateScale;
+      for (let attempt = 0; attempt < 6 &&
+        estimatedLines * lineHeight + padding * 2 + 2 * coordinateScale > targetHeight &&
+        fontSize > minimumFittedFontSize + 0.1; attempt++) {
+        fontSize = Math.max(minimumFittedFontSize, fontSize * 0.86);
+        lineHeight = fontSize * 1.12;
+        width = horizontalTranslationWidth(line.translatedText, source.width, fontSize, padding, minimumWidth,
+          canvasWidth);
+        estimatedLines = horizontalTranslationLines(line.translatedText, width, fontSize, padding, coordinateScale);
+      }
       height = Math.min(canvasHeight,
         estimatedLines * lineHeight + padding * 2 + 2 * coordinateScale);
     }
@@ -499,8 +505,8 @@ export struct ReaderTranslationOverlay {
           Stack() {}
             .width(box.width)
             .height(box.height)
-            .backgroundColor('rgba(255,255,255,0.20)')
-            .border({ width: 0.5, color: 'rgba(255,255,255,0.32)' })
+            .backgroundColor('rgba(255,255,255,0.34)')
+            .border({ width: 0.5, color: 'rgba(255,255,255,0.46)' })
             .borderRadius(3)
             .position({ x: box.x, y: box.y })
             .id('reader-translation-background-' + index.toString())
@@ -614,6 +620,22 @@ function estimateUnwrappedTextWidth(value: string, fontSize: number): number {
     maximumUnits = Math.max(maximumUnits, estimateTextUnits(rows[i]));
   }
   return maximumUnits * fontSize;
+}
+
+function horizontalTranslationWidth(value: string, sourceWidth: number, fontSize: number, padding: number,
+  minimumWidth: number, canvasWidth: number): number {
+  const preferredWidth = Math.max(minimumWidth, sourceWidth,
+    Math.min(canvasWidth * TRANSLATION_HORIZONTAL_MAX_WIDTH_RATIO,
+      estimateUnwrappedTextWidth(value, fontSize) + padding * 2 + fontSize * 0.5));
+  return Math.max(minimumWidth, Math.min(canvasWidth, preferredWidth));
+}
+
+function horizontalTranslationLines(value: string, width: number, fontSize: number, padding: number,
+  coordinateScale: number): number {
+  // Leave a small glyph-width margin because ArkUI's actual font metrics and line breaking can differ from the
+  // estimate. maxLines must not be used here: an underestimated line count silently clips the final wrapped line.
+  const availableTextWidth = Math.max(8 * coordinateScale, width - padding * 2 - fontSize * 0.25);
+  return estimateWrappedTextLines(value, availableTextWidth, fontSize);
 }
 
 function estimateWrappedTextLines(value: string, availableWidth: number, fontSize: number): number {

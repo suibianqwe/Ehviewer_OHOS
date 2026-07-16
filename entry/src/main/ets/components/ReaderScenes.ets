@@ -1693,7 +1693,8 @@ export struct ReaderScene {
       fixedScale: this.fixedScale,
       startPosition: this.startPosition,
       isActive: this.pageGroupAnchorForPageIndex(index) === this.currentIndex,
-      translation: this.readerTranslationForPage(index),
+      translation: this.pageGroupAnchorForPageIndex(index) === this.currentIndex ?
+        this.readerTranslationForPage(index) : null,
       allowEdgeSwipe: !this.swiperVertical,
       command: this.viewportCommand,
       commandVersion: this.viewportCommandVersion,
@@ -1786,7 +1787,7 @@ export struct ReaderScene {
                 zoomScale: this.fixedScale,
                 sharedOffsetX: this.continuousOffsetX,
                 isActive: item.index === this.currentIndex,
-                translation: this.readerTranslationForPage(item.index),
+                translation: item.index === this.currentIndex ? this.readerTranslationForPage(item.index) : null,
                 onTap: () => {},
                 onRetry: () => {
                   this.onJump(item.index);

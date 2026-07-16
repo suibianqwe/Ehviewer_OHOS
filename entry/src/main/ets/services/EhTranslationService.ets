@@ -51,6 +51,7 @@ interface TranslationBatchItem {
   requestKey: string;
   priority: number;
   allowWhenDisabled: boolean;
+  cancellationToken?: TranslationCancellationToken;
   resolve: (value: string | PromiseLike<string>) => void;
   reject: (reason?: Object) => void;
 }
@@ -431,11 +432,11 @@ export class EhTranslationService {
     contentKind: string, requestKey: string, priority: number, allowWhenDisabled: boolean,
     cancellationToken?: TranslationCancellationToken): Promise<string> {
     cancellationToken?.throwIfCancelled();
-    if (cancellationToken === undefined && !allowWhenDisabled &&
+    if (!allowWhenDisabled &&
       ehSettingsStore.getValue('translation_batch_enabled', 'On') === 'On' &&
       (isMachineTranslationProvider(provider) || providerUsesAi(provider))) {
       return await this.enqueueTranslationBatch(text, target, provider, contentKind, requestKey, priority,
-        allowWhenDisabled);
+        allowWhenDisabled, cancellationToken);
     }
     await acquireTranslationSlot(requestKey, priority, cancellationToken);
     try {
@@ -483,7 +484,8 @@ export class EhTranslationService {
   }
 
   private enqueueTranslationBatch(text: string, target: string, provider: string, contentKind: string,
-    requestKey: string, priority: number, allowWhenDisabled: boolean): Promise<string> {
+    requestKey: string, priority: number, allowWhenDisabled: boolean,
+    cancellationToken?: TranslationCancellationToken): Promise<string> {
     const promise = new Promise<string>((resolve: (value: string | PromiseLike<string>) => void,
       reject: (reason?: Object) => void) => {
       this.translationBatchQueue.push({
@@ -494,6 +496,7 @@ export class EhTranslationService {
         requestKey: requestKey,
         priority: priority,
         allowWhenDisabled: allowWhenDisabled,
+        cancellationToken: cancellationToken,
         resolve: resolve,
         reject: reject
       });
@@ -517,6 +520,12 @@ export class EhTranslationService {
       return;
     }
     const queued = this.translationBatchQueue.splice(0, this.translationBatchQueue.length);
+    for (let i = queued.length - 1; i >= 0; i--) {
+      if (queued[i].cancellationToken?.isCancelled() === true) {
+        queued[i].reject(new Error(TRANSLATION_CANCELLED_MESSAGE));
+        queued.splice(i, 1);
+      }
+    }
     queued.sort((left: TranslationBatchItem, right: TranslationBatchItem) =>
       right.priority - left.priority);
     while (queued.length > 0) {
@@ -530,7 +539,8 @@ export class EhTranslationService {
         const contentMatches = isMachineTranslationProvider(first.provider) ||
           candidate.contentKind === first.contentKind;
         const matches = candidate.provider === first.provider && candidate.target === first.target &&
-          contentMatches && candidate.allowWhenDisabled === first.allowWhenDisabled;
+          contentMatches && candidate.allowWhenDisabled === first.allowWhenDisabled &&
+          candidate.cancellationToken === first.cancellationToken;
         const nextLength = combinedLength + candidate.text.length +
           translationBatchSeparator(first.provider, 0).length;
         if (matches && nextLength <= limit) {
@@ -550,11 +560,13 @@ export class EhTranslationService {
     for (let i = 1; i < batch.length; i++) {
       maxPriority = Math.max(maxPriority, batch[i].priority);
     }
-    await acquireTranslationSlot(batch[0].requestKey, maxPriority);
+    const cancellationToken = batch[0].cancellationToken;
+    await acquireTranslationSlot(batch[0].requestKey, maxPriority, cancellationToken);
     try {
+      cancellationToken?.throwIfCancelled();
       if (batch.length === 1) {
         batch[0].resolve(await this.translateWithProvider(batch[0].text, batch[0].target, batch[0].provider,
-          batch[0].contentKind, batch[0].allowWhenDisabled));
+          batch[0].contentKind, batch[0].allowWhenDisabled, cancellationToken));
         return;
       }
       const separator = translationBatchSeparator(batch[0].provider, this.translationBatchSequence++);
@@ -563,7 +575,7 @@ export class EhTranslationService {
         sources.push(batch[i].text);
       }
       const translated = await this.translateWithProvider(sources.join(separator), batch[0].target,
-        batch[0].provider, batch[0].contentKind, batch[0].allowWhenDisabled);
+        batch[0].provider, batch[0].contentKind, batch[0].allowWhenDisabled, cancellationToken);
       const results = splitTranslationBatchResult(translated, separator);
       if (results.length === batch.length) {
         const retryItems: TranslationBatchItem[] = [];
@@ -595,7 +607,7 @@ export class EhTranslationService {
     for (let i = 0; i < batch.length; i++) {
       try {
         batch[i].resolve(await this.translateWithProvider(batch[i].text, batch[i].target, batch[i].provider,
-          batch[i].contentKind, batch[i].allowWhenDisabled));
+          batch[i].contentKind, batch[i].allowWhenDisabled, batch[i].cancellationToken));
       } catch (error) {
         batch[i].reject(error instanceof Error ? error : new Error(String(error)));
       }

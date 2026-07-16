@@ -63,7 +63,7 @@ interface OcrTextGroup {
 
 const MAX_OCR_IMAGE_EDGE: number = 4096;
 const MAX_CONCURRENT_OCR_TASKS: number = 1;
-const READER_TRANSLATION_LAYOUT_VERSION: number = 7;
+const READER_TRANSLATION_LAYOUT_VERSION: number = 8;
 const READER_TRANSLATION_CANCELLED_MESSAGE: string = 'Reader translation request cancelled';
 
 export class ReaderComicTranslationService {
@@ -453,7 +453,13 @@ function estimateOcrFontSize(line: textRecognition.TextLine, bounds: OcrBounds, 
   }
   sizes.sort((left: number, right: number) => left - right);
   const middle = Math.floor(sizes.length / 2);
-  return sizes.length % 2 === 0 ? (sizes[middle - 1] + sizes[middle]) / 2 : sizes[middle];
+  const median = sizes.length % 2 === 0 ? (sizes[middle - 1] + sizes[middle]) / 2 : sizes[middle];
+  // CoreVision occasionally reports every glyph in a vertical line as a narrow strip spanning the complete line
+  // height. The line width is a more reliable font-size estimate in that case.
+  if (vertical) {
+    return Math.max(median, bounds.width * 0.8);
+  }
+  return median;
 }
 
 function textWordBounds(word: textRecognition.TextWord): OcrBounds | null {
@@ -474,6 +480,14 @@ function textWordBounds(word: textRecognition.TextWord): OcrBounds | null {
 }
 
 function isVerticalOcrLine(line: textRecognition.TextLine, bounds: OcrBounds): boolean {
+  // Prefer the complete line bounds when the aspect ratio is unambiguous. Some CoreVision results for vertical
+  // Japanese text contain horizontal word centres because each word box incorrectly spans the whole column.
+  if (bounds.height > bounds.width * 1.8) {
+    return true;
+  }
+  if (bounds.width > bounds.height * 1.8) {
+    return false;
+  }
   if (line.words.length >= 2) {
     let minX = Number.MAX_VALUE;
     let maxX = -Number.MAX_VALUE;
