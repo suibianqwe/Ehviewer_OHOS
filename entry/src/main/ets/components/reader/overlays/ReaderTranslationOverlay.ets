@@ -128,6 +128,13 @@ export struct ReaderTranslationOverlay {
     let verticalColumns: string[] = [];
     let columnWidth = fontSize * 1.08;
     if (vertical) {
+      const fittedRows = verticalRowsToFitSourceColumns(line.sourceText, line.translatedText);
+      if (fittedRows > 0) {
+        const fittedLineHeight = Math.max(1, (source.height - padding * 2 - 2 * coordinateScale) / fittedRows);
+        const fittedFontSize = fittedLineHeight / 1.12;
+        fontSize = Math.max(14 * coordinateScale, Math.min(fontSize, fittedFontSize));
+        lineHeight = fontSize * 1.12;
+      }
       const verticalLayout = createVerticalTextLayout(line.translatedText, source, fontSize,
         lineHeight, padding, canvasWidth, canvasHeight);
       verticalColumns = verticalLayout.columns;
@@ -505,8 +512,8 @@ export struct ReaderTranslationOverlay {
           Stack() {}
             .width(box.width)
             .height(box.height)
-            .backgroundColor('rgba(255,255,255,0.34)')
-            .border({ width: 0.5, color: 'rgba(255,255,255,0.46)' })
+            .backgroundColor('rgba(255,255,255,0.72)')
+            .border({ width: 0.5, color: 'rgba(255,255,255,0.58)' })
             .borderRadius(3)
             .position({ x: box.x, y: box.y })
             .id('reader-translation-background-' + index.toString())
@@ -592,6 +599,19 @@ function translationCharacters(value: string): string[] {
     result.push(value.charAt(i));
   }
   return result;
+}
+
+function verticalRowsToFitSourceColumns(sourceText: string, translatedText: string): number {
+  const sourceColumns = Math.max(1, nonEmptyTranslationRows(sourceText).length);
+  const translatedRows = nonEmptyTranslationRows(translatedText);
+  if (translatedRows.length === sourceColumns && sourceColumns > 1) {
+    let maximum = 1;
+    for (let i = 0; i < translatedRows.length; i++) {
+      maximum = Math.max(maximum, translationCharacters(translatedRows[i]).length);
+    }
+    return maximum;
+  }
+  return Math.max(1, Math.ceil(translationCharacters(translatedText).length / sourceColumns));
 }
 
 function appendVerticalColumns(result: string[], characters: string[], rowsPerColumn: number): void {
