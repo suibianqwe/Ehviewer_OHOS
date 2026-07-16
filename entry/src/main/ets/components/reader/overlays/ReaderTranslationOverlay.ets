@@ -57,6 +57,9 @@ export struct ReaderTranslationOverlay {
   @Prop translation: ReaderPageTranslation | null = null;
   @Prop displayWidth: number = 1;
   @Prop displayHeight: number = 1;
+  private cachedLayoutKey: string = '';
+  private cachedTranslationLayouts: ReaderTranslationLayout[] = [];
+  private cachedBackgroundLayouts: ReaderTranslationBounds[] = [];
 
   private canvasWidth(): number {
     return Math.max(1, this.translation?.imageWidth ?? this.displayWidth);
@@ -174,8 +177,30 @@ export struct ReaderTranslationOverlay {
   }
 
   private translationLayouts(): ReaderTranslationLayout[] {
+    this.refreshLayoutCache();
+    return this.cachedTranslationLayouts;
+  }
+
+  private layoutCacheKey(): string {
     if (this.translation === null) {
-      return [];
+      return 'empty:' + layoutNumber(this.displayWidth) + 'x' + layoutNumber(this.displayHeight);
+    }
+    return this.translation.pageIndex.toString() + ':' + this.translation.updatedAt.toString() + ':' +
+      (this.translation.layoutVersion ?? 0).toString() + ':' + this.translation.lines.length.toString() + ':' +
+      layoutNumber(this.translation.imageWidth) + 'x' + layoutNumber(this.translation.imageHeight) + ':' +
+      layoutNumber(this.displayWidth) + 'x' + layoutNumber(this.displayHeight);
+  }
+
+  private refreshLayoutCache(): void {
+    const cacheKey = this.layoutCacheKey();
+    if (cacheKey === this.cachedLayoutKey) {
+      return;
+    }
+    this.cachedLayoutKey = cacheKey;
+    if (this.translation === null) {
+      this.cachedTranslationLayouts = [];
+      this.cachedBackgroundLayouts = [];
+      return;
     }
     const pending: ReaderTranslationLayout[] = [];
     for (let i = 0; i < this.translation.lines.length; i++) {
@@ -197,8 +222,9 @@ export struct ReaderTranslationOverlay {
     for (let i = 0; i < sourceLayouts.length; i++) {
       placed.push(this.scaleLayoutToDisplay(sourceLayouts[i]));
     }
+    this.cachedTranslationLayouts = placed;
+    this.cachedBackgroundLayouts = this.mergeBackgroundLayouts(placed);
     this.recordOverlayDebug(placed);
-    return placed;
   }
 
   private scaleLayoutToDisplay(item: ReaderTranslationLayout): ReaderTranslationLayout {
@@ -363,7 +389,11 @@ export struct ReaderTranslationOverlay {
   }
 
   private backgroundLayouts(): ReaderTranslationBounds[] {
-    const texts = this.translationLayouts();
+    this.refreshLayoutCache();
+    return this.cachedBackgroundLayouts;
+  }
+
+  private mergeBackgroundLayouts(texts: ReaderTranslationLayout[]): ReaderTranslationBounds[] {
     const backgrounds: ReaderTranslationBounds[] = [];
     for (let i = 0; i < texts.length; i++) {
       let merged: ReaderTranslationBounds = {

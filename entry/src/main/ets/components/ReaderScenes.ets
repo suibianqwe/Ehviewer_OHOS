@@ -207,6 +207,8 @@ export struct ReaderScene {
   @State menuUltraDarkBrightness: string = '50%';
   private readerWindowActive: boolean = false;
   private hostReaderWindow: window.Window | undefined = undefined;
+  private readerWindowSettingsRevision: number = 0;
+  private readerWindowSettingsTimer: number = -1;
   private autoTransferTimer: number = -1;
   private overlayRefreshTimer: number = -1;
   private overlayRefreshCount: number = 0;
@@ -327,6 +329,11 @@ export struct ReaderScene {
 
   private cleanupReaderScene(): void {
     this.readerWindowActive = false;
+    this.readerWindowSettingsRevision++;
+    if (this.readerWindowSettingsTimer !== -1) {
+      clearTimeout(this.readerWindowSettingsTimer);
+      this.readerWindowSettingsTimer = -1;
+    }
     this.clearPageGroupRefreshTimer();
     this.pageGroupRefreshPending = false;
     this.swiperAnimating = false;
@@ -342,7 +349,17 @@ export struct ReaderScene {
     const keepOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
     const orientation = readerScreenRotationSetting();
     const fullscreen = ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On';
-    this.applyReaderWindowSettingsAsync(keepOn, orientation, fullscreen).catch(() => {});
+    const revision = ++this.readerWindowSettingsRevision;
+    if (this.readerWindowSettingsTimer !== -1) {
+      clearTimeout(this.readerWindowSettingsTimer);
+    }
+    this.readerWindowSettingsTimer = setTimeout(() => {
+      this.readerWindowSettingsTimer = -1;
+      if (!this.readerWindowActive || revision !== this.readerWindowSettingsRevision) {
+        return;
+      }
+      this.applyReaderWindowSettingsAsync(keepOn, orientation, fullscreen, revision).catch(() => {});
+    }, 16) as number;
   }
 
   private async obtainReaderWindow(): Promise<window.Window | undefined> {
@@ -373,11 +390,15 @@ export struct ReaderScene {
     return getMainWindow();
   }
 
-  private async applyReaderWindowSettingsAsync(keepOn: boolean, orientation: string, fullscreen: boolean): Promise<void> {
+  private async applyReaderWindowSettingsAsync(keepOn: boolean, orientation: string, fullscreen: boolean,
+    revision: number): Promise<void> {
     await this.applyReaderWindowSettingsOnce(keepOn, orientation, fullscreen);
-    this.scheduleReaderChromeMode(80);
-    this.scheduleReaderChromeMode(260);
-    this.scheduleReaderChromeMode(620);
+    if (revision !== this.readerWindowSettingsRevision) {
+      return;
+    }
+    this.scheduleReaderChromeMode(80, revision);
+    this.scheduleReaderChromeMode(260, revision);
+    this.scheduleReaderChromeMode(620, revision);
   }
 
   private async applyReaderWindowSettingsOnce(keepOn: boolean, orientation: string, fullscreen: boolean): Promise<void> {
@@ -449,9 +470,9 @@ export struct ReaderScene {
     return Math.max(0, this.bottomAvoidHeight);
   }
 
-  private scheduleReaderChromeMode(delay: number): void {
+  private scheduleReaderChromeMode(delay: number, revision: number): void {
     setTimeout(() => {
-      if (!this.readerWindowActive) {
+      if (!this.readerWindowActive || revision !== this.readerWindowSettingsRevision) {
         return;
       }
       if (this.restoreAppChromeOnExit && !isEmbeddedReaderActive()) {
