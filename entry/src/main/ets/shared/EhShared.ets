@@ -3587,20 +3587,21 @@ export function readerDisplayImageUrl(page: GalleryPage, preferOriginal: boolean
 }
 
 export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: GalleryPage) => void,
-  gallery?: GalleryInfo, index?: number, abilityContext?: common.UIAbilityContext, onError?: (message: string) => void): void {
+  gallery?: GalleryInfo, index?: number, abilityContext?: common.UIAbilityContext,
+  onError?: (message: string) => void, priority: boolean = true): Promise<void> {
   const context = abilityContext !== undefined ? abilityContext : getAbilityContext();
   if (context === undefined) {
     if (onError !== undefined) {
       onError('Ability context is not ready');
     }
-    return;
+    return Promise.resolve();
   }
 
   if (gallery !== undefined && index !== undefined) {
     const downloadedPath = ehDownloadFileStore.findPageImage(context, gallery, index);
     if (downloadedPath.length > 0) {
       onReady(cloneGalleryPageWithCache(page, downloadedPath));
-      return;
+      return Promise.resolve();
     }
   }
 
@@ -3608,16 +3609,16 @@ export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: Galle
     if (onError !== undefined) {
       onError('Image URL missing');
     }
-    return;
+    return Promise.resolve();
   }
 
   const existing = readerImageCache.getCachedPath(context, page.imageUrl, readerPageImageCacheKey(page, false));
   if (existing.length > 0) {
     onReady(cloneGalleryPageWithCache(page, existing));
-    return;
+    return Promise.resolve();
   }
 
-  readerImageCache.ensureCached(context, page.imageUrl, page.pageUrl, true, undefined,
+  return readerImageCache.ensureCached(context, page.imageUrl, page.pageUrl, priority, undefined,
     readerPageImageCacheKey(page, false)).then((path: string) => {
     if (path.length > 0) {
       onReady(cloneGalleryPageWithCache(page, path));

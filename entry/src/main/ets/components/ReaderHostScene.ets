@@ -54,6 +54,7 @@ export struct ReaderSessionScene {
   private loadedSessionRevision: number = -1;
   private readerPreviewMap: Map<number, GalleryPreview> = new Map();
   private readerPreviewPageRequests: Map<number, Promise<GalleryPreview | null>> = new Map();
+  private readerPageLoadRequests: Map<string, Promise<GalleryPageLoadResult>> = new Map();
   private readerPreviewPageSize: number = 0;
   private readerTranslationLoads: string[] = [];
   private readerTranslationRefreshing: number[] = [];
@@ -86,6 +87,7 @@ export struct ReaderSessionScene {
     this.loadedSessionRevision = this.sessionRevision;
     this.readerPreviewMap.clear();
     this.readerPreviewPageRequests.clear();
+    this.readerPageLoadRequests.clear();
     this.readerPreviewPageSize = 0;
     this.readerTranslationLoads = [];
     this.readerTranslationRefreshing = [];
@@ -178,9 +180,9 @@ export struct ReaderSessionScene {
     if (this.comicTranslationActive) {
       this.requestReaderTranslationWindow(false);
     }
+    this.preloadReaderPages(preview.index);
 
     if (this.tryUseDownloadedPage(preview.index, preview)) {
-      this.preloadReaderPages(preview.index);
       this.persistSession();
       return;
     }
@@ -199,13 +201,11 @@ export struct ReaderSessionScene {
       this.setReaderPage(preview.index, cached);
       this.renderVersion++;
       this.cacheReaderImage(preview.index, cached);
-      this.preloadReaderPages(preview.index);
       this.persistSession();
       return;
     }
 
-    this.client.loadGalleryPage(preview.pageUrl, this.site,
-      readerPageReferer(this.detailRequestUrl, this.detail.previewSet, preview.index, this.site))
+    this.requestReaderPage(preview)
       .then((result: GalleryPageLoadResult) => {
         if (!result.ok || result.page === null) {
           this.statusText = 'Page load failed: ' + result.message;
@@ -226,7 +226,6 @@ export struct ReaderSessionScene {
         this.setReaderPage(preview.index, result.page);
         this.renderVersion++;
         this.cacheReaderImage(preview.index, result.page);
-        this.preloadReaderPages(preview.index);
         this.persistSession();
       }).catch((error: Error) => {
         this.statusText = 'Page load failed: ' + error.message;
@@ -235,8 +234,8 @@ export struct ReaderSessionScene {
       });
   }
 
-  private cacheReaderImage(index: number, page: GalleryPage): void {
-    cacheReaderImageForPage(page, (cachedPage: GalleryPage) => {
+  private cacheReaderImage(index: number, page: GalleryPage, priority: boolean = true): Promise<void> {
+    return cacheReaderImageForPage(page, (cachedPage: GalleryPage) => {
       galleryPageCache.put(cachedPage.pageUrl.length > 0 ? cachedPage.pageUrl : page.pageUrl, cachedPage);
       this.setReaderPage(index, cachedPage);
       if (this.pageIndex === index) {
@@ -251,7 +250,7 @@ export struct ReaderSessionScene {
         this.renderVersion++;
         this.persistSession();
       }
-    });
+    }, priority);
   }
 
   private tryUseDownloadedPage(index: number, preview: GalleryPreview): boolean {
@@ -281,61 +280,93 @@ export struct ReaderSessionScene {
     return true;
   }
 
+  private requestReaderPage(preview: GalleryPreview): Promise<GalleryPageLoadResult> {
+    const key = preview.pageUrl;
+    const pending = this.readerPageLoadRequests.get(key);
+    if (pending !== undefined) {
+      return pending;
+    }
+    const request = this.client.loadGalleryPage(preview.pageUrl, this.site,
+      readerPageReferer(this.detailRequestUrl, this.detail.previewSet, preview.index, this.site));
+    this.readerPageLoadRequests.set(key, request);
+    request.then(() => {
+      if (this.readerPageLoadRequests.get(key) === request) {
+        this.readerPageLoadRequests.delete(key);
+      }
+    }).catch(() => {
+      if (this.readerPageLoadRequests.get(key) === request) {
+        this.readerPageLoadRequests.delete(key);
+      }
+    });
+    return request;
+  }
+
+  private async preloadReaderPage(index: number, galleryId: number): Promise<void> {
+    const preview = await this.ensureReaderPreview(index, true);
+    if (galleryId !== this.detail.gid || preview === null || preview.pageUrl.length === 0) {
+      return;
+    }
+    if (this.tryUseDownloadedPage(index, preview)) {
+      return;
+    }
+    const cached = galleryPageCache.get(preview.pageUrl);
+    if (cached !== null) {
+      this.setReaderPage(index, cached);
+      await this.cacheReaderImage(index, cached, false);
+      return;
+    }
+    try {
+      const result = await this.requestReaderPage(preview);
+      if (galleryId !== this.detail.gid || !result.ok || result.page === null) {
+        return;
+      }
+      const cacheUrl = result.page.pageUrl.length > 0 ? result.page.pageUrl : preview.pageUrl;
+      galleryPageCache.put(cacheUrl, result.page);
+      galleryPageCache.put(preview.pageUrl, result.page);
+      this.setReaderPage(index, result.page);
+      await this.cacheReaderImage(index, result.page, false);
+    } catch (error) {
+    }
+  }
+
+  private readerPreloadBatch(index: number, offset: number, backwardCount: number,
+    forwardCount: number, galleryId: number): Promise<void>[] {
+    const batch: Promise<void>[] = [];
+    const nextIndex = index + offset;
+    if (offset <= forwardCount && nextIndex < this.readerTotalPages()) {
+      batch.push(this.preloadReaderPage(nextIndex, galleryId));
+    }
+    const previousIndex = index - offset;
+    if (offset <= backwardCount && previousIndex >= 0) {
+      batch.push(this.preloadReaderPage(previousIndex, galleryId));
+    }
+    return batch;
+  }
+
   private async preloadReaderPages(index: number): Promise<void> {
     const revision = ++this.readerPreloadRevision;
     const configuredCount = readerPreloadCount();
     const dualPageCount = ehSettingsStore.getValue('adaptive_dual_page', 'Off') === 'On' ?
       Math.max(1, configuredCount) : configuredCount;
-    const count = this.comicTranslationActive ? Math.max(2, dualPageCount) : dualPageCount;
-    if (count <= 0) {
+    const forwardCount = this.comicTranslationActive ? Math.max(2, dualPageCount) : dualPageCount;
+    if (forwardCount <= 0) {
       return;
     }
-    for (let offset = 1; offset <= count; offset++) {
-      if (revision !== this.readerPreloadRevision || index !== this.pageIndex) {
+    const galleryId = this.detail.gid;
+    const urgentCount = Math.min(2, forwardCount);
+    const urgent: Promise<void>[] = [];
+    for (let offset = 1; offset <= urgentCount; offset++) {
+      const batch = this.readerPreloadBatch(index, offset, dualPageCount, forwardCount, galleryId);
+      for (let i = 0; i < batch.length; i++) {
+        urgent.push(batch[i]);
+      }
+    }
+    await Promise.all(urgent);
+    for (let offset = urgentCount + 1; offset <= forwardCount; offset++) {
+      if (revision !== this.readerPreloadRevision || galleryId !== this.detail.gid) {
         return;
       }
-      const targets: number[] = [];
-      if (offset <= dualPageCount) {
-        targets.push(index - offset);
-      }
-      targets.push(index + offset);
-      for (let i = 0; i < targets.length; i++) {
-        const nextIndex = targets[i];
-        if (nextIndex < 0 || nextIndex >= this.readerTotalPages()) {
-          continue;
-        }
-        const preview = await this.ensureReaderPreview(nextIndex, true);
-        if (revision !== this.readerPreloadRevision || index !== this.pageIndex) {
-          return;
-        }
-        if (preview === null || preview.pageUrl.length === 0) {
-          continue;
-        }
-        if (this.tryUseDownloadedPage(nextIndex, preview)) {
-          continue;
-        }
-        const cached = galleryPageCache.get(preview.pageUrl);
-        if (cached !== null) {
-          this.setReaderPage(nextIndex, cached);
-          this.cacheReaderImage(nextIndex, cached);
-          continue;
-        }
-        try {
-          const result = await this.client.loadGalleryPage(preview.pageUrl, this.site,
-            readerPageReferer(this.detailRequestUrl, this.detail.previewSet, nextIndex, this.site));
-          if (revision !== this.readerPreloadRevision || index !== this.pageIndex) {
-            return;
-          }
-          if (result.ok && result.page !== null) {
-            const cacheUrl = result.page.pageUrl.length > 0 ? result.page.pageUrl : preview.pageUrl;
-            galleryPageCache.put(cacheUrl, result.page);
-            galleryPageCache.put(preview.pageUrl, result.page);
-            this.setReaderPage(nextIndex, result.page);
-            this.cacheReaderImage(nextIndex, result.page);
-          }
-        } catch (error) {
-        }
-      }
+      await Promise.all(this.readerPreloadBatch(index, offset, dualPageCount, forwardCount, galleryId));
     }
   }
 

@@ -10,7 +10,7 @@ export const READER_BASE_SCALE: number = 1;
 export const READER_MAX_SCALE: number = 4;
 export const READER_DOUBLE_TAP_SCALE: number = 2.25;
 export const READER_INERTIA_DURATION: number = 180;
-export const READER_OFFSCREEN_RENDER_COUNT: number = 4;
+export const READER_OFFSCREEN_RENDER_COUNT: number = 2;
 
 export interface ReaderImageCompleteEvent {
   width: number;

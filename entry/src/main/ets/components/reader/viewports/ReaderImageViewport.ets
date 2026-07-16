@@ -93,6 +93,7 @@ export struct ReaderImageViewport {
 
   onActiveChange(): void {
     if (this.isActive) {
+      this.startDownloadProgressMonitor();
       this.syncFixedScale();
       this.reportImageSize();
     }
@@ -235,7 +236,8 @@ export struct ReaderImageViewport {
     if (context === undefined || sourceUrl.length === 0) {
       return;
     }
-    readerImageCache.ensureCached(context, sourceUrl, this.page.pageUrl, true, (progress: ImageDownloadProgress) => {
+    readerImageCache.ensureCached(context, sourceUrl, this.page.pageUrl, this.isActive,
+      (progress: ImageDownloadProgress) => {
       if (requestId !== this.downloadProgressRequestId) {
         return;
       }
