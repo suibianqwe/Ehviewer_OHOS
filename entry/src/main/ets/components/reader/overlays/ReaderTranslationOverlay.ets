@@ -27,12 +27,18 @@ interface ReaderTranslationLayout extends ReaderTranslationBounds {
   sourceWidth: number;
   sourceHeight: number;
   sourceFontSize: number;
+  padding: number;
   anchorX: number;
   anchorY: number;
 }
 
-const TRANSLATION_LAYOUT_GAP: number = 2;
-const TRANSLATION_TEXT_PADDING: number = 3;
+const TRANSLATION_REFERENCE_EDGE: number = 1280;
+const TRANSLATION_REFERENCE_LAYOUT_GAP: number = 4;
+const TRANSLATION_REFERENCE_TEXT_PADDING: number = 6;
+const TRANSLATION_REFERENCE_MIN_WIDTH: number = 48;
+const TRANSLATION_REFERENCE_MIN_HEIGHT: number = 28;
+const TRANSLATION_REFERENCE_MIN_FONT_SIZE: number = 23;
+const TRANSLATION_REFERENCE_MAX_FONT_SIZE: number = 84;
 const TRANSLATION_SOURCE_WIDTH_HINT_RATIO: number = 0.30;
 
 @Component
@@ -40,6 +46,26 @@ export struct ReaderTranslationOverlay {
   @Prop translation: ReaderPageTranslation | null = null;
   @Prop displayWidth: number = 1;
   @Prop displayHeight: number = 1;
+
+  private canvasWidth(): number {
+    return Math.max(1, this.translation?.imageWidth ?? this.displayWidth);
+  }
+
+  private canvasHeight(): number {
+    return Math.max(1, this.translation?.imageHeight ?? this.displayHeight);
+  }
+
+  private coordinateScale(): number {
+    return Math.max(0.1, Math.min(this.canvasWidth(), this.canvasHeight()) / TRANSLATION_REFERENCE_EDGE);
+  }
+
+  private layoutGap(): number {
+    return TRANSLATION_REFERENCE_LAYOUT_GAP * this.coordinateScale();
+  }
+
+  private textPadding(): number {
+    return TRANSLATION_REFERENCE_TEXT_PADDING * this.coordinateScale();
+  }
 
   private sourceBounds(line: ReaderTranslationLine): ReaderTranslationBounds {
     if (this.translation === null || line.cornerPoints.length === 0) {
@@ -56,40 +82,46 @@ export struct ReaderTranslationOverlay {
       minY = Math.min(minY, point.y);
       maxY = Math.max(maxY, point.y);
     }
-    const sourceWidth = Math.max(1, this.translation.imageWidth);
-    const sourceHeight = Math.max(1, this.translation.imageHeight);
-    const x = Math.max(0, Math.min(this.displayWidth - 1, minX * this.displayWidth / sourceWidth));
-    const y = Math.max(0, Math.min(this.displayHeight - 1, minY * this.displayHeight / sourceHeight));
-    const width = Math.max(24, Math.min(this.displayWidth - x, (maxX - minX) * this.displayWidth / sourceWidth));
-    const height = Math.max(14, Math.min(this.displayHeight - y, (maxY - minY) * this.displayHeight / sourceHeight));
+    const canvasWidth = this.canvasWidth();
+    const canvasHeight = this.canvasHeight();
+    const coordinateScale = this.coordinateScale();
+    const x = Math.max(0, Math.min(canvasWidth - 1, minX));
+    const y = Math.max(0, Math.min(canvasHeight - 1, minY));
+    const width = Math.min(canvasWidth - x,
+      Math.max(TRANSLATION_REFERENCE_MIN_WIDTH * coordinateScale, maxX - minX));
+    const height = Math.min(canvasHeight - y,
+      Math.max(TRANSLATION_REFERENCE_MIN_HEIGHT * coordinateScale, maxY - minY));
     return { x: x, y: y, width: width, height: height };
   }
 
   private baseLayout(line: ReaderTranslationLine, index: number): ReaderTranslationLayout {
     const source = this.sourceBounds(line);
     const sourceThickness = line.isVertical === true ? source.width : source.height;
-    const sourceScale = Math.min(this.displayWidth / Math.max(1, this.translation?.imageWidth ?? 1),
-      this.displayHeight / Math.max(1, this.translation?.imageHeight ?? 1));
     const sourceFontSize = line.estimatedFontSize !== undefined && line.estimatedFontSize > 0 ?
-      line.estimatedFontSize * sourceScale : sourceThickness * 0.72;
-    const fontSize = Math.max(11, Math.min(40, sourceFontSize * 0.95));
-    const sourceWidthHint = Math.min(source.width, this.displayWidth * TRANSLATION_SOURCE_WIDTH_HINT_RATIO);
-    const preferredWidth = Math.max(24, sourceWidthHint,
-      Math.min(this.displayWidth * 0.42, estimateUnwrappedTextWidth(line.translatedText, fontSize) +
-        TRANSLATION_TEXT_PADDING * 2 + fontSize * 0.5));
-    const width = Math.max(24, Math.min(this.displayWidth, preferredWidth));
+      line.estimatedFontSize : sourceThickness * 0.72;
+    const coordinateScale = this.coordinateScale();
+    const fontSize = Math.max(TRANSLATION_REFERENCE_MIN_FONT_SIZE * coordinateScale,
+      Math.min(TRANSLATION_REFERENCE_MAX_FONT_SIZE * coordinateScale, sourceFontSize * 0.95));
+    const padding = this.textPadding();
+    const canvasWidth = this.canvasWidth();
+    const canvasHeight = this.canvasHeight();
+    const minimumWidth = TRANSLATION_REFERENCE_MIN_WIDTH * coordinateScale;
+    const sourceWidthHint = Math.min(source.width, canvasWidth * TRANSLATION_SOURCE_WIDTH_HINT_RATIO);
+    const preferredWidth = Math.max(minimumWidth, sourceWidthHint,
+      Math.min(canvasWidth * 0.42, estimateUnwrappedTextWidth(line.translatedText, fontSize) +
+        padding * 2 + fontSize * 0.5));
+    const width = Math.max(minimumWidth, Math.min(canvasWidth, preferredWidth));
     // Leave a small glyph-width margin because ArkUI's actual font metrics and line breaking can differ from the
     // estimate. maxLines must not be used here: an underestimated line count silently clips the final wrapped line.
-    const availableTextWidth = Math.max(8,
-      width - TRANSLATION_TEXT_PADDING * 2 - fontSize * 0.25);
+    const availableTextWidth = Math.max(8 * coordinateScale, width - padding * 2 - fontSize * 0.25);
     const estimatedLines = estimateWrappedTextLines(line.translatedText, availableTextWidth, fontSize);
     const lineHeight = fontSize * 1.12;
-    const height = Math.min(this.displayHeight,
-      estimatedLines * lineHeight + TRANSLATION_TEXT_PADDING * 2 + 2);
+    const height = Math.min(canvasHeight,
+      estimatedLines * lineHeight + padding * 2 + 2 * coordinateScale);
     const anchorX = source.x + source.width / 2 - width / 2;
     const anchorY = source.y + source.height / 2 - height / 2;
-    const x = Math.max(0, Math.min(this.displayWidth - width, anchorX));
-    const y = Math.max(0, Math.min(Math.max(0, this.displayHeight - height), anchorY));
+    const x = Math.max(0, Math.min(canvasWidth - width, anchorX));
+    const y = Math.max(0, Math.min(Math.max(0, canvasHeight - height), anchorY));
     return {
       key: index.toString() + ':' + line.sourceText,
       sourceText: line.sourceText,
@@ -106,6 +138,7 @@ export struct ReaderTranslationOverlay {
       sourceWidth: source.width,
       sourceHeight: source.height,
       sourceFontSize: sourceFontSize,
+      padding: padding,
       anchorX: x,
       anchorY: y
     };
@@ -127,12 +160,42 @@ export struct ReaderTranslationOverlay {
       }
       return left.x - right.x;
     });
-    const placed: ReaderTranslationLayout[] = [];
+    const sourceLayouts: ReaderTranslationLayout[] = [];
     for (let i = 0; i < pending.length; i++) {
-      placed.push(this.placeWithoutTextOverlap(pending[i], placed));
+      sourceLayouts.push(this.placeWithoutTextOverlap(pending[i], sourceLayouts));
+    }
+    const placed: ReaderTranslationLayout[] = [];
+    for (let i = 0; i < sourceLayouts.length; i++) {
+      placed.push(this.scaleLayoutToDisplay(sourceLayouts[i]));
     }
     this.recordOverlayDebug(placed);
     return placed;
+  }
+
+  private scaleLayoutToDisplay(item: ReaderTranslationLayout): ReaderTranslationLayout {
+    const scaleX = this.displayWidth / this.canvasWidth();
+    const scaleY = this.displayHeight / this.canvasHeight();
+    const fontScale = Math.min(scaleX, scaleY);
+    return {
+      key: item.key,
+      sourceText: item.sourceText,
+      text: item.text,
+      x: item.x * scaleX,
+      y: item.y * scaleY,
+      width: item.width * scaleX,
+      height: item.height * scaleY,
+      fontSize: item.fontSize * fontScale,
+      lineHeight: item.lineHeight * fontScale,
+      estimatedLines: item.estimatedLines,
+      sourceX: item.sourceX * scaleX,
+      sourceY: item.sourceY * scaleY,
+      sourceWidth: item.sourceWidth * scaleX,
+      sourceHeight: item.sourceHeight * scaleY,
+      sourceFontSize: item.sourceFontSize * fontScale,
+      padding: item.padding * fontScale,
+      anchorX: item.anchorX * scaleX,
+      anchorY: item.anchorY * scaleY
+    };
   }
 
   private placeWithoutTextOverlap(item: ReaderTranslationLayout,
@@ -140,10 +203,11 @@ export struct ReaderTranslationOverlay {
     if (!this.overlapsAny(item, placed)) {
       return item;
     }
-    const step = Math.max(2, Math.min(6, item.lineHeight / 3));
-    const xPositions = this.candidateAxisPositions(item.anchorX, this.displayWidth - item.width, item.width,
+    const coordinateScale = this.coordinateScale();
+    const step = Math.max(2 * coordinateScale, Math.min(6 * coordinateScale, item.lineHeight / 3));
+    const xPositions = this.candidateAxisPositions(item.anchorX, this.canvasWidth() - item.width, item.width,
       placed, true, step);
-    const yPositions = this.candidateAxisPositions(item.anchorY, this.displayHeight - item.height, item.height,
+    const yPositions = this.candidateAxisPositions(item.anchorY, this.canvasHeight() - item.height, item.height,
       placed, false, step);
     let best = this.copyLayout(item, item.x, item.y);
     let bestOverlap = this.overlapArea(best, placed);
@@ -170,7 +234,7 @@ export struct ReaderTranslationOverlay {
     const result: number[] = [];
     const safeMaximum = Math.max(0, maximum);
     appendUniqueLayoutPosition(result, Math.max(0, Math.min(safeMaximum, anchor)));
-    const nearLimit = Math.max(step, Math.min(horizontal ? this.displayWidth * 0.07 : this.displayHeight * 0.05,
+    const nearLimit = Math.max(step, Math.min(horizontal ? this.canvasWidth() * 0.07 : this.canvasHeight() * 0.05,
       step * 12));
     const offsets = candidateLayoutOffsets(nearLimit, step);
     for (let i = 0; i < offsets.length; i++) {
@@ -182,9 +246,9 @@ export struct ReaderTranslationOverlay {
       const start = horizontal ? placed[i].x : placed[i].y;
       const size = horizontal ? placed[i].width : placed[i].height;
       appendUniqueLayoutPosition(result,
-        Math.max(0, Math.min(safeMaximum, start - itemSize - TRANSLATION_LAYOUT_GAP)));
+        Math.max(0, Math.min(safeMaximum, start - itemSize - this.layoutGap())));
       appendUniqueLayoutPosition(result,
-        Math.max(0, Math.min(safeMaximum, start + size + TRANSLATION_LAYOUT_GAP)));
+        Math.max(0, Math.min(safeMaximum, start + size + this.layoutGap())));
     }
     return result;
   }
@@ -206,6 +270,7 @@ export struct ReaderTranslationOverlay {
       sourceWidth: item.sourceWidth,
       sourceHeight: item.sourceHeight,
       sourceFontSize: item.sourceFontSize,
+      padding: item.padding,
       anchorX: item.anchorX,
       anchorY: item.anchorY
     };
@@ -239,7 +304,7 @@ export struct ReaderTranslationOverlay {
 
   private overlapsAny(item: ReaderTranslationBounds, placed: ReaderTranslationBounds[]): boolean {
     for (let i = 0; i < placed.length; i++) {
-      if (rectanglesOverlap(item, placed[i], TRANSLATION_LAYOUT_GAP)) {
+      if (rectanglesOverlap(item, placed[i], this.layoutGap())) {
         return true;
       }
     }
@@ -312,10 +377,10 @@ export struct ReaderTranslationOverlay {
             .lineHeight(item.lineHeight)
             .textAlign(TextAlign.Center)
             .padding({
-              left: TRANSLATION_TEXT_PADDING,
-              right: TRANSLATION_TEXT_PADDING,
-              top: TRANSLATION_TEXT_PADDING,
-              bottom: TRANSLATION_TEXT_PADDING
+              left: item.padding,
+              right: item.padding,
+              top: item.padding,
+              bottom: item.padding
             })
             .textShadow([
               { radius: 6, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: 0 },
