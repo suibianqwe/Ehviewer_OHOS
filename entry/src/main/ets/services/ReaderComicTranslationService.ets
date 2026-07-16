@@ -10,7 +10,7 @@ import {
 } from '../model/ReaderTranslationModels';
 import { ehDownloadFileStore } from './EhDownloadFileStore';
 import { ehHistoryStore } from './EhHistoryStore';
-import { ehTranslationService } from './EhTranslationService';
+import { ehTranslationService, TranslationCancellationToken } from './EhTranslationService';
 import { readerOcrDebugLog } from './ReaderOcrDebugLog';
 
 interface ReaderComicTranslationTask {
@@ -21,6 +21,8 @@ interface ReaderComicTranslationTask {
   imagePath: string;
   priority: number;
   force: boolean;
+  scope: string;
+  cancellationToken: TranslationCancellationToken;
   sequence: number;
   resolve: (value: ReaderPageTranslation) => void;
   reject: (error: Error) => void;
@@ -60,13 +62,17 @@ interface OcrTextGroup {
 }
 
 const MAX_OCR_IMAGE_EDGE: number = 4096;
+const MAX_CONCURRENT_OCR_TASKS: number = 1;
 const READER_TRANSLATION_LAYOUT_VERSION: number = 6;
+const READER_TRANSLATION_CANCELLED_MESSAGE: string = 'Reader translation request cancelled';
 
 export class ReaderComicTranslationService {
   private queue: ReaderComicTranslationTask[] = [];
   private pending: ReaderComicTranslationPending[] = [];
-  private running: boolean = false;
+  private activeOcrTasks: number = 0;
   private sequence: number = 0;
+  private scopeSequence: number = 0;
+  private cancelledScopes: string[] = [];
   private initialized: boolean = false;
   private initPromise: Promise<boolean> | null = null;
 
@@ -82,10 +88,14 @@ export class ReaderComicTranslationService {
   }
 
   request(context: common.UIAbilityContext, gallery: GalleryInfo, pageIndex: number, imagePath: string,
-    priority: number, force: boolean = false): Promise<ReaderPageTranslation> {
+    priority: number, force: boolean = false, scope: string = ''): Promise<ReaderPageTranslation> {
+    const taskScope = scope.length > 0 ? scope : this.beginScope();
+    if (this.isScopeCancelled(taskScope)) {
+      return Promise.reject(new Error(READER_TRANSLATION_CANCELLED_MESSAGE));
+    }
     const baseKey = gallery.gid.toString() + ':' + pageIndex.toString() + ':' + imagePath;
     if (!force) {
-      const existing = this.findPending(baseKey);
+      const existing = this.findPending(baseKey, taskScope);
       if (existing !== null) {
         existing.task.priority = Math.max(existing.task.priority, priority);
         this.sortQueue();
@@ -108,6 +118,8 @@ export class ReaderComicTranslationService {
       imagePath: imagePath,
       priority: priority,
       force: force,
+      scope: taskScope,
+      cancellationToken: new TranslationCancellationToken(),
       sequence: this.sequence++,
       resolve: resolveTask,
       reject: rejectTask
@@ -119,9 +131,35 @@ export class ReaderComicTranslationService {
     return promise;
   }
 
-  private findPending(key: string): ReaderComicTranslationPending | null {
+  beginScope(): string {
+    return 'reader-translation:' + (this.scopeSequence++).toString();
+  }
+
+  cancelScope(scope: string): void {
+    if (scope.length === 0 || this.isScopeCancelled(scope)) {
+      return;
+    }
+    this.cancelledScopes.push(scope);
+    for (let i = this.queue.length - 1; i >= 0; i--) {
+      const task = this.queue[i];
+      if (task.scope !== scope) {
+        continue;
+      }
+      this.queue.splice(i, 1);
+      task.cancellationToken.cancel();
+      task.reject(new Error(READER_TRANSLATION_CANCELLED_MESSAGE));
+      this.removePending(task);
+    }
     for (let i = 0; i < this.pending.length; i++) {
-      if (this.pending[i].key === key) {
+      if (this.pending[i].task.scope === scope) {
+        this.pending[i].task.cancellationToken.cancel();
+      }
+    }
+  }
+
+  private findPending(key: string, scope: string): ReaderComicTranslationPending | null {
+    for (let i = 0; i < this.pending.length; i++) {
+      if (this.pending[i].key === key && this.pending[i].task.scope === scope) {
         return this.pending[i];
       }
     }
@@ -138,23 +176,28 @@ export class ReaderComicTranslationService {
   }
 
   private runNext(): void {
-    if (this.running || this.queue.length === 0) {
-      return;
+    while (this.activeOcrTasks < MAX_CONCURRENT_OCR_TASKS && this.queue.length > 0) {
+      const task = this.queue.shift();
+      if (task === undefined) {
+        return;
+      }
+      if (this.isScopeCancelled(task.scope)) {
+        task.cancellationToken.cancel();
+        task.reject(new Error(READER_TRANSLATION_CANCELLED_MESSAGE));
+        this.removePending(task);
+        continue;
+      }
+      this.activeOcrTasks++;
+      this.executeTask(task).then((translation: ReaderPageTranslation) => {
+        task.resolve(cloneReaderPageTranslation(translation));
+      }).catch((error: Error) => {
+        task.reject(error);
+      }).finally(() => {
+        this.removePending(task);
+        this.activeOcrTasks = Math.max(0, this.activeOcrTasks - 1);
+        this.runNext();
+      });
     }
-    const task = this.queue.shift();
-    if (task === undefined) {
-      return;
-    }
-    this.running = true;
-    this.executeTask(task).then((translation: ReaderPageTranslation) => {
-      task.resolve(cloneReaderPageTranslation(translation));
-    }).catch((error: Error) => {
-      task.reject(error);
-    }).finally(() => {
-      this.removePending(task);
-      this.running = false;
-      this.runNext();
-    });
   }
 
   private removePending(task: ReaderComicTranslationTask): void {
@@ -168,17 +211,21 @@ export class ReaderComicTranslationService {
   }
 
   private async executeTask(task: ReaderComicTranslationTask): Promise<ReaderPageTranslation> {
+    this.ensureTaskActive(task);
     if (!task.force) {
       const stored = await this.loadStored(task.context, task.gallery, task.pageIndex);
+      this.ensureTaskActive(task);
       if (stored !== null) {
         return stored;
       }
     }
     await this.ensureInitialized();
-    const translation = await this.recognizeAndTranslate(task.context, task.gallery.gid, task.imagePath,
-      task.pageIndex, task.priority, task.force);
+    this.ensureTaskActive(task);
+    const translation = await this.recognizeAndTranslate(task);
+    this.ensureTaskActive(task);
     if (!ehDownloadFileStore.setReaderTranslation(task.context, task.gallery, translation)) {
       await ehHistoryStore.ensureLoaded(task.context);
+      this.ensureTaskActive(task);
       ehHistoryStore.setReaderTranslation(task.gallery.gid, translation);
     }
     return translation;
@@ -199,15 +246,15 @@ export class ReaderComicTranslationService {
     this.initialized = true;
   }
 
-  private async recognizeAndTranslate(context: common.UIAbilityContext, gid: number, path: string, pageIndex: number,
-    priority: number, forceRefresh: boolean): Promise<ReaderPageTranslation> {
+  private async recognizeAndTranslate(task: ReaderComicTranslationTask): Promise<ReaderPageTranslation> {
     let imageSource: image.ImageSource | undefined = undefined;
     let pixelMap: image.PixelMap | undefined = undefined;
     const debug: string[] = [];
-    debug.push('图片路径：' + path);
-    debug.push('强制刷新：' + forceRefresh.toString());
+    debug.push('图片路径：' + task.imagePath);
+    debug.push('强制刷新：' + task.force.toString());
     try {
-      imageSource = image.createImageSource(path);
+      this.ensureTaskActive(task);
+      imageSource = image.createImageSource(task.imagePath);
       const info = imageSource.getImageInfoSync();
       const size = ocrDecodeSize(info.size.width, info.size.height);
       debug.push('原图尺寸：' + info.size.width.toString() + 'x' + info.size.height.toString());
@@ -220,13 +267,16 @@ export class ReaderComicTranslationService {
       } catch (error) {
         throw new Error('OCR recognition failed: ' + String(error));
       }
+      this.ensureTaskActive(task);
       debug.push('OCR块数量：' + result.blocks.length.toString());
       const lines = collectOcrLines(result.blocks, debug);
       await Promise.all(lines.map(async (line: ReaderTranslationLine) => {
+        this.ensureTaskActive(task);
         const contentKind = line.isVertical === true ? 'vertical comic dialogue' : 'comic dialogue';
-        line.translatedText = await ehTranslationService.translate(line.sourceText, contentKind, priority, true,
-          true, forceRefresh);
+        line.translatedText = await ehTranslationService.translate(line.sourceText, contentKind, task.priority, true,
+          true, task.force, task.cancellationToken);
       }));
+      this.ensureTaskActive(task);
       debug.push('[最终翻译]');
       for (let i = 0; i < lines.length; i++) {
         debug.push((i + 1).toString() + '. 原文=' + JSON.stringify(lines[i].sourceText));
@@ -235,18 +285,20 @@ export class ReaderComicTranslationService {
           formatOcrPointsBounds(lines[i].cornerPoints));
       }
       const translation: ReaderPageTranslation = {
-        pageIndex: pageIndex,
+        pageIndex: task.pageIndex,
         imageWidth: size.width,
         imageHeight: size.height,
         lines: lines,
         updatedAt: Date.now(),
         layoutVersion: READER_TRANSLATION_LAYOUT_VERSION
       };
-      readerOcrDebugLog.recordRecognition(context, gid, pageIndex, debug.join('\n'));
+      readerOcrDebugLog.recordRecognition(task.context, task.gallery.gid, task.pageIndex, debug.join('\n'));
       return translation;
     } catch (error) {
       debug.push('[失败] ' + String(error));
-      readerOcrDebugLog.recordRecognition(context, gid, pageIndex, debug.join('\n'));
+      if (!this.isScopeCancelled(task.scope)) {
+        readerOcrDebugLog.recordRecognition(task.context, task.gallery.gid, task.pageIndex, debug.join('\n'));
+      }
       throw error instanceof Error ? error : new Error(String(error));
     } finally {
       if (pixelMap !== undefined) {
@@ -263,6 +315,18 @@ export class ReaderComicTranslationService {
       }
     }
   }
+
+  private ensureTaskActive(task: ReaderComicTranslationTask): void {
+    if (this.isScopeCancelled(task.scope)) {
+      throw new Error(READER_TRANSLATION_CANCELLED_MESSAGE);
+    }
+    task.cancellationToken.throwIfCancelled();
+  }
+
+  private isScopeCancelled(scope: string): boolean {
+    return this.cancelledScopes.indexOf(scope) >= 0;
+  }
+
 }
 
 function collectOcrLines(blocks: textRecognition.TextBlock[], debug: string[]): ReaderTranslationLine[] {

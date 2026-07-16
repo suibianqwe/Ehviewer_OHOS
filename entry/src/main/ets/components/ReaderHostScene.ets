@@ -57,6 +57,7 @@ export struct ReaderSessionScene {
   private readerPreviewPageSize: number = 0;
   private readerTranslationLoads: string[] = [];
   private readerTranslationRefreshing: number[] = [];
+  private readerTranslationScope: string = '';
   private readerPreloadRevision: number = 0;
 
   aboutToAppear(): void {
@@ -75,6 +76,7 @@ export struct ReaderSessionScene {
 
   private loadCurrentSession(): void {
     this.readerPreloadRevision++;
+    this.renewReaderTranslationScope();
     const session = readerSessionStore.getSession();
     if (session === null || session.detail.gid <= 0) {
       this.statusText = 'Reader session is empty';
@@ -129,6 +131,7 @@ export struct ReaderSessionScene {
 
   aboutToDisappear(): void {
     this.readerPreloadRevision++;
+    this.cancelReaderTranslationScope();
     this.persistSession();
     if (!this.restoreAppChromeOnExit) {
       setReaderActiveBackHandler(null);
@@ -530,7 +533,8 @@ export struct ReaderSessionScene {
       return;
     }
     const context = this.readerContext();
-    if (context === undefined) {
+    const scope = this.readerTranslationScope;
+    if (context === undefined || scope.length === 0) {
       if (force) {
         this.finishReaderTranslationRefresh(index);
       }
@@ -546,6 +550,9 @@ export struct ReaderSessionScene {
     const load = force ? Promise.resolve<ReaderPageTranslation | null>(null) :
       readerComicTranslationService.loadStored(context, this.detail, index);
     load.then((stored: ReaderPageTranslation | null) => {
+      if (scope !== this.readerTranslationScope) {
+        return;
+      }
       if (stored !== null) {
         if (!force && this.readerTranslationRefreshing.indexOf(index) >= 0) {
           return;
@@ -559,8 +566,11 @@ export struct ReaderSessionScene {
         }
         return;
       }
-      return readerComicTranslationService.request(context, this.detail, index, imagePath, priority, force)
+      return readerComicTranslationService.request(context, this.detail, index, imagePath, priority, force, scope)
         .then((translation: ReaderPageTranslation) => {
+          if (scope !== this.readerTranslationScope) {
+            return;
+          }
           if (!force && this.readerTranslationRefreshing.indexOf(index) >= 0) {
             return;
           }
@@ -573,6 +583,9 @@ export struct ReaderSessionScene {
           }
         });
     }).catch((_error: Error) => {
+      if (scope !== this.readerTranslationScope) {
+        return;
+      }
       if (force) {
         this.finishReaderTranslationRefresh(index);
       }
@@ -580,6 +593,9 @@ export struct ReaderSessionScene {
         this.setComicTranslationNotice('Comic translation failed');
       }
     }).finally(() => {
+      if (scope !== this.readerTranslationScope) {
+        return;
+      }
       const next: string[] = [];
       for (let i = 0; i < this.readerTranslationLoads.length; i++) {
         if (this.readerTranslationLoads[i] !== loadKey) {
@@ -588,6 +604,19 @@ export struct ReaderSessionScene {
       }
       this.readerTranslationLoads = next;
     });
+  }
+
+  private renewReaderTranslationScope(): void {
+    this.cancelReaderTranslationScope();
+    this.readerTranslationScope = readerComicTranslationService.beginScope();
+  }
+
+  private cancelReaderTranslationScope(): void {
+    if (this.readerTranslationScope.length === 0) {
+      return;
+    }
+    readerComicTranslationService.cancelScope(this.readerTranslationScope);
+    this.readerTranslationScope = '';
   }
 
   private toggleComicTranslation(enabled: boolean): void {

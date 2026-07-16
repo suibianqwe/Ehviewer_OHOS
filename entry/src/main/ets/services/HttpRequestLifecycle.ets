@@ -32,6 +32,17 @@ export function retireHttpRequest(request: http.HttpRequest): void {
   scheduleCleanup(HTTP_REQUEST_CLEANUP_QUIET_MS);
 }
 
+export function cancelHttpRequest(request: http.HttpRequest): void {
+  activityGeneration++;
+  lastActivityAt = Date.now();
+  removeRequest(ACTIVE_HTTP_REQUESTS, request);
+  removeRequest(RETIRED_HTTP_REQUESTS, request);
+  try {
+    request.destroy();
+  } catch (_error) {
+  }
+}
+
 function removeRequest(items: http.HttpRequest[], request: http.HttpRequest): void {
   const index = items.indexOf(request);
   if (index >= 0) {
