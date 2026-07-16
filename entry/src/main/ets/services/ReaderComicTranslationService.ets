@@ -63,7 +63,7 @@ interface OcrTextGroup {
 
 const MAX_OCR_IMAGE_EDGE: number = 4096;
 const MAX_CONCURRENT_OCR_TASKS: number = 1;
-const READER_TRANSLATION_LAYOUT_VERSION: number = 6;
+const READER_TRANSLATION_LAYOUT_VERSION: number = 7;
 const READER_TRANSLATION_CANCELLED_MESSAGE: string = 'Reader translation request cancelled';
 
 export class ReaderComicTranslationService {
@@ -533,7 +533,7 @@ function mergeNearbyOcrTextGroups(groups: OcrTextGroup[]): void {
     changed = false;
     for (let i = 0; i < groups.length && !changed; i++) {
       for (let j = i + 1; j < groups.length; j++) {
-        if (!shouldMergeOcrTextGroups(groups[i], groups[j], groupsHaveSameSingleSourceBlock(groups[i], groups[j]))) {
+        if (!shouldMergeOcrTextGroups(groups[i], groups[j], groupsShareSourceBlock(groups[i], groups[j]))) {
           continue;
         }
         const lines: OcrLineCandidate[] = [];
@@ -594,19 +594,15 @@ function shouldMergeOcrTextGroups(left: OcrTextGroup, right: OcrTextGroup, sameB
   return nearby && mergedOcrGroupIsCompact(left, right, sameBlock);
 }
 
-function groupsHaveSameSingleSourceBlock(left: OcrTextGroup, right: OcrTextGroup): boolean {
-  const leftBlock = groupSingleSourceBlock(left);
-  return leftBlock >= 0 && leftBlock === groupSingleSourceBlock(right);
-}
-
-function groupSingleSourceBlock(group: OcrTextGroup): number {
-  const block = group.lines[0].blockIndex;
-  for (let i = 1; i < group.lines.length; i++) {
-    if (group.lines[i].blockIndex !== block) {
-      return -1;
+function groupsShareSourceBlock(left: OcrTextGroup, right: OcrTextGroup): boolean {
+  for (let i = 0; i < left.lines.length; i++) {
+    for (let j = 0; j < right.lines.length; j++) {
+      if (left.lines[i].blockIndex === right.lines[j].blockIndex) {
+        return true;
+      }
     }
   }
-  return block;
+  return false;
 }
 
 function mergedOcrGroupIsCompact(left: OcrTextGroup, right: OcrTextGroup, sameBlock: boolean): boolean {

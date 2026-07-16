@@ -30,6 +30,17 @@ interface ReaderTranslationLayout extends ReaderTranslationBounds {
   padding: number;
   anchorX: number;
   anchorY: number;
+  vertical: boolean;
+  verticalColumns: string[];
+  columnWidth: number;
+}
+
+interface ReaderVerticalTextLayout {
+  columns: string[];
+  width: number;
+  height: number;
+  rows: number;
+  columnWidth: number;
 }
 
 const TRANSLATION_REFERENCE_EDGE: number = 1280;
@@ -39,7 +50,7 @@ const TRANSLATION_REFERENCE_MIN_WIDTH: number = 48;
 const TRANSLATION_REFERENCE_MIN_HEIGHT: number = 28;
 const TRANSLATION_REFERENCE_MIN_FONT_SIZE: number = 23;
 const TRANSLATION_REFERENCE_MAX_FONT_SIZE: number = 84;
-const TRANSLATION_SOURCE_WIDTH_HINT_RATIO: number = 0.30;
+const TRANSLATION_HORIZONTAL_MAX_WIDTH_RATIO: number = 0.96;
 
 @Component
 export struct ReaderTranslationOverlay {
@@ -106,18 +117,33 @@ export struct ReaderTranslationOverlay {
     const canvasWidth = this.canvasWidth();
     const canvasHeight = this.canvasHeight();
     const minimumWidth = TRANSLATION_REFERENCE_MIN_WIDTH * coordinateScale;
-    const sourceWidthHint = Math.min(source.width, canvasWidth * TRANSLATION_SOURCE_WIDTH_HINT_RATIO);
-    const preferredWidth = Math.max(minimumWidth, sourceWidthHint,
-      Math.min(canvasWidth * 0.42, estimateUnwrappedTextWidth(line.translatedText, fontSize) +
-        padding * 2 + fontSize * 0.5));
-    const width = Math.max(minimumWidth, Math.min(canvasWidth, preferredWidth));
-    // Leave a small glyph-width margin because ArkUI's actual font metrics and line breaking can differ from the
-    // estimate. maxLines must not be used here: an underestimated line count silently clips the final wrapped line.
-    const availableTextWidth = Math.max(8 * coordinateScale, width - padding * 2 - fontSize * 0.25);
-    const estimatedLines = estimateWrappedTextLines(line.translatedText, availableTextWidth, fontSize);
     const lineHeight = fontSize * 1.12;
-    const height = Math.min(canvasHeight,
-      estimatedLines * lineHeight + padding * 2 + 2 * coordinateScale);
+    const vertical = line.isVertical === true;
+    let width: number;
+    let height: number;
+    let estimatedLines: number;
+    let verticalColumns: string[] = [];
+    let columnWidth = fontSize * 1.08;
+    if (vertical) {
+      const verticalLayout = createVerticalTextLayout(line.translatedText, source, fontSize,
+        lineHeight, padding, canvasWidth, canvasHeight);
+      verticalColumns = verticalLayout.columns;
+      columnWidth = verticalLayout.columnWidth;
+      width = verticalLayout.width;
+      height = verticalLayout.height;
+      estimatedLines = verticalLayout.rows;
+    } else {
+      const preferredWidth = Math.max(minimumWidth, source.width,
+        Math.min(canvasWidth * TRANSLATION_HORIZONTAL_MAX_WIDTH_RATIO,
+          estimateUnwrappedTextWidth(line.translatedText, fontSize) + padding * 2 + fontSize * 0.5));
+      width = Math.max(minimumWidth, Math.min(canvasWidth, preferredWidth));
+      // Leave a small glyph-width margin because ArkUI's actual font metrics and line breaking can differ from the
+      // estimate. maxLines must not be used here: an underestimated line count silently clips the final wrapped line.
+      const availableTextWidth = Math.max(8 * coordinateScale, width - padding * 2 - fontSize * 0.25);
+      estimatedLines = estimateWrappedTextLines(line.translatedText, availableTextWidth, fontSize);
+      height = Math.min(canvasHeight,
+        estimatedLines * lineHeight + padding * 2 + 2 * coordinateScale);
+    }
     const anchorX = source.x + source.width / 2 - width / 2;
     const anchorY = source.y + source.height / 2 - height / 2;
     const x = Math.max(0, Math.min(canvasWidth - width, anchorX));
@@ -140,7 +166,10 @@ export struct ReaderTranslationOverlay {
       sourceFontSize: sourceFontSize,
       padding: padding,
       anchorX: x,
-      anchorY: y
+      anchorY: y,
+      vertical: vertical,
+      verticalColumns: verticalColumns,
+      columnWidth: columnWidth
     };
   }
 
@@ -194,7 +223,10 @@ export struct ReaderTranslationOverlay {
       sourceFontSize: item.sourceFontSize * fontScale,
       padding: item.padding * fontScale,
       anchorX: item.anchorX * scaleX,
-      anchorY: item.anchorY * scaleY
+      anchorY: item.anchorY * scaleY,
+      vertical: item.vertical,
+      verticalColumns: item.verticalColumns,
+      columnWidth: item.columnWidth * fontScale
     };
   }
 
@@ -240,15 +272,17 @@ export struct ReaderTranslationOverlay {
     for (let i = 0; i < offsets.length; i++) {
       appendUniqueLayoutPosition(result, Math.max(0, Math.min(safeMaximum, anchor + offsets[i])));
     }
-    appendUniqueLayoutPosition(result, 0);
-    appendUniqueLayoutPosition(result, safeMaximum);
     for (let i = 0; i < placed.length; i++) {
       const start = horizontal ? placed[i].x : placed[i].y;
       const size = horizontal ? placed[i].width : placed[i].height;
-      appendUniqueLayoutPosition(result,
-        Math.max(0, Math.min(safeMaximum, start - itemSize - this.layoutGap())));
-      appendUniqueLayoutPosition(result,
-        Math.max(0, Math.min(safeMaximum, start + size + this.layoutGap())));
+      const before = Math.max(0, Math.min(safeMaximum, start - itemSize - this.layoutGap()));
+      const after = Math.max(0, Math.min(safeMaximum, start + size + this.layoutGap()));
+      if (Math.abs(before - anchor) <= nearLimit) {
+        appendUniqueLayoutPosition(result, before);
+      }
+      if (Math.abs(after - anchor) <= nearLimit) {
+        appendUniqueLayoutPosition(result, after);
+      }
     }
     return result;
   }
@@ -272,7 +306,10 @@ export struct ReaderTranslationOverlay {
       sourceFontSize: item.sourceFontSize,
       padding: item.padding,
       anchorX: item.anchorX,
-      anchorY: item.anchorY
+      anchorY: item.anchorY,
+      vertical: item.vertical,
+      verticalColumns: item.verticalColumns,
+      columnWidth: item.columnWidth
     };
   }
 
@@ -296,7 +333,9 @@ export struct ReaderTranslationOverlay {
         sourceFontSize: layouts[i].sourceFontSize,
         fontSize: layouts[i].fontSize,
         lineHeight: layouts[i].lineHeight,
-        estimatedLines: layouts[i].estimatedLines
+        estimatedLines: layouts[i].estimatedLines,
+        vertical: layouts[i].vertical,
+        columnCount: layouts[i].verticalColumns.length
       });
     }
     readerOcrDebugLog.recordOverlaySnapshot(this.translation, this.displayWidth, this.displayHeight, items);
@@ -355,6 +394,74 @@ export struct ReaderTranslationOverlay {
     return backgrounds;
   }
 
+  @Builder
+  private TranslationTextItem(item: ReaderTranslationLayout) {
+    if (item.vertical) {
+      Row({ space: 0 }) {
+        ForEach(item.verticalColumns, (column: string, index: number) => {
+          Text(column)
+            .width(item.columnWidth)
+            .height(Math.max(1, item.height - item.padding * 2))
+            .fontSize(item.fontSize)
+            .fontColor(Color.Black)
+            .lineHeight(item.lineHeight)
+            .textAlign(TextAlign.Center)
+            .textShadow([
+              { radius: 6, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: 0 },
+              { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: 1.6, offsetY: 0 },
+              { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: -1.6, offsetY: 0 },
+              { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: 1.6 },
+              { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: -1.6 },
+              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: 1.2, offsetY: 1.2 },
+              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: -1.2, offsetY: 1.2 },
+              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: 1.2, offsetY: -1.2 },
+              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: -1.2, offsetY: -1.2 }
+            ])
+            .id('reader-translation-vertical-column-' + item.key + ':' + index.toString())
+        }, (column: string, index: number) => item.key + ':' + index.toString() + ':' + column)
+      }
+      .width(item.width)
+      .height(item.height)
+      .padding({
+        left: item.padding,
+        right: item.padding,
+        top: item.padding,
+        bottom: item.padding
+      })
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
+      .position({ x: item.x, y: item.y })
+      .id('reader-translation-text-' + item.key)
+    } else {
+      Text(item.text)
+        .width(item.width)
+        .height(item.height)
+        .fontSize(item.fontSize)
+        .fontColor(Color.Black)
+        .lineHeight(item.lineHeight)
+        .textAlign(TextAlign.Center)
+        .padding({
+          left: item.padding,
+          right: item.padding,
+          top: item.padding,
+          bottom: item.padding
+        })
+        .textShadow([
+          { radius: 6, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: 0 },
+          { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: 1.6, offsetY: 0 },
+          { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: -1.6, offsetY: 0 },
+          { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: 1.6 },
+          { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: -1.6 },
+          { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: 1.2, offsetY: 1.2 },
+          { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: -1.2, offsetY: 1.2 },
+          { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: 1.2, offsetY: -1.2 },
+          { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: -1.2, offsetY: -1.2 }
+        ])
+        .position({ x: item.x, y: item.y })
+        .id('reader-translation-text-' + item.key)
+    }
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       if (this.translation !== null) {
@@ -371,32 +478,7 @@ export struct ReaderTranslationOverlay {
           return index.toString() + ':' + layoutBoundsKey(box);
         })
         ForEach(this.translationLayouts(), (item: ReaderTranslationLayout) => {
-          Text(item.text)
-            .width(item.width)
-            .height(item.height)
-            .fontSize(item.fontSize)
-            .fontColor(Color.Black)
-            .lineHeight(item.lineHeight)
-            .textAlign(TextAlign.Center)
-            .padding({
-              left: item.padding,
-              right: item.padding,
-              top: item.padding,
-              bottom: item.padding
-            })
-            .textShadow([
-              { radius: 6, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: 0 },
-              { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: 1.6, offsetY: 0 },
-              { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: -1.6, offsetY: 0 },
-              { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: 1.6 },
-              { radius: 1.8, color: 'rgba(255,255,255,1)', offsetX: 0, offsetY: -1.6 },
-              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: 1.2, offsetY: 1.2 },
-              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: -1.2, offsetY: 1.2 },
-              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: 1.2, offsetY: -1.2 },
-              { radius: 1.5, color: 'rgba(255,255,255,1)', offsetX: -1.2, offsetY: -1.2 }
-            ])
-            .position({ x: item.x, y: item.y })
-            .id('reader-translation-text-' + item.key)
+          this.TranslationTextItem(item)
         }, (item: ReaderTranslationLayout) => item.key)
       }
     }
@@ -405,6 +487,94 @@ export struct ReaderTranslationOverlay {
     .clip(true)
     .hitTestBehavior(HitTestMode.Transparent)
   }
+}
+
+function createVerticalTextLayout(value: string, source: ReaderTranslationBounds, fontSize: number,
+  lineHeight: number, padding: number, canvasWidth: number,
+  canvasHeight: number): ReaderVerticalTextLayout {
+  const columnWidth = fontSize * 1.08;
+  const availableRows = Math.max(1, Math.floor(Math.max(lineHeight, source.height - padding * 2) / lineHeight));
+  const explicitRows = nonEmptyTranslationRows(value);
+  const readingOrderColumns: string[] = [];
+  if (explicitRows.length > 1) {
+    for (let i = 0; i < explicitRows.length; i++) {
+      appendVerticalColumns(readingOrderColumns, translationCharacters(explicitRows[i]), availableRows);
+    }
+  } else {
+    const characters = translationCharacters(value);
+    const requiredColumns = Math.max(1, Math.ceil(characters.length / availableRows));
+    const columnCount = Math.max(1, Math.min(requiredColumns,
+      Math.floor(Math.max(columnWidth, canvasWidth - padding * 2) / columnWidth)));
+    const balancedRows = Math.max(1, Math.ceil(characters.length / columnCount));
+    appendVerticalColumns(readingOrderColumns, characters, balancedRows);
+  }
+  if (readingOrderColumns.length === 0) {
+    readingOrderColumns.push('');
+  }
+  const columns: string[] = [];
+  let maximumRows = 1;
+  for (let i = readingOrderColumns.length - 1; i >= 0; i--) {
+    columns.push(readingOrderColumns[i]);
+    maximumRows = Math.max(maximumRows, verticalColumnRows(readingOrderColumns[i]));
+  }
+  return {
+    columns: columns,
+    width: Math.min(canvasWidth, columns.length * columnWidth + padding * 2),
+    height: Math.min(canvasHeight, maximumRows * lineHeight + padding * 2 + 2),
+    rows: maximumRows,
+    columnWidth: columnWidth
+  };
+}
+
+function nonEmptyTranslationRows(value: string): string[] {
+  const source = value.split('\n');
+  const result: string[] = [];
+  for (let i = 0; i < source.length; i++) {
+    const text = source[i].trim();
+    if (text.length > 0) {
+      result.push(text);
+    }
+  }
+  return result;
+}
+
+function translationCharacters(value: string): string[] {
+  const result: string[] = [];
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code === 10 || code === 13 || code === 9 || code === 32) {
+      continue;
+    }
+    if (code >= 0xD800 && code <= 0xDBFF && i + 1 < value.length) {
+      const next = value.charCodeAt(i + 1);
+      if (next >= 0xDC00 && next <= 0xDFFF) {
+        result.push(value.substring(i, i + 2));
+        i++;
+        continue;
+      }
+    }
+    result.push(value.charAt(i));
+  }
+  return result;
+}
+
+function appendVerticalColumns(result: string[], characters: string[], rowsPerColumn: number): void {
+  const rows = Math.max(1, rowsPerColumn);
+  for (let start = 0; start < characters.length; start += rows) {
+    const values: string[] = [];
+    const end = Math.min(characters.length, start + rows);
+    for (let i = start; i < end; i++) {
+      values.push(characters[i]);
+    }
+    result.push(values.join('\n'));
+  }
+}
+
+function verticalColumnRows(value: string): number {
+  if (value.length === 0) {
+    return 1;
+  }
+  return value.split('\n').length;
 }
 
 function estimateUnwrappedTextWidth(value: string, fontSize: number): number {
