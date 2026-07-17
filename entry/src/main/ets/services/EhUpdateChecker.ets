@@ -90,7 +90,7 @@ class EhUpdateChecker {
         hasUpdate: hasUpdate,
         current: current,
         latest: latest,
-        message: hasUpdate ? '发现新版本' : '当前已是最新版本'
+        message: hasUpdate ? 'New version available' : 'No updates available'
       };
     } catch (error) {
       return {
@@ -98,7 +98,7 @@ class EhUpdateChecker {
         hasUpdate: false,
         current: current,
         latest: null,
-        message: '检查更新失败: ' + errorMessage(error)
+        message: 'Check for updates failed: ' + errorMessage(error)
       };
     }
   }
@@ -151,7 +151,7 @@ async function fetchLatestRelease(): Promise<ReleaseInfo> {
     }
     const release = parseGitHubRelease(response.result as string);
     if (release === null) {
-      throw new Error('无法解析 GitHub release');
+      throw new Error('Unable to parse GitHub release');
     }
     return release;
   } catch (error) {
@@ -248,5 +248,5 @@ function errorMessage(error: Object): string {
   if (message.indexOf('Error: ') === 0) {
     message = message.substring(7);
   }
-  return message.length > 0 ? message : '网络请求失败';
+  return message.length > 0 ? message : 'Network request failed';
 }

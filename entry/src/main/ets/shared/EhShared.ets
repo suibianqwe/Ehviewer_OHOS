@@ -1682,6 +1682,7 @@ export function zhText(text: string): string {
     case 'New version available': return '发现新版本';
     case 'New version found': return '发现新版本';
     case 'No updates available': return '当前已是最新版本';
+    case 'Unable to parse GitHub release': return '无法解析 GitHub Release';
     case 'Checking for updates...': return '正在检查更新...';
     case 'Current version': return '当前版本';
     case 'No release notes': return '暂无更新内容';
