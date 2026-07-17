@@ -21,8 +21,10 @@ import { EH_SYSTEM_COLOR_MODE_DARK, EH_SYSTEM_COLOR_MODE_KEY } from '../shared/E
 import {
   ensureEhHostRules,
   isEhDirectConnectionProbeEnabled,
+  registerEhNetworkChangeListener,
   startEhDirectConnectionProbe,
-  startEhFrontingBenchmark
+  startEhFrontingBenchmark,
+  unregisterEhNetworkChangeListener
 } from '../services/EhNetworkConfig';
 import {
   resetCellularNetworkWarningConfirmation,
@@ -106,6 +108,7 @@ export default class EntryAbility extends UIAbility {
     }).catch(() => {});
     const settingsReady = ehSettingsStore.ensureLoaded(this.context).then(() => {
       this.setIdentityAuthLocked(this.identityAuthEnabledInMemory());
+      registerEhNetworkChangeListener(this.context);
       this.initializeNetworkRuntime();
     }).catch(() => {});
     Promise.all([windowReady, settingsReady]).then(() => {
@@ -128,6 +131,11 @@ export default class EntryAbility extends UIAbility {
 
   onConfigurationUpdate(newConfig: Configuration): void {
     this.updateSystemColorMode(newConfig.colorMode);
+  }
+
+  onWindowStageDestroy(): void {
+    unregisterEhNetworkChangeListener();
+    this.windowStage = undefined;
   }
 
   private updateSystemColorMode(colorMode: ConfigurationConstant.ColorMode | undefined): void {

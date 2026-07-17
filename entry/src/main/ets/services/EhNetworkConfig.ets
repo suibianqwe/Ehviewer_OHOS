@@ -1,8 +1,9 @@
 import { common } from '@kit.AbilityKit';
-import { deviceInfo } from '@kit.BasicServicesKit';
+import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
 import { connection } from '@kit.NetworkKit';
+import { ehAppLog } from './EhAppLog';
 import { ehSettingsStore } from './EhSettingsStore';
 import { retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
 
@@ -28,6 +29,9 @@ const IP_UNTESTED_LATENCY_MS: number = 2200;
 const IP_QUALITY_SAVE_THROTTLE_MS: number = 30000;
 const IP_SLOW_RESPONSE_THRESHOLD_MS: number = 4000;
 const IP_SLOW_LATENCY_PENALTY_MS: number = 350;
+const NETWORK_CHANGE_DEBOUNCE_MS: number = 350;
+const NETWORK_ENVIRONMENT_FALLBACK_INTERVAL_MS: number = 5000;
+const FRESH_CONNECTION_WINDOW_MS: number = 5000;
 const FRONTING_PROBE_USER_AGENT: string =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36';
 const BUILT_IN_RULES: HostRule[] = [
@@ -63,6 +67,13 @@ let directProbeGeneration: number = 0;
 let directProbePending: Promise<boolean> | null = null;
 let directProbePassed: boolean = false;
 let observedNetworkEnvironmentKey: string = '';
+let cachedNetworkEnvironmentKey: string = '';
+let lastNetworkEnvironmentCheckAt: number = 0;
+let networkRuntimeContext: common.UIAbilityContext | undefined = undefined;
+let networkRuntimeConnection: connection.NetConnection | undefined = undefined;
+let networkRuntimeRegistered: boolean = false;
+let networkChangeTimer: number = -1;
+let forceFreshConnectionsUntilMs: number = 0;
 let lastIpQualitySaveAt: number = 0;
 const DIRECT_HOST_FAILURES: DirectHostFailure[] = [];
 
@@ -122,8 +133,8 @@ export function createEhRequestPlan(url: string): EhRequestPlan {
     networkChanged = refreshNetworkEnvironment();
   }
   ensureFrontingQualityCacheLoaded();
-  if (networkChanged && isEhFrontingBenchmarkEnabled()) {
-    startEhFrontingBenchmark(undefined, true);
+  if (networkChanged) {
+    refreshNetworkRuntimeAfterChange();
   }
   if (shouldUseDirectConnection(host)) {
     return {
@@ -186,6 +197,13 @@ export function applyEhNetworkOptions(options: http.HttpRequestOptions, plan: Eh
     if (deviceInfo.apiAvailable('26.0.0')) {
       options.reuseConnections = false;
     }
+  } else if (Date.now() < forceFreshConnectionsUntilMs) {
+    // The system clears its DNS cache on network disconnect/switch, but an existing HTTP/1.1
+    // connection can still bypass a newly restored app-scoped DNS rule. Use fresh EH connections
+    // briefly after a network or Hosts transition, then return to normal connection reuse.
+    if (deviceInfo.apiAvailable('26.0.0')) {
+      options.reuseConnections = false;
+    }
   }
 }
 
@@ -229,6 +247,7 @@ export function socks5ProxySupported(): boolean {
 
 export function startEhDirectConnectionProbe(context?: common.UIAbilityContext): Promise<boolean> {
   if (context !== undefined) {
+    networkRuntimeContext = context;
     frontingIpCachePath = context.filesDir + '/' + FRONTING_IP_CACHE_FILE_NAME;
   }
   const key = directProbeKeyValue();
@@ -248,21 +267,29 @@ export function startEhDirectConnectionProbe(context?: common.UIAbilityContext):
   directProbePassed = false;
   directProbeGeneration++;
   const generation = directProbeGeneration;
-  directProbePending = removeKnownHostRules().then(() => {
+  const existingHostRuleTask = pendingHostRules;
+  directProbePending = (existingHostRuleTask === null ? Promise.resolve() : existingHostRuleTask).then(() => {
+    markFreshEhConnectionsRequired();
+    return removeKnownHostRules();
+  }).then(() => {
     return probeDirectSelectedSite();
-  }).then((passed: boolean) => {
+  }).then(async (passed: boolean): Promise<boolean> => {
     if (generation === directProbeGeneration && directProbeKey === key) {
       directProbePassed = passed;
       if (passed) {
         clearDirectHostFailures();
         cancelFrontingBenchmark();
+        appliedHostRulesKey = 'Direct';
+      } else {
+        await restoreConfiguredHostRules();
       }
       directProbePending = null;
     }
     return passed;
-  }).catch(() => {
+  }).catch(async (): Promise<boolean> => {
     if (generation === directProbeGeneration && directProbeKey === key) {
       directProbePassed = false;
+      await restoreConfiguredHostRules();
       directProbePending = null;
     }
     return false;
@@ -338,6 +365,7 @@ function applyIpQualityMeasurement(current: HostIpQuality, ok: boolean, elapsedM
 
 export function startEhFrontingBenchmark(context?: common.UIAbilityContext, forceRefresh: boolean = false): void {
   if (context !== undefined) {
+    networkRuntimeContext = context;
     frontingIpCachePath = context.filesDir + '/' + FRONTING_IP_CACHE_FILE_NAME;
   }
   const key = frontingBenchmarkKey();
@@ -389,6 +417,9 @@ function cancelFrontingBenchmark(): void {
 }
 
 export async function ensureEhHostRules(): Promise<void> {
+  if (directProbePending !== null && isEhDirectConnectionProbeEnabled()) {
+    await directProbePending;
+  }
   if (directProbePassed && ehSettingsStore.getValue('auto_direct_connection', 'Off') === 'On') {
     const key = 'Direct';
     if (appliedHostRulesKey !== key) {
@@ -597,6 +628,69 @@ async function runFrontingProbeWorker(targets: HostIpProbeTarget[], generation: 
     if (generation === frontingProbeGeneration) {
       results.push(result);
     }
+  }
+}
+
+export function registerEhNetworkChangeListener(context: common.UIAbilityContext): void {
+  networkRuntimeContext = context;
+  cachedNetworkEnvironmentKey = readCurrentNetworkEnvironmentKey();
+  lastNetworkEnvironmentCheckAt = Date.now();
+  if (observedNetworkEnvironmentKey.length === 0) {
+    observedNetworkEnvironmentKey = cachedNetworkEnvironmentKey;
+  }
+  if (networkRuntimeConnection !== undefined) {
+    return;
+  }
+  const netConnection = connection.createNetConnection();
+  networkRuntimeConnection = netConnection;
+  netConnection.on('netAvailable', (_netHandle: connection.NetHandle) => {
+    scheduleNetworkRuntimeRefresh();
+  });
+  netConnection.on('netLost', (_netHandle: connection.NetHandle) => {
+    scheduleNetworkRuntimeRefresh();
+  });
+  netConnection.on('netUnavailable', () => {
+    scheduleNetworkRuntimeRefresh();
+  });
+  netConnection.on('netCapabilitiesChange', (_info: connection.NetCapabilityInfo) => {
+    scheduleNetworkRuntimeRefresh();
+  });
+  netConnection.on('netConnectionPropertiesChange', (_info: connection.NetConnectionPropertyInfo) => {
+    scheduleNetworkRuntimeRefresh();
+  });
+  networkRuntimeRegistered = true;
+  try {
+    netConnection.register((error: BusinessError) => {
+      if (error !== undefined && error.code !== 0) {
+        networkRuntimeRegistered = false;
+        networkRuntimeConnection = undefined;
+        ehAppLog.warn(context, 'EhNetworkConfig',
+          'Register network listener failed: ' + error.code.toString() + ' ' + error.message);
+      }
+    });
+  } catch (error) {
+    networkRuntimeRegistered = false;
+    networkRuntimeConnection = undefined;
+    ehAppLog.warn(context, 'EhNetworkConfig', 'Register network listener failed');
+  }
+}
+
+export function unregisterEhNetworkChangeListener(): void {
+  if (networkChangeTimer >= 0) {
+    clearTimeout(networkChangeTimer);
+    networkChangeTimer = -1;
+  }
+  const netConnection = networkRuntimeConnection;
+  networkRuntimeConnection = undefined;
+  networkRuntimeRegistered = false;
+  networkRuntimeContext = undefined;
+  if (netConnection === undefined) {
+    return;
+  }
+  try {
+    netConnection.unregister((_error: BusinessError) => {
+    });
+  } catch (error) {
   }
 }
 
@@ -1086,27 +1180,99 @@ function refreshNetworkEnvironment(): boolean {
   directProbePending = null;
   directProbePassed = false;
   clearDirectHostFailures();
+  markFreshEhConnectionsRequired();
   return true;
 }
 
 function currentNetworkEnvironmentKey(): string {
-  try {
-    const networks = connection.getAllNetsSync();
-    const entries: string[] = [];
-    for (let i = 0; i < networks.length; i++) {
-      const capabilities = connection.getNetCapabilitiesSync(networks[i]);
-      const bearerTypes: number[] = [];
-      for (let j = 0; j < capabilities.bearerTypes.length; j++) {
-        bearerTypes.push(capabilities.bearerTypes[j] as number);
-      }
-      bearerTypes.sort((left: number, right: number): number => left - right);
-      entries.push(networks[i].netId.toString() + ':' + bearerTypes.join(','));
-    }
-    entries.sort();
-    return entries.join('|');
-  } catch (error) {
-    return '';
+  if (networkRuntimeRegistered && cachedNetworkEnvironmentKey.length > 0) {
+    return cachedNetworkEnvironmentKey;
   }
+  const now = Date.now();
+  if (cachedNetworkEnvironmentKey.length > 0 &&
+    now - lastNetworkEnvironmentCheckAt < NETWORK_ENVIRONMENT_FALLBACK_INTERVAL_MS) {
+    return cachedNetworkEnvironmentKey;
+  }
+  cachedNetworkEnvironmentKey = readCurrentNetworkEnvironmentKey();
+  lastNetworkEnvironmentCheckAt = now;
+  return cachedNetworkEnvironmentKey;
+}
+
+function readCurrentNetworkEnvironmentKey(): string {
+  try {
+    const defaultNetwork = connection.getDefaultNetSync();
+    if (defaultNetwork.netId <= 0) {
+      return 'offline';
+    }
+    const capabilities = connection.getNetCapabilitiesSync(defaultNetwork);
+    const bearerTypes: number[] = [];
+    for (let i = 0; i < capabilities.bearerTypes.length; i++) {
+      bearerTypes.push(capabilities.bearerTypes[i] as number);
+    }
+    bearerTypes.sort((left: number, right: number): number => left - right);
+    const networkCapabilities: number[] = [];
+    if (capabilities.networkCap !== undefined) {
+      for (let i = 0; i < capabilities.networkCap.length; i++) {
+        networkCapabilities.push(capabilities.networkCap[i] as number);
+      }
+    }
+    networkCapabilities.sort((left: number, right: number): number => left - right);
+    const properties = connection.getConnectionPropertiesSync(defaultNetwork);
+    const dnses: string[] = [];
+    for (let i = 0; i < properties.dnses.length; i++) {
+      dnses.push(properties.dnses[i].address);
+    }
+    dnses.sort();
+    const linkAddresses: string[] = [];
+    for (let i = 0; i < properties.linkAddresses.length; i++) {
+      linkAddresses.push(properties.linkAddresses[i].address.address + '/' +
+        properties.linkAddresses[i].prefixLength.toString());
+    }
+    linkAddresses.sort();
+    return defaultNetwork.netId.toString() + ':' + bearerTypes.join(',') + ':' +
+      networkCapabilities.join(',') + ':' + properties.interfaceName + ':' +
+      dnses.join(',') + ':' + linkAddresses.join(',');
+  } catch (error) {
+    return 'offline';
+  }
+}
+
+function markFreshEhConnectionsRequired(): void {
+  forceFreshConnectionsUntilMs = Date.now() + FRESH_CONNECTION_WINDOW_MS;
+}
+
+function scheduleNetworkRuntimeRefresh(): void {
+  if (networkChangeTimer >= 0) {
+    clearTimeout(networkChangeTimer);
+  }
+  networkChangeTimer = setTimeout(() => {
+    networkChangeTimer = -1;
+    cachedNetworkEnvironmentKey = readCurrentNetworkEnvironmentKey();
+    lastNetworkEnvironmentCheckAt = Date.now();
+    if (refreshNetworkEnvironment()) {
+      refreshNetworkRuntimeAfterChange();
+    }
+  }, NETWORK_CHANGE_DEBOUNCE_MS);
+}
+
+function refreshNetworkRuntimeAfterChange(): void {
+  if (!isEhNetworkProcessingEnabled() || currentNetworkEnvironmentKey() === 'offline') {
+    return;
+  }
+  if (isEhDirectConnectionProbeEnabled()) {
+    startEhDirectConnectionProbe(networkRuntimeContext).then((directAvailable: boolean) => {
+      if (!directAvailable) {
+        startEhFrontingBenchmark(networkRuntimeContext, true);
+      }
+    }).catch(() => {
+      startEhFrontingBenchmark(networkRuntimeContext, true);
+    });
+    return;
+  }
+  ensureEhHostRules().then(() => {
+    startEhFrontingBenchmark(networkRuntimeContext, true);
+  }).catch(() => {
+  });
 }
 
 function requestHost(url: string): string {
@@ -1238,9 +1404,7 @@ function hashText(value: string): string {
 
 async function applyHostRules(key: string): Promise<void> {
   try {
-    if (appliedHostRulesKey.length > 0) {
-      await removeKnownHostRules();
-    }
+    await removeKnownHostRules();
     const rules: HostRule[] = [];
     if (ehSettingsStore.getValue('built_in_hosts', 'Off') === 'On') {
       pushRules(rules, BUILT_IN_RULES);
@@ -1258,6 +1422,7 @@ async function applyHostRules(key: string): Promise<void> {
 }
 
 async function removeKnownHostRules(): Promise<void> {
+  appliedHostRulesKey = '';
   const rules: HostRule[] = [];
   pushRules(rules, BUILT_IN_RULES);
   pushRules(rules, BUILT_EX_RULES);
@@ -1267,6 +1432,17 @@ async function removeKnownHostRules(): Promise<void> {
     } catch (error) {
     }
   }
+}
+
+async function restoreConfiguredHostRules(): Promise<void> {
+  const key = ehSettingsStore.getValue('built_in_hosts', 'Off') + ':' +
+    ehSettingsStore.getValue('built_ex_hosts', 'Off');
+  if (key === 'Off:Off') {
+    await removeKnownHostRules();
+    appliedHostRulesKey = key;
+    return;
+  }
+  await applyHostRules(key);
 }
 
 function pushRules(target: HostRule[], source: HostRule[]): void {
