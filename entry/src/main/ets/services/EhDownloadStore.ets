@@ -5,6 +5,8 @@ import { GalleryCategory, GalleryDetail, GalleryInfo, GalleryTagGroup } from '..
 const PREFERENCES_NAME: string = 'ehviewer_downloads';
 const VALUES_KEY: string = 'items';
 const LABELS_KEY: string = 'labels';
+const DOWNLOAD_NOTIFY_DEBOUNCE_MS: number = 50;
+const DOWNLOAD_SAVE_DEBOUNCE_MS: number = 500;
 
 export enum DownloadState {
   Invalid = 'invalid',
@@ -85,6 +87,9 @@ export class EhDownloadStore {
   private items: DownloadInfo[] = [];
   private labels: DownloadLabel[] = [];
   private listeners: DownloadStoreListener[] = [];
+  private notifyTimer: number = -1;
+  private saveRevision: number = 0;
+  private savePromise: Promise<void> | null = null;
 
   subscribe(listener: DownloadStoreListener): () => void {
     this.listeners.push(listener);
@@ -202,10 +207,14 @@ export class EhDownloadStore {
     if (index < 0) {
       return;
     }
-    this.items[index].finished = finished;
-    this.items[index].downloaded = downloaded;
-    this.items[index].total = total;
-    this.notifyChanged();
+    const item = this.items[index];
+    if (item.finished === finished && item.downloaded === downloaded && item.total === total) {
+      return;
+    }
+    item.finished = finished;
+    item.downloaded = downloaded;
+    item.total = total;
+    this.scheduleNotifyChanged();
   }
 
   setTransfer(gid: number, speed: number, remaining: number): void {
@@ -213,9 +222,15 @@ export class EhDownloadStore {
     if (index < 0) {
       return;
     }
-    this.items[index].speed = Math.max(0, speed);
-    this.items[index].remaining = Math.max(0, remaining);
-    this.notifyChanged();
+    const normalizedSpeed = Math.max(0, speed);
+    const normalizedRemaining = Math.max(0, remaining);
+    const item = this.items[index];
+    if (item.speed === normalizedSpeed && item.remaining === normalizedRemaining) {
+      return;
+    }
+    item.speed = normalizedSpeed;
+    item.remaining = normalizedRemaining;
+    this.scheduleNotifyChanged();
   }
 
   setStorage(gid: number, archiveUri: string, fileSize: number): void {
@@ -223,9 +238,13 @@ export class EhDownloadStore {
     if (index < 0) {
       return;
     }
-    this.items[index].archiveUri = archiveUri;
-    this.items[index].fileSize = fileSize;
-    this.notifyChanged();
+    const item = this.items[index];
+    if (item.archiveUri === archiveUri && item.fileSize === fileSize) {
+      return;
+    }
+    item.archiveUri = archiveUri;
+    item.fileSize = fileSize;
+    this.scheduleNotifyChanged();
   }
 
   setLabel(gid: number, label: string): void {
@@ -357,13 +376,38 @@ export class EhDownloadStore {
   }
 
   async save(context: common.UIAbilityContext): Promise<void> {
+    this.saveRevision++;
+    if (this.savePromise === null) {
+      this.savePromise = this.saveLatest(context);
+    }
+    const pending = this.savePromise;
     try {
-      const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
-      await prefs.put(VALUES_KEY, JSON.stringify(this.items));
-      await prefs.put(LABELS_KEY, JSON.stringify(this.labels));
-      await prefs.flush();
+      await pending;
     } catch (error) {
       throw new Error(String(error));
+    } finally {
+      if (this.savePromise === pending) {
+        this.savePromise = null;
+      }
+    }
+  }
+
+  private async saveLatest(context: common.UIAbilityContext): Promise<void> {
+    let savedRevision = -1;
+    while (savedRevision !== this.saveRevision) {
+      await delay(DOWNLOAD_SAVE_DEBOUNCE_MS);
+      const targetRevision = this.saveRevision;
+      const values = JSON.stringify(this.items);
+      const labels = JSON.stringify(this.labels);
+      try {
+        const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
+        await prefs.put(VALUES_KEY, values);
+        await prefs.put(LABELS_KEY, labels);
+        await prefs.flush();
+      } catch (error) {
+        throw new Error(String(error));
+      }
+      savedRevision = targetRevision;
     }
   }
 
@@ -393,12 +437,36 @@ export class EhDownloadStore {
   }
 
   private notifyChanged(): void {
+    if (this.notifyTimer >= 0) {
+      clearTimeout(this.notifyTimer);
+      this.notifyTimer = -1;
+    }
+    this.emitChanged();
+  }
+
+  private scheduleNotifyChanged(): void {
+    if (this.notifyTimer >= 0) {
+      return;
+    }
+    this.notifyTimer = setTimeout(() => {
+      this.notifyTimer = -1;
+      this.emitChanged();
+    }, DOWNLOAD_NOTIFY_DEBOUNCE_MS) as number;
+  }
+
+  private emitChanged(): void {
     const items = this.getItems();
     const labels = this.getLabels();
     for (let i = 0; i < this.listeners.length; i++) {
       this.listeners[i](items, labels);
     }
   }
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise<void>((resolve: () => void) => {
+    setTimeout(resolve, milliseconds);
+  });
 }
 
 function galleryToDownloadInfo(gallery: GalleryInfo, label: string): DownloadInfo {

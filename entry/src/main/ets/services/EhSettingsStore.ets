@@ -131,34 +131,33 @@ export function defaultSettingEntries(): SettingEntry[] {
 
 export class EhSettingsStore {
   private entries: SettingEntry[] = defaultSettingEntries();
+  private valueByKey: Map<string, string> = new Map<string, string>();
+  private indexByKey: Map<string, number> = new Map<string, number>();
   private loaded: boolean = false;
   private ensurePromise: Promise<void> | null = null;
+
+  constructor() {
+    this.rebuildLookup();
+  }
 
   getEntries(): SettingEntry[] {
     return cloneEntries(this.entries);
   }
 
   getValue(key: string, fallback: string = ''): string {
-    for (let i = 0; i < this.entries.length; i++) {
-      if (this.entries[i].key === key) {
-        return this.entries[i].value;
-      }
-    }
-    return fallback;
+    const value = this.valueByKey.get(key);
+    return value === undefined ? fallback : value;
   }
 
   setValue(key: string, value: string): void {
-    let found = false;
-    for (let i = 0; i < this.entries.length; i++) {
-      if (this.entries[i].key === key) {
-        this.entries[i].value = value;
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
+    const index = this.indexByKey.get(key);
+    if (index === undefined) {
       this.entries.push({ key: key, value: value });
+      this.indexByKey.set(key, this.entries.length - 1);
+    } else {
+      this.entries[index].value = value;
     }
+    this.valueByKey.set(key, value);
     this.enforceAdaptiveDualPageConstraints();
     if (key === 'translation_buttons_enabled') {
       this.syncTranslationButtonVisibility();
@@ -182,13 +181,23 @@ export class EhSettingsStore {
   }
 
   private replaceEntryValue(key: string, value: string): void {
-    for (let i = 0; i < this.entries.length; i++) {
-      if (this.entries[i].key === key) {
-        this.entries[i].value = value;
-        return;
-      }
+    const index = this.indexByKey.get(key);
+    if (index === undefined) {
+      this.entries.push({ key: key, value: value });
+      this.indexByKey.set(key, this.entries.length - 1);
+    } else {
+      this.entries[index].value = value;
     }
-    this.entries.push({ key: key, value: value });
+    this.valueByKey.set(key, value);
+  }
+
+  private rebuildLookup(): void {
+    this.valueByKey.clear();
+    this.indexByKey.clear();
+    for (let i = 0; i < this.entries.length; i++) {
+      this.valueByKey.set(this.entries[i].key, this.entries[i].value);
+      this.indexByKey.set(this.entries[i].key, i);
+    }
   }
 
   syncTranslationButtonVisibility(): void {
@@ -223,6 +232,7 @@ export class EhSettingsStore {
       const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
       const raw = await prefs.get(VALUES_KEY, '');
       this.entries = defaultSettingEntries();
+      this.rebuildLookup();
       if (typeof raw !== 'string' || raw.length === 0) {
         return;
       }

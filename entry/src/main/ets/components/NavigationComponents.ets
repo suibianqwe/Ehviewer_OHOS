@@ -1,6 +1,6 @@
 import { GalleryRoute } from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
-import { ehDownloadStore } from '../services/EhDownloadStore';
+import { DownloadInfo, ehDownloadStore } from '../services/EhDownloadStore';
 import { EhHomeLimits, EhHomeLimitsResult, ehHomeLimitsService } from '../services/EhHomeLimitsService';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, downloadQueueSummary, getAbilityContext, uiText, uiStatusText, DrawerItem, DRAWER_ITEMS } from '../shared/EhShared';
@@ -38,31 +38,23 @@ export struct EhDrawer {
   @State signedIn: boolean = false;
   @State downloadSummary: string = '';
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
-  private downloadRefreshTimer: number = -1;
+  private unsubscribeDownloadStore: () => void = () => {};
 
   aboutToAppear(): void {
     this.signedIn = ehCookieStore.hasCookies();
-    this.refreshDownloadSummary();
+    this.unsubscribeDownloadStore();
+    this.unsubscribeDownloadStore = ehDownloadStore.subscribe((items: DownloadInfo[]) => {
+      this.downloadSummary = downloadQueueSummary(items);
+    });
     const ctx = getAbilityContext();
     if (ctx !== undefined) {
-      ehDownloadStore.load(ctx).then(() => {
-        this.refreshDownloadSummary();
-      }).catch(() => {});
+      ehDownloadStore.load(ctx).catch(() => {});
     }
-    this.downloadRefreshTimer = setInterval(() => {
-      this.refreshDownloadSummary();
-    }, 1500);
   }
 
   aboutToDisappear(): void {
-    if (this.downloadRefreshTimer >= 0) {
-      clearInterval(this.downloadRefreshTimer);
-      this.downloadRefreshTimer = -1;
-    }
-  }
-
-  private refreshDownloadSummary(): void {
-    this.downloadSummary = downloadQueueSummary(ehDownloadStore.getItems());
+    this.unsubscribeDownloadStore();
+    this.unsubscribeDownloadStore = () => {};
   }
 
   build() {

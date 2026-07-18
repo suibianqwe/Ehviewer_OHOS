@@ -18,6 +18,7 @@ const FILE_NAME: string = 'ehviewer_history.json';
 const FILE_BACKUP_NAME: string = 'ehviewer_history.backup.json';
 const HISTORY_DEFAULT_MAX_SIZE: number = 100;
 const HISTORY_ABSOLUTE_MAX_SIZE: number = 20000;
+const HISTORY_SAVE_DEBOUNCE_MS: number = 300;
 
 interface StoredGalleryInfo {
   galleryUrl?: string;
@@ -84,6 +85,7 @@ export class EhHistoryStore {
   private readPositions: ReadPosition[] = [];
   private context: common.UIAbilityContext | undefined = undefined;
   private saveChain: Promise<void> = Promise.resolve();
+  private saveTimer: number = -1;
   private loaded: boolean = false;
   private loadPromise: Promise<void> | null = null;
 
@@ -282,7 +284,13 @@ export class EhHistoryStore {
 
   async save(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
-    await this.saveNow(context);
+    if (this.saveTimer >= 0) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = -1;
+    }
+    const pending = this.saveChain.then(() => this.saveNow(context));
+    this.saveChain = pending.catch(() => {});
+    await pending;
   }
 
   private queueSave(): void {
@@ -290,12 +298,18 @@ export class EhHistoryStore {
     if (context === undefined) {
       return;
     }
-    this.saveChain = this.saveChain.then(() => this.saveNow(context)).catch(() => {});
+    if (this.saveTimer >= 0) {
+      clearTimeout(this.saveTimer);
+    }
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = -1;
+      this.saveChain = this.saveChain.then(() => this.saveNow(context)).catch(() => {});
+    }, HISTORY_SAVE_DEBOUNCE_MS) as number;
   }
 
   private async saveNow(context: common.UIAbilityContext): Promise<void> {
     try {
-      this.saveFile(context, this.serializeStoredItems(), this.serializeReadPositions());
+      await this.saveFile(context, this.serializeStoredItems(), this.serializeReadPositions());
     } catch (error) {
       throw new Error(String(error));
     }
@@ -329,15 +343,16 @@ export class EhHistoryStore {
     }
   }
 
-  private saveFile(context: common.UIAbilityContext, items: StoredGalleryInfo[], readPositions: StoredReadPosition[]): void {
+  private async saveFile(context: common.UIAbilityContext, items: StoredGalleryInfo[],
+    readPositions: StoredReadPosition[]): Promise<void> {
     const payload = JSON.stringify({
       version: 1,
       items: items,
       readPositions: readPositions,
       updatedAt: Date.now()
     });
-    writeTextFileQuietly(context.filesDir + '/' + FILE_NAME, payload);
-    writeTextFileQuietly(context.filesDir + '/' + FILE_BACKUP_NAME, payload);
+    await writeTextFileQuietly(context.filesDir + '/' + FILE_NAME, payload);
+    await writeTextFileQuietly(context.filesDir + '/' + FILE_BACKUP_NAME, payload);
   }
 
   private serializeStoredItems(): StoredGalleryInfo[] {
@@ -633,17 +648,16 @@ function cloneStringArray(values: string[]): string[] {
   return next;
 }
 
-function writeTextFileQuietly(path: string, value: string): void {
-  let fd = -1;
+async function writeTextFileQuietly(path: string, value: string): Promise<void> {
+  let file: fs.File | null = null;
   try {
-    const file = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
-    fd = file.fd;
-    fs.writeSync(fd, value);
+    file = await fs.open(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
+    await fs.write(file.fd, value);
   } catch (error) {
   } finally {
-    if (fd >= 0) {
+    if (file !== null) {
       try {
-        fs.closeSync(fd);
+        await fs.close(file);
       } catch (error) {
       }
     }

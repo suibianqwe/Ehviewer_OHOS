@@ -232,6 +232,27 @@ const THEME_ACCENTS: EhThemeAccent[] = [
   { name: 'Rose', light: '#A64D72', dark: '#7C3B57', black: '#52273B', indicator: '#EFA5C3' }
 ];
 
+const EH_THEME_REVISION_KEY: string = 'ehviewer_theme_revision';
+
+interface EhThemeRuntime {
+  revision: number;
+  colorMode: number;
+  themeSetting: string;
+  followSystem: string;
+  colorSetting: string;
+  themeName: string;
+  palette: EhColorPalette;
+  accent: EhThemeAccent;
+  primary: string;
+  indicator: string;
+  fieldBackground: string;
+  selectedBackground: string;
+  selectedBackgroundLight: string;
+  selectedText: string;
+}
+
+let cachedThemeRuntime: EhThemeRuntime | null = null;
+
 function normalizeThemeColorName(colorName: string): string {
   for (let i = 0; i < THEME_ACCENTS.length; i++) {
     if (THEME_ACCENTS[i].name === colorName) {
@@ -242,29 +263,15 @@ function normalizeThemeColorName(colorName: string): string {
 }
 
 function currentThemeAccent(): EhThemeAccent {
-  const colorName = normalizeThemeColorName(ehSettingsStore.getValue('theme_color', 'Blue'));
-  for (let i = 0; i < THEME_ACCENTS.length; i++) {
-    if (THEME_ACCENTS[i].name === colorName) {
-      return THEME_ACCENTS[i];
-    }
-  }
-  return THEME_ACCENTS[0];
+  return themeRuntime().accent;
 }
 
 function accentPrimaryColor(): string {
-  const accent = currentThemeAccent();
-  const themeName = currentThemeName();
-  if (themeName === 'Black') {
-    return accent.black;
-  }
-  if (themeName === 'Dark') {
-    return accent.dark;
-  }
-  return accent.light;
+  return themeRuntime().primary;
 }
 
 function accentIndicatorColor(): string {
-  return currentThemeName() === 'Light' ? currentThemeAccent().light : currentThemeAccent().indicator;
+  return themeRuntime().indicator;
 }
 
 function colorChannel(color: string, start: number): number {
@@ -286,45 +293,85 @@ function mixThemeColor(from: string, to: string, amount: number): string {
   return '#' + colorChannelHex(red) + colorChannelHex(green) + colorChannelHex(blue);
 }
 
+function themeRuntime(): EhThemeRuntime {
+  const revisionValue = AppStorage.get<number>(EH_THEME_REVISION_KEY);
+  const revision = revisionValue === undefined ? 0 : revisionValue;
+  const colorModeValue = AppStorage.get<number>(EH_SYSTEM_COLOR_MODE_KEY);
+  const colorMode = colorModeValue === undefined ? 0 : colorModeValue;
+  const themeSetting = ehSettingsStore.getValue('theme', 'Light');
+  const followSystem = ehSettingsStore.getValue('follow_system_dark_mode', 'Off');
+  const colorSetting = ehSettingsStore.getValue('theme_color', 'Blue');
+  const cached = cachedThemeRuntime;
+  if (cached !== null && cached.revision === revision && cached.colorMode === colorMode &&
+    cached.themeSetting === themeSetting && cached.followSystem === followSystem &&
+    cached.colorSetting === colorSetting) {
+    return cached;
+  }
+
+  const storedThemeName = normalizeThemeName(themeSetting);
+  let themeName = storedThemeName;
+  if (followSystem === 'On') {
+    themeName = colorMode === EH_SYSTEM_COLOR_MODE_DARK ?
+      (storedThemeName === 'Black' ? 'Black' : 'Dark') : 'Light';
+  }
+  const palette = themeName === 'Black' ? BLACK_PALETTE : (themeName === 'Dark' ? DARK_PALETTE : LIGHT_PALETTE);
+  const colorName = normalizeThemeColorName(colorSetting);
+  let accent = THEME_ACCENTS[0];
+  for (let i = 0; i < THEME_ACCENTS.length; i++) {
+    if (THEME_ACCENTS[i].name === colorName) {
+      accent = THEME_ACCENTS[i];
+      break;
+    }
+  }
+  const primary = themeName === 'Black' ? accent.black : (themeName === 'Dark' ? accent.dark : accent.light);
+  const indicator = themeName === 'Light' ? accent.light : accent.indicator;
+  const fieldBackground = themeName === 'Black' ?
+    mixThemeColor(indicator, BLACK_PALETTE.surface, 0.88) :
+    (themeName === 'Dark' ? mixThemeColor(indicator, DARK_PALETTE.surface, 0.82) :
+      mixThemeColor(primary, LIGHT_PALETTE.surface, 0.90));
+  const selectedBackground = themeName === 'Black' ?
+    mixThemeColor(indicator, BLACK_PALETTE.surface, 0.78) :
+    (themeName === 'Dark' ? mixThemeColor(indicator, DARK_PALETTE.surface, 0.74) :
+      mixThemeColor(primary, LIGHT_PALETTE.surface, 0.70));
+  const selectedBackgroundLight = themeName === 'Black' ?
+    mixThemeColor(indicator, BLACK_PALETTE.surface, 0.66) :
+    (themeName === 'Dark' ? mixThemeColor(indicator, DARK_PALETTE.surface, 0.60) :
+      mixThemeColor(primary, LIGHT_PALETTE.surface, 0.82));
+  const selectedText = themeName === 'Light' ?
+    mixThemeColor(primary, '#000000', 0.28) : mixThemeColor(indicator, '#FFFFFF', 0.20);
+  cachedThemeRuntime = {
+    revision: revision,
+    colorMode: colorMode,
+    themeSetting: themeSetting,
+    followSystem: followSystem,
+    colorSetting: colorSetting,
+    themeName: themeName,
+    palette: palette,
+    accent: accent,
+    primary: primary,
+    indicator: indicator,
+    fieldBackground: fieldBackground,
+    selectedBackground: selectedBackground,
+    selectedBackgroundLight: selectedBackgroundLight,
+    selectedText: selectedText
+  };
+  return cachedThemeRuntime;
+}
+
 function accentFieldBackground(): string {
-  const themeName = currentThemeName();
-  if (themeName === 'Black') {
-    return mixThemeColor(accentIndicatorColor(), BLACK_PALETTE.surface, 0.88);
-  }
-  if (themeName === 'Dark') {
-    return mixThemeColor(accentIndicatorColor(), DARK_PALETTE.surface, 0.82);
-  }
-  return mixThemeColor(accentPrimaryColor(), LIGHT_PALETTE.surface, 0.90);
+  return themeRuntime().fieldBackground;
 }
 
 function accentSelectedBackground(lightVariant: boolean): string {
-  const themeName = currentThemeName();
-  if (themeName === 'Black') {
-    return mixThemeColor(accentIndicatorColor(), BLACK_PALETTE.surface, lightVariant ? 0.66 : 0.78);
-  }
-  if (themeName === 'Dark') {
-    return mixThemeColor(accentIndicatorColor(), DARK_PALETTE.surface, lightVariant ? 0.60 : 0.74);
-  }
-  return mixThemeColor(accentPrimaryColor(), LIGHT_PALETTE.surface, lightVariant ? 0.82 : 0.70);
+  return lightVariant ? themeRuntime().selectedBackgroundLight : themeRuntime().selectedBackground;
 }
 
 function accentSelectedText(): string {
-  if (currentThemeName() === 'Light') {
-    return mixThemeColor(accentPrimaryColor(), '#000000', 0.28);
-  }
-  return mixThemeColor(accentIndicatorColor(), '#FFFFFF', 0.20);
+  return themeRuntime().selectedText;
 }
 
 export function currentThemeName(): string {
-  const storedThemeName = normalizeThemeName(ehSettingsStore.getValue('theme', 'Light'));
-  if (ehSettingsStore.getValue('follow_system_dark_mode', 'Off') !== 'On') {
-    return storedThemeName;
-  }
-  const colorMode = AppStorage.get<number>(EH_SYSTEM_COLOR_MODE_KEY);
-  if (colorMode === EH_SYSTEM_COLOR_MODE_DARK) {
-    return storedThemeName === 'Black' ? 'Black' : 'Dark';
-  }
-  return 'Light';
+  return themeRuntime().themeName;
 }
 
 export function currentDarkModeThemeName(): string {
@@ -343,14 +390,7 @@ function normalizeThemeName(themeName: string): string {
 }
 
 function currentThemePalette(): EhColorPalette {
-  const themeName = currentThemeName();
-  if (themeName === 'Black') {
-    return BLACK_PALETTE;
-  }
-  if (themeName === 'Dark') {
-    return DARK_PALETTE;
-  }
-  return LIGHT_PALETTE;
+  return themeRuntime().palette;
 }
 
 export function isDarkTheme(): boolean {

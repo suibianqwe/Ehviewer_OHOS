@@ -37,6 +37,7 @@ import {
   IDENTITY_AUTH_OFF,
   IDENTITY_AUTH_PASSWORD_FIRST,
   THEME_REVISION_KEY,
+  notifyLanguageChanged,
   notifyThemeChanged,
   normalizeIdentityAuthenticationOption,
   uiText
@@ -130,6 +131,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onConfigurationUpdate(newConfig: Configuration): void {
+    notifyLanguageChanged();
     this.updateSystemColorMode(newConfig.colorMode);
   }
 

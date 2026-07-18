@@ -188,24 +188,41 @@ export function shouldShowTagTranslations(): boolean {
   return ehSettingsStore.getValue('show_tag_translations', 'On') === 'On';
 }
 
+let cachedUiLanguageRevision: number = -1;
+let cachedUiLanguage: string = '';
+let cachedUiLanguageSetting: string = '';
+
 function currentUiLanguage(): string {
+  const revision = AppStorage.get<number>(LANGUAGE_REVISION_KEY);
+  const normalizedRevision = revision === undefined ? 0 : revision;
   const language = ehSettingsStore.getValue('app_language', 'System');
-  if (language === 'zh-CN' || language === 'zh-TW' || language === 'English') {
-    return language;
+  if (cachedUiLanguageRevision === normalizedRevision && cachedUiLanguageSetting === language &&
+    cachedUiLanguage.length > 0) {
+    return cachedUiLanguage;
   }
+  if (language === 'zh-CN' || language === 'zh-TW' || language === 'English') {
+    cachedUiLanguageRevision = normalizedRevision;
+    cachedUiLanguageSetting = language;
+    cachedUiLanguage = language;
+    return cachedUiLanguage;
+  }
+  let resolvedLanguage = 'English';
   try {
     const systemLanguage = i18n.System.getSimplifiedLanguage();
     const supportedLanguages: Array<string> = ['zh-Hans', 'zh-Hant'];
     const matchedLanguage = i18n.I18NUtil.getBestMatchLocale(systemLanguage, supportedLanguages);
     if (matchedLanguage === 'zh-Hans') {
-      return 'zh-CN';
+      resolvedLanguage = 'zh-CN';
     }
     if (matchedLanguage === 'zh-Hant') {
-      return 'zh-TW';
+      resolvedLanguage = 'zh-TW';
     }
   } catch (error) {
   }
-  return 'English';
+  cachedUiLanguageRevision = normalizedRevision;
+  cachedUiLanguageSetting = language;
+  cachedUiLanguage = resolvedLanguage;
+  return cachedUiLanguage;
 }
 
 function localizedChineseText(text: string): string {
@@ -213,10 +230,12 @@ function localizedChineseText(text: string): string {
 }
 
 export function uiText(text: string): string {
-  if (!shouldUseChineseUi()) {
+  const language = currentUiLanguage();
+  if (language === 'English') {
     return text;
   }
-  return localizedChineseText(zhText(text));
+  const translated = zhText(text);
+  return language === 'zh-TW' ? traditionalChineseText(translated) : translated;
 }
 
 export function uiValue(value: string): string {
@@ -234,10 +253,12 @@ export function plainTextFromHtml(html: string): string {
 }
 
 export function uiStatusText(text: string): string {
-  if (!shouldUseChineseUi()) {
+  const language = currentUiLanguage();
+  if (language === 'English') {
     return text;
   }
-  return localizedChineseText(simplifiedUiStatusText(text));
+  const translated = simplifiedUiStatusText(text);
+  return language === 'zh-TW' ? traditionalChineseText(translated) : translated;
 }
 
 function simplifiedUiStatusText(text: string): string {
@@ -3658,13 +3679,11 @@ function scheduleThumbnailReadyDelivery(): void {
   setTimeout(() => {
     thumbnailReadyScheduled = false;
     const count = Math.min(THUMBNAIL_READY_BATCH_SIZE, THUMBNAIL_READY_QUEUE.length);
-    for (let i = 0; i < count; i++) {
-      const item = THUMBNAIL_READY_QUEUE.shift();
-      if (item !== undefined) {
-        try {
-          item.onReady(item.path);
-        } catch (error) {
-        }
+    const batch = THUMBNAIL_READY_QUEUE.splice(0, count);
+    for (let i = 0; i < batch.length; i++) {
+      try {
+        batch[i].onReady(batch[i].path);
+      } catch (error) {
       }
     }
     if (THUMBNAIL_READY_QUEUE.length > 0) {

@@ -11,7 +11,7 @@ import { ehAppLog } from '../services/EhAppLog';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { applyWindowPrivacyMode } from '../services/EhWindowPrivacy';
 import { EH_SYSTEM_COLOR_MODE_DARK, EH_SYSTEM_COLOR_MODE_KEY } from '../shared/EhTheme';
-import { notifyThemeChanged } from '../shared/EhShared';
+import { notifyLanguageChanged, notifyThemeChanged } from '../shared/EhShared';
 
 export const READER_ABILITY_CONTEXT_KEY: string = 'readerAbilityContext';
 
@@ -69,6 +69,7 @@ export default class ReaderAbility extends UIAbility {
   }
 
   onConfigurationUpdate(newConfig: Configuration): void {
+    notifyLanguageChanged();
     this.updateSystemColorMode(newConfig.colorMode);
   }
 

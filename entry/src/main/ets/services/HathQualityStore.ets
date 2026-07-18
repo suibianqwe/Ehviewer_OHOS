@@ -31,6 +31,7 @@ export class HathQualityStore {
   private cachePath: string = '';
   private loaded: boolean = false;
   private lastSaveAt: number = 0;
+  private saveTimer: number = -1;
 
   recordSuccess(context: common.UIAbilityContext | undefined, url: string, elapsedMs: number, bytes: number): void {
     const host = hathHostFromUrl(url);
@@ -62,7 +63,7 @@ export class HathQualityStore {
       entry.averageMs = Math.max(entry.averageMs, HATH_BAD_LATENCY_MS);
     }
     entry.lastFailureAt = Date.now();
-    this.save(context);
+    this.saveThrottled(context);
   }
 
   shouldSkip(context: common.UIAbilityContext | undefined, url: string): boolean {
@@ -149,10 +150,22 @@ export class HathQualityStore {
 
   private saveThrottled(context: common.UIAbilityContext): void {
     const now = Date.now();
-    if (now - this.lastSaveAt < HATH_QUALITY_SAVE_THROTTLE_MS) {
+    const elapsed = now - this.lastSaveAt;
+    if (elapsed >= HATH_QUALITY_SAVE_THROTTLE_MS) {
+      if (this.saveTimer >= 0) {
+        clearTimeout(this.saveTimer);
+        this.saveTimer = -1;
+      }
+      this.save(context);
       return;
     }
-    this.save(context);
+    if (this.saveTimer >= 0) {
+      return;
+    }
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = -1;
+      this.save(context);
+    }, HATH_QUALITY_SAVE_THROTTLE_MS - elapsed) as number;
   }
 
   private save(context: common.UIAbilityContext): void {
