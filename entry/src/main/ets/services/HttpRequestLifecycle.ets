@@ -43,6 +43,10 @@ export function cancelHttpRequest(request: http.HttpRequest): void {
   }
 }
 
+export function hasActiveHttpRequests(): boolean {
+  return ACTIVE_HTTP_REQUESTS.length > 0;
+}
+
 function removeRequest(items: http.HttpRequest[], request: http.HttpRequest): void {
   const index = items.indexOf(request);
   if (index >= 0) {

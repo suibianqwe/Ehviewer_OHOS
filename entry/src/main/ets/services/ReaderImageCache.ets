@@ -29,12 +29,14 @@ interface WaitingImageSlot {
   priority: number;
   sequence: number;
   background: boolean;
+  hath: boolean;
   resolve: (slot: AcquiredImageSlot) => void;
   reject: (error: Error) => void;
 }
 
 interface AcquiredImageSlot {
   background: boolean;
+  hath: boolean;
 }
 
 interface ActiveImageRequest {
@@ -53,9 +55,11 @@ const IMAGE_CONNECT_TIMEOUT_MS: number = 4500;
 const IMAGE_RESPONSE_MAX_BYTES: number = 128 * 1024 * 1024;
 const DEFAULT_IMAGE_RETRY_LIMIT: number = 5;
 const MAX_BACKGROUND_IMAGE_DOWNLOADS: number = 4;
+const MAX_DOH_HATH_IMAGE_DOWNLOADS: number = 2;
 const BACKGROUND_IMAGE_RESUME_DELAY_MS: number = 750;
 let activeImageDownloads: number = 0;
 let activeBackgroundImageDownloads: number = 0;
+let activeHathImageDownloads: number = 0;
 let imageTempFileSequence: number = 0;
 let imageSlotSequence: number = 0;
 let backgroundImageDispatchPaused: boolean = false;
@@ -233,7 +237,7 @@ export class ReaderImageCache {
     pendingKey: string, priority: number, onProgress?: ImageDownloadProgressCallback,
     options?: ImageDownloadOptions): Promise<string> {
     ensureDirectory(readerImageCacheDirectory(context));
-    const slot = await acquireImageSlot(pendingKey, priority);
+    const slot = await acquireImageSlot(pendingKey, imageUrl, priority);
     try {
       return await this.downloadWithRetry(context, imageUrl, referer, path, priority, onProgress, options);
     } finally {
@@ -244,14 +248,17 @@ export class ReaderImageCache {
   private async downloadWithRetry(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
     priority: number, onProgress?: ImageDownloadProgressCallback, options?: ImageDownloadOptions): Promise<string> {
     let lastError = '';
+    let useDnsOverHttps = true;
     const retryLimit = normalizedRetryLimit(options);
     for (let attempt = 0; attempt < retryLimit; attempt++) {
       try {
-        return await this.downloadOnce(context, imageUrl, referer, path, attempt, priority, onProgress, true);
+        return await this.downloadOnce(context, imageUrl, referer, path, attempt, priority, onProgress,
+          useDnsOverHttps);
       } catch (error) {
         removeFileQuietly(path);
         lastError = imageNetworkErrorMessage(error);
-        if (shouldRetryImageWithoutDnsOverHttps(lastError)) {
+        if (useDnsOverHttps && shouldRetryImageWithoutDnsOverHttps(lastError, imageUrl)) {
+          useDnsOverHttps = false;
           ehAppLog.info(context, 'ReaderImageCache', 'DoH image lookup failed, retrying with system DNS, url=' +
             trimLogUrl(imageUrl));
           try {
@@ -608,8 +615,17 @@ function isTransientImageError(message: string): boolean {
     lower.indexOf('2300007') >= 0 || lower.indexOf('230350') >= 0;
 }
 
-function shouldRetryImageWithoutDnsOverHttps(message: string): boolean {
-  return currentDnsOverHttpsUrl().length > 0 && message === 'Image DNS lookup failed';
+function shouldRetryImageWithoutDnsOverHttps(message: string, imageUrl: string): boolean {
+  if (currentDnsOverHttpsUrl().length === 0) {
+    return false;
+  }
+  if (message === 'Image DNS lookup failed') {
+    return true;
+  }
+  // A DoH endpoint timeout can be surfaced by Network Kit as a generic timeout before name lookup starts.
+  // H@H image hosts are short-lived and numerous, so retry these through system DNS instead of repeatedly
+  // sending the remaining attempts back to the same stalled DoH path.
+  return isHathImageUrl(imageUrl) && message === 'Image network timeout';
 }
 
 function imageStatusMessage(statusCode: number): string {
@@ -990,7 +1006,7 @@ function configuredImageDownloadLimit(): number {
   return Math.max(1, Math.min(value, 10));
 }
 
-function acquireImageSlot(key: string, priority: number): Promise<AcquiredImageSlot> {
+function acquireImageSlot(key: string, imageUrl: string, priority: number): Promise<AcquiredImageSlot> {
   return new Promise<AcquiredImageSlot>((resolve: (value: AcquiredImageSlot | PromiseLike<AcquiredImageSlot>) => void,
     reject: (reason?: Object) => void) => {
     WAITING_IMAGE_SLOTS.push({
@@ -998,6 +1014,7 @@ function acquireImageSlot(key: string, priority: number): Promise<AcquiredImageS
       priority: priority,
       sequence: imageSlotSequence++,
       background: isBackgroundImagePriority(priority),
+      hath: shouldLimitHathImageConcurrency(imageUrl),
       resolve: resolve,
       reject: (error: Error) => {
         reject(error);
@@ -1011,6 +1028,9 @@ function releaseImageSlot(slot: AcquiredImageSlot): void {
   activeImageDownloads = Math.max(0, activeImageDownloads - 1);
   if (slot.background) {
     activeBackgroundImageDownloads = Math.max(0, activeBackgroundImageDownloads - 1);
+  }
+  if (slot.hath) {
+    activeHathImageDownloads = Math.max(0, activeHathImageDownloads - 1);
   }
   dispatchWaitingImageSlots();
 }
@@ -1051,13 +1071,20 @@ function dispatchWaitingImageSlots(): void {
     if (next.background) {
       activeBackgroundImageDownloads++;
     }
+    if (next.hath) {
+      activeHathImageDownloads++;
+    }
     next.resolve({
-      background: next.background
+      background: next.background,
+      hath: next.hath
     });
   }
 }
 
 function canDispatchImageSlot(slot: WaitingImageSlot, totalLimit: number): boolean {
+  if (slot.hath && activeHathImageDownloads >= Math.min(totalLimit, MAX_DOH_HATH_IMAGE_DOWNLOADS)) {
+    return false;
+  }
   if (!slot.background) {
     return true;
   }
@@ -1087,6 +1114,10 @@ function isHathImageUrl(imageUrl: string): boolean {
     }
   }
   return host === 's.exhentai.org' || host.endsWith('.hath.network');
+}
+
+function shouldLimitHathImageConcurrency(imageUrl: string): boolean {
+  return currentDnsOverHttpsUrl().length > 0 && isHathImageUrl(imageUrl);
 }
 
 export function cancelQueuedReaderImageRequests(): number {

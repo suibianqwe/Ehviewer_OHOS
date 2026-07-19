@@ -5,7 +5,7 @@ import { http } from '@kit.NetworkKit';
 import { connection } from '@kit.NetworkKit';
 import { ehAppLog } from './EhAppLog';
 import { ehSettingsStore } from './EhSettingsStore';
-import { retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
+import { hasActiveHttpRequests, retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
 
 const YANDEX_DOH_URL: string = 'https://common.dot.dns.yandex.net/dns-query';
 const CLOUDFLARE_DOH_URL: string = 'https://cloudflare-dns.com/dns-query';
@@ -30,6 +30,8 @@ const IP_QUALITY_SAVE_THROTTLE_MS: number = 30000;
 const IP_SLOW_RESPONSE_THRESHOLD_MS: number = 4000;
 const IP_SLOW_LATENCY_PENALTY_MS: number = 350;
 const NETWORK_CHANGE_DEBOUNCE_MS: number = 350;
+const NETWORK_RECOVERY_SETTLE_MS: number = 2000;
+const NETWORK_RECOVERY_IDLE_RETRY_MS: number = 1000;
 const NETWORK_ENVIRONMENT_FALLBACK_INTERVAL_MS: number = 5000;
 const FRESH_CONNECTION_WINDOW_MS: number = 5000;
 const FOREGROUND_FRESH_CONNECTION_WINDOW_MS: number = 30000;
@@ -74,6 +76,7 @@ let networkRuntimeContext: common.UIAbilityContext | undefined = undefined;
 let networkRuntimeConnection: connection.NetConnection | undefined = undefined;
 let networkRuntimeRegistered: boolean = false;
 let networkChangeTimer: number = -1;
+let networkRecoveryTimer: number = -1;
 let forceFreshConnectionsUntilMs: number = 0;
 let lastIpQualitySaveAt: number = 0;
 const DIRECT_HOST_FAILURES: DirectHostFailure[] = [];
@@ -695,6 +698,10 @@ export function unregisterEhNetworkChangeListener(): void {
     clearTimeout(networkChangeTimer);
     networkChangeTimer = -1;
   }
+  if (networkRecoveryTimer >= 0) {
+    clearTimeout(networkRecoveryTimer);
+    networkRecoveryTimer = -1;
+  }
   const netConnection = networkRuntimeConnection;
   networkRuntimeConnection = undefined;
   networkRuntimeRegistered = false;
@@ -1277,7 +1284,35 @@ function scheduleNetworkRuntimeRefresh(): void {
 }
 
 function refreshNetworkRuntimeAfterChange(): void {
-  if (!isEhNetworkProcessingEnabled() || currentNetworkEnvironmentKey() === 'offline') {
+  if (networkRecoveryTimer >= 0) {
+    clearTimeout(networkRecoveryTimer);
+    networkRecoveryTimer = -1;
+  }
+  if (!isEhNetworkProcessingEnabled()) {
+    return;
+  }
+  const environmentKey = currentNetworkEnvironmentKey();
+  if (environmentKey === 'offline') {
+    return;
+  }
+  networkRecoveryTimer = setTimeout(() => {
+    runNetworkRuntimeRecoveryWhenIdle(environmentKey);
+  }, NETWORK_RECOVERY_SETTLE_MS);
+}
+
+function runNetworkRuntimeRecoveryWhenIdle(environmentKey: string): void {
+  networkRecoveryTimer = -1;
+  if (environmentKey !== currentNetworkEnvironmentKey() || currentNetworkEnvironmentKey() === 'offline') {
+    refreshNetworkRuntimeAfterChange();
+    return;
+  }
+  // HarmonyOS 6.1 may migrate existing curl tasks during a network handover. Starting the direct probe and
+  // fronting benchmark before those tasks settle can make several timeouts complete in the same native multi loop.
+  // Wait for normal requests to become idle; cached scores and real request outcomes remain usable meanwhile.
+  if (hasActiveHttpRequests()) {
+    networkRecoveryTimer = setTimeout(() => {
+      runNetworkRuntimeRecoveryWhenIdle(environmentKey);
+    }, NETWORK_RECOVERY_IDLE_RETRY_MS);
     return;
   }
   if (isEhDirectConnectionProbeEnabled()) {
