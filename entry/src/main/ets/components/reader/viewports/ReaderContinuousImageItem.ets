@@ -160,7 +160,7 @@ export struct ReaderContinuousImageItem {
           return;
         }
         this.downloadProgress = readerDownloadProgressPercent(progress);
-      }, this.sourceImageCacheKey()).then(() => {
+      }, this.sourceImageCacheKey(), { retryLimit: 1 }).then(() => {
       if (requestId === this.downloadProgressRequestId) {
         this.downloadProgress = 100;
       }

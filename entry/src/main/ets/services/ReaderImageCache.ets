@@ -27,7 +27,15 @@ interface WaitingImageSlot {
   key: string;
   priority: number;
   sequence: number;
-  resolve: (backgroundSlot: boolean) => void;
+  background: boolean;
+  serializedHath: boolean;
+  resolve: (slot: AcquiredImageSlot) => void;
+  reject: (error: Error) => void;
+}
+
+interface AcquiredImageSlot {
+  background: boolean;
+  serializedHath: boolean;
 }
 
 const PENDING_IMAGE_DOWNLOADS: PendingImageDownload[] = [];
@@ -47,6 +55,7 @@ const MAX_BACKGROUND_IMAGE_DOWNLOADS: number = 4;
 const BACKGROUND_IMAGE_RESUME_DELAY_MS: number = 750;
 let activeImageDownloads: number = 0;
 let activeBackgroundImageDownloads: number = 0;
+let activeSerializedHathDownloads: number = 0;
 let imageTempFileSequence: number = 0;
 let imageSlotSequence: number = 0;
 let backgroundImageDispatchPaused: boolean = false;
@@ -224,11 +233,11 @@ export class ReaderImageCache {
     pendingKey: string, priority: number, onProgress?: ImageDownloadProgressCallback,
     options?: ImageDownloadOptions): Promise<string> {
     ensureDirectory(readerImageCacheDirectory(context));
-    const backgroundSlot = await acquireImageSlot(pendingKey, priority);
+    const slot = await acquireImageSlot(pendingKey, imageUrl, priority);
     try {
       return await this.downloadWithRetry(context, imageUrl, referer, path, onProgress, options);
     } finally {
-      releaseImageSlot(backgroundSlot);
+      releaseImageSlot(slot);
     }
   }
 
@@ -269,7 +278,7 @@ export class ReaderImageCache {
         method: http.RequestMethod.GET,
         header: header,
         expectDataType: http.HttpDataType.ARRAY_BUFFER,
-        connectTimeout: plan.fronted ? IMAGE_CONNECT_TIMEOUT_MS : Math.min(timeout, 30000),
+        connectTimeout: imageConnectTimeoutMs(plan, imageUrl, timeout),
         readTimeout: imageHttpReadTimeoutMs(timeout)
       };
       applyEhNetworkOptions(options, plan);
@@ -396,6 +405,16 @@ function imageRequestDeadlineMs(plan: EhRequestPlan, attempt: number): number {
     return timeout;
   }
   return Math.min(timeout, 15000);
+}
+
+function imageConnectTimeoutMs(plan: EhRequestPlan, imageUrl: string, timeoutMs: number): number {
+  if (plan.fronted) {
+    return IMAGE_CONNECT_TIMEOUT_MS;
+  }
+  if (shouldSerializeHathImage(imageUrl)) {
+    return Math.min(timeoutMs, 12000);
+  }
+  return Math.min(timeoutMs, 30000);
 }
 
 function imageHttpReadTimeoutMs(_baseTimeoutMs: number): number {
@@ -1117,22 +1136,31 @@ function configuredImageDownloadLimit(): number {
   return Math.max(1, Math.min(value, 10));
 }
 
-function acquireImageSlot(key: string, priority: number): Promise<boolean> {
-  return new Promise<boolean>((resolve: (value: boolean | PromiseLike<boolean>) => void) => {
+function acquireImageSlot(key: string, imageUrl: string, priority: number): Promise<AcquiredImageSlot> {
+  return new Promise<AcquiredImageSlot>((resolve: (value: AcquiredImageSlot | PromiseLike<AcquiredImageSlot>) => void,
+    reject: (reason?: Object) => void) => {
     WAITING_IMAGE_SLOTS.push({
       key: key,
       priority: priority,
       sequence: imageSlotSequence++,
-      resolve: resolve
+      background: isBackgroundImagePriority(priority),
+      serializedHath: shouldSerializeHathImage(imageUrl),
+      resolve: resolve,
+      reject: (error: Error) => {
+        reject(error);
+      }
     });
     dispatchWaitingImageSlots();
   });
 }
 
-function releaseImageSlot(backgroundSlot: boolean): void {
+function releaseImageSlot(slot: AcquiredImageSlot): void {
   activeImageDownloads = Math.max(0, activeImageDownloads - 1);
-  if (backgroundSlot) {
+  if (slot.background) {
     activeBackgroundImageDownloads = Math.max(0, activeBackgroundImageDownloads - 1);
+  }
+  if (slot.serializedHath) {
+    activeSerializedHathDownloads = Math.max(0, activeSerializedHathDownloads - 1);
   }
   dispatchWaitingImageSlots();
 }
@@ -1169,17 +1197,25 @@ function dispatchWaitingImageSlots(): void {
       return;
     }
     const next = WAITING_IMAGE_SLOTS.splice(bestIndex, 1)[0];
-    const backgroundSlot = isBackgroundImagePriority(next.priority);
     activeImageDownloads++;
-    if (backgroundSlot) {
+    if (next.background) {
       activeBackgroundImageDownloads++;
     }
-    next.resolve(backgroundSlot);
+    if (next.serializedHath) {
+      activeSerializedHathDownloads++;
+    }
+    next.resolve({
+      background: next.background,
+      serializedHath: next.serializedHath
+    });
   }
 }
 
 function canDispatchImageSlot(slot: WaitingImageSlot, totalLimit: number): boolean {
-  if (!isBackgroundImagePriority(slot.priority)) {
+  if (slot.serializedHath && activeSerializedHathDownloads > 0) {
+    return false;
+  }
+  if (!slot.background) {
     return true;
   }
   if (backgroundImageDispatchPaused) {
@@ -1190,6 +1226,31 @@ function canDispatchImageSlot(slot: WaitingImageSlot, totalLimit: number): boole
 
 function isBackgroundImagePriority(priority: number): boolean {
   return priority <= IMAGE_DOWNLOAD_PRIORITY_BACKGROUND;
+}
+
+function shouldSerializeHathImage(imageUrl: string): boolean {
+  if (ehSettingsStore.getValue('domain_fronting', 'Off') !== 'On') {
+    return false;
+  }
+  const match = /^https?:\/\/([^\/?#]+)/i.exec(imageUrl);
+  if (match === null) {
+    return false;
+  }
+  const host = match[1].toLowerCase();
+  return host === 's.exhentai.org' || host.endsWith('.hath.network');
+}
+
+export function cancelQueuedReaderImageRequests(): number {
+  let cancelled = 0;
+  for (let i = WAITING_IMAGE_SLOTS.length - 1; i >= 0; i--) {
+    if (WAITING_IMAGE_SLOTS[i].priority < IMAGE_DOWNLOAD_PRIORITY_READER) {
+      continue;
+    }
+    const waiting = WAITING_IMAGE_SLOTS.splice(i, 1)[0];
+    waiting.reject(new Error('Reader image request cancelled'));
+    cancelled++;
+  }
+  return cancelled;
 }
 
 export function pauseBackgroundImageRequests(): void {

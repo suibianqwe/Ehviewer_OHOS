@@ -245,11 +245,11 @@ export struct ReaderImageViewport {
     }
     readerImageCache.ensureCached(context, sourceUrl, this.page.pageUrl, IMAGE_DOWNLOAD_PRIORITY_READER,
       (progress: ImageDownloadProgress) => {
-      if (requestId !== this.downloadProgressRequestId) {
-        return;
-      }
-      this.downloadProgress = readerDownloadProgressPercent(progress);
-    }, this.sourceImageCacheKey()).then(() => {
+        if (requestId !== this.downloadProgressRequestId) {
+          return;
+        }
+        this.downloadProgress = readerDownloadProgressPercent(progress);
+      }, this.sourceImageCacheKey(), { retryLimit: 1 }).then(() => {
       if (requestId === this.downloadProgressRequestId) {
         this.downloadProgress = 100;
       }

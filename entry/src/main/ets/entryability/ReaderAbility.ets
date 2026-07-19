@@ -10,6 +10,7 @@ import {
 import { ehAppLog } from '../services/EhAppLog';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { refreshEhConnectionsAfterForeground } from '../services/EhNetworkConfig';
+import { cancelQueuedReaderImageRequests } from '../services/ReaderImageCache';
 import { applyWindowPrivacyMode } from '../services/EhWindowPrivacy';
 import { EH_SYSTEM_COLOR_MODE_DARK, EH_SYSTEM_COLOR_MODE_KEY } from '../shared/EhTheme';
 import { notifyLanguageChanged, notifyThemeChanged } from '../shared/EhShared';
@@ -115,6 +116,7 @@ export default class ReaderAbility extends UIAbility {
   }
 
   onWindowStageDestroy(): void {
+    cancelQueuedReaderImageRequests();
     if (this.readerWindow !== undefined) {
       restoreAppWindowState(this.readerWindow).catch(() => {});
     }
@@ -123,6 +125,7 @@ export default class ReaderAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    cancelQueuedReaderImageRequests();
     if (this.readerWindow !== undefined) {
       restoreAppWindowState(this.readerWindow).catch(() => {});
     }
