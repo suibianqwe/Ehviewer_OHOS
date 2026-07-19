@@ -14,7 +14,6 @@ import {
 } from '../services/ReaderSessionStore';
 import { readerComicTranslationService } from '../services/ReaderComicTranslationService';
 import { cancelQueuedReaderImageRequests, IMAGE_DOWNLOAD_PRIORITY_READER } from '../services/ReaderImageCache';
-import { shouldBypassHathNetworkForFronting } from '../services/EhNetworkConfig';
 import {
   cacheReaderImageForPage,
   cloneGalleryDetail,
@@ -295,16 +294,12 @@ export struct ReaderSessionScene {
     for (let attempt = 0; attempt < READER_IMAGE_SERVER_ATTEMPT_LIMIT; attempt++) {
       let ready = false;
       lastError = '';
-      if (shouldBypassHathNetworkForFronting(current.imageUrl)) {
-        lastError = 'H@H node is unavailable while SNI fronting is active';
-      } else {
-        await cacheReaderImageForPage(current, (cachedPage: GalleryPage) => {
-          ready = true;
-          this.applyCachedReaderPage(index, cachedPage, page.pageUrl);
-        }, this.detail, index, this.readerContext(), (message: string) => {
-          lastError = message;
-        }, IMAGE_DOWNLOAD_PRIORITY_READER, { retryLimit: 1 });
-      }
+      await cacheReaderImageForPage(current, (cachedPage: GalleryPage) => {
+        ready = true;
+        this.applyCachedReaderPage(index, cachedPage, page.pageUrl);
+      }, this.detail, index, this.readerContext(), (message: string) => {
+        lastError = message;
+      }, IMAGE_DOWNLOAD_PRIORITY_READER, { retryLimit: 1 });
       if (ready || !this.readerSceneActive || this.detail.gid !== galleryId) {
         return;
       }

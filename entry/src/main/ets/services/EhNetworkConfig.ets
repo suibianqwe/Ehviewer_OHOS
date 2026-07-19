@@ -119,23 +119,6 @@ export interface EhRequestPlan {
   fronted: boolean;
 }
 
-/**
- * Random H@H nodes cannot use the built-in SNI fronting table. On networks that need fronting for EH,
- * starting those requests only leaves several DNS tasks pending until timeout. The page-level `nl`
- * fallback can ask EH for another image server without touching the unreachable node.
- */
-export function shouldBypassHathNetworkForFronting(url: string): boolean {
-  if (ehSettingsStore.getValue('domain_fronting', 'Off') !== 'On') {
-    return false;
-  }
-  const proxyType = ehSettingsStore.getValue('proxy', 'System');
-  if (proxyType === 'HTTP' || proxyType === 'SOCKS') {
-    return false;
-  }
-  const host = requestHost(url).toLowerCase();
-  return host.length > 0 && host.endsWith('.hath.network');
-}
-
 export function createEhRequestPlan(url: string): EhRequestPlan {
   const host = requestHost(url);
   const hostHeader = requestHostHeader(url);

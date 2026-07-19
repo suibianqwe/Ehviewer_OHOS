@@ -9,8 +9,7 @@ import {
   EhRequestPlan,
   ensureEhHostRules,
   isEhRouteReachableStatus,
-  recordEhRequestOutcome,
-  shouldBypassHathNetworkForFronting
+  recordEhRequestOutcome
 } from './EhNetworkConfig';
 import { ehSettingsStore } from './EhSettingsStore';
 import { hathQualityStore } from './HathQualityStore';
@@ -267,9 +266,6 @@ export class ReaderImageCache {
 
   private async downloadOnce(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
     attempt: number, priority: number, onProgress?: ImageDownloadProgressCallback): Promise<string> {
-    if (shouldBypassHathNetworkForFronting(imageUrl)) {
-      throw new Error('H@H image requires page-level server fallback');
-    }
     const request = http.createHttp();
     trackHttpRequest(request);
     let plan: EhRequestPlan | null = null;
@@ -287,7 +283,7 @@ export class ReaderImageCache {
         header: header,
         expectDataType: http.HttpDataType.ARRAY_BUFFER,
         maxLimit: IMAGE_RESPONSE_MAX_BYTES,
-        connectTimeout: imageConnectTimeoutMs(plan, timeout),
+        connectTimeout: imageConnectTimeoutMs(plan, imageUrl, timeout),
         readTimeout: imageRequestDeadlineMs(plan, attempt)
       };
       applyEhNetworkOptions(options, plan);
@@ -446,9 +442,12 @@ function imageRequestDeadlineMs(plan: EhRequestPlan, attempt: number): number {
   return Math.min(timeout, 15000);
 }
 
-function imageConnectTimeoutMs(plan: EhRequestPlan, timeoutMs: number): number {
+function imageConnectTimeoutMs(plan: EhRequestPlan, imageUrl: string, timeoutMs: number): number {
   if (plan.fronted) {
     return IMAGE_CONNECT_TIMEOUT_MS;
+  }
+  if (shouldSerializeHathImage(imageUrl)) {
+    return Math.min(timeoutMs, 8000);
   }
   return Math.min(timeoutMs, 30000);
 }
@@ -1077,7 +1076,16 @@ function shouldSerializeHathImage(imageUrl: string): boolean {
   if (match === null) {
     return false;
   }
-  const host = match[1].toLowerCase();
+  let host = match[1].toLowerCase();
+  if (host.startsWith('[')) {
+    const closingBracket = host.indexOf(']');
+    host = closingBracket > 0 ? host.substring(1, closingBracket) : host;
+  } else {
+    const portSeparator = host.lastIndexOf(':');
+    if (portSeparator > 0) {
+      host = host.substring(0, portSeparator);
+    }
+  }
   return host === 's.exhentai.org' || host.endsWith('.hath.network');
 }
 
