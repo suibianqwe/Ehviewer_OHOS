@@ -183,12 +183,13 @@ function ensureFrontingQualityCacheLoaded(): void {
   loadCachedIpQualities(key);
 }
 
-export function applyEhNetworkOptions(options: http.HttpRequestOptions, plan: EhRequestPlan): void {
+export function applyEhNetworkOptions(options: http.HttpRequestOptions, plan: EhRequestPlan,
+  useDnsOverHttps: boolean = true): void {
   options.usingCache = false;
   // 部分 6.1 设备在 HTTP/3 请求超时后移除 curl handle 时会触发系统网络栈崩溃。
   // EH 站点完整支持 HTTP/1.1，固定协议可以避开该原生路径，同时保留连接复用。
   options.usingProtocol = http.HttpProtocol.HTTP1_1;
-  applyConfiguredNetworkOptions(options);
+  applyConfiguredNetworkOptions(options, useDnsOverHttps);
   if (plan.fronted) {
     options.remoteValidation = 'skip';
     // Keep sniHostName unset deliberately. The original implementation opens TLS by IP so the blocked gallery
@@ -208,11 +209,13 @@ export function applyEhNetworkOptions(options: http.HttpRequestOptions, plan: Eh
   }
 }
 
-export function applyConfiguredNetworkOptions(options: http.HttpRequestOptions): void {
+export function applyConfiguredNetworkOptions(options: http.HttpRequestOptions, useDnsOverHttps: boolean = true): void {
   applyConfiguredProxyOptions(options);
-  const dohUrl = currentDnsOverHttpsUrl();
-  if (dohUrl.length > 0) {
-    options.dnsOverHttps = dohUrl;
+  if (useDnsOverHttps) {
+    const dohUrl = currentDnsOverHttpsUrl();
+    if (dohUrl.length > 0) {
+      options.dnsOverHttps = dohUrl;
+    }
   }
 }
 

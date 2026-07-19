@@ -6,6 +6,7 @@ import { ehAppLog } from './EhAppLog';
 import {
   applyEhNetworkOptions,
   createEhRequestPlan,
+  currentDnsOverHttpsUrl,
   EhRequestPlan,
   ensureEhHostRules,
   isEhRouteReachableStatus,
@@ -28,14 +29,12 @@ interface WaitingImageSlot {
   priority: number;
   sequence: number;
   background: boolean;
-  serializedHath: boolean;
   resolve: (slot: AcquiredImageSlot) => void;
   reject: (error: Error) => void;
 }
 
 interface AcquiredImageSlot {
   background: boolean;
-  serializedHath: boolean;
 }
 
 interface ActiveImageRequest {
@@ -57,7 +56,6 @@ const MAX_BACKGROUND_IMAGE_DOWNLOADS: number = 4;
 const BACKGROUND_IMAGE_RESUME_DELAY_MS: number = 750;
 let activeImageDownloads: number = 0;
 let activeBackgroundImageDownloads: number = 0;
-let activeSerializedHathDownloads: number = 0;
 let imageTempFileSequence: number = 0;
 let imageSlotSequence: number = 0;
 let backgroundImageDispatchPaused: boolean = false;
@@ -235,7 +233,7 @@ export class ReaderImageCache {
     pendingKey: string, priority: number, onProgress?: ImageDownloadProgressCallback,
     options?: ImageDownloadOptions): Promise<string> {
     ensureDirectory(readerImageCacheDirectory(context));
-    const slot = await acquireImageSlot(pendingKey, imageUrl, priority);
+    const slot = await acquireImageSlot(pendingKey, priority);
     try {
       return await this.downloadWithRetry(context, imageUrl, referer, path, priority, onProgress, options);
     } finally {
@@ -249,10 +247,20 @@ export class ReaderImageCache {
     const retryLimit = normalizedRetryLimit(options);
     for (let attempt = 0; attempt < retryLimit; attempt++) {
       try {
-        return await this.downloadOnce(context, imageUrl, referer, path, attempt, priority, onProgress);
+        return await this.downloadOnce(context, imageUrl, referer, path, attempt, priority, onProgress, true);
       } catch (error) {
         removeFileQuietly(path);
         lastError = imageNetworkErrorMessage(error);
+        if (shouldRetryImageWithoutDnsOverHttps(lastError)) {
+          ehAppLog.info(context, 'ReaderImageCache', 'DoH image lookup failed, retrying with system DNS, url=' +
+            trimLogUrl(imageUrl));
+          try {
+            return await this.downloadOnce(context, imageUrl, referer, path, attempt, priority, onProgress, false);
+          } catch (fallbackError) {
+            removeFileQuietly(path);
+            lastError = imageNetworkErrorMessage(fallbackError);
+          }
+        }
         ehAppLog.warn(context, 'ReaderImageCache', 'Image attempt failed attempt=' + (attempt + 1).toString() +
           '/' + retryLimit.toString() + ', url=' + trimLogUrl(imageUrl) + ': ' + lastError);
         if (attempt >= retryLimit - 1 || !isTransientImageError(lastError)) {
@@ -265,7 +273,8 @@ export class ReaderImageCache {
   }
 
   private async downloadOnce(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
-    attempt: number, priority: number, onProgress?: ImageDownloadProgressCallback): Promise<string> {
+    attempt: number, priority: number, onProgress?: ImageDownloadProgressCallback,
+    useDnsOverHttps: boolean = true): Promise<string> {
     const request = http.createHttp();
     trackHttpRequest(request);
     let plan: EhRequestPlan | null = null;
@@ -286,7 +295,7 @@ export class ReaderImageCache {
         connectTimeout: imageConnectTimeoutMs(plan, imageUrl, timeout),
         readTimeout: imageRequestDeadlineMs(plan, attempt)
       };
-      applyEhNetworkOptions(options, plan);
+      applyEhNetworkOptions(options, plan, useDnsOverHttps);
       request.on('dataReceiveProgress', (progress: http.DataReceiveProgressInfo): void => {
         if (onProgress !== undefined) {
           onProgress({
@@ -446,7 +455,7 @@ function imageConnectTimeoutMs(plan: EhRequestPlan, imageUrl: string, timeoutMs:
   if (plan.fronted) {
     return IMAGE_CONNECT_TIMEOUT_MS;
   }
-  if (shouldSerializeHathImage(imageUrl)) {
+  if (isHathImageUrl(imageUrl)) {
     return Math.min(timeoutMs, 8000);
   }
   return Math.min(timeoutMs, 30000);
@@ -599,6 +608,10 @@ function isTransientImageError(message: string): boolean {
     lower.indexOf('2300007') >= 0 || lower.indexOf('230350') >= 0;
 }
 
+function shouldRetryImageWithoutDnsOverHttps(message: string): boolean {
+  return currentDnsOverHttpsUrl().length > 0 && message === 'Image DNS lookup failed';
+}
+
 function imageStatusMessage(statusCode: number): string {
   if (statusCode === 403) {
     return 'Image access denied: check login cookies';
@@ -655,7 +668,8 @@ function imageNetworkErrorMessage(error: Object): string {
     lower.indexOf('curl_code') >= 0 && lower.indexOf('35') >= 0 || lower.indexOf('2300999') >= 0) {
     return 'Image TLS connection failed';
   }
-  if (lower.indexOf('dns') >= 0 || lower.indexOf('unknownhost') >= 0) {
+  if (lower.indexOf('dns') >= 0 || lower.indexOf('unknownhost') >= 0 || lower.indexOf('2300006') >= 0 ||
+    lower.indexOf('curlcode result 6') >= 0 || lower.indexOf('curl code 6') >= 0) {
     return 'Image DNS lookup failed';
   }
   return message.length > 0 ? message : 'Image download failed';
@@ -976,7 +990,7 @@ function configuredImageDownloadLimit(): number {
   return Math.max(1, Math.min(value, 10));
 }
 
-function acquireImageSlot(key: string, imageUrl: string, priority: number): Promise<AcquiredImageSlot> {
+function acquireImageSlot(key: string, priority: number): Promise<AcquiredImageSlot> {
   return new Promise<AcquiredImageSlot>((resolve: (value: AcquiredImageSlot | PromiseLike<AcquiredImageSlot>) => void,
     reject: (reason?: Object) => void) => {
     WAITING_IMAGE_SLOTS.push({
@@ -984,7 +998,6 @@ function acquireImageSlot(key: string, imageUrl: string, priority: number): Prom
       priority: priority,
       sequence: imageSlotSequence++,
       background: isBackgroundImagePriority(priority),
-      serializedHath: shouldSerializeHathImage(imageUrl),
       resolve: resolve,
       reject: (error: Error) => {
         reject(error);
@@ -998,9 +1011,6 @@ function releaseImageSlot(slot: AcquiredImageSlot): void {
   activeImageDownloads = Math.max(0, activeImageDownloads - 1);
   if (slot.background) {
     activeBackgroundImageDownloads = Math.max(0, activeBackgroundImageDownloads - 1);
-  }
-  if (slot.serializedHath) {
-    activeSerializedHathDownloads = Math.max(0, activeSerializedHathDownloads - 1);
   }
   dispatchWaitingImageSlots();
 }
@@ -1041,20 +1051,13 @@ function dispatchWaitingImageSlots(): void {
     if (next.background) {
       activeBackgroundImageDownloads++;
     }
-    if (next.serializedHath) {
-      activeSerializedHathDownloads++;
-    }
     next.resolve({
-      background: next.background,
-      serializedHath: next.serializedHath
+      background: next.background
     });
   }
 }
 
 function canDispatchImageSlot(slot: WaitingImageSlot, totalLimit: number): boolean {
-  if (slot.serializedHath && activeSerializedHathDownloads > 0) {
-    return false;
-  }
   if (!slot.background) {
     return true;
   }
@@ -1068,10 +1071,7 @@ function isBackgroundImagePriority(priority: number): boolean {
   return priority <= IMAGE_DOWNLOAD_PRIORITY_BACKGROUND;
 }
 
-function shouldSerializeHathImage(imageUrl: string): boolean {
-  if (ehSettingsStore.getValue('domain_fronting', 'Off') !== 'On') {
-    return false;
-  }
+function isHathImageUrl(imageUrl: string): boolean {
   const match = /^https?:\/\/([^\/?#]+)/i.exec(imageUrl);
   if (match === null) {
     return false;

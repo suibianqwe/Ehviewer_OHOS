@@ -408,6 +408,9 @@ export struct ReaderSessionScene {
     if (this.tryUseDownloadedPage(index, preview)) {
       return;
     }
+    if (preview.pageUrl.indexOf('ehviewer://') === 0) {
+      return;
+    }
     const cached = galleryPageCache.get(preview.pageUrl);
     if (cached !== null) {
       this.setReaderPage(index, cached);
