@@ -32,6 +32,7 @@ const IP_SLOW_LATENCY_PENALTY_MS: number = 350;
 const NETWORK_CHANGE_DEBOUNCE_MS: number = 350;
 const NETWORK_ENVIRONMENT_FALLBACK_INTERVAL_MS: number = 5000;
 const FRESH_CONNECTION_WINDOW_MS: number = 5000;
+const FOREGROUND_FRESH_CONNECTION_WINDOW_MS: number = 30000;
 const FRONTING_PROBE_USER_AGENT: string =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36';
 const BUILT_IN_RULES: HostRule[] = [
@@ -244,11 +245,12 @@ export function applyConfiguredProxyOptions(options: http.HttpRequestOptions): v
 /**
  * Connections can be left in an unusable state while an ability is suspended in background.
  * Do not destroy active requests during the lifecycle callback; make requests started shortly
- * after a real foreground resume use fresh connections instead.
+ * after a real foreground resume use fresh connections instead. The foreground window must
+ * outlast an already-running text request's 15-second timeout and its subsequent retry.
  */
 export function refreshEhConnectionsAfterForeground(): void {
   forceFreshConnectionsUntilMs = Math.max(forceFreshConnectionsUntilMs,
-    Date.now() + FRESH_CONNECTION_WINDOW_MS);
+    Date.now() + FOREGROUND_FRESH_CONNECTION_WINDOW_MS);
 }
 
 export function socks5ProxySupported(): boolean {
