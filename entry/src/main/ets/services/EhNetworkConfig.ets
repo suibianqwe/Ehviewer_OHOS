@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
+import { rcp } from '@kit.RemoteCommunicationKit';
 import { http } from '@kit.NetworkKit';
 import { connection } from '@kit.NetworkKit';
 import { ehAppLog } from './EhAppLog';
@@ -206,6 +207,56 @@ export function applyEhNetworkOptions(options: http.HttpRequestOptions, plan: Eh
       options.reuseConnections = false;
     }
   }
+}
+
+/**
+ * Builds the same proxy, DoH and domain-fronting policy for Remote Communication Kit file transfers.
+ * Reader images use RCP's file destination instead of Network Kit requestInStream because affected
+ * HarmonyOS 6.1 builds can crash in the native curl multi worker after a timed-out stream request.
+ */
+export function createEhRcpConfiguration(plan: EhRequestPlan, connectTimeoutMs: number, transferTimeoutMs: number,
+  httpEventsHandler?: rcp.HttpEventsHandler): rcp.Configuration {
+  const transfer: rcp.TransferConfiguration = {
+    autoRedirect: true,
+    timeout: {
+      connectMs: Math.max(1, connectTimeoutMs),
+      transferMs: Math.max(1, transferTimeoutMs),
+      inactivityMs: Math.max(30000, Math.min(60000, transferTimeoutMs))
+    },
+    assumesHTTP3Capable: false,
+    serviceType: 'download'
+  };
+  if (deviceInfo.apiAvailable('6.1.0')) {
+    transfer.connectionReusePolicy = plan.fronted || Date.now() < forceFreshConnectionsUntilMs ?
+      'forbidden' : 'balanced';
+  }
+  if (deviceInfo.apiAvailable('26.0.0')) {
+    transfer.httpVersionSelectCallback = (_url: rcp.URL): rcp.HttpVersion => '1.1';
+  }
+
+  const configuration: rcp.Configuration = {
+    transfer: transfer,
+    proxy: rcpProxyOption()
+  };
+  const dohUrl = currentDnsOverHttpsUrl();
+  if (dohUrl.length > 0) {
+    configuration.dns = {
+      dnsOverHttps: {
+        url: dohUrl
+      }
+    };
+  }
+  if (plan.fronted) {
+    configuration.security = {
+      remoteValidation: 'skip'
+    };
+  }
+  if (httpEventsHandler !== undefined) {
+    configuration.tracing = {
+      httpEventsHandler: httpEventsHandler
+    };
+  }
+  return configuration;
 }
 
 export function applyConfiguredNetworkOptions(options: http.HttpRequestOptions): void {
@@ -491,6 +542,50 @@ function proxyOption(): boolean | http.HttpProxy {
     }
   }
   return true;
+}
+
+function rcpProxyOption(): rcp.ProxyConfiguration {
+  const proxyType = ehSettingsStore.getValue('proxy', 'System');
+  if (proxyType === 'Off') {
+    return 'no-proxy';
+  }
+  if (proxyType !== 'HTTP' && proxyType !== 'SOCKS') {
+    return 'system';
+  }
+  const host = ehSettingsStore.getValue('proxy_host', '').trim();
+  const port = parseProxyPort(ehSettingsStore.getValue('proxy_port', ''));
+  if (host.length === 0 || !isValidPort(port)) {
+    return 'system';
+  }
+  const scheme = proxyType === 'SOCKS' ?
+    (ehSettingsStore.getValue('proxy_socks_dns', 'Proxy') === 'System' ? 'socks5' : 'socks5h') : 'http';
+  const proxy: rcp.WebProxy = {
+    url: scheme + '://' + proxyUrlHost(host) + ':' + port.toString(),
+    createTunnel: 'auto'
+  };
+  const exclusions = parseProxyExclusionList(ehSettingsStore.getValue('proxy_exclusion_list', ''));
+  if (exclusions.length > 0) {
+    proxy.exclusions = exclusions;
+  }
+  const username = ehSettingsStore.getValue('proxy_username', '').trim();
+  if (username.length > 0) {
+    proxy.security = {
+      serverAuthentication: {
+        credential: {
+          username: username,
+          password: ehSettingsStore.getValue('proxy_password', '')
+        }
+      }
+    };
+  }
+  return proxy;
+}
+
+function proxyUrlHost(host: string): string {
+  if (host.startsWith('[') || host.indexOf(':') < 0) {
+    return host;
+  }
+  return '[' + host + ']';
 }
 
 function eFrontingIpForUrl(url: string, host: string): string {

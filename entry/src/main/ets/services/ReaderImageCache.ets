@@ -1,11 +1,11 @@
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
-import { http } from '@kit.NetworkKit';
+import { rcp } from '@kit.RemoteCommunicationKit';
 import { ehCookieStore } from './EhCookieStore';
 import { ehAppLog } from './EhAppLog';
 import {
-  applyEhNetworkOptions,
   createEhRequestPlan,
+  createEhRcpConfiguration,
   EhRequestPlan,
   ensureEhHostRules,
   isEhRouteReachableStatus,
@@ -13,7 +13,6 @@ import {
 } from './EhNetworkConfig';
 import { ehSettingsStore } from './EhSettingsStore';
 import { hathQualityStore } from './HathQualityStore';
-import { retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
 
 interface PendingImageDownload {
   url: string;
@@ -38,19 +37,21 @@ interface AcquiredImageSlot {
   serializedHath: boolean;
 }
 
+interface ActiveImageRequest {
+  request: rcp.Request;
+  priority: number;
+  cancelRequested: boolean;
+}
+
 const PENDING_IMAGE_DOWNLOADS: PendingImageDownload[] = [];
 const WAITING_IMAGE_SLOTS: WaitingImageSlot[] = [];
+const ACTIVE_IMAGE_REQUESTS: ActiveImageRequest[] = [];
 const ACTIVE_IMAGE_TEMP_PATHS: string[] = [];
+const IMAGE_RCP_SESSION: rcp.Session = rcp.createSession();
 const DEFAULT_IMAGE_CACHE_BYTES: number = 160 * 1024 * 1024;
 const IMAGE_RETRY_DELAYS_MS: number[] = [300, 900, 1800, 3200];
 const IMAGE_CONNECT_TIMEOUT_MS: number = 4500;
 const DEFAULT_IMAGE_RETRY_LIMIT: number = 5;
-const IMAGE_ACTIVE_IDLE_TIMEOUT_MIN_MS: number = 30000;
-const IMAGE_ACTIVE_IDLE_TIMEOUT_MAX_MS: number = 60000;
-const IMAGE_TOTAL_TIMEOUT_MARGIN_MS: number = 30000;
-const IMAGE_MIN_EXPECTED_SPEED_BYTES_PER_SECOND: number = 64 * 1024;
-const IMAGE_UNKNOWN_TOTAL_TIMEOUT_MS: number = 5 * 60 * 1000;
-const IMAGE_MAX_TOTAL_TIMEOUT_MS: number = 10 * 60 * 1000;
 const MAX_BACKGROUND_IMAGE_DOWNLOADS: number = 4;
 const BACKGROUND_IMAGE_RESUME_DELAY_MS: number = 750;
 let activeImageDownloads: number = 0;
@@ -72,7 +73,7 @@ interface CachedImageFile {
   modifiedAt: number;
 }
 
-interface ImageStreamResult {
+interface ImageTransferResult {
   statusCode: number;
   path: string;
 }
@@ -235,19 +236,19 @@ export class ReaderImageCache {
     ensureDirectory(readerImageCacheDirectory(context));
     const slot = await acquireImageSlot(pendingKey, imageUrl, priority);
     try {
-      return await this.downloadWithRetry(context, imageUrl, referer, path, onProgress, options);
+      return await this.downloadWithRetry(context, imageUrl, referer, path, priority, onProgress, options);
     } finally {
       releaseImageSlot(slot);
     }
   }
 
   private async downloadWithRetry(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
-    onProgress?: ImageDownloadProgressCallback, options?: ImageDownloadOptions): Promise<string> {
+    priority: number, onProgress?: ImageDownloadProgressCallback, options?: ImageDownloadOptions): Promise<string> {
     let lastError = '';
     const retryLimit = normalizedRetryLimit(options);
     for (let attempt = 0; attempt < retryLimit; attempt++) {
       try {
-        return await this.downloadOnce(context, imageUrl, referer, path, attempt, onProgress);
+        return await this.downloadOnce(context, imageUrl, referer, path, attempt, priority, onProgress);
       } catch (error) {
         removeFileQuietly(path);
         lastError = imageNetworkErrorMessage(error);
@@ -263,10 +264,10 @@ export class ReaderImageCache {
   }
 
   private async downloadOnce(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
-    attempt: number, onProgress?: ImageDownloadProgressCallback): Promise<string> {
-    const request = http.createHttp();
-    trackHttpRequest(request);
+    attempt: number, priority: number, onProgress?: ImageDownloadProgressCallback): Promise<string> {
     let plan: EhRequestPlan | null = null;
+    let activeRequest: ActiveImageRequest | null = null;
+    let tempPath = '';
     const startedAt = Date.now();
     let outcomeRecorded = false;
     try {
@@ -274,16 +275,33 @@ export class ReaderImageCache {
       const header = buildImageRequestHeader(plan, referer, ehCookieStore.getCookieHeaderForUrl(imageUrl));
       const timeout = imageRequestTimeoutMs();
       await ensureEhHostRules();
-      const options: http.HttpRequestOptions = {
-        method: http.RequestMethod.GET,
-        header: header,
-        expectDataType: http.HttpDataType.ARRAY_BUFFER,
-        connectTimeout: imageConnectTimeoutMs(plan, imageUrl, timeout),
-        readTimeout: imageHttpReadTimeoutMs(timeout)
+      const events: rcp.HttpEventsHandler = {
+        onDownloadProgress: (totalSize: number, transferredSize: number): void => {
+          if (onProgress !== undefined) {
+            onProgress({
+              receivedBytes: Math.max(0, transferredSize),
+              totalBytes: Math.max(0, totalSize)
+            });
+          }
+        }
       };
-      applyEhNetworkOptions(options, plan);
-      const result = await streamImageToFile(request, plan.url, options, path,
-        imageRequestDeadlineMs(plan, attempt), onProgress);
+      const request = new rcp.Request(plan.url, 'GET', header as Object as rcp.RequestHeaders);
+      request.configuration = createEhRcpConfiguration(plan, imageConnectTimeoutMs(plan, timeout),
+        imageRequestDeadlineMs(plan, attempt), events);
+      tempPath = nextImageTempPath(path);
+      removeFileQuietly(tempPath);
+      markImageTempPathActive(tempPath);
+      request.destination = {
+        kind: 'file',
+        file: tempPath,
+        keepLocal: false
+      } as rcp.DownloadToFile;
+      activeRequest = registerActiveImageRequest(request, priority);
+      const response = await IMAGE_RCP_SESSION.fetch(request);
+      if (activeRequest.cancelRequested) {
+        throw new Error('Reader image request cancelled');
+      }
+      const result = finishImageFileTransfer(response, tempPath, path);
       const statusCode = result.statusCode;
       const savedPath = result.path;
 
@@ -313,13 +331,23 @@ export class ReaderImageCache {
       }
       return savedPath;
     } catch (error) {
+      if (activeRequest !== null && activeRequest.cancelRequested) {
+        outcomeRecorded = true;
+        throw new Error('Reader image request cancelled');
+      }
       if (plan !== null && !outcomeRecorded) {
         recordEhRequestOutcome(plan, false, Date.now() - startedAt);
         hathQualityStore.recordFailure(context, imageUrl);
       }
       throw new Error(imageNetworkErrorMessage(error));
     } finally {
-      retireHttpRequest(request);
+      if (activeRequest !== null) {
+        unregisterActiveImageRequest(activeRequest);
+      }
+      if (tempPath.length > 0) {
+        removeFileQuietly(tempPath);
+        unmarkImageTempPathActive(tempPath);
+      }
     }
   }
 
@@ -407,261 +435,48 @@ function imageRequestDeadlineMs(plan: EhRequestPlan, attempt: number): number {
   return Math.min(timeout, 15000);
 }
 
-function imageConnectTimeoutMs(plan: EhRequestPlan, imageUrl: string, timeoutMs: number): number {
+function imageConnectTimeoutMs(plan: EhRequestPlan, timeoutMs: number): number {
   if (plan.fronted) {
     return IMAGE_CONNECT_TIMEOUT_MS;
-  }
-  if (shouldSerializeHathImage(imageUrl)) {
-    return Math.min(timeoutMs, 12000);
   }
   return Math.min(timeoutMs, 30000);
 }
 
-function imageHttpReadTimeoutMs(_baseTimeoutMs: number): number {
-  return IMAGE_MAX_TOTAL_TIMEOUT_MS;
-}
-
-function imageActiveIdleTimeoutMs(baseTimeoutMs: number): number {
-  return Math.max(IMAGE_ACTIVE_IDLE_TIMEOUT_MIN_MS,
-    Math.min(IMAGE_ACTIVE_IDLE_TIMEOUT_MAX_MS, Math.max(1, baseTimeoutMs)));
-}
-
-function imageUnknownTotalTimeoutMs(baseTimeoutMs: number): number {
-  return Math.max(IMAGE_UNKNOWN_TOTAL_TIMEOUT_MS, baseTimeoutMs * 4);
-}
-
-function imageDynamicTotalTimeoutMs(baseTimeoutMs: number, totalBytes: number): number {
-  if (totalBytes <= 0) {
-    return imageUnknownTotalTimeoutMs(baseTimeoutMs);
-  }
-  const bySize = Math.ceil(totalBytes * 1000 / IMAGE_MIN_EXPECTED_SPEED_BYTES_PER_SECOND) +
-    IMAGE_TOTAL_TIMEOUT_MARGIN_MS;
-  return Math.max(baseTimeoutMs * 2, bySize);
-}
-
-function clampImageTotalTimeout(timeoutMs: number): number {
-  return Math.max(IMAGE_ACTIVE_IDLE_TIMEOUT_MIN_MS, Math.min(IMAGE_MAX_TOTAL_TIMEOUT_MS, timeoutMs));
-}
-
-function streamImageToFile(request: http.HttpRequest, url: string, options: http.HttpRequestOptions, path: string,
-  timeoutMs: number, onProgress?: ImageDownloadProgressCallback): Promise<ImageStreamResult> {
-  return new Promise<ImageStreamResult>((resolve: (value: ImageStreamResult) => void,
-    reject: (reason: Error) => void) => {
-    let finished = false;
-    let fd = -1;
-    let writtenBytes = 0;
-    let receivedBytes = 0;
-    let totalBytes = 0;
-    let lastProgressBytes = 0;
-    let idleTimer = -1;
-    let totalTimer = -1;
-    let responseExtension = '';
-    let pendingFailureMessage = '';
-    const tempPath = nextImageTempPath(path);
-    removeFileQuietly(tempPath);
-    markImageTempPathActive(tempPath);
+function finishImageFileTransfer(response: rcp.Response, tempPath: string, path: string): ImageTransferResult {
+  const statusCode = Number(response.statusCode);
+  const finalPath = responseImagePath(path, headerImageExtension(response.headers));
+  if (statusCode >= 200 && statusCode < 300) {
     try {
-      const file = fs.openSync(tempPath, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
-      fd = file.fd;
+      removeFileQuietly(finalPath);
+      fs.moveFileSync(tempPath, finalPath);
     } catch (error) {
-      unmarkImageTempPathActive(tempPath);
-      reject(new Error(String(error)));
-      return;
-    }
-
-    const cleanup = (): void => {
-      try {
-        request.off('dataReceive');
-      } catch (error) {
-      }
-      try {
-        request.off('dataReceiveProgress');
-      } catch (error) {
-      }
-      try {
-        request.off('headersReceive');
-      } catch (error) {
-      }
-      try {
-        request.off('dataEnd');
-      } catch (error) {
-      }
-      if (fd >= 0) {
-        try {
-          fs.closeSync(fd);
-        } catch (error) {
-        }
-        fd = -1;
-      }
-    };
-
-    const clearTimers = (): void => {
-      if (idleTimer >= 0) {
-        clearTimeout(idleTimer);
-        idleTimer = -1;
-      }
-      if (totalTimer >= 0) {
-        clearTimeout(totalTimer);
-        totalTimer = -1;
-      }
-    };
-
-    const failRequest = (message: string): void => {
-      if (finished || pendingFailureMessage.length > 0) {
-        return;
-      }
-      pendingFailureMessage = message;
-      clearTimers();
-    };
-
-    const armIdleTimer = (delayMs: number): void => {
-      if (idleTimer >= 0) {
-        clearTimeout(idleTimer);
-      }
-      idleTimer = setTimeout(() => {
-        const seconds = Math.floor(delayMs / 1000);
-        failRequest('Image request stalled for ' + seconds.toString() + 's');
-      }, delayMs);
-    };
-
-    const armTotalTimer = (delayMs: number): void => {
-      if (totalTimer >= 0) {
-        clearTimeout(totalTimer);
-      }
-      const safeDelay = clampImageTotalTimeout(delayMs);
-      totalTimer = setTimeout(() => {
-        failRequest('Image request timed out after ' + Math.floor(safeDelay / 1000).toString() + 's');
-      }, safeDelay);
-    };
-
-    const updateKnownTotalBytes = (value: number): void => {
-      if (value <= totalBytes) {
-        return;
-      }
-      totalBytes = value;
-      armTotalTimer(imageDynamicTotalTimeoutMs(timeoutMs, totalBytes));
-    };
-
-    const recordReceivedBytes = (value: number): void => {
-      if (value <= receivedBytes) {
-        return;
-      }
-      receivedBytes = value;
-      if (receivedBytes > lastProgressBytes) {
-        lastProgressBytes = receivedBytes;
-        armIdleTimer(imageActiveIdleTimeoutMs(timeoutMs));
-      }
-    };
-
-    armIdleTimer(timeoutMs);
-    armTotalTimer(imageUnknownTotalTimeoutMs(timeoutMs));
-
-    request.on('dataReceive', (data: ArrayBuffer) => {
-      if (finished || pendingFailureMessage.length > 0) {
-        return;
-      }
-      try {
-        fs.writeSync(fd, data);
-        writtenBytes += data.byteLength;
-        recordReceivedBytes(Math.max(receivedBytes, writtenBytes));
-        if (onProgress !== undefined) {
-          onProgress({ receivedBytes: receivedBytes, totalBytes: totalBytes });
-        }
-      } catch (error) {
-        failRequest(String(error));
-      }
-    });
-    request.on('headersReceive', (header: Object) => {
-      if (finished || pendingFailureMessage.length > 0) {
-        return;
-      }
-      const contentLength = headerContentLength(header);
-      responseExtension = headerImageExtension(header);
-      if (contentLength > 0) {
-        updateKnownTotalBytes(contentLength);
-        if (onProgress !== undefined) {
-          onProgress({ receivedBytes: receivedBytes, totalBytes: totalBytes });
-        }
-      }
-    });
-    request.on('dataReceiveProgress', (progress: http.DataReceiveProgressInfo) => {
-      if (finished || pendingFailureMessage.length > 0) {
-        return;
-      }
-      updateKnownTotalBytes(progress.totalSize);
-      recordReceivedBytes(Math.max(receivedBytes, progress.receiveSize));
-      if (onProgress !== undefined) {
-        onProgress({ receivedBytes: receivedBytes, totalBytes: totalBytes });
-      }
-    });
-
-    request.requestInStream(url, options).then((statusCode: number) => {
-      if (finished) {
-        return;
-      }
-      finished = true;
-      clearTimers();
-      cleanup();
-      if (pendingFailureMessage.length > 0) {
-        removeFileQuietly(tempPath);
-        unmarkImageTempPathActive(tempPath);
-        reject(new Error(pendingFailureMessage));
-        return;
-      }
-      const finalPath = responseImagePath(path, responseExtension);
-      if (statusCode >= 200 && statusCode < 300 && receivedBytes > 0) {
-        try {
-          removeFileQuietly(finalPath);
-          fs.moveFileSync(tempPath, finalPath);
-        } catch (error) {
-          removeFileQuietly(tempPath);
-          unmarkImageTempPathActive(tempPath);
-          reject(new Error(String(error)));
-          return;
-        }
-      } else {
-        removeFileQuietly(tempPath);
-      }
-      unmarkImageTempPathActive(tempPath);
-      resolve({ statusCode: Number(statusCode), path: finalPath });
-    }).catch((error: Error) => {
-      if (finished) {
-        return;
-      }
-      finished = true;
-      clearTimers();
-      cleanup();
       removeFileQuietly(tempPath);
-      unmarkImageTempPathActive(tempPath);
-      reject(pendingFailureMessage.length > 0 ? new Error(pendingFailureMessage) : error);
-    });
-  });
+      throw new Error(String(error));
+    }
+  } else {
+    removeFileQuietly(tempPath);
+  }
+  return {
+    statusCode: statusCode,
+    path: finalPath
+  };
 }
 
-function headerContentLength(header: Object): number {
-  const headers = header as Record<string, Object>;
-  const keys = Object.keys(headers);
-  for (let i = 0; i < keys.length; i++) {
-    if (keys[i].toLowerCase() !== 'content-length') {
-      continue;
-    }
-    const value = headers[keys[i]];
-    if (typeof value === 'number') {
-      return value > 0 ? value : 0;
-    }
-    if (typeof value === 'string') {
-      const parsed = Number.parseInt(value, 10);
-      return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-    }
-    if (Array.isArray(value) && value.length > 0) {
-      const first = value[0] as Object;
-      if (typeof first === 'string') {
-        const parsed = Number.parseInt(first, 10);
-        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-      }
-    }
+function registerActiveImageRequest(request: rcp.Request, priority: number): ActiveImageRequest {
+  const active: ActiveImageRequest = {
+    request: request,
+    priority: priority,
+    cancelRequested: false
+  };
+  ACTIVE_IMAGE_REQUESTS.push(active);
+  return active;
+}
+
+function unregisterActiveImageRequest(active: ActiveImageRequest): void {
+  const index = ACTIVE_IMAGE_REQUESTS.indexOf(active);
+  if (index >= 0) {
+    ACTIVE_IMAGE_REQUESTS.splice(index, 1);
   }
-  return 0;
 }
 
 function headerImageExtension(header: Object): string {
@@ -1248,6 +1063,18 @@ export function cancelQueuedReaderImageRequests(): number {
     }
     const waiting = WAITING_IMAGE_SLOTS.splice(i, 1)[0];
     waiting.reject(new Error('Reader image request cancelled'));
+    cancelled++;
+  }
+  for (let i = 0; i < ACTIVE_IMAGE_REQUESTS.length; i++) {
+    const active = ACTIVE_IMAGE_REQUESTS[i];
+    if (active.priority < IMAGE_DOWNLOAD_PRIORITY_READER || active.cancelRequested) {
+      continue;
+    }
+    active.cancelRequested = true;
+    try {
+      IMAGE_RCP_SESSION.cancel(active.request);
+    } catch (error) {
+    }
     cancelled++;
   }
   return cancelled;
