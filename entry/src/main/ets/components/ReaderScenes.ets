@@ -22,7 +22,8 @@ import {
   readerOrientationFromSetting,
   readerScreenRotationSetting,
   restoreAppWindowState,
-  setEmbeddedReaderActive
+  setEmbeddedReaderActive,
+  setReaderTransientStatusBarVisible
 } from '../services/EhWindowImmersive';
 import { READER_TRANSLATION_BUTTON_VISIBLE_KEY, ehSettingsStore } from '../services/EhSettingsStore';
 import { galleryPageCache } from '../services/GalleryPageCache';
@@ -148,6 +149,10 @@ export struct ReaderScene {
   @State sliderTrackWidth: number = 1;
   @State readerLayoutWidth: number = 0;
   @State readerLayoutHeight: number = 0;
+  @State readerAvoidAreaReady: boolean = false;
+  @State readerSafeTopPx: number = 0;
+  @State readerSafeRightPx: number = 0;
+  @State readerSafeBottomPx: number = 0;
   @State autoTransferPlaying: boolean = false;
   @State currentIndex: number = 0;
   @State isDisableSwipe: boolean = false;
@@ -187,6 +192,23 @@ export struct ReaderScene {
   private comicTranslationDragStartX: number = 0;
   private comicTranslationDragStartY: number = 0;
   private comicTranslationLongPressHandled: boolean = false;
+  private readerSystemAvoidArea: window.AvoidArea | undefined = undefined;
+  private readerCutoutAvoidArea: window.AvoidArea | undefined = undefined;
+  private readerNavigationAvoidArea: window.AvoidArea | undefined = undefined;
+  private readerAvoidAreaWindow: window.Window | undefined = undefined;
+  private readerAvoidAreaCallback: (data: window.AvoidAreaOptions) => void =
+    (data: window.AvoidAreaOptions): void => {
+      if (data.type === window.AvoidAreaType.TYPE_SYSTEM) {
+        this.readerSystemAvoidArea = data.area;
+      } else if (data.type === window.AvoidAreaType.TYPE_CUTOUT) {
+        this.readerCutoutAvoidArea = data.area;
+      } else if (data.type === window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR) {
+        this.readerNavigationAvoidArea = data.area;
+      } else {
+        return;
+      }
+      this.refreshReaderSafeInsets();
+    };
 
   // Menu settings state (reflects ehSettingsStore, applied on menu close)
   @State menuScreenRotation: string = 'Default';
@@ -239,6 +261,7 @@ export struct ReaderScene {
       this.transientDisappearCleanupTimer = -1;
     }
     this.readerWindowActive = true;
+    setReaderTransientStatusBarVisible(false);
     this.adaptiveDualPage = ehSettingsStore.getValue('adaptive_dual_page', 'Off') === 'On';
     this.resetReaderImageSizesForGallery();
     this.syncReaderPreviewImageSizes();
@@ -329,6 +352,8 @@ export struct ReaderScene {
 
   private cleanupReaderScene(): void {
     this.readerWindowActive = false;
+    setReaderTransientStatusBarVisible(false);
+    this.unregisterReaderAvoidAreaListener();
     this.readerWindowSettingsRevision++;
     if (this.readerWindowSettingsTimer !== -1) {
       clearTimeout(this.readerWindowSettingsTimer);
@@ -348,7 +373,8 @@ export struct ReaderScene {
   private applyReaderWindowSettings(): void {
     const keepOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
     const orientation = readerScreenRotationSetting();
-    const fullscreen = ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On';
+    const fullscreen = ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On' &&
+      !this.readerTransientStatusBarVisible();
     const revision = ++this.readerWindowSettingsRevision;
     if (this.readerWindowSettingsTimer !== -1) {
       clearTimeout(this.readerWindowSettingsTimer);
@@ -364,6 +390,7 @@ export struct ReaderScene {
 
   private async obtainReaderWindow(): Promise<window.Window | undefined> {
     if (this.hostReaderWindow !== undefined) {
+      this.registerReaderAvoidAreaListener(this.hostReaderWindow);
       return this.hostReaderWindow;
     }
     try {
@@ -376,18 +403,99 @@ export struct ReaderScene {
         } else {
           rememberReaderWindow(win);
         }
+        this.registerReaderAvoidAreaListener(win);
         return win;
       }
     } catch (error) {
     }
     const readerWin = getReaderWindow();
     if (readerWin !== undefined) {
+      this.registerReaderAvoidAreaListener(readerWin);
       return readerWin;
     }
     if (!this.restoreAppChromeOnExit) {
       return undefined;
     }
-    return getMainWindow();
+    const mainWin = getMainWindow();
+    if (mainWin !== undefined) {
+      this.registerReaderAvoidAreaListener(mainWin);
+    }
+    return mainWin;
+  }
+
+  private readerTransientStatusBarVisible(): boolean {
+    return this.menuVisible || this.sliderVisible;
+  }
+
+  private syncReaderTransientStatusBar(): void {
+    setReaderTransientStatusBarVisible(this.readerTransientStatusBarVisible());
+    this.applyReaderWindowSettings();
+  }
+
+  private registerReaderAvoidAreaListener(win: window.Window): void {
+    if (this.readerAvoidAreaWindow === win) {
+      return;
+    }
+    this.unregisterReaderAvoidAreaListener();
+    this.readerAvoidAreaWindow = win;
+    try {
+      this.readerSystemAvoidArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
+    } catch (_error) {
+      this.readerSystemAvoidArea = undefined;
+    }
+    try {
+      this.readerCutoutAvoidArea = win.getWindowAvoidArea(window.AvoidAreaType.TYPE_CUTOUT);
+    } catch (_error) {
+      this.readerCutoutAvoidArea = undefined;
+    }
+    try {
+      this.readerNavigationAvoidArea =
+        win.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
+    } catch (_error) {
+      this.readerNavigationAvoidArea = undefined;
+    }
+    this.readerAvoidAreaReady = true;
+    this.refreshReaderSafeInsets();
+    try {
+      win.on('avoidAreaChange', this.readerAvoidAreaCallback);
+    } catch (_error) {
+    }
+  }
+
+  private unregisterReaderAvoidAreaListener(): void {
+    if (this.readerAvoidAreaWindow !== undefined) {
+      try {
+        this.readerAvoidAreaWindow.off('avoidAreaChange', this.readerAvoidAreaCallback);
+      } catch (_error) {
+      }
+    }
+    this.readerAvoidAreaWindow = undefined;
+    this.readerSystemAvoidArea = undefined;
+    this.readerCutoutAvoidArea = undefined;
+    this.readerNavigationAvoidArea = undefined;
+    this.readerAvoidAreaReady = false;
+  }
+
+  private avoidAreaTop(area: window.AvoidArea | undefined): number {
+    return area === undefined ? 0 : Math.max(0, area.topRect.top + area.topRect.height);
+  }
+
+  private avoidAreaRight(area: window.AvoidArea | undefined): number {
+    return area === undefined ? 0 : Math.max(0, area.rightRect.width);
+  }
+
+  private avoidAreaBottom(area: window.AvoidArea | undefined): number {
+    return area === undefined ? 0 : Math.max(0, area.bottomRect.height);
+  }
+
+  private refreshReaderSafeInsets(): void {
+    this.readerSafeTopPx = Math.max(this.avoidAreaTop(this.readerSystemAvoidArea),
+      this.avoidAreaTop(this.readerCutoutAvoidArea));
+    this.readerSafeRightPx = Math.max(this.avoidAreaRight(this.readerSystemAvoidArea),
+      this.avoidAreaRight(this.readerCutoutAvoidArea));
+    this.readerSafeBottomPx = Math.max(this.avoidAreaBottom(this.readerSystemAvoidArea),
+      this.avoidAreaBottom(this.readerCutoutAvoidArea), this.avoidAreaBottom(this.readerNavigationAvoidArea));
+    this.syncComicTranslationButtonPosition();
   }
 
   private async applyReaderWindowSettingsAsync(keepOn: boolean, orientation: string, fullscreen: boolean,
@@ -452,10 +560,11 @@ export struct ReaderScene {
   }
 
   private statusBarHeightVp(): number {
-    if (this.statusBarHeightPx <= 0) {
+    const heightPx = this.readerAvoidAreaReady ? this.readerSafeTopPx : this.statusBarHeightPx;
+    if (heightPx <= 0) {
       return 0;
     }
-    return this.getUIContext().px2vp(this.statusBarHeightPx);
+    return this.getUIContext().px2vp(heightPx);
   }
 
   private readerStatusOverlayTop(): number {
@@ -463,11 +572,16 @@ export struct ReaderScene {
   }
 
   private readerStatusOverlayRight(): number {
-    return 12;
+    if (!this.readerAvoidAreaReady || this.readerSafeRightPx <= 0) {
+      return 12;
+    }
+    return this.getUIContext().px2vp(this.readerSafeRightPx) + 12;
   }
 
   private readerBottomInset(): number {
-    return Math.max(0, this.bottomAvoidHeight);
+    const readerInset = this.readerAvoidAreaReady && this.readerSafeBottomPx > 0 ?
+      this.getUIContext().px2vp(this.readerSafeBottomPx) : 0;
+    return Math.max(0, this.bottomAvoidHeight, readerInset);
   }
 
   private scheduleReaderChromeMode(delay: number, revision: number): void {
@@ -793,8 +907,10 @@ export struct ReaderScene {
   private scheduleSliderHide(): void {
     this.clearSliderTimer();
     this.sliderHideTimer = setTimeout(() => {
-      this.sliderVisible = false;
       this.sliderHideTimer = -1;
+      this.sliderVisible = false;
+      this.sliderDragging = false;
+      this.syncReaderTransientStatusBar();
     }, SLIDER_AUTO_HIDE_DELAY) as number;
   }
 
@@ -803,6 +919,7 @@ export struct ReaderScene {
     this.sliderLiveIndex = this.clampReaderPageIndex(this.currentIndex);
     this.sliderDragging = false;
     this.sliderVisible = true;
+    this.syncReaderTransientStatusBar();
     this.scheduleSliderHide();
   }
 
@@ -810,6 +927,7 @@ export struct ReaderScene {
     this.clearSliderTimer();
     this.sliderVisible = false;
     this.sliderDragging = false;
+    this.syncReaderTransientStatusBar();
   }
 
   private hideSliderAndStopPlayback(): void {
@@ -834,6 +952,7 @@ export struct ReaderScene {
     this.menuCustomBrightness = ehSettingsStore.getValue('custom_screen_lightness', 'Off') === 'On';
     this.menuBrightnessLevel = normalizeBrightnessLevelOption(ehSettingsStore.getValue('screen_lightness', '50%'));
     this.menuVisible = true;
+    this.syncReaderTransientStatusBar();
     this.clearAutoTransferTimer();
     this.autoTransferPlaying = false;
   }
@@ -1096,8 +1215,9 @@ export struct ReaderScene {
   }
 
   private hideMenu(): void {
-    this.applyMenuSettings();
     this.menuVisible = false;
+    setReaderTransientStatusBarVisible(this.readerTransientStatusBarVisible());
+    this.applyMenuSettings();
     this.showInfo = false;
     if (this.autoTransferPlaying) {
       this.scheduleAutoTransfer();

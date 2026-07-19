@@ -10,6 +10,7 @@ import {
 export const MAIN_WINDOW_KEY: string = 'mainWindow';
 export const READER_WINDOW_KEY: string = 'readerWindow';
 export const EMBEDDED_READER_ACTIVE_KEY: string = 'embeddedReaderActive';
+export const READER_TRANSIENT_STATUS_BAR_VISIBLE_KEY: string = 'readerTransientStatusBarVisible';
 export const MAIN_WINDOW_WIDTH_PX_KEY: string = 'mainWindowWidthPx';
 export const MAIN_CONTENT_WIDTH_VP_KEY: string = 'mainContentWidthVp';
 type SystemBarName = 'status' | 'navigation';
@@ -114,6 +115,14 @@ export function isEmbeddedReaderActive(): boolean {
   return AppStorage.get<boolean>(EMBEDDED_READER_ACTIVE_KEY) === true;
 }
 
+export function setReaderTransientStatusBarVisible(visible: boolean): void {
+  AppStorage.setOrCreate<boolean>(READER_TRANSIENT_STATUS_BAR_VISIBLE_KEY, visible);
+}
+
+function isReaderTransientStatusBarVisible(): boolean {
+  return AppStorage.get<boolean>(READER_TRANSIENT_STATUS_BAR_VISIBLE_KEY) === true;
+}
+
 // Normal app pages: window-level immersive layout with status bar visible and navigation indicator hidden.
 export function applyAppChromeImmersiveMode(win?: window.Window): void {
   const target = win === undefined ? getMainWindow() : win;
@@ -143,6 +152,7 @@ export function enterEmbeddedReaderFullscreen(): void {
   readerChromeGeneration++;
   const generation = readerChromeGeneration;
   setEmbeddedReaderActive(true);
+  setReaderTransientStatusBarVisible(false);
   const target = getMainWindow();
   if (target === undefined) {
     return;
@@ -158,6 +168,7 @@ export function enterEmbeddedReaderFullscreen(): void {
 export function leaveEmbeddedReaderFullscreen(): Promise<void> {
   readerChromeGeneration++;
   setEmbeddedReaderActive(false);
+  setReaderTransientStatusBarVisible(false);
   const target = getMainWindow();
   if (target === undefined) {
     return Promise.resolve();
@@ -210,15 +221,16 @@ export async function applyReaderWindowState(target: window.Window, keepScreenOn
   await setWindowSystemBarPropertiesQuietly(target, {
     statusBarColor: themeTransparentColor(),
     navigationBarColor: themeTransparentColor(),
-    isStatusBarLightIcon: fullscreen || isDarkTheme(),
+    isStatusBarLightIcon: true,
     isNavigationBarLightIcon: true,
-    statusBarContentColor: themeSystemBarContentColor()
+    statusBarContentColor: '#FFFFFF'
   }, 'set reader transparent system bars');
 }
 
 export async function applyReaderWindowStateFromSettings(target: window.Window): Promise<void> {
   const keepScreenOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
-  const fullscreen = ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On';
+  const fullscreen = ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On' &&
+    !isReaderTransientStatusBarVisible();
   const orientationSetting = readerScreenRotationSetting();
   const orientation = orientationSetting === 'Match image' ? undefined : readerOrientationFromSetting(orientationSetting);
   await applyReaderWindowState(target, keepScreenOn, orientation, fullscreen);
