@@ -16,6 +16,7 @@ import {
 import { GalleryListLoadResult, NetworkDiagnosticResult } from '../services/EhHttpClient';
 import { EhUrl, ListMode } from '../services/EhUrl';
 import {
+  ImageDownloadOptions,
   IMAGE_DOWNLOAD_PRIORITY_BACKGROUND,
   IMAGE_DOWNLOAD_PRIORITY_READER,
   readerImageCache
@@ -3615,7 +3616,8 @@ export function readerDisplayImageUrl(page: GalleryPage, preferOriginal: boolean
 
 export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: GalleryPage) => void,
   gallery?: GalleryInfo, index?: number, abilityContext?: common.UIAbilityContext,
-  onError?: (message: string) => void, priority: number = IMAGE_DOWNLOAD_PRIORITY_READER): Promise<void> {
+  onError?: (message: string) => void, priority: number = IMAGE_DOWNLOAD_PRIORITY_READER,
+  options?: ImageDownloadOptions): Promise<void> {
   const context = abilityContext !== undefined ? abilityContext : getAbilityContext();
   if (context === undefined) {
     if (onError !== undefined) {
@@ -3646,7 +3648,7 @@ export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: Galle
   }
 
   return readerImageCache.ensureCached(context, page.imageUrl, page.pageUrl, priority, undefined,
-    readerPageImageCacheKey(page, false)).then((path: string) => {
+    readerPageImageCacheKey(page, false), options).then((path: string) => {
     if (path.length > 0) {
       onReady(cloneGalleryPageWithCache(page, path));
     } else if (onError !== undefined) {

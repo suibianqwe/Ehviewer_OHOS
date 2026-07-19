@@ -33,6 +33,8 @@ import {
 } from '../shared/EhShared';
 import { ReaderPageState, ReaderScene } from './ReaderScenes';
 
+const READER_IMAGE_SERVER_ATTEMPT_LIMIT: number = 5;
+
 @Component
 export struct ReaderSessionScene {
   private client: EhHttpClient = new EhHttpClient();
@@ -57,6 +59,7 @@ export struct ReaderSessionScene {
   private readerPreviewMap: Map<number, GalleryPreview> = new Map();
   private readerPreviewPageRequests: Map<number, Promise<GalleryPreview | null>> = new Map();
   private readerPageLoadRequests: Map<string, Promise<GalleryPageLoadResult>> = new Map();
+  private readerImageRecoveryRequests: Map<string, Promise<void>> = new Map();
   private readerPreviewPageSize: number = 0;
   private readerTranslationLoads: string[] = [];
   private readerTranslationLoadPriorities: Map<string, number> = new Map();
@@ -91,6 +94,7 @@ export struct ReaderSessionScene {
     this.readerPreviewMap.clear();
     this.readerPreviewPageRequests.clear();
     this.readerPageLoadRequests.clear();
+    this.readerImageRecoveryRequests.clear();
     this.readerPreviewPageSize = 0;
     this.readerTranslationLoads = [];
     this.readerTranslationLoadPriorities.clear();
@@ -239,22 +243,93 @@ export struct ReaderSessionScene {
   }
 
   private cacheReaderImage(index: number, page: GalleryPage): Promise<void> {
-    return cacheReaderImageForPage(page, (cachedPage: GalleryPage) => {
-      galleryPageCache.put(cachedPage.pageUrl.length > 0 ? cachedPage.pageUrl : page.pageUrl, cachedPage);
-      this.setReaderPage(index, cachedPage);
+    const requestKey = index.toString() + ':' + page.pageUrl + ':' + page.imageUrl;
+    const pending = this.readerImageRecoveryRequests.get(requestKey);
+    if (pending !== undefined) {
+      return pending;
+    }
+    const request = this.cacheReaderImageWithServerFallback(index, page);
+    this.readerImageRecoveryRequests.set(requestKey, request);
+    request.then(() => {
+      if (this.readerImageRecoveryRequests.get(requestKey) === request) {
+        this.readerImageRecoveryRequests.delete(requestKey);
+      }
+    }).catch(() => {
+      if (this.readerImageRecoveryRequests.get(requestKey) === request) {
+        this.readerImageRecoveryRequests.delete(requestKey);
+      }
+    });
+    return request;
+  }
+
+  private async cacheReaderImageWithServerFallback(index: number, page: GalleryPage): Promise<void> {
+    const galleryId = this.detail.gid;
+    const preview = this.readerPreviewMap.get(index);
+    const previewPageUrl = preview !== undefined && preview.pageUrl.length > 0 ? preview.pageUrl : page.pageUrl;
+    const referer = readerPageReferer(this.detailRequestUrl, this.detail.previewSet, index, this.site);
+    const usedSkipKeys: string[] = [];
+    let current = cloneGalleryPage(page);
+    let lastError = '';
+
+    for (let attempt = 0; attempt < READER_IMAGE_SERVER_ATTEMPT_LIMIT; attempt++) {
+      let ready = false;
+      lastError = '';
+      await cacheReaderImageForPage(current, (cachedPage: GalleryPage) => {
+        ready = true;
+        this.applyCachedReaderPage(index, cachedPage, page.pageUrl);
+      }, this.detail, index, this.readerContext(), (message: string) => {
+        lastError = message;
+      }, IMAGE_DOWNLOAD_PRIORITY_READER, { retryLimit: 1 });
+      if (ready || this.detail.gid !== galleryId) {
+        return;
+      }
+
+      const skipKey = current.skipHathKey;
+      if (skipKey.length === 0 || usedSkipKeys.indexOf(skipKey) >= 0 ||
+        attempt >= READER_IMAGE_SERVER_ATTEMPT_LIMIT - 1) {
+        break;
+      }
+      usedSkipKeys.push(skipKey);
+      const reloadUrl = current.pageUrl.length > 0 ? current.pageUrl : previewPageUrl;
+      if (reloadUrl.length === 0) {
+        break;
+      }
+      const result = await this.client.skipHathAndReloadPage(reloadUrl, skipKey, this.site, referer);
+      if (this.detail.gid !== galleryId || !result.ok || result.page === null) {
+        if (!result.ok && result.message.length > 0) {
+          lastError = result.message;
+        }
+        break;
+      }
+      current = cloneGalleryPage(result.page);
+      const cacheUrl = current.pageUrl.length > 0 ? current.pageUrl : previewPageUrl;
+      galleryPageCache.put(cacheUrl, current);
+      galleryPageCache.put(previewPageUrl, current);
+      this.setReaderPage(index, current);
       if (this.pageIndex === index) {
-        this.page = cloneGalleryPage(cachedPage);
-        this.statusText = 'Page loaded from local cache';
+        this.page = cloneGalleryPage(current);
+        this.statusText = 'Switching image server...';
         this.renderVersion++;
         this.persistSession();
       }
-    }, this.detail, index, this.readerContext(), (message: string) => {
-      if (this.pageIndex === index) {
-        this.statusText = 'Page load failed: ' + message;
-        this.renderVersion++;
-        this.persistSession();
-      }
-    }, IMAGE_DOWNLOAD_PRIORITY_READER);
+    }
+
+    if (this.pageIndex === index && this.detail.gid === galleryId) {
+      this.statusText = 'Page load failed: ' + (lastError.length > 0 ? lastError : 'Image download failed');
+      this.renderVersion++;
+      this.persistSession();
+    }
+  }
+
+  private applyCachedReaderPage(index: number, cachedPage: GalleryPage, fallbackPageUrl: string): void {
+    galleryPageCache.put(cachedPage.pageUrl.length > 0 ? cachedPage.pageUrl : fallbackPageUrl, cachedPage);
+    this.setReaderPage(index, cachedPage);
+    if (this.pageIndex === index) {
+      this.page = cloneGalleryPage(cachedPage);
+      this.statusText = 'Page loaded from local cache';
+      this.renderVersion++;
+      this.persistSession();
+    }
   }
 
   private tryUseDownloadedPage(index: number, preview: GalleryPreview): boolean {
