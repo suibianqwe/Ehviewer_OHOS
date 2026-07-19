@@ -27,7 +27,7 @@ interface WaitingImageSlot {
   key: string;
   priority: number;
   sequence: number;
-  resolve: () => void;
+  resolve: (backgroundSlot: boolean) => void;
 }
 
 const PENDING_IMAGE_DOWNLOADS: PendingImageDownload[] = [];
@@ -43,9 +43,14 @@ const IMAGE_TOTAL_TIMEOUT_MARGIN_MS: number = 30000;
 const IMAGE_MIN_EXPECTED_SPEED_BYTES_PER_SECOND: number = 64 * 1024;
 const IMAGE_UNKNOWN_TOTAL_TIMEOUT_MS: number = 5 * 60 * 1000;
 const IMAGE_MAX_TOTAL_TIMEOUT_MS: number = 10 * 60 * 1000;
+const MAX_BACKGROUND_IMAGE_DOWNLOADS: number = 4;
+const BACKGROUND_IMAGE_RESUME_DELAY_MS: number = 750;
 let activeImageDownloads: number = 0;
+let activeBackgroundImageDownloads: number = 0;
 let imageTempFileSequence: number = 0;
 let imageSlotSequence: number = 0;
+let backgroundImageDispatchPaused: boolean = false;
+let backgroundImageResumeTimer: number = -1;
 
 export const IMAGE_DOWNLOAD_PRIORITY_BACKGROUND: number = 0;
 export const IMAGE_DOWNLOAD_PRIORITY_DOWNLOAD: number = 10;
@@ -219,11 +224,11 @@ export class ReaderImageCache {
     pendingKey: string, priority: number, onProgress?: ImageDownloadProgressCallback,
     options?: ImageDownloadOptions): Promise<string> {
     ensureDirectory(readerImageCacheDirectory(context));
-    await acquireImageSlot(pendingKey, priority);
+    const backgroundSlot = await acquireImageSlot(pendingKey, priority);
     try {
       return await this.downloadWithRetry(context, imageUrl, referer, path, onProgress, options);
     } finally {
-      releaseImageSlot();
+      releaseImageSlot(backgroundSlot);
     }
   }
 
@@ -1112,8 +1117,8 @@ function configuredImageDownloadLimit(): number {
   return Math.max(1, Math.min(value, 10));
 }
 
-function acquireImageSlot(key: string, priority: number): Promise<void> {
-  return new Promise<void>((resolve: (value: void | PromiseLike<void>) => void) => {
+function acquireImageSlot(key: string, priority: number): Promise<boolean> {
+  return new Promise<boolean>((resolve: (value: boolean | PromiseLike<boolean>) => void) => {
     WAITING_IMAGE_SLOTS.push({
       key: key,
       priority: priority,
@@ -1124,8 +1129,11 @@ function acquireImageSlot(key: string, priority: number): Promise<void> {
   });
 }
 
-function releaseImageSlot(): void {
+function releaseImageSlot(backgroundSlot: boolean): void {
   activeImageDownloads = Math.max(0, activeImageDownloads - 1);
+  if (backgroundSlot) {
+    activeBackgroundImageDownloads = Math.max(0, activeBackgroundImageDownloads - 1);
+  }
   dispatchWaitingImageSlots();
 }
 
@@ -1141,19 +1149,64 @@ function promoteImageSlot(key: string, priority: number): void {
 function dispatchWaitingImageSlots(): void {
   const limit = configuredImageDownloadLimit();
   while (activeImageDownloads < limit && WAITING_IMAGE_SLOTS.length > 0) {
-    let bestIndex = 0;
-    for (let i = 1; i < WAITING_IMAGE_SLOTS.length; i++) {
+    let bestIndex = -1;
+    for (let i = 0; i < WAITING_IMAGE_SLOTS.length; i++) {
       const candidate = WAITING_IMAGE_SLOTS[i];
+      if (!canDispatchImageSlot(candidate, limit)) {
+        continue;
+      }
+      if (bestIndex < 0) {
+        bestIndex = i;
+        continue;
+      }
       const best = WAITING_IMAGE_SLOTS[bestIndex];
       if (candidate.priority > best.priority ||
         (candidate.priority === best.priority && candidate.sequence < best.sequence)) {
         bestIndex = i;
       }
     }
+    if (bestIndex < 0) {
+      return;
+    }
     const next = WAITING_IMAGE_SLOTS.splice(bestIndex, 1)[0];
+    const backgroundSlot = isBackgroundImagePriority(next.priority);
     activeImageDownloads++;
-    next.resolve();
+    if (backgroundSlot) {
+      activeBackgroundImageDownloads++;
+    }
+    next.resolve(backgroundSlot);
   }
+}
+
+function canDispatchImageSlot(slot: WaitingImageSlot, totalLimit: number): boolean {
+  if (!isBackgroundImagePriority(slot.priority)) {
+    return true;
+  }
+  if (backgroundImageDispatchPaused) {
+    return false;
+  }
+  return activeBackgroundImageDownloads < Math.min(totalLimit, MAX_BACKGROUND_IMAGE_DOWNLOADS);
+}
+
+function isBackgroundImagePriority(priority: number): boolean {
+  return priority <= IMAGE_DOWNLOAD_PRIORITY_BACKGROUND;
+}
+
+export function pauseBackgroundImageRequests(): void {
+  backgroundImageDispatchPaused = true;
+  if (backgroundImageResumeTimer >= 0) {
+    clearTimeout(backgroundImageResumeTimer);
+    backgroundImageResumeTimer = -1;
+  }
+}
+
+export function resumeBackgroundImageRequests(): void {
+  pauseBackgroundImageRequests();
+  backgroundImageResumeTimer = setTimeout(() => {
+    backgroundImageResumeTimer = -1;
+    backgroundImageDispatchPaused = false;
+    dispatchWaitingImageSlots();
+  }, BACKGROUND_IMAGE_RESUME_DELAY_MS);
 }
 
 function stableImageKey(value: string): string {

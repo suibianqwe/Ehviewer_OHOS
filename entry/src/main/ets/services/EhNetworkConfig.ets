@@ -241,6 +241,16 @@ export function applyConfiguredProxyOptions(options: http.HttpRequestOptions): v
   options.usingProxy = proxyOption();
 }
 
+/**
+ * Connections can be left in an unusable state while an ability is suspended in background.
+ * Do not destroy active requests during the lifecycle callback; make requests started shortly
+ * after a real foreground resume use fresh connections instead.
+ */
+export function refreshEhConnectionsAfterForeground(): void {
+  forceFreshConnectionsUntilMs = Math.max(forceFreshConnectionsUntilMs,
+    Date.now() + FRESH_CONNECTION_WINDOW_MS);
+}
+
 export function socks5ProxySupported(): boolean {
   return deviceInfo.apiAvailable('26.0.0');
 }

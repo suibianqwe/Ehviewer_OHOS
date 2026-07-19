@@ -15,13 +15,18 @@ import { applyWindowPrivacyMode, WINDOW_PRIVACY_STATUS_KEY } from '../services/E
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehAppLog } from '../services/EhAppLog';
 import { DOWNLOAD_NOTIFICATION_OPEN_DIRECTORY_KEY } from '../services/DownloadNotificationSupport';
-import { readerImageCache } from '../services/ReaderImageCache';
+import {
+  pauseBackgroundImageRequests,
+  readerImageCache,
+  resumeBackgroundImageRequests
+} from '../services/ReaderImageCache';
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { EH_SYSTEM_COLOR_MODE_DARK, EH_SYSTEM_COLOR_MODE_KEY } from '../shared/EhTheme';
 import {
   ensureEhHostRules,
   isEhDirectConnectionProbeEnabled,
   registerEhNetworkChangeListener,
+  refreshEhConnectionsAfterForeground,
   startEhDirectConnectionProbe,
   startEhFrontingBenchmark,
   unregisterEhNetworkChangeListener
@@ -63,6 +68,7 @@ export default class EntryAbility extends UIAbility {
   private startupDirectProbeToast: string = '';
   private mainContentLoaded: boolean = false;
   private pendingDownloadDirectory: string = '';
+  private appWasBackground: boolean = false;
   // Largest bottom avoid (nav bar / gesture indicator) height observed this session, in px.
   // The reader hides system bars (setWindowSystemBarEnable([])), which makes the live avoid
   // area report 0 — but the gesture indicator zone physically persists. We keep the max-seen
@@ -325,6 +331,11 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
+    if (this.appWasBackground) {
+      this.appWasBackground = false;
+      refreshEhConnectionsAfterForeground();
+      resumeBackgroundImageRequests();
+    }
     ehDownloadManager.onAppForeground(this.context);
     this.applyPersistedSecureScreen();
     if (this.authPending) {
@@ -340,6 +351,8 @@ export default class EntryAbility extends UIAbility {
   }
 
   onBackground(): void {
+    this.appWasBackground = true;
+    pauseBackgroundImageRequests();
     ehDownloadManager.onAppBackground(this.context);
     if (this.authPending) {
       return;

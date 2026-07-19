@@ -4,6 +4,7 @@ const ACTIVE_HTTP_REQUESTS: http.HttpRequest[] = [];
 const RETIRED_HTTP_REQUESTS: http.HttpRequest[] = [];
 const HTTP_REQUEST_CLEANUP_QUIET_MS: number = 30000;
 const HTTP_REQUEST_CLEANUP_STEP_MS: number = 500;
+const RETIRED_HTTP_REQUEST_RETAIN_LIMIT: number = 96;
 let cleanupTimer: number = -1;
 let activityGeneration: number = 0;
 let lastActivityAt: number = 0;
@@ -29,6 +30,7 @@ export function retireHttpRequest(request: http.HttpRequest): void {
   if (RETIRED_HTTP_REQUESTS.indexOf(request) < 0) {
     RETIRED_HTTP_REQUESTS.push(request);
   }
+  trimRetiredRequests();
   scheduleCleanup(HTTP_REQUEST_CLEANUP_QUIET_MS);
 }
 
@@ -47,6 +49,16 @@ function removeRequest(items: http.HttpRequest[], request: http.HttpRequest): vo
   const index = items.indexOf(request);
   if (index >= 0) {
     items.splice(index, 1);
+  }
+}
+
+function trimRetiredRequests(): void {
+  while (RETIRED_HTTP_REQUESTS.length > RETIRED_HTTP_REQUEST_RETAIN_LIMIT) {
+    // The request has completed, but explicitly destroying it while the native curl multi loop
+    // is processing other requests can race on affected HarmonyOS 6.1 builds. Dropping the oldest
+    // reference lets ArkTS GC reclaim it without allowing a busy image list to retain every
+    // completed native request indefinitely.
+    RETIRED_HTTP_REQUESTS.shift();
   }
 }
 

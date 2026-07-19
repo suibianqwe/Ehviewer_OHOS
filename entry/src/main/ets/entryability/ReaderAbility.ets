@@ -9,6 +9,7 @@ import {
 } from '../services/EhWindowImmersive';
 import { ehAppLog } from '../services/EhAppLog';
 import { ehSettingsStore } from '../services/EhSettingsStore';
+import { refreshEhConnectionsAfterForeground } from '../services/EhNetworkConfig';
 import { applyWindowPrivacyMode } from '../services/EhWindowPrivacy';
 import { EH_SYSTEM_COLOR_MODE_DARK, EH_SYSTEM_COLOR_MODE_KEY } from '../shared/EhTheme';
 import { notifyLanguageChanged, notifyThemeChanged } from '../shared/EhShared';
@@ -17,6 +18,7 @@ export const READER_ABILITY_CONTEXT_KEY: string = 'readerAbilityContext';
 
 export default class ReaderAbility extends UIAbility {
   private readerWindow: window.Window | undefined = undefined;
+  private appWasBackground: boolean = false;
 
   onWindowStageCreate(stage: window.WindowStage): void {
     AppStorage.setOrCreate(READER_ABILITY_CONTEXT_KEY, this.context);
@@ -47,6 +49,10 @@ export default class ReaderAbility extends UIAbility {
   }
 
   onForeground(): void {
+    if (this.appWasBackground) {
+      this.appWasBackground = false;
+      refreshEhConnectionsAfterForeground();
+    }
     if (this.readerWindow !== undefined) {
       this.applyReaderChrome(this.readerWindow);
       this.loadSettingsAndApplyReaderChrome(this.readerWindow);
@@ -80,6 +86,10 @@ export default class ReaderAbility extends UIAbility {
     if (previous !== undefined && previous !== normalized) {
       notifyThemeChanged();
     }
+  }
+
+  onBackground(): void {
+    this.appWasBackground = true;
   }
 
   private ensureReaderWindow(stage: window.WindowStage): window.Window | undefined {
