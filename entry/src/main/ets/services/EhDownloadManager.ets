@@ -25,6 +25,7 @@ import { EhUrl } from './EhUrl';
 import { mergeGalleryPreviewSets } from './GalleryPreviewLoader';
 import { ehAppLog } from './EhAppLog';
 import { hathQualityStore } from './HathQualityStore';
+import { shouldBypassHathNetworkForFronting } from './EhNetworkConfig';
 import {
   DownloadNotificationText,
   downloadNotificationText,
@@ -522,7 +523,8 @@ export class EhDownloadManager {
     let current = page;
     for (let i = 0; i < DOWNLOAD_SLOW_HATH_SKIP_LIMIT; i++) {
       const imageUrl = downloadImageUrlForPage(current);
-      if (current.skipHathKey.length === 0 || !hathQualityStore.shouldSkip(context, imageUrl)) {
+      if (current.skipHathKey.length === 0 ||
+        (!shouldBypassHathNetworkForFronting(imageUrl) && !hathQualityStore.shouldSkip(context, imageUrl))) {
         return current;
       }
       const pageUrl = current.pageUrl.length > 0 ? current.pageUrl : previewPageUrl;

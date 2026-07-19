@@ -1,18 +1,20 @@
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
-import { rcp } from '@kit.RemoteCommunicationKit';
+import { http } from '@kit.NetworkKit';
 import { ehCookieStore } from './EhCookieStore';
 import { ehAppLog } from './EhAppLog';
 import {
+  applyEhNetworkOptions,
   createEhRequestPlan,
-  createEhRcpConfiguration,
   EhRequestPlan,
   ensureEhHostRules,
   isEhRouteReachableStatus,
-  recordEhRequestOutcome
+  recordEhRequestOutcome,
+  shouldBypassHathNetworkForFronting
 } from './EhNetworkConfig';
 import { ehSettingsStore } from './EhSettingsStore';
 import { hathQualityStore } from './HathQualityStore';
+import { cancelHttpRequest, retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
 
 interface PendingImageDownload {
   url: string;
@@ -38,7 +40,7 @@ interface AcquiredImageSlot {
 }
 
 interface ActiveImageRequest {
-  request: rcp.Request;
+  request: http.HttpRequest;
   priority: number;
   cancelRequested: boolean;
 }
@@ -47,10 +49,10 @@ const PENDING_IMAGE_DOWNLOADS: PendingImageDownload[] = [];
 const WAITING_IMAGE_SLOTS: WaitingImageSlot[] = [];
 const ACTIVE_IMAGE_REQUESTS: ActiveImageRequest[] = [];
 const ACTIVE_IMAGE_TEMP_PATHS: string[] = [];
-const IMAGE_RCP_SESSION: rcp.Session = rcp.createSession();
 const DEFAULT_IMAGE_CACHE_BYTES: number = 160 * 1024 * 1024;
 const IMAGE_RETRY_DELAYS_MS: number[] = [300, 900, 1800, 3200];
 const IMAGE_CONNECT_TIMEOUT_MS: number = 4500;
+const IMAGE_RESPONSE_MAX_BYTES: number = 128 * 1024 * 1024;
 const DEFAULT_IMAGE_RETRY_LIMIT: number = 5;
 const MAX_BACKGROUND_IMAGE_DOWNLOADS: number = 4;
 const BACKGROUND_IMAGE_RESUME_DELAY_MS: number = 750;
@@ -265,6 +267,11 @@ export class ReaderImageCache {
 
   private async downloadOnce(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
     attempt: number, priority: number, onProgress?: ImageDownloadProgressCallback): Promise<string> {
+    if (shouldBypassHathNetworkForFronting(imageUrl)) {
+      throw new Error('H@H image requires page-level server fallback');
+    }
+    const request = http.createHttp();
+    trackHttpRequest(request);
     let plan: EhRequestPlan | null = null;
     let activeRequest: ActiveImageRequest | null = null;
     let tempPath = '';
@@ -275,33 +282,32 @@ export class ReaderImageCache {
       const header = buildImageRequestHeader(plan, referer, ehCookieStore.getCookieHeaderForUrl(imageUrl));
       const timeout = imageRequestTimeoutMs();
       await ensureEhHostRules();
-      const events: rcp.HttpEventsHandler = {
-        onDownloadProgress: (totalSize: number, transferredSize: number): void => {
-          if (onProgress !== undefined) {
-            onProgress({
-              receivedBytes: Math.max(0, transferredSize),
-              totalBytes: Math.max(0, totalSize)
-            });
-          }
-        }
+      const options: http.HttpRequestOptions = {
+        method: http.RequestMethod.GET,
+        header: header,
+        expectDataType: http.HttpDataType.ARRAY_BUFFER,
+        maxLimit: IMAGE_RESPONSE_MAX_BYTES,
+        connectTimeout: imageConnectTimeoutMs(plan, timeout),
+        readTimeout: imageRequestDeadlineMs(plan, attempt)
       };
-      const request = new rcp.Request(plan.url, 'GET', header as Object as rcp.RequestHeaders);
-      request.configuration = createEhRcpConfiguration(plan, imageConnectTimeoutMs(plan, timeout),
-        imageRequestDeadlineMs(plan, attempt), events);
-      tempPath = nextImageTempPath(path);
-      removeFileQuietly(tempPath);
-      markImageTempPathActive(tempPath);
-      request.destination = {
-        kind: 'file',
-        file: tempPath,
-        keepLocal: false
-      } as rcp.DownloadToFile;
+      applyEhNetworkOptions(options, plan);
+      request.on('dataReceiveProgress', (progress: http.DataReceiveProgressInfo): void => {
+        if (onProgress !== undefined) {
+          onProgress({
+            receivedBytes: Math.max(0, progress.receiveSize),
+            totalBytes: Math.max(0, progress.totalSize)
+          });
+        }
+      });
       activeRequest = registerActiveImageRequest(request, priority);
-      const response = await IMAGE_RCP_SESSION.fetch(request);
+      const response = await request.request(plan.url, options);
       if (activeRequest.cancelRequested) {
         throw new Error('Reader image request cancelled');
       }
-      const result = finishImageFileTransfer(response, tempPath, path);
+      tempPath = nextImageTempPath(path);
+      removeFileQuietly(tempPath);
+      markImageTempPathActive(tempPath);
+      const result = finishImageBufferTransfer(response, tempPath, path);
       const statusCode = result.statusCode;
       const savedPath = result.path;
 
@@ -341,9 +347,14 @@ export class ReaderImageCache {
       }
       throw new Error(imageNetworkErrorMessage(error));
     } finally {
+      try {
+        request.off('dataReceiveProgress');
+      } catch (_error) {
+      }
       if (activeRequest !== null) {
         unregisterActiveImageRequest(activeRequest);
       }
+      retireHttpRequest(request);
       if (tempPath.length > 0) {
         removeFileQuietly(tempPath);
         unmarkImageTempPathActive(tempPath);
@@ -442,14 +453,29 @@ function imageConnectTimeoutMs(plan: EhRequestPlan, timeoutMs: number): number {
   return Math.min(timeoutMs, 30000);
 }
 
-function finishImageFileTransfer(response: rcp.Response, tempPath: string, path: string): ImageTransferResult {
-  const statusCode = Number(response.statusCode);
-  const finalPath = responseImagePath(path, headerImageExtension(response.headers));
+function finishImageBufferTransfer(response: http.HttpResponse, tempPath: string, path: string): ImageTransferResult {
+  const statusCode = Number(response.responseCode);
+  const finalPath = responseImagePath(path, headerImageExtension(response.header));
   if (statusCode >= 200 && statusCode < 300) {
+    if (!(response.result instanceof ArrayBuffer) || response.result.byteLength <= 0) {
+      throw new Error('Empty image response');
+    }
+    let fd = -1;
     try {
+      const file = fs.openSync(tempPath, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
+      fd = file.fd;
+      fs.writeSync(fd, response.result);
+      fs.closeSync(fd);
+      fd = -1;
       removeFileQuietly(finalPath);
       fs.moveFileSync(tempPath, finalPath);
     } catch (error) {
+      if (fd >= 0) {
+        try {
+          fs.closeSync(fd);
+        } catch (_closeError) {
+        }
+      }
       removeFileQuietly(tempPath);
       throw new Error(String(error));
     }
@@ -462,7 +488,7 @@ function finishImageFileTransfer(response: rcp.Response, tempPath: string, path:
   };
 }
 
-function registerActiveImageRequest(request: rcp.Request, priority: number): ActiveImageRequest {
+function registerActiveImageRequest(request: http.HttpRequest, priority: number): ActiveImageRequest {
   const active: ActiveImageRequest = {
     request: request,
     priority: priority,
@@ -1071,10 +1097,7 @@ export function cancelQueuedReaderImageRequests(): number {
       continue;
     }
     active.cancelRequested = true;
-    try {
-      IMAGE_RCP_SESSION.cancel(active.request);
-    } catch (error) {
-    }
+    cancelHttpRequest(active.request);
     cancelled++;
   }
   return cancelled;

@@ -14,6 +14,7 @@ import {
 } from '../services/ReaderSessionStore';
 import { readerComicTranslationService } from '../services/ReaderComicTranslationService';
 import { cancelQueuedReaderImageRequests, IMAGE_DOWNLOAD_PRIORITY_READER } from '../services/ReaderImageCache';
+import { shouldBypassHathNetworkForFronting } from '../services/EhNetworkConfig';
 import {
   cacheReaderImageForPage,
   cloneGalleryDetail,
@@ -67,17 +68,30 @@ export struct ReaderSessionScene {
   private readerTranslationScope: string = '';
   private readerPreloadRevision: number = 0;
   private readerSceneActive: boolean = false;
+  private readerSettingsReady: boolean = false;
 
   aboutToAppear(): void {
     this.readerSceneActive = true;
     if (!this.restoreAppChromeOnExit) {
       setReaderActiveBackHandler(() => this.handleSystemBack());
     }
-    this.loadCurrentSession();
+    const context = this.readerContext();
+    if (context === undefined) {
+      this.readerSettingsReady = true;
+      this.loadCurrentSession();
+      return;
+    }
+    ehSettingsStore.ensureLoaded(context).finally(() => {
+      if (!this.readerSceneActive) {
+        return;
+      }
+      this.readerSettingsReady = true;
+      this.loadCurrentSession();
+    });
   }
 
   onSessionRevisionChange(): void {
-    if (this.sessionRevision === this.loadedSessionRevision) {
+    if (!this.readerSettingsReady || this.sessionRevision === this.loadedSessionRevision) {
       return;
     }
     this.loadCurrentSession();
@@ -281,12 +295,16 @@ export struct ReaderSessionScene {
     for (let attempt = 0; attempt < READER_IMAGE_SERVER_ATTEMPT_LIMIT; attempt++) {
       let ready = false;
       lastError = '';
-      await cacheReaderImageForPage(current, (cachedPage: GalleryPage) => {
-        ready = true;
-        this.applyCachedReaderPage(index, cachedPage, page.pageUrl);
-      }, this.detail, index, this.readerContext(), (message: string) => {
-        lastError = message;
-      }, IMAGE_DOWNLOAD_PRIORITY_READER, { retryLimit: 1 });
+      if (shouldBypassHathNetworkForFronting(current.imageUrl)) {
+        lastError = 'H@H node is unavailable while SNI fronting is active';
+      } else {
+        await cacheReaderImageForPage(current, (cachedPage: GalleryPage) => {
+          ready = true;
+          this.applyCachedReaderPage(index, cachedPage, page.pageUrl);
+        }, this.detail, index, this.readerContext(), (message: string) => {
+          lastError = message;
+        }, IMAGE_DOWNLOAD_PRIORITY_READER, { retryLimit: 1 });
+      }
       if (ready || !this.readerSceneActive || this.detail.gid !== galleryId) {
         return;
       }
