@@ -1092,11 +1092,8 @@ async function requestText(url: string, method: http.RequestMethod, body: string
     }
     throw new Error(String(error));
   } finally {
-    const cancelled = cancellationToken?.isCancelled() === true;
     cancellationToken?.untrack(request);
-    if (!cancelled) {
-      retireHttpRequest(request);
-    }
+    retireHttpRequest(request);
   }
 }
 

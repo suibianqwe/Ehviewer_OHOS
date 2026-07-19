@@ -4,7 +4,6 @@ const ACTIVE_HTTP_REQUESTS: http.HttpRequest[] = [];
 const RETIRED_HTTP_REQUESTS: http.HttpRequest[] = [];
 const HTTP_REQUEST_CLEANUP_QUIET_MS: number = 30000;
 const HTTP_REQUEST_CLEANUP_STEP_MS: number = 500;
-const RETIRED_HTTP_REQUEST_RETAIN_LIMIT: number = 96;
 let cleanupTimer: number = -1;
 let activityGeneration: number = 0;
 let lastActivityAt: number = 0;
@@ -30,18 +29,17 @@ export function retireHttpRequest(request: http.HttpRequest): void {
   if (RETIRED_HTTP_REQUESTS.indexOf(request) < 0) {
     RETIRED_HTTP_REQUESTS.push(request);
   }
-  trimRetiredRequests();
   scheduleCleanup(HTTP_REQUEST_CLEANUP_QUIET_MS);
 }
 
 export function cancelHttpRequest(request: http.HttpRequest): void {
   activityGeneration++;
   lastActivityAt = Date.now();
-  removeRequest(ACTIVE_HTTP_REQUESTS, request);
-  removeRequest(RETIRED_HTTP_REQUESTS, request);
-  try {
-    request.destroy();
-  } catch (_error) {
+  // Cancellation tokens stop consuming the result immediately, but destroying a request while another request is
+  // running can corrupt the system curl multi loop on affected HarmonyOS 6.1 devices. Keep the native handle tracked
+  // until its promise settles; retireHttpRequest() will release it after the normal network quiet period.
+  if (ACTIVE_HTTP_REQUESTS.indexOf(request) >= 0) {
+    cancelCleanupTimer();
   }
 }
 
@@ -49,16 +47,6 @@ function removeRequest(items: http.HttpRequest[], request: http.HttpRequest): vo
   const index = items.indexOf(request);
   if (index >= 0) {
     items.splice(index, 1);
-  }
-}
-
-function trimRetiredRequests(): void {
-  while (RETIRED_HTTP_REQUESTS.length > RETIRED_HTTP_REQUEST_RETAIN_LIMIT) {
-    // The request has completed, but explicitly destroying it while the native curl multi loop
-    // is processing other requests can race on affected HarmonyOS 6.1 builds. Dropping the oldest
-    // reference lets ArkTS GC reclaim it without allowing a busy image list to retain every
-    // completed native request indefinitely.
-    RETIRED_HTTP_REQUESTS.shift();
   }
 }
 

@@ -5,7 +5,7 @@ import {
   uiText,
   uiValue
 } from '../../../shared/EhShared';
-import { readerSelectColors, selectArrowModifier } from '../../../shared/EhSelectStyle';
+import { readerSelectColors } from '../../../shared/EhSelectStyle';
 import { themeScrimColor } from '../../../shared/EhTheme';
 
 const READER_MENU_SURFACE = '#EE111827';
@@ -134,41 +134,82 @@ export struct ReaderMenuSelect {
   options: string[] = [];
   value: string = '';
   onChange: (v: string) => void = () => {};
+  @State expanded: boolean = false;
 
   build() {
-    Row() {
-      Text(this.label)
-        .fontSize(14)
-        .fontColor('#E5E7EB')
-        .layoutWeight(1)
-      Select(this.options.map((o: string) => ({ value: uiValue(o) } as SelectOption)))
-        .id('reader-menu-select-' + this.label + '-' + this.value)
-        .selected(readerMenuOptionIndex(this.options, this.value))
-        .value(uiValue(this.value))
-        .font({ size: 13 })
-        .fontColor(readerSelectColors().buttonText)
-        .backgroundColor(readerSelectColors().buttonBackground)
-        .menuBackgroundColor(readerSelectColors().menuBackground)
-        .menuBackgroundBlurStyle(BlurStyle.NONE)
-        .optionBgColor(readerSelectColors().optionBackground)
-        .optionFontColor(readerSelectColors().optionText)
-        .optionFont({ size: 13 })
-        .selectedOptionBgColor(readerSelectColors().selectedOptionBackground)
-        .selectedOptionFontColor(readerSelectColors().selectedOptionText)
-        .menuOutline({ width: 1, color: readerSelectColors().outline })
-        .arrowModifier(selectArrowModifier(readerSelectColors().arrow))
-        .onSelect((idx: number) => {
-          if (idx >= 0 && idx < this.options.length) {
-            this.onChange(this.options[idx]);
+    Column() {
+      Row() {
+        Text(this.label)
+          .fontSize(14)
+          .fontColor('#E5E7EB')
+          .layoutWeight(1)
+        Button({ type: ButtonType.Normal, stateEffect: true }) {
+          Row() {
+            Text(uiValue(this.value))
+              .fontSize(13)
+              .fontColor(readerSelectColors().buttonText)
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .layoutWeight(1)
+              .textAlign(TextAlign.End)
+            SymbolGlyph($r('sys.symbol.chevron_down'))
+              .fontSize(14)
+              .fontColor([readerSelectColors().arrow])
+              .margin({ left: 6 })
+              .rotate({ angle: this.expanded ? 180 : 0 })
           }
-        })
+          .width('100%')
+          .padding({ left: 10, right: 8 })
+        }
         .height(32)
         .constraintSize({ minWidth: 136, maxWidth: 188 })
+        .backgroundColor(readerSelectColors().buttonBackground)
+        .borderRadius(8)
+        .onClick(() => {
+          this.expanded = !this.expanded;
+        })
+      }
+      .width('100%')
+      .height(44)
+      .padding({ left: 16, right: 16, top: 6, bottom: 6 })
+      .alignItems(VerticalAlign.Center)
+
+      if (this.expanded) {
+        Column({ space: 2 }) {
+          ForEach(this.options, (option: string, index: number) => {
+            Button({ type: ButtonType.Normal, stateEffect: true }) {
+              Row() {
+                Text(uiValue(option))
+                  .fontSize(13)
+                  .fontColor(option === this.value ?
+                    readerSelectColors().selectedOptionText : readerSelectColors().optionText)
+                  .layoutWeight(1)
+                  .textAlign(TextAlign.Start)
+                if (option === this.value) {
+                  SymbolGlyph($r('sys.symbol.checkmark'))
+                    .fontSize(14)
+                    .fontColor([readerSelectColors().selectedOptionText])
+                }
+              }
+              .width('100%')
+              .padding({ left: 12, right: 12 })
+            }
+            .width('100%')
+            .height(36)
+            .backgroundColor(option === this.value ?
+              readerSelectColors().selectedOptionBackground : readerSelectColors().optionBackground)
+            .borderRadius(8)
+            .onClick(() => {
+              this.expanded = false;
+              this.onChange(option);
+            })
+          }, (option: string, index: number) => option + '-' + index.toString())
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, bottom: 8 })
+      }
     }
     .width('100%')
-    .height(44)
-    .padding({ left: 16, right: 16, top: 6, bottom: 6 })
-    .alignItems(VerticalAlign.Center)
   }
 }
 
@@ -222,15 +263,6 @@ export struct ReaderMenuSlider {
     .width('100%')
     .padding({ left: 16, right: 16, top: 6, bottom: 8 })
   }
-}
-
-function readerMenuOptionIndex(options: string[], value: string): number {
-  for (let i = 0; i < options.length; i++) {
-    if (options[i] === value) {
-      return i;
-    }
-  }
-  return 0;
 }
 
 export function readerAutoTransferSliderValue(value: string): number {

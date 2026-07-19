@@ -15,7 +15,7 @@ const FRONTING_IP_CACHE_VERSION: number = 1;
 const FRONTING_PROBE_CONNECT_TIMEOUT_MS: number = 3000;
 const FRONTING_PROBE_READ_TIMEOUT_MS: number = 3000;
 const FRONTING_PROBE_DEADLINE_MS: number = 4500;
-const FRONTING_PROBE_CONCURRENCY: number = 2;
+const FRONTING_PROBE_CONCURRENCY: number = 1;
 const FRONTING_PREFERRED_IP_LIMIT: number = 3;
 const FRONTING_TAIL_SAMPLE_RATE: number = 0.08;
 const FRONTING_WEIGHT_SCORE_BASE: number = 500;
@@ -725,6 +725,7 @@ async function probeFrontingIp(target: HostIpProbeTarget): Promise<HostIpQuality
       usingCache: false,
       usingProtocol: http.HttpProtocol.HTTP1_1,
       remoteValidation: 'skip',
+      maxRedirects: 0,
       connectTimeout: FRONTING_PROBE_CONNECT_TIMEOUT_MS,
       readTimeout: FRONTING_PROBE_READ_TIMEOUT_MS
     };
@@ -1128,9 +1129,14 @@ async function probeDirectSelectedSite(): Promise<boolean> {
       },
       expectDataType: http.HttpDataType.STRING,
       usingCache: false,
+      usingProtocol: http.HttpProtocol.HTTP1_1,
+      maxRedirects: 0,
       connectTimeout: DIRECT_PROBE_TIMEOUT_MS,
       readTimeout: DIRECT_PROBE_TIMEOUT_MS
     };
+    if (deviceInfo.apiAvailable('26.0.0')) {
+      options.reuseConnections = false;
+    }
     applyConfiguredNetworkOptions(options);
     const response = await requestProbeToCompletion(request, 'https://' + host + '/', options);
     const statusCode = Number(response.responseCode);
