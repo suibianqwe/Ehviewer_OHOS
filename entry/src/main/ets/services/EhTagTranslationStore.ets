@@ -10,7 +10,7 @@ import {
   ensureEhHostRules,
   recordEhRequestOutcome
 } from './EhNetworkConfig';
-import { retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
+import { acquireHttpRequest, retireHttpRequest } from './HttpRequestLifecycle';
 
 export interface EhTagSuggestion {
   namespace: string;
@@ -402,8 +402,7 @@ class EhTagTranslationStore {
 export const ehTagTranslationStore = new EhTagTranslationStore();
 
 async function requestTagDatabaseText(url: string, accept: string): Promise<string> {
-  const request = http.createHttp();
-  trackHttpRequest(request);
+  const request = acquireHttpRequest();
   const plan = createEhRequestPlan(url);
   const startedAt = Date.now();
   let outcomeRecorded = false;

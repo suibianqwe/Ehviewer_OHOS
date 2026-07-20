@@ -14,7 +14,7 @@ import {
   ensureEhHostRules,
   recordEhRequestOutcome
 } from './EhNetworkConfig';
-import { retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
+import { acquireHttpRequest, retireHttpRequest } from './HttpRequestLifecycle';
 
 export interface AppVersionInfo {
   versionName: string;
@@ -126,8 +126,7 @@ async function getCurrentAppVersion(): Promise<AppVersionInfo> {
 }
 
 async function fetchLatestRelease(): Promise<ReleaseInfo> {
-  const request = http.createHttp();
-  trackHttpRequest(request);
+  const request = acquireHttpRequest();
   const plan = createEhRequestPlan(LATEST_RELEASE_API);
   const startedAt = Date.now();
   let outcomeRecorded = false;

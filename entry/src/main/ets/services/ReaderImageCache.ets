@@ -14,7 +14,7 @@ import {
 } from './EhNetworkConfig';
 import { ehSettingsStore } from './EhSettingsStore';
 import { hathQualityStore } from './HathQualityStore';
-import { cancelHttpRequest, retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
+import { cancelHttpRequest, retireHttpRequest, acquireHttpRequest } from './HttpRequestLifecycle';
 
 interface PendingImageDownload {
   url: string;
@@ -54,8 +54,8 @@ const IMAGE_RETRY_DELAYS_MS: number[] = [300, 900, 1800, 3200];
 const IMAGE_CONNECT_TIMEOUT_MS: number = 4500;
 const IMAGE_RESPONSE_MAX_BYTES: number = 128 * 1024 * 1024;
 const DEFAULT_IMAGE_RETRY_LIMIT: number = 5;
-const MAX_BACKGROUND_IMAGE_DOWNLOADS: number = 4;
-const MAX_DOH_HATH_IMAGE_DOWNLOADS: number = 2;
+const MAX_BACKGROUND_IMAGE_DOWNLOADS: number = 8;
+const MAX_DOH_HATH_IMAGE_DOWNLOADS: number = 4;
 const BACKGROUND_IMAGE_RESUME_DELAY_MS: number = 750;
 let activeImageDownloads: number = 0;
 let activeBackgroundImageDownloads: number = 0;
@@ -282,8 +282,7 @@ export class ReaderImageCache {
   private async downloadOnce(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
     attempt: number, priority: number, onProgress?: ImageDownloadProgressCallback,
     useDnsOverHttps: boolean = true): Promise<string> {
-    const request = http.createHttp();
-    trackHttpRequest(request);
+    const request = acquireHttpRequest();
     let plan: EhRequestPlan | null = null;
     let activeRequest: ActiveImageRequest | null = null;
     let tempPath = '';

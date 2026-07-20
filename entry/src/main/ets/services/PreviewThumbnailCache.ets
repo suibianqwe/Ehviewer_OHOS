@@ -7,6 +7,7 @@ import {
   readerImageCache,
   readerImageCacheDirectory
 } from './ReaderImageCache';
+import { acquireImageSource, releaseImageSource } from './ReaderPixelMapCache';
 
 interface PendingPreviewCrop {
   key: string;
@@ -15,7 +16,7 @@ interface PendingPreviewCrop {
 
 const PENDING_PREVIEW_CROPS: PendingPreviewCrop[] = [];
 const WAITING_PREVIEW_CROPS: (() => void)[] = [];
-const MAX_ACTIVE_PREVIEW_CROPS: number = 2;
+const MAX_ACTIVE_PREVIEW_CROPS: number = 4;
 let activePreviewCrops: number = 0;
 
 export class PreviewThumbnailCache {
@@ -68,8 +69,15 @@ export class PreviewThumbnailCache {
     let imageSource: image.ImageSource | undefined = undefined;
     let pixelMap: image.PixelMap | undefined = undefined;
     let imagePacker: image.ImagePacker | undefined = undefined;
+    let cachedSource: boolean = false;
     try {
-      imageSource = image.createImageSource(sourcePath);
+      const reused = acquireImageSource(sourcePath);
+      if (reused !== undefined) {
+        imageSource = reused;
+        cachedSource = true;
+      } else {
+        imageSource = image.createImageSource(sourcePath);
+      }
       const options: image.DecodingOptions = {
         desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
         desiredRegion: {
@@ -106,9 +114,13 @@ export class PreviewThumbnailCache {
         }
       }
       if (imageSource !== undefined) {
-        try {
-          await imageSource.release();
-        } catch (error) {
+        if (cachedSource) {
+          releaseImageSource(sourcePath, imageSource);
+        } else {
+          try {
+            await imageSource.release();
+          } catch (error) {
+          }
         }
       }
       releasePreviewCropSlot();

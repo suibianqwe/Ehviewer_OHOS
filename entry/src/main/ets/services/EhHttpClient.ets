@@ -38,7 +38,7 @@ import {
 } from './EhNetworkConfig';
 import { TopListParseResult, parseTopList } from './TopListParser';
 import { parseTorrentList } from './TorrentParser';
-import { retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
+import { acquireHttpRequest, retireHttpRequest } from './HttpRequestLifecycle';
 
 export interface EhHttpResponse {
   statusCode: number;
@@ -80,7 +80,7 @@ const SHARED_PENDING_RESPONSES: PendingHttpResponse[] = [];
 const SHARED_PENDING_PAGE_LOADS: PendingGalleryPageResponse[] = [];
 const SHARED_SHOW_KEYS: ShowKeyEntry[] = [];
 const WAITING_TEXT_SLOTS: TextSlotWaiter[] = [];
-const MAX_ACTIVE_TEXT_REQUESTS: number = 4;
+const MAX_ACTIVE_TEXT_REQUESTS: number = 8;
 const TEXT_CONNECT_TIMEOUT_MS: number = 15000;
 const TEXT_READ_TIMEOUT_MS: number = 15000;
 const TEXT_DEADLINE_TIMEOUT_MS: number = 26000;
@@ -278,8 +278,7 @@ export class EhHttpClient {
 
   private async getTextOnce(url: string, referer: string, cookieHeader: string,
     cacheTtlMs: number, requestOptions?: EhTextRequestOptions): Promise<EhHttpResponse> {
-    const request = http.createHttp();
-    trackHttpRequest(request);
+    const request = acquireHttpRequest();
     let plan: EhRequestPlan | null = null;
     const startedAt = Date.now();
     let outcomeRecorded = false;
@@ -383,8 +382,7 @@ export class EhHttpClient {
 
   private async postFormOnce(url: string, body: string, referer: string, origin: string,
     cookieHeader: string): Promise<EhHttpResponse> {
-    const request = http.createHttp();
-    trackHttpRequest(request);
+    const request = acquireHttpRequest();
     let plan: EhRequestPlan | null = null;
     const startedAt = Date.now();
     let outcomeRecorded = false;
@@ -433,8 +431,7 @@ export class EhHttpClient {
 
   private async postJsonOnce(url: string, body: string, referer: string = '',
     origin: string = '', requestOptions?: EhTextRequestOptions): Promise<EhHttpResponse> {
-    const request = http.createHttp();
-    trackHttpRequest(request);
+    const request = acquireHttpRequest();
     let plan: EhRequestPlan | null = null;
     const startedAt = Date.now();
     let outcomeRecorded = false;
@@ -1320,8 +1317,7 @@ export class EhHttpClient {
 
   private async postMultipartOnce(url: string, body: ArrayBuffer, contentType: string, referer: string,
     origin: string, timeoutMs: number): Promise<EhHttpResponse> {
-    const request = http.createHttp();
-    trackHttpRequest(request);
+    const request = acquireHttpRequest();
     let plan: EhRequestPlan | null = null;
     const startedAt = Date.now();
     let outcomeRecorded = false;

@@ -2861,7 +2861,7 @@ export function downloadImageUrlForPage(page: GalleryPage): string {
 }
 
 export function downloadThreadLimit(): number {
-  const value = Number.parseInt(ehSettingsStore.getValue('download_thread', '3'));
+  const value = Number.parseInt(ehSettingsStore.getValue('download_thread', '5'));
   if (Number.isNaN(value) || value <= 0) {
     return 1;
   }

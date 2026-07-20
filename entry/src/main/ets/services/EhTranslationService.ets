@@ -8,7 +8,7 @@ import {
 } from './TranslationApiConfigSupport';
 import { activeTranslationPromptProfile } from './TranslationPromptSupport';
 import { aiTranslationConversationLog } from './AiTranslationConversationLog';
-import { cancelHttpRequest, retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
+import { acquireHttpRequest, cancelHttpRequest, retireHttpRequest } from './HttpRequestLifecycle';
 
 export const TRANSLATION_ENABLED_KEY: string = 'ehviewerTranslationEnabled';
 export const TRANSLATION_ERROR_REVISION_KEY: string = 'ehviewerTranslationErrorRevision';
@@ -1036,8 +1036,7 @@ async function requestText(url: string, method: http.RequestMethod, body: string
   if (translationRequest && !allowWhenDisabled && AppStorage.get<boolean>(TRANSLATION_ENABLED_KEY) !== true) {
     throw new Error(TRANSLATION_CANCELLED_MESSAGE);
   }
-  const request = http.createHttp();
-  trackHttpRequest(request);
+  const request = acquireHttpRequest();
   try {
     if (cancellationToken !== undefined && !cancellationToken.track(request)) {
       throw new Error(TRANSLATION_CANCELLED_MESSAGE);

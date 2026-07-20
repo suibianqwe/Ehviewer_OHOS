@@ -5,7 +5,7 @@ import { http } from '@kit.NetworkKit';
 import { connection } from '@kit.NetworkKit';
 import { ehAppLog } from './EhAppLog';
 import { ehSettingsStore } from './EhSettingsStore';
-import { hasActiveHttpRequests, retireHttpRequest, trackHttpRequest } from './HttpRequestLifecycle';
+import { acquireHttpRequest, hasActiveHttpRequests, retireHttpRequest } from './HttpRequestLifecycle';
 
 const YANDEX_DOH_URL: string = 'https://common.dot.dns.yandex.net/dns-query';
 const CLOUDFLARE_DOH_URL: string = 'https://cloudflare-dns.com/dns-query';
@@ -15,7 +15,7 @@ const FRONTING_IP_CACHE_VERSION: number = 1;
 const FRONTING_PROBE_CONNECT_TIMEOUT_MS: number = 3000;
 const FRONTING_PROBE_READ_TIMEOUT_MS: number = 3000;
 const FRONTING_PROBE_DEADLINE_MS: number = 4500;
-const FRONTING_PROBE_CONCURRENCY: number = 2;
+const FRONTING_PROBE_CONCURRENCY: number = 3;
 const FRONTING_PREFERRED_IP_LIMIT: number = 3;
 const FRONTING_TAIL_SAMPLE_RATE: number = 0.08;
 const FRONTING_WEIGHT_SCORE_BASE: number = 500;
@@ -716,8 +716,7 @@ export function unregisterEhNetworkChangeListener(): void {
 }
 
 async function probeFrontingIp(target: HostIpProbeTarget): Promise<HostIpQuality> {
-  const request = http.createHttp();
-  trackHttpRequest(request);
+  const request = acquireHttpRequest();
   const startedAt = Date.now();
   try {
     const options: http.HttpRequestOptions = {
@@ -1123,8 +1122,7 @@ function selectedGalleryHost(): string {
 }
 
 async function probeDirectSelectedSite(): Promise<boolean> {
-  const request = http.createHttp();
-  trackHttpRequest(request);
+  const request = acquireHttpRequest();
   try {
     const host = selectedGalleryHost();
     const options: http.HttpRequestOptions = {
