@@ -13,23 +13,11 @@ let activityGeneration: number = 0;
 let lastActivityAt: number = 0;
 
 export function acquireHttpRequest(): http.HttpRequest {
-  while (IDLE_HTTP_REQUESTS.length > 0) {
-    const recycled = IDLE_HTTP_REQUESTS.pop();
-    if (recycled !== undefined) {
-      removeRequest(VOLATILE_HTTP_REQUESTS, recycled);
-      activityGeneration++;
-      lastActivityAt = Date.now();
-      cancelCleanupTimer();
-      if (ACTIVE_HTTP_REQUESTS.indexOf(recycled) < 0) {
-        ACTIVE_HTTP_REQUESTS.push(recycled);
-      }
-      return recycled;
-    }
-  }
   const request = http.createHttp();
   activityGeneration++;
   lastActivityAt = Date.now();
   removeRequest(RETIRED_HTTP_REQUESTS, request);
+  removeRequest(VOLATILE_HTTP_REQUESTS, request);
   if (ACTIVE_HTTP_REQUESTS.indexOf(request) < 0) {
     ACTIVE_HTTP_REQUESTS.push(request);
   }
@@ -47,12 +35,7 @@ export function releaseHttpRequest(request: http.HttpRequest): void {
   activityGeneration++;
   lastActivityAt = Date.now();
   removeRequest(ACTIVE_HTTP_REQUESTS, request);
-  const isVolatile = removeRequest(VOLATILE_HTTP_REQUESTS, request);
-  if (!isVolatile && IDLE_HTTP_REQUESTS.length < MAX_IDLE_HTTP_REQUESTS) {
-    IDLE_HTTP_REQUESTS.push(request);
-    scheduleCleanup(IDLE_HTTP_REQUEST_TTL_MS);
-    return;
-  }
+  removeRequest(VOLATILE_HTTP_REQUESTS, request);
   if (RETIRED_HTTP_REQUESTS.indexOf(request) < 0) {
     RETIRED_HTTP_REQUESTS.push(request);
   }

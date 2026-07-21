@@ -2503,8 +2503,8 @@ struct DownloadCardStatus {
           .backgroundColor(themeDividerColor())
       }
         .width('100%')
-        .height(14)
-        .margin({ top: 1 })
+        .height(4)
+        .margin({ top: 6 })
         .clip(true)
         .id('download-progress-' + this.item.gid.toString())
     }
