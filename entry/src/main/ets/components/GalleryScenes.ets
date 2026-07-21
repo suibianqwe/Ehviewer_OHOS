@@ -1811,8 +1811,10 @@ export struct GalleryListScene {
     this.isLoadingMore = true;
     const generation = this.listRequestGate.snapshot();
 
-    const nextUrlForRequest = this.needsAdvanceParamsInNextUrl(this.searchMode) && this.nextUrl.length > 0 ?
-      this.enrichNextUrlWithAdvanceParams(this.nextUrl) : this.nextUrl;
+    let nextUrlForRequest: string = this.nextUrl;
+    if (this.needsAdvanceParamsInNextUrl(this.searchMode) && this.nextUrl.length > 0) {
+      nextUrlForRequest = this.enrichNextUrlWithAdvanceParams(this.nextUrl);
+    }
 
     const request =
       nextUrlForRequest.length > 0 ?
