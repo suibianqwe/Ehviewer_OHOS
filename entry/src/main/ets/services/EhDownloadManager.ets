@@ -228,6 +228,10 @@ export class EhDownloadManager {
     return false;
   }
 
+  isQueueProcessing(): boolean {
+    return this.isProcessing;
+  }
+
   private async runDownloadQueue(context: common.UIAbilityContext): Promise<void> {
     if (this.isProcessing) {
       return;

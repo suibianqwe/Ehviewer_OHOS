@@ -499,6 +499,7 @@ export struct DownloadScene {
     }
 
     ehDownloadStore.load(context).then(() => {
+      this.refreshDownloadRows();
       this.statusText = this.items.length.toString() + ' download items';
       if (ehDownloadManager.hasWaitingDownloads()) {
         this.startGlobalDownloadQueue();
@@ -1166,7 +1167,9 @@ export struct DownloadScene {
     ehDownloadManager.resumeGallery(item.gid);
     this.statusText = 'Queued: ' + item.title;
     this.persistDownloads();
-    this.startGlobalDownloadQueue();
+    if (!ehDownloadManager.isQueueProcessing()) {
+      this.startGlobalDownloadQueue();
+    }
   }
 
   private stopItem(item: DownloadInfo): void {
