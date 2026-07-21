@@ -1811,14 +1811,66 @@ export struct GalleryListScene {
     this.isLoadingMore = true;
     const generation = this.listRequestGate.snapshot();
 
-    let nextUrlForRequest: string = this.nextUrl;
-    if (this.needsAdvanceParamsInNextUrl(this.searchMode) && this.nextUrl.length > 0) {
-      nextUrlForRequest = this.enrichNextUrlWithAdvanceParams(this.nextUrl);
+    let loadUrl: string = this.nextUrl;
+    if (loadUrl.length > 0 && (this.searchMode === ListMode.Tag || this.searchMode === ListMode.Uploader)) {
+      const extraParams: string[] = [];
+      const effectiveCategory = this.requestCategoryForMode(this.searchMode);
+      if (effectiveCategory !== GalleryCategory.None) {
+        extraParams.push('f_cats=' + ((~effectiveCategory) & ALL_CATEGORY).toString());
+      }
+      if (this.advancedSearchEnabled && this.advanceSearch !== -1) {
+        extraParams.push('advsearch=1');
+        if ((this.advanceSearch & 0x1) !== 0) {
+          extraParams.push('f_sname=on');
+        }
+        if ((this.advanceSearch & 0x2) !== 0) {
+          extraParams.push('f_stags=on');
+        }
+        if ((this.advanceSearch & 0x4) !== 0) {
+          extraParams.push('f_sdesc=on');
+        }
+        if ((this.advanceSearch & 0x8) !== 0) {
+          extraParams.push('f_storr=on');
+        }
+        if ((this.advanceSearch & 0x10) !== 0) {
+          extraParams.push('f_sto=on');
+        }
+        if ((this.advanceSearch & 0x20) !== 0) {
+          extraParams.push('f_sdt1=on');
+        }
+        if ((this.advanceSearch & 0x40) !== 0) {
+          extraParams.push('f_sdt2=on');
+        }
+        if ((this.advanceSearch & 0x80) !== 0) {
+          extraParams.push('f_sh=on');
+        }
+        if ((this.advanceSearch & 0x100) !== 0) {
+          extraParams.push('f_sfl=on');
+        }
+        if ((this.advanceSearch & 0x200) !== 0) {
+          extraParams.push('f_sfu=on');
+        }
+        if ((this.advanceSearch & 0x400) !== 0) {
+          extraParams.push('f_sft=on');
+        }
+        if (this.minRating !== -1) {
+          extraParams.push('f_sr=on');
+          extraParams.push('f_srdd=' + this.minRating.toString());
+        }
+        if (this.pageFrom !== -1 || this.pageTo !== -1) {
+          extraParams.push('f_sp=on');
+          extraParams.push('f_spf=' + (this.pageFrom !== -1 ? this.pageFrom.toString() : ''));
+          extraParams.push('f_spt=' + (this.pageTo !== -1 ? this.pageTo.toString() : ''));
+        }
+      }
+      if (extraParams.length > 0) {
+        loadUrl = loadUrl + (loadUrl.indexOf('?') >= 0 ? '&' : '?') + extraParams.join('&');
+      }
     }
 
     const request =
-      nextUrlForRequest.length > 0 ?
-        this.client.loadGalleryListUrl(this.absoluteListUrl(nextUrlForRequest), this.activeSite, this.includeAccountUConfig()) :
+      loadUrl.length > 0 ?
+        this.client.loadGalleryListUrl(this.absoluteListUrl(loadUrl), this.activeSite, this.includeAccountUConfig()) :
         this.loadRoutePageWithFallback(nextPage);
 
     request.then((result: GalleryListLoadResult) => {
@@ -1837,82 +1889,6 @@ export struct GalleryListScene {
       advanceSearch: this.advanceSearch,
       minRating: this.minRating
     };
-  }
-
-  private needsAdvanceParamsInNextUrl(mode: ListMode): boolean {
-    if (mode !== ListMode.Tag && mode !== ListMode.Uploader) {
-      return false;
-    }
-    if (!this.shouldApplySearchFilters()) {
-      return false;
-    }
-    const effectiveCategory = this.requestCategoryForMode(mode);
-    if (effectiveCategory !== GalleryCategory.None) {
-      return true;
-    }
-    if (this.advancedSearchEnabled && this.advanceSearch !== -1) {
-      return true;
-    }
-    return false;
-  }
-
-  private enrichNextUrlWithAdvanceParams(url: string): string {
-    const params: string[] = [];
-    const effectiveCategory = this.requestCategoryForMode(this.searchMode);
-    if (effectiveCategory !== GalleryCategory.None) {
-      const catsValue = ((~effectiveCategory) & ALL_CATEGORY).toString();
-      params.push('f_cats=' + catsValue);
-    }
-    if (this.advanceSearch !== -1) {
-      params.push('advsearch=1');
-      if ((this.advanceSearch & 0x1) !== 0) {
-        params.push('f_sname=on');
-      }
-      if ((this.advanceSearch & 0x2) !== 0) {
-        params.push('f_stags=on');
-      }
-      if ((this.advanceSearch & 0x4) !== 0) {
-        params.push('f_sdesc=on');
-      }
-      if ((this.advanceSearch & 0x8) !== 0) {
-        params.push('f_storr=on');
-      }
-      if ((this.advanceSearch & 0x10) !== 0) {
-        params.push('f_sto=on');
-      }
-      if ((this.advanceSearch & 0x20) !== 0) {
-        params.push('f_sdt1=on');
-      }
-      if ((this.advanceSearch & 0x40) !== 0) {
-        params.push('f_sdt2=on');
-      }
-      if ((this.advanceSearch & 0x80) !== 0) {
-        params.push('f_sh=on');
-      }
-      if ((this.advanceSearch & 0x100) !== 0) {
-        params.push('f_sfl=on');
-      }
-      if ((this.advanceSearch & 0x200) !== 0) {
-        params.push('f_sfu=on');
-      }
-      if ((this.advanceSearch & 0x400) !== 0) {
-        params.push('f_sft=on');
-      }
-      if (this.minRating !== -1) {
-        params.push('f_sr=on');
-        params.push('f_srdd=' + this.minRating.toString());
-      }
-      if (this.pageFrom !== -1 || this.pageTo !== -1) {
-        params.push('f_sp=on');
-        params.push('f_spf=' + (this.pageFrom !== -1 ? this.pageFrom.toString() : ''));
-        params.push('f_spt=' + (this.pageTo !== -1 ? this.pageTo.toString() : ''));
-      }
-    }
-    if (params.length === 0) {
-      return url;
-    }
-    const separator = url.indexOf('?') >= 0 ? '&' : '?';
-    return url + separator + params.join('&');
   }
 
   private loadAppendLocalPage(): void {
