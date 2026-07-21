@@ -127,13 +127,14 @@ export struct SplitPaneDivider {
   };
   onSplitDragEnd: () => void = () => {
   };
+  @State touched: boolean = false;
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
       Divider()
         .vertical(true)
         .strokeWidth(2)
-        .color(this.dragging ? themePrimaryColor() : themeDividerColor())
+        .color(this.touched || this.dragging ? themePrimaryColor() : themeDividerColor())
         .width(2)
         .height('100%')
 
@@ -142,26 +143,26 @@ export struct SplitPaneDivider {
           .width(3)
           .height(3)
           .borderRadius(2)
-          .backgroundColor(this.dragging ? themePrimaryColor() : themeDividerColor())
+          .backgroundColor(this.touched || this.dragging ? themePrimaryColor() : themeDividerColor())
         Column()
           .width(3)
           .height(3)
           .borderRadius(2)
-          .backgroundColor(this.dragging ? themePrimaryColor() : themeDividerColor())
+          .backgroundColor(this.touched || this.dragging ? themePrimaryColor() : themeDividerColor())
         Column()
           .width(3)
           .height(3)
           .borderRadius(2)
-          .backgroundColor(this.dragging ? themePrimaryColor() : themeDividerColor())
+          .backgroundColor(this.touched || this.dragging ? themePrimaryColor() : themeDividerColor())
       }
-      .width(18)
-      .height(38)
+      .width(11)
+      .height(54)
       .justifyContent(FlexAlign.Center)
       .alignItems(HorizontalAlign.Center)
       .backgroundColor(themeSurfaceVariant())
-      .border({ width: 1, color: this.dragging ? themePrimaryColor() : themeDividerColor() })
-      .borderRadius(9)
-      .shadow({ radius: this.dragging ? 8 : 3, color: '#33000000', offsetY: 1 })
+      .border({ width: 1, color: this.touched || this.dragging ? themePrimaryColor() : themeDividerColor() })
+      .borderRadius(6)
+      .shadow({ radius: this.touched || this.dragging ? 8 : 3, color: '#33000000', offsetY: 1 })
     }
     .width(24)
     .height('100%')
@@ -174,6 +175,13 @@ export struct SplitPaneDivider {
       TransitionEffect.asymmetric(
         TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }),
         TransitionEffect.move(TransitionEdge.END).animation({ duration: 240, curve: Curve.EaseIn })))
+    .onTouch((event: TouchEvent) => {
+      if (event.type === TouchType.Down) {
+        this.touched = true;
+      } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+        this.touched = false;
+      }
+    })
     .gesture(
       PanGesture({ fingers: 1, direction: PanDirection.Horizontal, distance: 1 })
         .onActionStart(() => {
@@ -185,9 +193,11 @@ export struct SplitPaneDivider {
           }
         })
         .onActionEnd(() => {
+          this.touched = false;
           this.onSplitDragEnd();
         })
         .onActionCancel(() => {
+          this.touched = false;
           this.onSplitDragEnd();
         })
     )
