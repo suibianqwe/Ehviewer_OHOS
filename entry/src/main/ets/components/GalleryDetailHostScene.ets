@@ -1261,8 +1261,13 @@ export struct GalleryDetailHostScene {
       try {
         const result = await this.client.loadGalleryPageFast(previewPageUrl, this.detailLink.site, referer);
         if (result.ok && result.page !== null && result.page.imageUrl.length > 0) {
+          const imageUrl = result.page.imageUrl;
           const pageReferer = result.page.pageUrl.length > 0 ? result.page.pageUrl : previewPageUrl;
-          const path = await readerImageCache.ensureCached(context, result.page.imageUrl, pageReferer,
+          const existingPath = readerImageCache.getCachedPath(context, imageUrl);
+          if (existingPath.length > 0) {
+            return existingPath;
+          }
+          const path = await readerImageCache.ensureCached(context, imageUrl, pageReferer,
             IMAGE_DOWNLOAD_PRIORITY_INTERACTIVE, undefined, readerPageImageCacheKey(result.page, false),
             { retryLimit: 3 });
           if (path.length > 0) {
