@@ -422,15 +422,9 @@ export struct SettingsScene {
     }, 0);
   }
 
-  private isSettingsDetailPanel(panel: SettingsPanel): boolean {
-    return panel === SettingsPanel.Eh || panel === SettingsPanel.Read || panel === SettingsPanel.Download ||
-      panel === SettingsPanel.Privacy || panel === SettingsPanel.Translation || panel === SettingsPanel.Advanced ||
-      panel === SettingsPanel.About;
-  }
-
   private settingsDetailLayerPanel(): SettingsPanel {
     for (let i = this.panelStack.length - 1; i >= 0; i--) {
-      if (this.isSettingsDetailPanel(this.panelStack[i])) {
+      if (this.panelStack[i] !== SettingsPanel.Main) {
         return this.panelStack[i];
       }
     }
