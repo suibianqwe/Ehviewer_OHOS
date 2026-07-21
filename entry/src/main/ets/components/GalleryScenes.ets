@@ -1841,17 +1841,26 @@ export struct GalleryListScene {
     if (mode !== ListMode.Tag && mode !== ListMode.Uploader) {
       return false;
     }
-    if (!this.advancedSearchEnabled || this.advanceSearch === -1) {
-      return false;
-    }
     if (!this.shouldApplySearchFilters()) {
       return false;
     }
-    return true;
+    const effectiveCategory = this.requestCategoryForMode(mode);
+    if (effectiveCategory !== GalleryCategory.None) {
+      return true;
+    }
+    if (this.advancedSearchEnabled && this.advanceSearch !== -1) {
+      return true;
+    }
+    return false;
   }
 
   private enrichNextUrlWithAdvanceParams(url: string): string {
     const params: string[] = [];
+    const effectiveCategory = this.requestCategoryForMode(this.searchMode);
+    if (effectiveCategory !== GalleryCategory.None) {
+      const catsValue = ((~effectiveCategory) & ALL_CATEGORY).toString();
+      params.push('f_cats=' + catsValue);
+    }
     if (this.advanceSearch !== -1) {
       params.push('advsearch=1');
       if ((this.advanceSearch & 0x1) !== 0) {
