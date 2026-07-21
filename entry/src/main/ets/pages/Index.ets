@@ -2,6 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { GalleryRoute } from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
 import { ehDownloadStore } from '../services/EhDownloadStore';
+import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
@@ -140,6 +141,7 @@ struct Index {
     }
     ehSpiderInfoStore.load(context).catch(() => {});
     ehDownloadStore.load(context).catch(() => {});
+    ehHistoryStore.load(context).catch(() => {});
     ehSearchHistoryStore.load(context).catch(() => {});
     ehSettingsStore.ensureLoaded(context).then(() => {
       this.settingsReady = true;

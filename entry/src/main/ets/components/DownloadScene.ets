@@ -1163,13 +1163,20 @@ export struct DownloadScene {
     this.cycleItemState(item);
   }
 
+  private findActiveItem(gid: number): DownloadInfo | undefined {
+    for (let i = 0; i < this.items.length; i++) {
+      if (this.items[i].gid === gid) {
+        return this.items[i];
+      }
+    }
+    return undefined;
+  }
+
   private startItem(item: DownloadInfo): void {
     ehDownloadManager.resumeGallery(item.gid);
     this.statusText = 'Queued: ' + item.title;
     this.persistDownloads();
-    if (!ehDownloadManager.isQueueProcessing()) {
-      this.startGlobalDownloadQueue();
-    }
+    this.startGlobalDownloadQueue();
   }
 
   private stopItem(item: DownloadInfo): void {
@@ -1479,7 +1486,10 @@ export struct DownloadScene {
           item: item,
           cardState: this.downloadCardStateFor(item.gid),
           onStatusTap: (downloadItem: DownloadInfo) => {
-            this.toggleItemFromProgress(downloadItem);
+            const current = this.findActiveItem(downloadItem.gid);
+            if (current !== undefined) {
+              this.toggleItemFromProgress(current);
+            }
           }
         })
           .margin({ top: 4 })
