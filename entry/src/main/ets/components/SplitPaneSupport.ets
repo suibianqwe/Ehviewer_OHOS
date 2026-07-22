@@ -12,6 +12,7 @@ export const SPLIT_PANE_FOCUS_RIGHT: string = 'right';
 export const SPLIT_PANE_BREAKPOINT: number = 840;
 export const SPLIT_PANE_LIST_MIN_WIDTH: number = 340;
 export const SPLIT_PANE_SIDE_MIN_WIDTH: number = 360;
+export const SPLIT_PANE_MODAL_Z_INDEX: number = 90;
 const SPLIT_PANE_PREVIOUS_ROUTE_RIGHT_PANE_KEY: string = 'ehviewer_previous_route_right_pane';
 const SPLIT_PANE_CURRENT_ROUTE_RIGHT_PANE_KEY: string = 'ehviewer_current_route_right_pane';
 const SPLIT_PANE_DEFAULT_RATIO: number = 0.42;

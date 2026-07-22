@@ -155,6 +155,7 @@ import {
   SPLIT_PANE_BREAKPOINT,
   SPLIT_PANE_FOCUS_LEFT,
   SPLIT_PANE_FOCUS_RIGHT,
+  SPLIT_PANE_MODAL_Z_INDEX,
   SPLIT_PANE_RATIO_REVISION_KEY,
   shouldFadeRestoredRightPane,
   splitPaneCurrentRatio,
@@ -2388,7 +2389,7 @@ export struct SettingsScene {
             }
           }
         })
-          .zIndex(30)
+          .zIndex(SPLIT_PANE_MODAL_Z_INDEX)
           .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
       }
 

@@ -11,7 +11,7 @@ import { TRANSLATION_ERROR_MESSAGE_KEY, TRANSLATION_ERROR_REVISION_KEY } from '.
 import { EhDrawer } from '../components/NavigationComponents';
 import { UpdatePromptOverlay } from '../components/UpdatePromptOverlay';
 import { applyAppChromeImmersiveMode, isEmbeddedReaderActive } from '../services/EhWindowImmersive';
-import { prepareSplitPaneRouteTransition } from '../components/SplitPaneSupport';
+import { prepareSplitPaneRouteTransition, SPLIT_PANE_MODAL_Z_INDEX } from '../components/SplitPaneSupport';
 import { FavoriteGalleryScene, HomeGalleryScene, HotGalleryScene, SubscriptionGalleryScene } from '../components/GalleryScenes';
 import { HistoryScene, TopListScene } from '../components/HistoryTopScenes';
 import { DownloadScene, MigrationScene } from '../components/DownloadMigrationScenes';
@@ -295,7 +295,7 @@ struct Index {
             }
           }
         })
-          .zIndex(30)
+          .zIndex(SPLIT_PANE_MODAL_Z_INDEX)
           .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
       }
 
