@@ -129,7 +129,7 @@ export struct ReaderScene {
   onRefreshPage: (index: number) => void = () => {};
   onAdaptiveDualPageChange: (enabled: boolean) => void = (_enabled: boolean) => {};
   onComicTranslationToggle: (enabled: boolean) => void = (_enabled: boolean) => {};
-  onComicTranslationRefresh: () => void = () => {};
+  onComicTranslationRefresh: (pageIndexes: number[]) => void = (_pageIndexes: number[]) => {};
   restoreAppChromeOnExit: boolean = true;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   @StorageProp(BOTTOM_AVOID_HEIGHT_KEY) bottomAvoidHeight: number = 0;
@@ -1487,8 +1487,18 @@ export struct ReaderScene {
 
   private refreshComicTranslationFromButton(): void {
     this.comicTranslationLongPressHandled = true;
-    this.onComicTranslationRefresh();
-    this.showToast(uiText('Retranslating current page'));
+    const pageIndexes = this.visiblePageIndexesForComicTranslation();
+    this.onComicTranslationRefresh(pageIndexes);
+    this.showToast(uiText(pageIndexes.length > 1 ? 'Retranslating visible pages' : 'Retranslating current page'));
+  }
+
+  private visiblePageIndexesForComicTranslation(): number[] {
+    const anchor = this.pageGroupAnchorForPageIndex(this.currentIndex);
+    const pageIndexes: number[] = [anchor];
+    if (this.shouldPairPage(anchor)) {
+      pageIndexes.push(anchor + 1);
+    }
+    return pageIndexes;
   }
 
   private async ensureLocalImagePathForPage(page: GalleryPage): Promise<string> {

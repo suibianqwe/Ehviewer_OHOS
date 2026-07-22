@@ -771,15 +771,24 @@ export struct ReaderSessionScene {
     this.requestReaderTranslationWindow(false);
   }
 
-  private refreshCurrentComicTranslation(): void {
+  private refreshVisibleComicTranslations(pageIndexes: number[]): void {
     this.comicTranslationActive = true;
-    const page = this.readerPageForTranslation(this.pageIndex);
-    if (page !== null) {
-      this.removeReaderTranslation(this.pageIndex);
-      if (this.readerTranslationRefreshing.indexOf(this.pageIndex) < 0) {
-        this.readerTranslationRefreshing.push(this.pageIndex);
+    const refreshed: number[] = [];
+    for (let i = 0; i < pageIndexes.length; i++) {
+      const index = pageIndexes[i];
+      if (index < 0 || index >= this.readerTotalPages() || refreshed.indexOf(index) >= 0) {
+        continue;
       }
-      this.queueReaderTranslationIfNeeded(this.pageIndex, page, true);
+      const page = this.readerPageForTranslation(index);
+      if (page === null) {
+        continue;
+      }
+      refreshed.push(index);
+      this.removeReaderTranslation(index);
+      if (this.readerTranslationRefreshing.indexOf(index) < 0) {
+        this.readerTranslationRefreshing.push(index);
+      }
+      this.queueReaderTranslationIfNeeded(index, page, true);
     }
   }
 
@@ -911,8 +920,8 @@ export struct ReaderSessionScene {
       onComicTranslationToggle: (enabled: boolean) => {
         this.toggleComicTranslation(enabled);
       },
-      onComicTranslationRefresh: () => {
-        this.refreshCurrentComicTranslation();
+      onComicTranslationRefresh: (pageIndexes: number[]) => {
+        this.refreshVisibleComicTranslations(pageIndexes);
       }
     })
   }

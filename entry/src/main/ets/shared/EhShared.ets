@@ -921,6 +921,7 @@ export function zhText(text: string): string {
     case 'Comic translation started': return '已开始漫画翻译';
     case 'Comic translation hidden': return '已隐藏漫画翻译';
     case 'Retranslating current page': return '正在重新翻译本页';
+    case 'Retranslating visible pages': return '正在重新翻译当前双页';
     case 'Comic translation failed': return '漫画翻译失败';
     case 'No text was recognized on this page': return '本页未识别到文字';
     case 'Translation provider': return '翻译服务';
