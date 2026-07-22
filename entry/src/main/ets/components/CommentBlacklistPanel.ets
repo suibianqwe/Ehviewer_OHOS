@@ -267,12 +267,17 @@ export struct CommentBlacklistPanel {
           }
           .width('100%')
           .padding({ left: 14, right: 14, top: 14, bottom: 24 })
+          .alignItems(HorizontalAlign.Start)
+          .justifyContent(FlexAlign.Start)
         }
         .layoutWeight(1)
         .width('100%')
+        .align(Alignment.TopStart)
       }
       .width('100%')
       .height('100%')
+      .alignItems(HorizontalAlign.Start)
+      .justifyContent(FlexAlign.Start)
       .backgroundColor(themePageBackground())
 
       if (this.pendingDelete !== null) {

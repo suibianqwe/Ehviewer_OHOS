@@ -247,6 +247,7 @@ export struct GalleryCommentRow {
   onVoteComment: (comment: GalleryComment, vote: number) => void = (_comment: GalleryComment, _vote: number) => {};
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
   onTapRow: () => void = () => {};
+  onBlockUser: () => void = () => {};
 
   private canVoteUp(): boolean {
     return this.comment.id !== '0' && this.comment.voteUpAble === true;
@@ -261,6 +262,7 @@ export struct GalleryCommentRow {
       this.showToast('This user is already blocked');
       return;
     }
+    this.onBlockUser();
     this.showToast('User added to comment blacklist');
   }
 

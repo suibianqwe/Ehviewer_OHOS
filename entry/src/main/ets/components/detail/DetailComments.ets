@@ -9,16 +9,21 @@ import {
 
 @Component
 export struct DetailComments {
-  @StorageProp(COMMENT_BLACKLIST_REVISION_KEY) blacklistRevision: number = 0;
-  @Prop comments: GalleryComment[] = [];
+  @StorageProp(COMMENT_BLACKLIST_REVISION_KEY) @Watch('refreshVisibleComments') blacklistRevision: number = 0;
+  @Prop @Watch('refreshVisibleComments') comments: GalleryComment[] = [];
   @Prop isDetailLoaded: boolean = false;
   @Prop translateComments: boolean = false;
   onComments: () => void = () => {};
   onVoteComment: (comment: GalleryComment, vote: number) => void = (_comment: GalleryComment, _vote: number) => {};
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
+  @State visibleCommentItems: GalleryComment[] = [];
 
-  private visibleComments(): GalleryComment[] {
-    return ehCommentBlacklistStore.filterComments(this.comments);
+  aboutToAppear(): void {
+    this.refreshVisibleComments();
+  }
+
+  private refreshVisibleComments(): void {
+    this.visibleCommentItems = ehCommentBlacklistStore.filterComments(this.comments);
   }
 
   build() {
@@ -33,8 +38,8 @@ export struct DetailComments {
           Text(uiText('Loading...'))
             .fontSize(13)
             .fontColor(themeSecondaryText())
-        } else if (this.visibleComments().length > 0) {
-          Text(uiText('See all') + ' (' + this.visibleComments().length.toString() + ')')
+        } else if (this.visibleCommentItems.length > 0) {
+          Text(uiText('See all') + ' (' + this.visibleCommentItems.length.toString() + ')')
             .fontSize(13)
             .fontColor(themePrimaryColor())
             .onClick(() => {
@@ -49,7 +54,7 @@ export struct DetailComments {
       .width('100%')
       .margin({ bottom: 10 })
       .onClick(() => {
-        if (this.isDetailLoaded && this.visibleComments().length > 0) {
+        if (this.isDetailLoaded && this.visibleCommentItems.length > 0) {
           this.onComments();
         }
       })
@@ -58,12 +63,12 @@ export struct DetailComments {
         Text(uiText('Loading comments...'))
           .fontSize(13)
           .fontColor(themeSecondaryText())
-      } else if (this.visibleComments().length === 0) {
+      } else if (this.visibleCommentItems.length === 0) {
         Text(uiText('No comments'))
           .fontSize(13)
           .fontColor(themeSecondaryText())
       } else {
-        ForEach(this.visibleComments().slice(0, 2), (comment: GalleryComment) => {
+        ForEach(this.visibleCommentItems.slice(0, 2), (comment: GalleryComment) => {
           GalleryCommentRow({
             comment: comment,
             maxLines: 4,

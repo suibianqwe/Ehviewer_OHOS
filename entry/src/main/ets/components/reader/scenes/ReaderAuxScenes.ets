@@ -23,9 +23,9 @@ import {
 
 @Component
 export struct CommentsScene {
-  @StorageProp(COMMENT_BLACKLIST_REVISION_KEY) blacklistRevision: number = 0;
+  @StorageProp(COMMENT_BLACKLIST_REVISION_KEY) @Watch('refreshVisibleComments') blacklistRevision: number = 0;
   @Prop renderVersion: number = 0;
-  @Prop comments: GalleryComment[] = [];
+  @Prop @Watch('refreshVisibleComments') comments: GalleryComment[] = [];
   @Prop galleryTitle: string = '';
   onBack: () => void = () => {};
   onVoteComment: (comment: GalleryComment, vote: number) => void = (_comment: GalleryComment, _vote: number) => {};
@@ -35,6 +35,11 @@ export struct CommentsScene {
   @StorageProp(TRANSLATION_BUTTONS_VISIBLE_KEY) translationButtonsVisible: boolean = true;
   @State translationVisibleStart: number = -1;
   @State translationVisibleEnd: number = -1;
+  @State visibleCommentItems: GalleryComment[] = [];
+
+  aboutToAppear(): void {
+    this.refreshVisibleComments();
+  }
 
   private translationPriorityFor(index: number): number {
     if (!this.translationEnabled) {
@@ -47,8 +52,8 @@ export struct CommentsScene {
     return this.getUIContext().px2vp(this.statusBarHeightPx);
   }
 
-  private visibleComments(): GalleryComment[] {
-    return ehCommentBlacklistStore.filterComments(this.comments);
+  private refreshVisibleComments(): void {
+    this.visibleCommentItems = ehCommentBlacklistStore.filterComments(this.comments);
   }
 
   build() {
@@ -74,7 +79,7 @@ export struct CommentsScene {
           maxLinesValue: 1
         })
           .layoutWeight(1)
-        Text(this.visibleComments().length.toString() + ' ' + uiText('total'))
+        Text(this.visibleCommentItems.length.toString() + ' ' + uiText('total'))
           .fontSize(12)
           .fontColor(themeSecondaryText())
           .margin({ left: 12 })
@@ -83,14 +88,14 @@ export struct CommentsScene {
       .padding({ left: 16, right: 16, top: 8, bottom: 8 })
       .backgroundColor(themeSurface())
 
-      if (this.visibleComments().length === 0) {
+      if (this.visibleCommentItems.length === 0) {
         PlaceholderScene({
           title: 'Comments',
           detail: 'No comments for this gallery.'
         })
       } else {
         List({ space: 0 }) {
-          ForEach(this.visibleComments(), (comment: GalleryComment, index: number) => {
+          ForEach(this.visibleCommentItems, (comment: GalleryComment, index: number) => {
             ListItem() {
               GalleryCommentRow({
                 comment: comment,
@@ -100,7 +105,10 @@ export struct CommentsScene {
                 translateComment: this.translationEnabled,
                 translationPriority: this.translationPriorityFor(index),
                 onVoteComment: this.onVoteComment,
-                onOpenGalleryLink: this.onOpenGalleryLink
+                onOpenGalleryLink: this.onOpenGalleryLink,
+                onBlockUser: () => {
+                  this.refreshVisibleComments();
+                }
               })
             }
             .reuseId('comment-row')
@@ -119,7 +127,7 @@ export struct CommentsScene {
         .cachedCount(4)
         .onScrollIndex((first: number, last: number) => {
           this.translationVisibleStart = first;
-          this.translationVisibleEnd = Math.min(last, this.visibleComments().length - 1);
+          this.translationVisibleEnd = Math.min(last, this.visibleCommentItems.length - 1);
         })
       }
     }
