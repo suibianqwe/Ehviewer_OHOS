@@ -19,6 +19,7 @@ import {
   cachedReaderSourceImageSize,
   cacheReaderImageComplete,
   cacheReaderSourceImageSize,
+  forgetReaderImageRuntimeState,
   isReaderImageComplete,
   readReaderSourceImageSize,
   readerBackgroundColor,
@@ -62,10 +63,15 @@ export struct ReaderContinuousImageItem {
   private pinchStartScale: number = READER_BASE_SCALE;
   private sourceSizeRequestId: number = 0;
   private downloadProgressRequestId: number = 0;
+  private retainedImageUrl: string = '';
 
   aboutToAppear(): void {
     this.onImageSourceChange();
     this.onFitModeChange();
+  }
+
+  aboutToDisappear(): void {
+    this.releaseRuntimeState();
   }
 
   onActiveChange(): void {
@@ -93,6 +99,10 @@ export struct ReaderContinuousImageItem {
 
   private onImageSourceChange(): void {
     const url = this.imageUrl();
+    if (this.retainedImageUrl.length > 0 && this.retainedImageUrl !== url) {
+      forgetReaderImageRuntimeState(this.retainedImageUrl);
+    }
+    this.retainedImageUrl = url;
     const requestId = this.sourceSizeRequestId + 1;
     this.sourceSizeRequestId = requestId;
     if (this.completedImageUrl !== url) {
@@ -107,6 +117,13 @@ export struct ReaderContinuousImageItem {
     this.updateDisplayImageSize();
     this.loadCachedSourceImageSize(requestId, url).catch(() => {});
     this.startDownloadProgressMonitor();
+  }
+
+  private releaseRuntimeState(): void {
+    this.sourceSizeRequestId++;
+    this.downloadProgressRequestId++;
+    forgetReaderImageRuntimeState(this.retainedImageUrl);
+    this.retainedImageUrl = '';
   }
 
   private async loadCachedSourceImageSize(requestId: number, imageUrl: string): Promise<void> {

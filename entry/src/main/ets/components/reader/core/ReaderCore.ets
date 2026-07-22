@@ -69,6 +69,14 @@ export function isReaderImageComplete(imageUrl: string): boolean {
   return imageUrl.length > 0 && readerCompletedImageCache.get(imageUrl) === true;
 }
 
+export function forgetReaderImageRuntimeState(imageUrl: string): void {
+  if (imageUrl.length === 0) {
+    return;
+  }
+  readerSourceImageSizeCache.delete(imageUrl);
+  readerCompletedImageCache.delete(imageUrl);
+}
+
 export function stripFileScheme(path: string): string {
   return path.indexOf('file://') === 0 ? path.substring('file://'.length) : path;
 }

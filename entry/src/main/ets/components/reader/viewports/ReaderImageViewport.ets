@@ -22,6 +22,7 @@ import {
   cachedReaderSourceImageSize,
   cacheReaderImageComplete,
   cacheReaderSourceImageSize,
+  forgetReaderImageRuntimeState,
   isReaderImageComplete,
   readReaderSourceImageSize,
   readerBackgroundColor,
@@ -63,6 +64,7 @@ export struct ReaderImageViewport {
   private lastCommandVersion: number = -1;
   private sourceSizeRequestId: number = 0;
   private downloadProgressRequestId: number = 0;
+  private retainedImageUrl: string = '';
 
   aboutToAppear(): void {
     this.onImageSourceChange();
@@ -71,6 +73,7 @@ export struct ReaderImageViewport {
   }
 
   aboutToDisappear(): void {
+    this.releaseRuntimeState();
     if (this.isActive) {
       this.onSwipeLockChange(false);
     }
@@ -143,6 +146,10 @@ export struct ReaderImageViewport {
 
   private onImageSourceChange(): void {
     const url = this.imageUrl();
+    if (this.retainedImageUrl.length > 0 && this.retainedImageUrl !== url) {
+      forgetReaderImageRuntimeState(this.retainedImageUrl);
+    }
+    this.retainedImageUrl = url;
     const requestId = this.sourceSizeRequestId + 1;
     this.sourceSizeRequestId = requestId;
     if (this.completedImageUrl !== url) {
@@ -162,6 +169,13 @@ export struct ReaderImageViewport {
     this.loadCachedSourceImageSize(requestId, url).catch(() => {});
     this.startDownloadProgressMonitor();
     this.syncFixedScale();
+  }
+
+  private releaseRuntimeState(): void {
+    this.sourceSizeRequestId++;
+    this.downloadProgressRequestId++;
+    forgetReaderImageRuntimeState(this.retainedImageUrl);
+    this.retainedImageUrl = '';
   }
 
   private onFitModeChange(): void {

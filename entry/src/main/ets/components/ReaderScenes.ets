@@ -850,6 +850,12 @@ export struct ReaderScene {
     return READER_OFFSCREEN_RENDER_SCREEN_COUNT;
   }
 
+  private shouldRenderPageGroup(index: number): boolean {
+    const currentVisualIndex = this.visualIndexForPageIndex(this.currentIndex);
+    const targetVisualIndex = this.visualIndexForPageIndex(index);
+    return Math.abs(targetVisualIndex - currentVisualIndex) <= this.readerRenderScreenCacheCount();
+  }
+
   private syncReaderPageIndexSource(): void {
     const count = this.totalPages <= 0 ? 1 : this.totalPages;
     const pages = this.pageIndexes();
@@ -1883,29 +1889,31 @@ export struct ReaderScene {
   @Builder
   private ReaderPageGroup(index: number, paired: boolean) {
     Stack({ alignContent: Alignment.Center }) {
-      if (paired) {
-        if (this.readerLayoutHeight >= this.readerLayoutWidth) {
-          Column({ space: 0 }) {
-            this.ReaderPageViewport(index, '100%', this.pairedPageDisplayExtent(index, index))
-            this.ReaderPageViewport(index + 1, '100%', this.pairedPageDisplayExtent(index, index + 1))
-          }
-          .width(this.pairedPageCrossExtent(index))
-          .height(this.pairedPageDisplayExtent(index, index) + this.pairedPageDisplayExtent(index, index + 1))
-        } else {
-          Row({ space: 0 }) {
-            if (this.swiperReversed) {
-              this.ReaderPageViewport(index + 1, this.pairedPageDisplayExtent(index, index + 1), '100%')
-              this.ReaderPageViewport(index, this.pairedPageDisplayExtent(index, index), '100%')
-            } else {
-              this.ReaderPageViewport(index, this.pairedPageDisplayExtent(index, index), '100%')
-              this.ReaderPageViewport(index + 1, this.pairedPageDisplayExtent(index, index + 1), '100%')
+      if (this.shouldRenderPageGroup(index)) {
+        if (paired) {
+          if (this.readerLayoutHeight >= this.readerLayoutWidth) {
+            Column({ space: 0 }) {
+              this.ReaderPageViewport(index, '100%', this.pairedPageDisplayExtent(index, index))
+              this.ReaderPageViewport(index + 1, '100%', this.pairedPageDisplayExtent(index, index + 1))
             }
+            .width(this.pairedPageCrossExtent(index))
+            .height(this.pairedPageDisplayExtent(index, index) + this.pairedPageDisplayExtent(index, index + 1))
+          } else {
+            Row({ space: 0 }) {
+              if (this.swiperReversed) {
+                this.ReaderPageViewport(index + 1, this.pairedPageDisplayExtent(index, index + 1), '100%')
+                this.ReaderPageViewport(index, this.pairedPageDisplayExtent(index, index), '100%')
+              } else {
+                this.ReaderPageViewport(index, this.pairedPageDisplayExtent(index, index), '100%')
+                this.ReaderPageViewport(index + 1, this.pairedPageDisplayExtent(index, index + 1), '100%')
+              }
+            }
+            .width(this.pairedPageDisplayExtent(index, index) + this.pairedPageDisplayExtent(index, index + 1))
+            .height(this.pairedPageCrossExtent(index))
           }
-          .width(this.pairedPageDisplayExtent(index, index) + this.pairedPageDisplayExtent(index, index + 1))
-          .height(this.pairedPageCrossExtent(index))
+        } else {
+          this.ReaderPageViewport(index, '100%', '100%')
         }
-      } else {
-        this.ReaderPageViewport(index, '100%', '100%')
       }
     }
     .width('100%')
