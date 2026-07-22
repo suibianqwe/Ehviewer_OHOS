@@ -49,7 +49,7 @@ import {
   READER_BASE_SCALE,
   READER_MAX_SCALE,
   READER_MIN_SCALE,
-  READER_OFFSCREEN_RENDER_COUNT,
+  READER_OFFSCREEN_RENDER_SCREEN_COUNT,
   readerBackgroundColor
 } from './reader/core/ReaderCore';
 import {
@@ -105,6 +105,7 @@ interface ReaderPageImageSize {
 interface ReaderPageGroupItem {
   index: number;
   key: string;
+  paired: boolean;
 }
 
 @Component
@@ -845,8 +846,8 @@ export struct ReaderScene {
     return this.readerPageIndexesSource;
   }
 
-  private readerRenderCacheCount(): number {
-    return READER_OFFSCREEN_RENDER_COUNT;
+  private readerRenderScreenCacheCount(): number {
+    return READER_OFFSCREEN_RENDER_SCREEN_COUNT;
   }
 
   private syncReaderPageIndexSource(): void {
@@ -863,7 +864,11 @@ export struct ReaderScene {
     this.readerPageGroupRevision++;
     const items: ReaderPageGroupItem[] = [];
     for (let i = 0; i < pages.length; i++) {
-      items.push({ index: pages[i], key: this.readerPageGroupRevision.toString() + ':' + pages[i].toString() });
+      items.push({
+        index: pages[i],
+        key: this.readerPageGroupRevision.toString() + ':' + pages[i].toString(),
+        paired: this.shouldPairPage(pages[i])
+      });
     }
     this.readerPageIndexesSource.setItems(items);
   }
@@ -1876,9 +1881,9 @@ export struct ReaderScene {
   }
 
   @Builder
-  private ReaderPageGroup(index: number) {
+  private ReaderPageGroup(index: number, paired: boolean) {
     Stack({ alignContent: Alignment.Center }) {
-      if (this.shouldPairPage(index)) {
+      if (paired) {
         if (this.readerLayoutHeight >= this.readerLayoutWidth) {
           Column({ space: 0 }) {
             this.ReaderPageViewport(index, '100%', this.pairedPageDisplayExtent(index, index))
@@ -1970,7 +1975,7 @@ export struct ReaderScene {
         .height('100%')
         .backgroundColor(readerBackgroundColor())
         .scrollBar(BarState.Off)
-        .cachedCount(this.readerRenderCacheCount() + 2)
+        .cachedCount(this.readerRenderScreenCacheCount() + 2)
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
         .onScrollIndex((first: number) => {
           this.onContinuousScrollIndex(first);
@@ -1978,11 +1983,12 @@ export struct ReaderScene {
       } else {
         Swiper(this.swiperController) {
           LazyForEach(this.readerPageIndexSource(), (item: ReaderPageGroupItem) => {
-            this.ReaderPageGroup(item.index)
+            // Each Swiper child is one screen. A paired child renders two physical pages.
+            this.ReaderPageGroup(item.index, item.paired)
           }, (item: ReaderPageGroupItem) => item.key)
         }
         .index(this.visualIndexForPageIndex(this.currentIndex))
-        .cachedCount(this.readerRenderCacheCount())
+        .cachedCount(this.readerRenderScreenCacheCount())
         .indicator(false)
         .loop(false)
         .autoPlay(false)
