@@ -6,7 +6,7 @@ import { systemShare } from '@kit.ShareKit';
 import { ArchiveOption, ArchiverInfo, ArchiverOption, GalleryComment, GalleryDetail, GalleryPreview, GallerySite, HathArchiveList, TorrentInfo } from '../model/GalleryModels';
 import { confirmCellularNetworkWarningForSession, shouldConfirmCellularNetworkOperation } from '../services/EhCellularNetworkGuard';
 import { ehDownloadManager } from '../services/EhDownloadManager';
-import { DownloadInfo, ehDownloadStore } from '../services/EhDownloadStore';
+import { DownloadInfo, DownloadLabel, ehDownloadStore } from '../services/EhDownloadStore';
 import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
 import {
@@ -68,6 +68,7 @@ import {
   categoryName,
   createEmptyDetail,
   createEmptyPage,
+  defaultDownloadLabelChoice,
   galleryDisplayTitle,
   getAbilityContext,
   pushDetailBackHandler,
@@ -75,6 +76,7 @@ import {
   readerStartIndexAsync,
   readerPageImageCacheKey,
   saveGalleryToHistory,
+  saveDefaultDownloadLabelChoice,
   uiStatusText,
   uiText
 } from '../shared/EhShared';
@@ -90,6 +92,10 @@ import {
   themeSurfaceVariant
 } from '../shared/EhTheme';
 import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
+import {
+  DOWNLOAD_LABEL_OPTION_ASK,
+  DownloadLabelSelectionDialog
+} from './DownloadLabelComponents';
 
 interface DetailHostNavigationState {
   showInfo: boolean;
@@ -325,6 +331,9 @@ export struct GalleryDetailHostScene {
   @State favoriteBusy: boolean = false;
   @State addFavoriteDialogVisible: boolean = false;
   @State rememberFavoriteSlot: boolean = false;
+  @State downloadLabelDialogVisible: boolean = false;
+  @State downloadLabelOptions: DownloadLabel[] = [];
+  @State rememberDownloadLabel: boolean = false;
   @State archivePanelVisible: boolean = false;
   @State archivePanelMode: string = '';
   @State archivePanelStatus: string = '';
@@ -370,6 +379,11 @@ export struct GalleryDetailHostScene {
   }
 
   private handleDetailSystemBack(): boolean {
+    if (this.downloadLabelDialogVisible) {
+      this.downloadLabelDialogVisible = false;
+      this.renderVersion++;
+      return true;
+    }
     if (this.addFavoriteDialogVisible) {
       this.addFavoriteDialogVisible = false;
       this.renderVersion++;
@@ -679,7 +693,24 @@ export struct GalleryDetailHostScene {
   }
 
   private toggleDownloadDetail(): void {
-    const result: DetailDownloadToggleResult = toggleDetailDownloadTask(this.detail);
+    if (findDetailDownloadItem(this.detail.gid) === null) {
+      const labels = ehDownloadStore.getLabels();
+      const defaultLabel = defaultDownloadLabelChoice();
+      if (defaultLabel === DOWNLOAD_LABEL_OPTION_ASK && labels.length > 0) {
+        this.downloadLabelOptions = labels;
+        this.rememberDownloadLabel = false;
+        this.downloadLabelDialogVisible = true;
+        this.renderVersion++;
+        return;
+      }
+      this.applyDownloadDetailToggle(defaultLabel === DOWNLOAD_LABEL_OPTION_ASK ? '' : defaultLabel);
+      return;
+    }
+    this.applyDownloadDetailToggle('');
+  }
+
+  private applyDownloadDetailToggle(label: string): void {
+    const result: DetailDownloadToggleResult = toggleDetailDownloadTask(this.detail, label);
     if (result.shouldStartQueue) {
       const context = getAbilityContext();
       if (context !== undefined) {
@@ -782,6 +813,14 @@ export struct GalleryDetailHostScene {
     this.rememberFavoriteSlot = false;
     this.addFavoriteDialogVisible = true;
     this.renderVersion++;
+  }
+
+  private confirmDetailDownloadLabel(label: string): void {
+    if (this.rememberDownloadLabel) {
+      saveDefaultDownloadLabelChoice(label);
+    }
+    this.downloadLabelDialogVisible = false;
+    this.applyDownloadDetailToggle(label);
   }
 
   private addFavoriteDialogMaxHeight(): number {
@@ -1573,6 +1612,29 @@ export struct GalleryDetailHostScene {
           }
         })
           .zIndex(40)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }))
+      }
+
+      if (this.downloadLabelDialogVisible) {
+        DownloadLabelSelectionDialog({
+          title: 'Download labels',
+          labels: this.downloadLabelOptions,
+          selectedLabel: '',
+          includeAsk: false,
+          showRemember: true,
+          panelMaxHeight: this.addFavoriteDialogMaxHeight(),
+          onRememberChange: (remember: boolean) => {
+            this.rememberDownloadLabel = remember;
+          },
+          onSelect: (label: string) => {
+            this.confirmDetailDownloadLabel(label);
+          },
+          onClose: () => {
+            this.downloadLabelDialogVisible = false;
+            this.renderVersion++;
+          }
+        })
+          .zIndex(41)
           .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }))
       }
     }

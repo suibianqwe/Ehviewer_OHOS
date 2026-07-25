@@ -15,6 +15,8 @@ export const TRANSLATION_BUTTONS_VISIBLE_KEY: string = 'ehviewer_translation_but
 export const READER_TRANSLATION_BUTTON_VISIBLE_KEY: string = 'ehviewer_reader_translation_button_visible';
 export const DEFAULT_FAVORITE_SLOT_SETTING_KEY: string = 'default_fav_slot';
 export const DEFAULT_FAVORITE_SLOT_ASK: string = 'Ask';
+export const DEFAULT_DOWNLOAD_LABEL_SETTING_KEY: string = 'default_download_label';
+export const DEFAULT_DOWNLOAD_LABEL_ASK: string = '__ask__';
 const HISTORY_INFO_SIZE_OPTIONS: string[] = ['100', '500', '1000', '5000', '10000', '20000'];
 
 export interface SettingEntry {
@@ -41,6 +43,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: HISTORY_INFO_SIZE_KEY, value: DEFAULT_HISTORY_INFO_SIZE },
     { key: 'show_jpn_title', value: 'Off' },
     { key: DEFAULT_FAVORITE_SLOT_SETTING_KEY, value: DEFAULT_FAVORITE_SLOT_ASK },
+    { key: DEFAULT_DOWNLOAD_LABEL_SETTING_KEY, value: DEFAULT_DOWNLOAD_LABEL_ASK },
     { key: 'show_gallery_pages', value: 'Off' },
     { key: 'show_gallery_rating', value: 'On' },
     { key: 'show_gallery_language', value: 'On' },

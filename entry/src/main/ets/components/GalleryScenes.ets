@@ -15,6 +15,7 @@ import { DEFAULT_ADVANCE_SEARCH, EhUrl, FavListUrlBuilder, ListMode, ListUrlBuil
 import { ehFilterStore } from '../services/EhFilterStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
+import { DownloadLabel, ehDownloadStore } from '../services/EhDownloadStore';
 import {
   DEFAULT_FAVORITE_SLOT_ASK,
   DEFAULT_FAVORITE_SLOT_SETTING_KEY,
@@ -77,6 +78,11 @@ import { EhNavBar } from '../components/NavigationComponents';
 import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard, galleryThumbnailAspectRatio } from './GalleryCards';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
+import { SidePanelHeader, SidePanelRow } from './SidePanelComponents';
+import {
+  DOWNLOAD_LABEL_OPTION_ASK,
+  DownloadLabelSelectionDialog
+} from './DownloadLabelComponents';
 import {
   areaDimensionToVp,
   markCurrentRouteRightPane,
@@ -123,11 +129,13 @@ import {
   cloneGalleryDetail,
   cloneGalleryInfos,
   cloneGalleryInfo,
+  defaultDownloadLabelChoice,
   applyGalleryFilters,
   getAbilityContext,
   immersiveChromeHeightFromOffset,
   nextFloatingToolbarOffset,
   saveGalleryToHistory,
+  saveDefaultDownloadLabelChoice,
   listModeForRoute,
   routeUsesKeyword,
   defaultKeywordForRoute,
@@ -539,37 +547,15 @@ export struct FavoriteCategoryDrawer {
 
   build() {
     Column() {
-      Column()
-        .width('100%')
-        .height(this.statusBarHeight)
-        .backgroundColor(themePrimaryColor())
-
-      Row() {
-        Text(uiText('Favorite folders'))
-          .fontSize(19)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(themeOnPrimaryText())
-          .layoutWeight(1)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.gearshape'))
-            .fontSize(20)
-            .fontColor([themeOnPrimaryText()])
-        }
-        .width(40)
-        .height(40)
-        .backgroundColor(themeOnPrimaryActionBackground())
-        .onClick(() => {
+      SidePanelHeader({
+        statusBarHeight: this.statusBarHeight,
+        title: 'Favorite folders',
+        showFirstAction: true,
+        firstActionIcon: $r('sys.symbol.gearshape'),
+        onFirstAction: () => {
           this.onSettings();
-        })
-      }
-      .width('100%')
-      .height(56)
-      .padding({ left: 18, right: 12 })
-      .backgroundColor(themePrimaryColor())
-      .alignItems(VerticalAlign.Center)
+        }
+      })
 
       List() {
         ForEach(this.options(), (item: FavoriteCategoryOption) => {
@@ -729,51 +715,15 @@ export struct FavoriteCategoryDrawerRow {
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
   build() {
-    Row() {
-      Column() {
-        SymbolGlyph(this.item.favCat === FavListUrlBuilder.FAV_CAT_ALL ? $r('sys.symbol.heart') : $r('sys.symbol.folder'))
-          .fontSize(21)
-          .fontColor([this.selected ? themeSelectedText() : themeSecondaryText()])
+    SidePanelRow({
+      title: this.item.name,
+      subtitle: this.item.count >= 0 ? favoriteCategoryCountText(this.item.count) : '',
+      selected: this.selected,
+      icon: this.item.favCat === FavListUrlBuilder.FAV_CAT_ALL ?
+        $r('sys.symbol.heart') : $r('sys.symbol.folder'),
+      onTap: () => {
+        this.onTap();
       }
-      .width(40)
-      .height(40)
-      .justifyContent(FlexAlign.Center)
-      .alignItems(HorizontalAlign.Center)
-      .borderRadius(10)
-      .backgroundColor(this.selected ? themeSelectedBackgroundLight() : themeSurfaceVariant())
-
-      Column() {
-        Text(uiText(this.item.name))
-          .fontSize(15)
-          .fontWeight(this.selected ? FontWeight.Medium : FontWeight.Normal)
-          .fontColor(this.selected ? themeSelectedText() : themePrimaryText())
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-        if (this.item.count >= 0) {
-          Text(favoriteCategoryCountText(this.item.count))
-            .fontSize(12)
-            .fontColor(themeSecondaryText())
-            .margin({ top: 2 })
-        }
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
-      .margin({ left: 12 })
-
-      if (this.selected) {
-        SymbolGlyph($r('sys.symbol.checkmark'))
-          .fontSize(20)
-          .fontColor([themeSelectedText()])
-      }
-    }
-    .width('100%')
-    .height(62)
-    .padding({ left: 14, right: 16 })
-    .alignItems(VerticalAlign.Center)
-    .backgroundColor(this.selected ? themeSelectedBackground() : themeTransparentColor())
-    .onClick(() => {
-      this.onTap();
     })
   }
 }
@@ -843,52 +793,20 @@ export struct SearchBookmarkDrawer {
 
   build() {
     Column() {
-      Column()
-        .width('100%')
-        .height(this.statusBarHeight)
-        .backgroundColor(themePrimaryColor())
-
-      Row() {
-        Text(uiText('Bookmarks'))
-          .fontSize(19)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(themeOnPrimaryText())
-          .layoutWeight(1)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.gearshape'))
-            .fontSize(20)
-            .fontColor([themeOnPrimaryText()])
-        }
-        .width(40)
-        .height(40)
-        .backgroundColor(themeOnPrimaryActionBackground())
-        .margin({ right: 6 })
-        .onClick(() => {
+      SidePanelHeader({
+        statusBarHeight: this.statusBarHeight,
+        title: 'Bookmarks',
+        showFirstAction: true,
+        firstActionIcon: $r('sys.symbol.gearshape'),
+        showSecondAction: true,
+        secondActionIcon: $r('sys.symbol.plus'),
+        onFirstAction: () => {
           this.onSettings();
-        })
-
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.plus'))
-            .fontSize(20)
-            .fontColor([themeOnPrimaryText()])
-        }
-        .width(40)
-        .height(40)
-        .backgroundColor(themeOnPrimaryActionBackground())
-        .margin({ right: 6 })
-        .onClick(() => {
+        },
+        onSecondAction: () => {
           this.onAdd();
-        })
-
-      }
-      .width('100%')
-      .height(56)
-      .padding({ left: 18, right: 12 })
-      .backgroundColor(themePrimaryColor())
-      .alignItems(VerticalAlign.Center)
+        }
+      })
 
       if (this.bookmarks.length === 0) {
         Column({ space: 8 }) {
@@ -959,60 +877,18 @@ export struct SearchBookmarkDrawerRow {
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
   build() {
-    Row() {
-      Column() {
-        SymbolGlyph($r('sys.symbol.bookmark'))
-          .fontSize(21)
-          .fontColor([themePrimaryColor()])
-      }
-      .width(40)
-      .height(40)
-      .justifyContent(FlexAlign.Center)
-      .alignItems(HorizontalAlign.Center)
-      .borderRadius(10)
-      .backgroundColor(themeSelectedBackgroundLight())
-
-      Column() {
-        Text(this.item.name)
-          .fontSize(15)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(themePrimaryText())
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-        Text(bookmarkSummary(this.item))
-          .fontSize(12)
-          .fontColor(themeSecondaryText())
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .wordBreak(WordBreak.BREAK_ALL)
-          .margin({ top: 2 })
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
-      .margin({ left: 12 })
-      .onClick(() => {
+    SidePanelRow({
+      title: this.item.name,
+      subtitle: bookmarkSummary(this.item),
+      icon: $r('sys.symbol.bookmark'),
+      showDelete: true,
+      onTap: () => {
         this.onTap();
-      })
-
-      Button({ type: ButtonType.Circle, stateEffect: true }) {
-        SymbolGlyph($r('sys.symbol.xmark'))
-          .fontSize(17)
-          .fontColor([themeSecondaryText()])
-      }
-      .width(36)
-      .height(36)
-      .backgroundColor(themeSurfaceVariant())
-      .margin({ left: 4 })
-      .onClick(() => {
+      },
+      onDelete: () => {
         this.onDelete();
-      })
-    }
-    .width('100%')
-    .height(60)
-    .padding({ left: 14, right: 12 })
-    .alignItems(VerticalAlign.Center)
-    .backgroundColor(themeTransparentColor())
+      }
+    })
   }
 }
 
@@ -1358,6 +1234,10 @@ export struct GalleryListScene {
   @State detailRequestUrl: string = '';
   @State cardActionVisible: boolean = false;
   @State cardActionGallery: GalleryInfo = createEmptyGallery();
+  @State downloadLabelDialogVisible: boolean = false;
+  @State downloadLabelOptions: DownloadLabel[] = [];
+  @State pendingDownloadGallery: GalleryInfo = createEmptyGallery();
+  @State rememberDownloadLabel: boolean = false;
   @State searchBookmarks: SearchBookmarkInfo[] = [];
   @State addBookmarkDialogVisible: boolean = false;
   @State showBookmarkManager: boolean = false;
@@ -1714,6 +1594,10 @@ export struct GalleryListScene {
   }
 
   private handleSystemBack(): boolean {
+    if (this.downloadLabelDialogVisible) {
+      this.downloadLabelDialogVisible = false;
+      return true;
+    }
     if (this.cardActionVisible) {
       this.closeCardActions();
       return true;
@@ -1784,6 +1668,9 @@ export struct GalleryListScene {
     this.detailScrollOffset = 0;
     this.cardActionVisible = false;
     this.cardActionGallery = createEmptyGallery();
+    this.downloadLabelDialogVisible = false;
+    this.downloadLabelOptions = [];
+    this.pendingDownloadGallery = createEmptyGallery();
     this.showBookmarkManager = false;
     this.addBookmarkDialogVisible = false;
     this.showSearchResultScene = false;
@@ -2980,7 +2867,37 @@ export struct GalleryListScene {
 
   private toggleCardDownload(gallery: GalleryInfo): void {
     this.closeCardActions();
+    if (!ehDownloadStore.contains(gallery.gid)) {
+      const labels = ehDownloadStore.getLabels();
+      const defaultLabel = defaultDownloadLabelChoice();
+      if (defaultLabel === DOWNLOAD_LABEL_OPTION_ASK && labels.length > 0) {
+        this.pendingDownloadGallery = cloneGalleryInfo(gallery);
+        this.downloadLabelOptions = labels;
+        this.rememberDownloadLabel = false;
+        this.downloadLabelDialogVisible = true;
+        return;
+      }
+      const queued = toggleGalleryDownload(gallery, defaultLabel === DOWNLOAD_LABEL_OPTION_ASK ? '' : defaultLabel);
+      this.statusText = queued ? 'Added to download list' : 'Removed from download list';
+      this.renderVersion++;
+      return;
+    }
     const queued = toggleGalleryDownload(gallery);
+    this.statusText = queued ? 'Added to download list' : 'Removed from download list';
+    this.renderVersion++;
+  }
+
+  private confirmCardDownloadLabel(label: string): void {
+    if (this.pendingDownloadGallery.gid <= 0) {
+      this.downloadLabelDialogVisible = false;
+      return;
+    }
+    const queued = toggleGalleryDownload(this.pendingDownloadGallery, label);
+    if (this.rememberDownloadLabel) {
+      saveDefaultDownloadLabelChoice(label);
+    }
+    this.downloadLabelDialogVisible = false;
+    this.pendingDownloadGallery = createEmptyGallery();
     this.statusText = queued ? 'Added to download list' : 'Removed from download list';
     this.renderVersion++;
   }
@@ -3660,6 +3577,29 @@ export struct GalleryListScene {
             })
               .zIndex(30)
               .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+          }
+
+          if (this.downloadLabelDialogVisible) {
+            DownloadLabelSelectionDialog({
+              title: 'Download labels',
+              labels: this.downloadLabelOptions,
+              selectedLabel: '',
+              includeAsk: false,
+              showRemember: true,
+              panelMaxHeight: 680,
+              onRememberChange: (remember: boolean) => {
+                this.rememberDownloadLabel = remember;
+              },
+              onSelect: (label: string) => {
+                this.confirmCardDownloadLabel(label);
+              },
+              onClose: () => {
+                this.downloadLabelDialogVisible = false;
+                this.pendingDownloadGallery = createEmptyGallery();
+              }
+            })
+              .zIndex(31)
+              .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }))
           }
         }
         .width('100%')

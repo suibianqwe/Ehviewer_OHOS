@@ -12,7 +12,7 @@ import {
   ehDownloadFileStore
 } from '../services/EhDownloadFileStore';
 import { ehDownloadManager } from '../services/EhDownloadManager';
-import { DownloadInfo, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
+import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import { TRANSLATION_BUTTONS_VISIBLE_KEY, ehSettingsStore } from '../services/EhSettingsStore';
 import {
   TRANSLATION_ENABLED_KEY,
@@ -53,6 +53,7 @@ import {
   createEmptyDownloadInfo,
   createEmptyDetail,
   currentGallerySite,
+  defaultDownloadLabelChoice,
   downloadProgressText,
   downloadSizeText,
   downloadStateColor,
@@ -63,6 +64,7 @@ import {
   galleryListMode,
   galleryThumbnailPreferredColumnWidth,
   getAbilityContext,
+  saveDefaultDownloadLabelChoice,
   uiText,
   uiStatusText,
   uiValue
@@ -88,6 +90,14 @@ import { ActionBubble, GalleryListScene } from './GalleryScenes';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
 import { BlockingBusyOverlay } from './BlockingBusyOverlay';
+import {
+  DOWNLOAD_LABEL_FILTER_ALL,
+  DOWNLOAD_LABEL_OPTION_ASK,
+  DownloadLabelDrawer,
+  DownloadLabelEditDialog,
+  DownloadLabelManagerScene,
+  DownloadLabelSelectionDialog
+} from './DownloadLabelComponents';
 import {
   applyTagSuggestionToKeyword,
   buildSearchSuggestions,
@@ -189,7 +199,16 @@ export struct DownloadScene {
   onMenu: () => void = () => {};
 
   @State items: DownloadInfo[] = [];
+  @State labels: DownloadLabel[] = [];
   @State visibleItems: DownloadInfo[] = [];
+  @State selectedDownloadLabel: string = DOWNLOAD_LABEL_FILTER_ALL;
+  @State downloadLabelDrawerVisible: boolean = false;
+  @State downloadLabelManagerVisible: boolean = false;
+  @State defaultDownloadLabelDialogVisible: boolean = false;
+  @State moveDownloadLabelDialogVisible: boolean = false;
+  @State downloadLabelEditDialogVisible: boolean = false;
+  @State downloadLabelEditValue: string = '';
+  @State downloadLabelEditingOriginal: string = '';
   @State query: string = '';
   @State searchMode: ListMode = ListMode.Normal;
   @State searchCategory: number = GalleryCategory.None;
@@ -264,8 +283,13 @@ export struct DownloadScene {
     this.syncDownloadContentWidthFromWindow();
     markCurrentRouteRightPane(this.useSplitLayout());
     setActiveBackHandler(() => this.handleSystemBack());
-    this.unsubscribeStore = ehDownloadStore.subscribe((items: DownloadInfo[]) => {
+    this.unsubscribeStore = ehDownloadStore.subscribe((items: DownloadInfo[], labels: DownloadLabel[]) => {
       this.items = items;
+      this.labels = labels;
+      if (this.selectedDownloadLabel !== DOWNLOAD_LABEL_FILTER_ALL && this.selectedDownloadLabel.length > 0 &&
+        !ehDownloadStore.hasLabel(this.selectedDownloadLabel)) {
+        this.selectedDownloadLabel = DOWNLOAD_LABEL_FILTER_ALL;
+      }
       this.refreshDownloadRows();
     });
     this.unsubscribeDownloadManager = ehDownloadManager.subscribe((status: string) => {
@@ -291,6 +315,26 @@ export struct DownloadScene {
   }
 
   private handleSystemBack(): boolean {
+    if (this.downloadLabelEditDialogVisible) {
+      this.downloadLabelEditDialogVisible = false;
+      return true;
+    }
+    if (this.defaultDownloadLabelDialogVisible) {
+      this.defaultDownloadLabelDialogVisible = false;
+      return true;
+    }
+    if (this.moveDownloadLabelDialogVisible) {
+      this.moveDownloadLabelDialogVisible = false;
+      return true;
+    }
+    if (this.downloadLabelManagerVisible) {
+      this.downloadLabelManagerVisible = false;
+      return true;
+    }
+    if (this.downloadLabelDrawerVisible) {
+      this.closeDownloadLabelDrawer();
+      return true;
+    }
     if (this.statusFilterPanelVisible) {
       this.closeDownloadStatusPanel();
       return true;
@@ -345,6 +389,11 @@ export struct DownloadScene {
     this.advancedPanelVisible = false;
     this.downloadActionsExpanded = false;
     this.statusFilterPanelVisible = false;
+    this.downloadLabelDrawerVisible = false;
+    this.downloadLabelManagerVisible = false;
+    this.defaultDownloadLabelDialogVisible = false;
+    this.moveDownloadLabelDialogVisible = false;
+    this.downloadLabelEditDialogVisible = false;
     this.downloadJumpPanelVisible = false;
     this.showTagSearch = false;
     this.showReader = false;
@@ -532,6 +581,129 @@ export struct DownloadScene {
     }
   }
 
+  private openDownloadLabelDrawer(): void {
+    this.downloadActionsExpanded = false;
+    this.getUIContext().animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
+      this.downloadLabelDrawerVisible = true;
+    });
+  }
+
+  private closeDownloadLabelDrawer(): void {
+    this.getUIContext().animateTo({ duration: 180, curve: Curve.EaseInOut }, () => {
+      this.downloadLabelDrawerVisible = false;
+    });
+  }
+
+  private selectDownloadLabel(label: string): void {
+    this.selectedDownloadLabel = label;
+    this.downloadJumpPageIndex = 0;
+    this.downloadScrollOffset = 0;
+    this.refreshDownloadRows();
+    this.closeDownloadLabelDrawer();
+  }
+
+  private openDefaultDownloadLabelDialog(): void {
+    this.closeDownloadLabelDrawer();
+    this.defaultDownloadLabelDialogVisible = true;
+  }
+
+  private selectDefaultDownloadLabel(label: string): void {
+    saveDefaultDownloadLabelChoice(label === DOWNLOAD_LABEL_OPTION_ASK ? DOWNLOAD_LABEL_OPTION_ASK : label);
+    this.defaultDownloadLabelDialogVisible = false;
+    this.showFloatingStatus('Default download label updated');
+  }
+
+  private openDownloadLabelManager(): void {
+    this.closeDownloadLabelDrawer();
+    this.downloadLabelManagerVisible = true;
+  }
+
+  private openAddDownloadLabel(): void {
+    this.downloadLabelEditingOriginal = '';
+    this.downloadLabelEditValue = '';
+    this.downloadLabelEditDialogVisible = true;
+  }
+
+  private openRenameDownloadLabel(label: string): void {
+    this.downloadLabelEditingOriginal = label;
+    this.downloadLabelEditValue = label;
+    this.downloadLabelEditDialogVisible = true;
+  }
+
+  private confirmDownloadLabelEdit(): void {
+    const value = this.downloadLabelEditValue.trim();
+    if (value.length === 0) {
+      this.showFloatingStatus('Label name cannot be empty');
+      return;
+    }
+    const selectedWasEditing = this.selectedDownloadLabel === this.downloadLabelEditingOriginal;
+    const defaultWasEditing = defaultDownloadLabelChoice() === this.downloadLabelEditingOriginal;
+    const changed = this.downloadLabelEditingOriginal.length === 0 ?
+      ehDownloadStore.addLabel(value) :
+      ehDownloadStore.renameLabel(this.downloadLabelEditingOriginal, value);
+    if (!changed) {
+      this.showFloatingStatus('Download label already exists');
+      return;
+    }
+    if (selectedWasEditing) {
+      this.selectedDownloadLabel = value;
+    }
+    if (defaultWasEditing) {
+      saveDefaultDownloadLabelChoice(value);
+    }
+    this.downloadLabelEditDialogVisible = false;
+    this.persistDownloads();
+  }
+
+  private moveDownloadLabel(from: number, to: number): void {
+    if (ehDownloadStore.moveLabel(from, to)) {
+      this.persistDownloads();
+    }
+  }
+
+  private confirmDeleteDownloadLabel(label: string): void {
+    const count = ehDownloadStore.labelItemCount(label);
+    const wasDefault = defaultDownloadLabelChoice() === label;
+    this.getUIContext().getPromptAction().showDialog({
+      title: uiText('Delete label'),
+      message: uiText('Downloads in this label will be moved to Default') + ' (' + count.toString() + ')',
+      buttons: [
+        { text: uiText('Cancel'), color: themeSecondaryText() },
+        { text: uiText('Delete'), color: themePrimaryColor() }
+      ]
+    }).then((data) => {
+      if (data.index !== 1) {
+        return;
+      }
+      ehDownloadStore.removeLabel(label);
+      if (this.selectedDownloadLabel === label) {
+        this.selectedDownloadLabel = DOWNLOAD_LABEL_FILTER_ALL;
+      }
+      if (wasDefault) {
+        saveDefaultDownloadLabelChoice(DOWNLOAD_LABEL_OPTION_ASK);
+      }
+      this.persistDownloads();
+    }).catch(() => {});
+  }
+
+  private openMoveSelectedDownloadLabel(): void {
+    this.downloadActionsExpanded = false;
+    this.moveDownloadLabelDialogVisible = true;
+  }
+
+  private moveSelectedDownloadsToLabel(label: string): void {
+    const selected = this.selectedDownloadItems();
+    const gids: number[] = [];
+    for (let i = 0; i < selected.length; i++) {
+      gids.push(selected[i].gid);
+    }
+    const changed = ehDownloadStore.setLabels(gids, label);
+    this.moveDownloadLabelDialogVisible = false;
+    this.clearDownloadSelection();
+    this.persistDownloads();
+    this.showFloatingStatus('Moved downloads to label: ' + changed.toString());
+  }
+
   private showBlockingBusy(message: string): void {
     this.blockingBusyMessage = message;
     this.blockingBusyVisible = true;
@@ -543,7 +715,7 @@ export struct DownloadScene {
   }
 
   private computeVisibleDownloadItems(): DownloadInfo[] {
-    const visible = filterDownloadItems(this.items, '', this.statusFilters, 'All', this.sortMode,
+    const visible = filterDownloadItems(this.items, '', this.statusFilters, this.selectedDownloadLabel, this.sortMode,
       this.categoryFilter);
     const filtered: DownloadInfo[] = [];
     const options = this.downloadSearchOptions();
@@ -1648,7 +1820,45 @@ export struct DownloadScene {
   }
 
   build() {
-    if (this.showTagSearch) {
+    if (this.downloadLabelManagerVisible) {
+      Stack({ alignContent: Alignment.Center }) {
+        DownloadLabelManagerScene({
+          labels: this.labels,
+          statusBarHeight: this.statusBarVp(),
+          onBack: () => {
+            this.downloadLabelManagerVisible = false;
+          },
+          onAdd: () => {
+            this.openAddDownloadLabel();
+          },
+          onRename: (label: string) => {
+            this.openRenameDownloadLabel(label);
+          },
+          onDelete: (label: string) => {
+            this.confirmDeleteDownloadLabel(label);
+          },
+          onMove: (from: number, to: number) => {
+            this.moveDownloadLabel(from, to);
+          }
+        })
+
+        if (this.downloadLabelEditDialogVisible) {
+          DownloadLabelEditDialog({
+            title: this.downloadLabelEditingOriginal.length === 0 ? 'New label' : 'Rename label',
+            value: $downloadLabelEditValue,
+            onConfirm: () => {
+              this.confirmDownloadLabelEdit();
+            },
+            onClose: () => {
+              this.downloadLabelEditDialogVisible = false;
+            }
+          })
+            .zIndex(20)
+        }
+      }
+      .width('100%')
+      .height('100%')
+    } else if (this.showTagSearch) {
       GalleryListScene({
         sceneTitle: this.tagSearchTitle.length > 0 ? this.tagSearchTitle : 'Search',
         listMode: 'Search',
@@ -1683,7 +1893,8 @@ export struct DownloadScene {
       Column() {
       FloatingToolbarHost({
         kind: this.searchBarVisible ? 'search' : 'title',
-        title: 'Downloads',
+        title: this.selectedDownloadLabel === DOWNLOAD_LABEL_FILTER_ALL ? 'Downloads' :
+          (this.selectedDownloadLabel.length === 0 ? 'Default' : this.selectedDownloadLabel),
         keyword: this.query,
         searchPlaceholder: 'Search downloads',
         filterActive: this.advancedPanelVisible || this.advancedSearchEnabled ||
@@ -1691,6 +1902,7 @@ export struct DownloadScene {
         showSearchButton: !this.searchBarVisible,
         showBackButton: this.searchBarVisible,
         showRefreshButton: false,
+        showFavoriteButton: !this.searchBarVisible,
         searchShowsAdvancedButton: true,
         toolbarOffsetY: this.toolbarOffsetY,
         toolbarHeight: 56,
@@ -1719,6 +1931,9 @@ export struct DownloadScene {
             },
             onAdvanced: () => {
               this.toggleAdvancedPanel();
+            },
+            onFavoriteButton: () => {
+              this.openDownloadLabelDrawer();
             }
       }) {
       Stack({ alignContent: Alignment.BottomEnd }) {
@@ -1886,6 +2101,9 @@ export struct DownloadScene {
               },
               onExportZip: () => {
                 this.exportSelectedDownloadsZip();
+              },
+              onLabel: () => {
+                this.openMoveSelectedDownloadLabel();
               }
             })
           }
@@ -2080,6 +2298,73 @@ export struct DownloadScene {
             TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
             TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }))
       }
+
+      if (this.downloadLabelDrawerVisible) {
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor(themeScrimColor())
+          .onClick(() => {
+            this.closeDownloadLabelDrawer();
+          })
+          .zIndex(30)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+
+        DownloadLabelDrawer({
+          statusBarHeight: this.statusBarVp(),
+          labels: this.labels,
+          items: this.items,
+          selectedLabel: this.selectedDownloadLabel,
+          onSelect: (label: string) => {
+            this.selectDownloadLabel(label);
+          },
+          onDefaultLabel: () => {
+            this.openDefaultDownloadLabelDialog();
+          },
+          onSettings: () => {
+            this.openDownloadLabelManager();
+          }
+        })
+          .align(Alignment.TopEnd)
+          .zIndex(31)
+          .transition(TransitionEffect.move(TransitionEdge.END)
+            .animation({ duration: 220, curve: Curve.EaseOut }))
+      }
+
+      if (this.defaultDownloadLabelDialogVisible) {
+        DownloadLabelSelectionDialog({
+          title: 'Default download label',
+          labels: this.labels,
+          selectedLabel: defaultDownloadLabelChoice() === DOWNLOAD_LABEL_OPTION_ASK ?
+            DOWNLOAD_LABEL_OPTION_ASK : defaultDownloadLabelChoice(),
+          includeAsk: true,
+          panelMaxHeight: Math.max(320, this.viewportHeight - 24),
+          onSelect: (label: string) => {
+            this.selectDefaultDownloadLabel(label);
+          },
+          onClose: () => {
+            this.defaultDownloadLabelDialogVisible = false;
+          }
+        })
+          .zIndex(35)
+      }
+
+      if (this.moveDownloadLabelDialogVisible) {
+        DownloadLabelSelectionDialog({
+          title: 'Move to label',
+          labels: this.labels,
+          selectedLabel: '',
+          includeAsk: false,
+          panelMaxHeight: Math.max(320, this.viewportHeight - 24),
+          onSelect: (label: string) => {
+            this.moveSelectedDownloadsToLabel(label);
+          },
+          onClose: () => {
+            this.moveDownloadLabelDialogVisible = false;
+          }
+        })
+          .zIndex(35)
+      }
       }
       .width('100%')
       .height('100%')
@@ -2253,6 +2538,7 @@ struct DownloadToolColumn {
   onRestore: () => void = () => {};
   onTranslate: () => void = () => {};
   onSelectAll: () => void = () => {};
+  onLabel: () => void = () => {};
   onDelete: () => void = () => {};
   onExportZip: () => void = () => {};
 
@@ -2267,7 +2553,7 @@ struct DownloadToolColumn {
       return 0;
     }
     const baseCount = this.showTranslationButton ? 6 : 5;
-    return this.hasSelection ? baseCount + 3 : baseCount;
+    return this.hasSelection ? baseCount + 4 : baseCount;
   }
 
   private primaryIndex(): number {
@@ -2329,12 +2615,14 @@ struct DownloadToolColumn {
       this.toggleExpanded();
       return;
     }
-    const baseIndex = this.hasSelection ? index - 3 : index;
+    const baseIndex = this.hasSelection ? index - 4 : index;
     if (this.hasSelection && index === 0) {
       this.onSelectAll();
     } else if (this.hasSelection && index === 1) {
-      this.onExportZip();
+      this.onLabel();
     } else if (this.hasSelection && index === 2) {
+      this.onExportZip();
+    } else if (this.hasSelection && index === 3) {
       this.onDelete();
     } else if (baseIndex === 0) {
       this.onStatus();
@@ -2364,7 +2652,7 @@ struct DownloadToolColumn {
   }
 
   private baseActionIndex(index: number): number {
-    return this.hasSelection ? index + 3 : index;
+    return this.hasSelection ? index + 4 : index;
   }
 
   build() {
@@ -2380,17 +2668,24 @@ struct DownloadToolColumn {
               directTap: false
             })
             ActionBubble({
+              label: uiText('Label'),
+              symbolIcon: $r('sys.symbol.folder'),
+              isEnabled: true,
+              active: this.activeActionIndex === 1,
+              directTap: false
+            })
+            ActionBubble({
               label: uiText('Export'),
               symbolIcon: $r('sys.symbol.archivebox'),
               isEnabled: true,
-              active: this.activeActionIndex === 1,
+              active: this.activeActionIndex === 2,
               directTap: false
             })
             ActionBubble({
               label: uiText('Delete'),
               symbolIcon: $r('sys.symbol.trash'),
               isEnabled: true,
-              active: this.activeActionIndex === 2,
+              active: this.activeActionIndex === 3,
               directTap: false
             })
           }

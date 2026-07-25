@@ -252,13 +252,40 @@ export class EhDownloadStore {
     if (index < 0) {
       return;
     }
-    this.items[index].label = label;
+    const normalized = normalizeLabel(label);
+    if (normalized.length > 0 && !this.hasLabel(normalized)) {
+      return;
+    }
+    if (this.items[index].label === normalized) {
+      return;
+    }
+    this.items[index].label = normalized;
     this.notifyChanged();
+  }
+
+  setLabels(gids: number[], label: string): number {
+    const normalized = normalizeLabel(label);
+    if (normalized.length > 0 && !this.hasLabel(normalized)) {
+      return 0;
+    }
+    let changed = 0;
+    for (let i = 0; i < this.items.length; i++) {
+      if (gids.indexOf(this.items[i].gid) >= 0 && this.items[i].label !== normalized) {
+        this.items[i].label = normalized;
+        changed++;
+      }
+    }
+    if (changed > 0) {
+      this.notifyChanged();
+    }
+    return changed;
   }
 
   addLabel(label: string): boolean {
     const normalized = normalizeLabel(label);
-    if (normalized.length === 0 || this.containsLabel(normalized)) {
+    if (normalized.length === 0 || normalized.toLowerCase() === 'default' ||
+      normalized.toLowerCase() === 'all' || normalized === '__all__' || normalized === '__ask__' ||
+      this.hasLabel(normalized)) {
       return false;
     }
     this.labels.push({ label: normalized, time: Date.now() });
@@ -266,30 +293,93 @@ export class EhDownloadStore {
     return true;
   }
 
-  removeLabel(label: string): void {
+  renameLabel(label: string, nextLabel: string): boolean {
     const normalized = normalizeLabel(label);
-    const next: DownloadLabel[] = [];
+    const next = normalizeLabel(nextLabel);
+    if (normalized.length === 0 || next.length === 0 || next.toLowerCase() === 'default' ||
+      next.toLowerCase() === 'all' || next === '__all__' || next === '__ask__' ||
+      normalized === next || this.hasLabel(next)) {
+      return false;
+    }
+    let found = false;
     for (let i = 0; i < this.labels.length; i++) {
-      if (this.labels[i].label !== normalized) {
-        next.push(cloneDownloadLabel(this.labels[i]));
+      if (this.labels[i].label === normalized) {
+        this.labels[i].label = next;
+        found = true;
+        break;
       }
     }
-    this.labels = next;
+    if (!found) {
+      return false;
+    }
     for (let i = 0; i < this.items.length; i++) {
       if (this.items[i].label === normalized) {
-        this.items[i].label = '';
+        this.items[i].label = next;
       }
     }
     this.notifyChanged();
+    return true;
   }
 
-  private containsLabel(label: string): boolean {
+  moveLabel(fromIndex: number, toIndex: number): boolean {
+    if (fromIndex < 0 || toIndex < 0 || fromIndex >= this.labels.length || toIndex >= this.labels.length ||
+      fromIndex === toIndex) {
+      return false;
+    }
+    const moved = this.labels.splice(fromIndex, 1);
+    if (moved.length === 0) {
+      return false;
+    }
+    this.labels.splice(toIndex, 0, moved[0]);
+    this.notifyChanged();
+    return true;
+  }
+
+  removeLabel(label: string): number {
+    const normalized = normalizeLabel(label);
+    const next: DownloadLabel[] = [];
+    let removed = false;
     for (let i = 0; i < this.labels.length; i++) {
-      if (this.labels[i].label === label) {
+      if (this.labels[i].label !== normalized) {
+        next.push(cloneDownloadLabel(this.labels[i]));
+      } else {
+        removed = true;
+      }
+    }
+    if (!removed) {
+      return 0;
+    }
+    this.labels = next;
+    let resetCount = 0;
+    for (let i = 0; i < this.items.length; i++) {
+      if (this.items[i].label === normalized) {
+        this.items[i].label = '';
+        resetCount++;
+      }
+    }
+    this.notifyChanged();
+    return resetCount;
+  }
+
+  hasLabel(label: string): boolean {
+    const normalized = normalizeLabel(label);
+    for (let i = 0; i < this.labels.length; i++) {
+      if (this.labels[i].label === normalized) {
         return true;
       }
     }
     return false;
+  }
+
+  labelItemCount(label: string): number {
+    const normalized = normalizeLabel(label);
+    let count = 0;
+    for (let i = 0; i < this.items.length; i++) {
+      if (this.items[i].label === normalized) {
+        count++;
+      }
+    }
+    return count;
   }
 
   startAll(): void {
@@ -421,7 +511,7 @@ export class EhDownloadStore {
     }
     for (let i = 0; i < parsed.length; i++) {
       const label = storedToDownloadLabel(parsed[i]);
-      if (label.label.length > 0 && !this.containsLabel(label.label)) {
+      if (label.label.length > 0 && !this.hasLabel(label.label)) {
         this.labels.push(label);
       }
     }

@@ -6,6 +6,8 @@ import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import {
+  DEFAULT_DOWNLOAD_LABEL_ASK,
+  DEFAULT_DOWNLOAD_LABEL_SETTING_KEY,
   HISTORY_INFO_SIZE_KEY,
   ehSettingsStore,
   historyInfoSizeLimitFromValue,
@@ -899,6 +901,18 @@ export function zhText(text: string): string {
     case 'History': return '历史';
     case 'Downloads': return '下载';
     case 'Download': return '下载';
+    case 'Download labels': return '下载标签';
+    case 'Default download label': return '默认下载标签';
+    case 'Remember download label': return '记住下载标签';
+    case 'Move to label': return '移动到标签';
+    case 'New label': return '新建标签';
+    case 'Rename label': return '重命名标签';
+    case 'Delete label': return '删除标签';
+    case 'Label name': return '标签名称';
+    case 'No download labels': return '暂无下载标签';
+    case 'Tap plus to create a download label': return '点击“+”创建下载标签';
+    case 'Downloads in this label will be moved to Default': return '该标签中的下载项将移至默认标签';
+    case 'Confirm': return '确认';
     case 'Added to download list and started': return '已加入下载列表并开始下载';
     case 'Download stopped': return '已停止下载';
     case 'Download queued': return '已加入下载队列';
@@ -2529,14 +2543,34 @@ export function downloadButtonText(gid: number): string {
   return ehDownloadStore.contains(gid) ? 'Queued' : 'Download';
 }
 
-export function toggleGalleryDownload(gallery: GalleryInfo): boolean {
+export function defaultDownloadLabelChoice(): string {
+  const value = ehSettingsStore.getValue(DEFAULT_DOWNLOAD_LABEL_SETTING_KEY, DEFAULT_DOWNLOAD_LABEL_ASK);
+  if (value === DEFAULT_DOWNLOAD_LABEL_ASK || value.length === 0 || ehDownloadStore.hasLabel(value)) {
+    return value;
+  }
+  return DEFAULT_DOWNLOAD_LABEL_ASK;
+}
+
+export function saveDefaultDownloadLabelChoice(value: string): void {
+  const normalized = value === DEFAULT_DOWNLOAD_LABEL_ASK ? value : value.trim();
+  if (normalized !== DEFAULT_DOWNLOAD_LABEL_ASK && normalized.length > 0 && !ehDownloadStore.hasLabel(normalized)) {
+    return;
+  }
+  ehSettingsStore.setValue(DEFAULT_DOWNLOAD_LABEL_SETTING_KEY, normalized);
+  const context = getAbilityContext();
+  if (context !== undefined) {
+    ehSettingsStore.save(context).catch(() => {});
+  }
+}
+
+export function toggleGalleryDownload(gallery: GalleryInfo, label: string = ''): boolean {
   if (ehDownloadStore.contains(gallery.gid)) {
     ehDownloadStore.removeGallery(gallery.gid);
     saveDownloadsQuietly();
     return false;
   }
 
-  const item = ehDownloadStore.addGallery(gallery, '');
+  const item = ehDownloadStore.addGallery(gallery, label);
   if (item !== null) {
     ehDownloadStore.startGallery(item.gid);
   }
@@ -2567,7 +2601,7 @@ export function filterDownloadItems(items: DownloadInfo[], query: string, status
     if (!statusMatched) {
       continue;
     }
-    if (labelFilter !== 'All' && downloadLabelName(item.label) !== labelFilter) {
+    if (labelFilter !== '__all__' && item.label !== labelFilter) {
       continue;
     }
     if (categoryFilter !== 'All' && categoryName(item.category) !== categoryFilter) {
@@ -2629,7 +2663,7 @@ export function nextDownloadStatusFilter(current: string): string {
 }
 
 export function nextDownloadLabelFilter(current: string, labels: DownloadLabel[]): string {
-  const options: string[] = ['All', 'Default'];
+  const options: string[] = ['__all__', ''];
   for (let i = 0; i < labels.length; i++) {
     options.push(labels[i].label);
   }
@@ -2668,10 +2702,6 @@ export function nextDownloadLabel(current: string, labels: DownloadLabel[]): str
     }
   }
   return options.length > 1 ? options[1] : '';
-}
-
-function downloadLabelName(label: string): string {
-  return label.length === 0 ? 'Default' : label;
 }
 
 export function downloadStateLabel(state: DownloadState): string {

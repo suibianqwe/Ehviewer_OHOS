@@ -36,7 +36,7 @@ export function detailDownloadButtonText(gid: number): string {
   return downloadStateLabel(item.state);
 }
 
-export function toggleDetailDownloadTask(gallery: GalleryInfo): DetailDownloadToggleResult {
+export function toggleDetailDownloadTask(gallery: GalleryInfo, label: string = ''): DetailDownloadToggleResult {
   if (gallery.gid <= 0 || gallery.token.length === 0) {
     return {
       item: null,
@@ -48,7 +48,7 @@ export function toggleDetailDownloadTask(gallery: GalleryInfo): DetailDownloadTo
 
   const current = findDetailDownloadItem(gallery.gid);
   if (current === null) {
-    const added = ehDownloadStore.addGallery(gallery, '');
+    const added = ehDownloadStore.addGallery(gallery, label);
     if (added === null) {
       return {
         item: null,
