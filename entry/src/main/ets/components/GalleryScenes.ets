@@ -43,6 +43,7 @@ import {
 } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, pushActiveBackHandler, runDetailBackHandler } from '../shared/EhShared';
 import { sortedStringKey, toggleStringValue } from '../shared/StringCollectionSupport';
+import { GalleryCardScrollAnchor } from '../shared/GalleryCardScrollAnchor';
 import {
   themeFieldBackground,
   themeDangerText,
@@ -3999,6 +4000,7 @@ export struct GalleryListContent {
   private readonly REFRESH_OFFSET: number = 42;
   @State viewportHeight: number = 0;
   private listScroller: Scroller = new Scroller();
+  private cardScrollAnchor: GalleryCardScrollAnchor = new GalleryCardScrollAnchor();
   private loadMorePending: boolean = false;
   private restoredScroll: boolean = false;
   private galleryThumbnailAspectRatioAverage: number = 0.75;
@@ -4180,6 +4182,7 @@ export struct GalleryListContent {
   }
 
   aboutToDisappear(): void {
+    this.cardScrollAnchor.clear();
     this.unregisterActiveBackHandler();
     this.unregisterActiveBackHandler = () => {};
   }
@@ -4687,6 +4690,29 @@ export struct GalleryListContent {
     return (this.isSearchResultScene || this.useLocalSearchBar) && !this.searchSubmitted;
   }
 
+  private galleryCardWindowY(area: Area): number {
+    const value = area.globalPosition.y;
+    return value === undefined ? Number.NaN : Number.parseFloat(value.toString());
+  }
+
+  private captureGalleryCardAnchor(gallery: GalleryInfo, event?: ClickEvent): void {
+    if (event === undefined) {
+      return;
+    }
+    this.cardScrollAnchor.capture(this.galleryCardKey(gallery), this.galleryColumnCount(),
+      this.galleryCardWindowY(event.target.area));
+  }
+
+  private observeGalleryCardAnchor(gallery: GalleryInfo, area: Area): void {
+    this.cardScrollAnchor.observe(this.galleryCardKey(gallery), this.galleryColumnCount(),
+      this.galleryCardWindowY(area), (deltaY: number) => {
+        this.listScroller.scrollBy(0, deltaY);
+        setTimeout(() => {
+          this.rememberListOffset(normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset));
+        }, 0);
+      });
+  }
+
   private shouldShowSearchOnlyFab(): boolean {
     return (this.isSearchResultScene || this.useLocalSearchBar) && !this.searchSubmitted;
   }
@@ -4824,8 +4850,12 @@ export struct GalleryListContent {
         })
           .width('100%')
           .animation({ duration: 220, curve: Curve.EaseOut })
-          .onClick(() => {
+          .onClick((event?: ClickEvent) => {
+            this.captureGalleryCardAnchor(gallery, event);
             this.onSelectGallery(gallery);
+          })
+          .onAreaChange((_oldArea: Area, newArea: Area) => {
+            this.observeGalleryCardAnchor(gallery, newArea);
           })
       } else {
         GalleryListRow({
@@ -4838,8 +4868,12 @@ export struct GalleryListContent {
         })
           .width('100%')
           .animation({ duration: 220, curve: Curve.EaseOut })
-          .onClick(() => {
+          .onClick((event?: ClickEvent) => {
+            this.captureGalleryCardAnchor(gallery, event);
             this.onSelectGallery(gallery);
+          })
+          .onAreaChange((_oldArea: Area, newArea: Area) => {
+            this.observeGalleryCardAnchor(gallery, newArea);
           })
       }
     }
@@ -4864,8 +4898,12 @@ export struct GalleryListContent {
       })
         .width('100%')
         .animation({ duration: 220, curve: Curve.EaseOut })
-        .onClick(() => {
+        .onClick((event?: ClickEvent) => {
+          this.captureGalleryCardAnchor(gallery, event);
           this.onSelectGallery(gallery);
+        })
+        .onAreaChange((_oldArea: Area, newArea: Area) => {
+          this.observeGalleryCardAnchor(gallery, newArea);
         })
     }
     .width('100%')

@@ -46,6 +46,7 @@ import {
 } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, nextFloatingToolbarOffset, runDetailBackHandler, setActiveBackHandler } from '../shared/EhShared';
 import { sortedStringKey, toggleStringValue } from '../shared/StringCollectionSupport';
+import { GalleryCardScrollAnchor } from '../shared/GalleryCardScrollAnchor';
 import {
   cloneGalleryDetail,
   cloneGalleryInfo,
@@ -247,6 +248,7 @@ export struct DownloadScene {
   @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
   @StorageProp(TRANSLATION_BUTTONS_VISIBLE_KEY) translationButtonsVisible: boolean = true;
   private downloadScroller: Scroller = new Scroller();
+  private cardScrollAnchor: GalleryCardScrollAnchor = new GalleryCardScrollAnchor();
   private splitDragStartWidth: number = 0;
   private downloadScrollOffset: number = 0;
   private toolbarRestoring: boolean = false;
@@ -278,6 +280,7 @@ export struct DownloadScene {
   }
 
   aboutToDisappear(): void {
+    this.cardScrollAnchor.clear();
     this.saveNavigationCache();
     this.unsubscribeStore();
     this.unsubscribeDownloadManager();
@@ -786,12 +789,31 @@ export struct DownloadScene {
     this.downloadActionsExpanded = true;
   }
 
-  private handleDownloadCardTap(item: DownloadInfo): void {
+  private handleDownloadCardTap(item: DownloadInfo, event?: ClickEvent): void {
     if (this.downloadSelectionCount() > 0) {
       this.toggleDownloadSelection(item.gid);
       return;
     }
+    if (event !== undefined) {
+      this.cardScrollAnchor.capture(item.gid.toString(), this.downloadColumnCount(),
+        this.downloadCardWindowY(event.target.area));
+    }
     this.openDetail(item);
+  }
+
+  private downloadCardWindowY(area: Area): number {
+    const value = area.globalPosition.y;
+    return value === undefined ? Number.NaN : Number.parseFloat(value.toString());
+  }
+
+  private observeDownloadCardAnchor(item: DownloadInfo, area: Area): void {
+    this.cardScrollAnchor.observe(item.gid.toString(), this.downloadColumnCount(),
+      this.downloadCardWindowY(area), (deltaY: number) => {
+        this.downloadScroller.scrollBy(0, deltaY);
+        setTimeout(() => {
+          this.rememberDownloadScrollOffset();
+        }, 0);
+      });
   }
 
   private selectedDownloadItems(): DownloadInfo[] {
@@ -1464,8 +1486,11 @@ export struct DownloadScene {
         })
           .width('100%')
           .zIndex(2)
-          .onClick(() => {
-            this.handleDownloadCardTap(item);
+          .onClick((event?: ClickEvent) => {
+            this.handleDownloadCardTap(item, event);
+          })
+          .onAreaChange((_oldArea: Area, newArea: Area) => {
+            this.observeDownloadCardAnchor(item, newArea);
           })
       } else {
         GalleryListRow({
@@ -1479,8 +1504,11 @@ export struct DownloadScene {
         })
           .width('100%')
           .zIndex(2)
-          .onClick(() => {
-            this.handleDownloadCardTap(item);
+          .onClick((event?: ClickEvent) => {
+            this.handleDownloadCardTap(item, event);
+          })
+          .onAreaChange((_oldArea: Area, newArea: Area) => {
+            this.observeDownloadCardAnchor(item, newArea);
           })
       }
       if (item.state !== DownloadState.Finish) {
