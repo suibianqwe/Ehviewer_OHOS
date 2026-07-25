@@ -874,6 +874,8 @@ export function zhText(text: string): string {
     case 'Favorites': return '收藏';
     case 'All favorites': return '全部收藏';
     case 'Favorite folders': return '收藏夹';
+    case 'Default favorites collection': return '默认收藏夹';
+    case 'Let me select': return '让我选择';
     case 'Bookmarks': return '书签栏';
     case 'Bookmark settings': return '书签设置';
     case 'Add bookmark': return '添加书签';

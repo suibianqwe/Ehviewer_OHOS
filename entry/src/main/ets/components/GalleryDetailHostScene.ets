@@ -55,7 +55,13 @@ import { DetailPreviewPager, loadGalleryPreviewPage, mergeGalleryPreviewSets, se
 import { IMAGE_DOWNLOAD_PRIORITY_INTERACTIVE, readerImageCache } from '../services/ReaderImageCache';
 import { AsyncRequestGate } from '../services/AsyncRequestGate';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
-import { ehSettingsStore } from '../services/EhSettingsStore';
+import {
+  DEFAULT_FAVORITE_SLOT_ASK,
+  DEFAULT_FAVORITE_SLOT_SETTING_KEY,
+  defaultFavoriteSlotSettingValue,
+  ehSettingsStore,
+  parseDefaultFavoriteSlot
+} from '../services/EhSettingsStore';
 import {
   cloneGalleryDetail,
   cloneGalleryPreviews,
@@ -92,8 +98,6 @@ interface DetailHostNavigationState {
 }
 
 const detailHostNavigationCache: Map<string, DetailHostNavigationState> = new Map<string, DetailHostNavigationState>();
-const DEFAULT_FAV_SLOT_SETTING_KEY: string = 'default_fav_slot';
-const DEFAULT_FAV_SLOT_ASK: string = 'Ask';
 const FAVORITE_SLOT_ROW_HEIGHT: number = 52;
 const FAVORITE_SLOT_PANEL_CHROME_HEIGHT: number = 112;
 
@@ -108,17 +112,6 @@ function favoriteSlotOptions(): FavoriteSlotOption[] {
     options.push({ slot: i, label: 'Favorites ' + i.toString() });
   }
   return options;
-}
-
-function parseDefaultFavoriteSlot(value: string): number | null {
-  if (value === DEFAULT_FAV_SLOT_ASK || value.length === 0) {
-    return null;
-  }
-  const parsed = Number.parseInt(value);
-  if (Number.isNaN(parsed) || parsed < -1 || parsed > 9) {
-    return null;
-  }
-  return parsed;
 }
 
 @Component
@@ -780,8 +773,8 @@ export struct GalleryDetailHostScene {
   }
 
   private showAddFavoriteDialog(): void {
-    const defaultSlot = parseDefaultFavoriteSlot(ehSettingsStore.getValue(DEFAULT_FAV_SLOT_SETTING_KEY,
-      DEFAULT_FAV_SLOT_ASK));
+    const defaultSlot = parseDefaultFavoriteSlot(ehSettingsStore.getValue(DEFAULT_FAVORITE_SLOT_SETTING_KEY,
+      DEFAULT_FAVORITE_SLOT_ASK));
     if (defaultSlot !== null) {
       this.addFavoriteToSlot(defaultSlot);
       return;
@@ -801,9 +794,14 @@ export struct GalleryDetailHostScene {
   private selectFavoriteSlot(slot: number): void {
     this.addFavoriteDialogVisible = false;
     if (this.rememberFavoriteSlot) {
-      ehSettingsStore.setValue(DEFAULT_FAV_SLOT_SETTING_KEY, slot.toString());
+      ehSettingsStore.setValue(DEFAULT_FAVORITE_SLOT_SETTING_KEY, defaultFavoriteSlotSettingValue(slot));
     } else {
-      ehSettingsStore.setValue(DEFAULT_FAV_SLOT_SETTING_KEY, DEFAULT_FAV_SLOT_ASK);
+      ehSettingsStore.setValue(DEFAULT_FAVORITE_SLOT_SETTING_KEY, DEFAULT_FAVORITE_SLOT_ASK);
+    }
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSettingsStore.save(context).catch(() => {
+      });
     }
     this.addFavoriteToSlot(slot);
   }

@@ -13,6 +13,8 @@ export const HISTORY_INFO_SIZE_KEY: string = 'history_info_size';
 export const DEFAULT_HISTORY_INFO_SIZE: string = '100';
 export const TRANSLATION_BUTTONS_VISIBLE_KEY: string = 'ehviewer_translation_buttons_visible';
 export const READER_TRANSLATION_BUTTON_VISIBLE_KEY: string = 'ehviewer_reader_translation_button_visible';
+export const DEFAULT_FAVORITE_SLOT_SETTING_KEY: string = 'default_fav_slot';
+export const DEFAULT_FAVORITE_SLOT_ASK: string = 'Ask';
 const HISTORY_INFO_SIZE_OPTIONS: string[] = ['100', '500', '1000', '5000', '10000', '20000'];
 
 export interface SettingEntry {
@@ -38,7 +40,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'thumb_size', value: 'Medium' },
     { key: HISTORY_INFO_SIZE_KEY, value: DEFAULT_HISTORY_INFO_SIZE },
     { key: 'show_jpn_title', value: 'Off' },
-    { key: 'default_fav_slot', value: 'Ask' },
+    { key: DEFAULT_FAVORITE_SLOT_SETTING_KEY, value: DEFAULT_FAVORITE_SLOT_ASK },
     { key: 'show_gallery_pages', value: 'Off' },
     { key: 'show_gallery_rating', value: 'On' },
     { key: 'show_gallery_language', value: 'On' },
@@ -421,6 +423,24 @@ export function normalizeHistoryInfoSizeOption(value: string): string {
 
 export function historyInfoSizeLimitFromValue(value: string): number {
   return Number.parseInt(normalizeHistoryInfoSizeOption(value));
+}
+
+export function parseDefaultFavoriteSlot(value: string): number | null {
+  if (value === DEFAULT_FAVORITE_SLOT_ASK || value.length === 0) {
+    return null;
+  }
+  const parsed = Number.parseInt(value);
+  if (Number.isNaN(parsed) || parsed < -1 || parsed > 9) {
+    return null;
+  }
+  return parsed;
+}
+
+export function defaultFavoriteSlotSettingValue(slot: number | null): string {
+  if (slot === null || slot < -1 || slot > 9) {
+    return DEFAULT_FAVORITE_SLOT_ASK;
+  }
+  return slot.toString();
 }
 
 function cloneEntries(entries: SettingEntry[]): SettingEntry[] {

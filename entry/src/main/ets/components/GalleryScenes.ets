@@ -15,7 +15,14 @@ import { DEFAULT_ADVANCE_SEARCH, EhUrl, FavListUrlBuilder, ListMode, ListUrlBuil
 import { ehFilterStore } from '../services/EhFilterStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
-import { TRANSLATION_BUTTONS_VISIBLE_KEY, ehSettingsStore } from '../services/EhSettingsStore';
+import {
+  DEFAULT_FAVORITE_SLOT_ASK,
+  DEFAULT_FAVORITE_SLOT_SETTING_KEY,
+  TRANSLATION_BUTTONS_VISIBLE_KEY,
+  defaultFavoriteSlotSettingValue,
+  ehSettingsStore,
+  parseDefaultFavoriteSlot
+} from '../services/EhSettingsStore';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { AsyncRequestGate } from '../services/AsyncRequestGate';
 import { gallerySiteCandidates } from '../services/EhGallerySiteFallback';
@@ -45,6 +52,7 @@ import { LANGUAGE_REVISION_KEY, pushActiveBackHandler, runDetailBackHandler } fr
 import { sortedStringKey, toggleStringValue } from '../shared/StringCollectionSupport';
 import { GalleryCardScrollAnchor } from '../shared/GalleryCardScrollAnchor';
 import {
+  themeDividerColor,
   themeFieldBackground,
   themeDangerText,
   themeOnPrimaryActionBackground,
@@ -444,6 +452,11 @@ interface FavoriteCategoryOption {
   count: number;
 }
 
+interface DefaultFavoriteSlotOption {
+  slot: number | null;
+  name: string;
+}
+
 function favoriteCategoryOptions(categories: FavoriteCategoryInfo[], localFavoriteCount: number): FavoriteCategoryOption[] {
   const options: FavoriteCategoryOption[] = [];
   let total = 0;
@@ -466,6 +479,21 @@ function favoriteCategoryOptions(categories: FavoriteCategoryInfo[], localFavori
       favCat: i,
       name: parsed === null ? 'Favorites ' + i.toString() : parsed.name,
       count: parsed === null ? -1 : parsed.count
+    });
+  }
+  return options;
+}
+
+function defaultFavoriteSlotOptions(categories: FavoriteCategoryInfo[]): DefaultFavoriteSlotOption[] {
+  const options: DefaultFavoriteSlotOption[] = [
+    { slot: null, name: 'Let me select' },
+    { slot: -1, name: 'Local Favorites' }
+  ];
+  for (let i = 0; i < 10; i++) {
+    const category = findFavoriteCategory(i, categories);
+    options.push({
+      slot: i,
+      name: category === null ? 'Favorites ' + i.toString() : category.name
     });
   }
   return options;
@@ -502,7 +530,7 @@ export struct FavoriteCategoryDrawer {
   @Prop categories: FavoriteCategoryInfo[] = [];
   @Prop localFavoriteCount: number = -1;
   onSelect: (favCat: number) => void = (_favCat: number) => {};
-  onClose: () => void = () => {};
+  onSettings: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
   private options(): FavoriteCategoryOption[] {
@@ -526,7 +554,7 @@ export struct FavoriteCategoryDrawer {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
 
         Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.xmark'))
+          SymbolGlyph($r('sys.symbol.gearshape'))
             .fontSize(20)
             .fontColor([themeOnPrimaryText()])
         }
@@ -534,7 +562,7 @@ export struct FavoriteCategoryDrawer {
         .height(40)
         .backgroundColor(themeOnPrimaryActionBackground())
         .onClick(() => {
-          this.onClose();
+          this.onSettings();
         })
       }
       .width('100%')
@@ -565,6 +593,131 @@ export struct FavoriteCategoryDrawer {
     .width(288)
     .height('100%')
     .backgroundColor(themeSurface())
+  }
+}
+
+@Component
+struct DefaultFavoriteSlotDialog {
+  @Prop selectedSlot: number | null = null;
+  @Prop categories: FavoriteCategoryInfo[] = [];
+  @Prop panelMaxHeight: number = 680;
+  onSelect: (slot: number | null) => void = (_slot: number | null) => {};
+  onClose: () => void = () => {};
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+
+  private options(): DefaultFavoriteSlotOption[] {
+    return defaultFavoriteSlotOptions(this.categories);
+  }
+
+  private listHeight(): number {
+    const contentHeight = this.options().length * 52;
+    return Math.min(contentHeight, Math.max(156, this.panelMaxHeight - 57));
+  }
+
+  private panelHeight(): number {
+    return this.listHeight() + 57;
+  }
+
+  private optionKey(slot: number | null): string {
+    return slot === null ? 'ask' : slot.toString();
+  }
+
+  build() {
+    Stack({ alignContent: Alignment.Center }) {
+      Column()
+        .width('100%')
+        .height('100%')
+        .backgroundColor(themeScrimColor())
+        .onClick(() => {
+          this.onClose();
+        })
+
+      Column() {
+        Row() {
+          Text(uiText('Default favorites collection'))
+            .fontSize(19)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(themePrimaryText())
+            .layoutWeight(1)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.xmark'))
+              .fontSize(20)
+              .fontColor([themePrimaryText()])
+          }
+          .width(40)
+          .height(40)
+          .backgroundColor(themeFieldBackground())
+          .onClick(() => {
+            this.onClose();
+          })
+        }
+        .width('100%')
+        .height(56)
+        .padding({ left: 18, right: 12 })
+        .alignItems(VerticalAlign.Center)
+
+        Divider().color(themeDividerColor()).strokeWidth(0.5)
+
+        List() {
+          ForEach(this.options(), (item: DefaultFavoriteSlotOption) => {
+            ListItem() {
+              Row() {
+                Column() {
+                  SymbolGlyph(item.slot === null ? $r('sys.symbol.list_number') :
+                    (item.slot === -1 ? $r('sys.symbol.heart') : $r('sys.symbol.folder')))
+                    .fontSize(21)
+                    .fontColor([item.slot === this.selectedSlot ? themeSelectedText() : themeSecondaryText()])
+                }
+                .width(38)
+                .height(38)
+                .borderRadius(9)
+                .justifyContent(FlexAlign.Center)
+                .alignItems(HorizontalAlign.Center)
+                .backgroundColor(item.slot === this.selectedSlot ?
+                  themeSelectedBackgroundLight() : themeSurfaceVariant())
+
+                Text(uiText(item.name))
+                  .fontSize(15)
+                  .fontWeight(item.slot === this.selectedSlot ? FontWeight.Medium : FontWeight.Normal)
+                  .fontColor(item.slot === this.selectedSlot ? themeSelectedText() : themePrimaryText())
+                  .layoutWeight(1)
+                  .margin({ left: 12 })
+                  .maxLines(1)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+                if (item.slot === this.selectedSlot) {
+                  SymbolGlyph($r('sys.symbol.checkmark'))
+                    .fontSize(20)
+                    .fontColor([themeSelectedText()])
+                }
+              }
+              .width('100%')
+              .height(52)
+              .padding({ left: 18, right: 18 })
+              .backgroundColor(item.slot === this.selectedSlot ?
+                themeSelectedBackground() : themeTransparentColor())
+              .onClick(() => {
+                this.onSelect(item.slot);
+              })
+            }
+          }, (item: DefaultFavoriteSlotOption) => this.optionKey(item.slot))
+        }
+        .width('100%')
+        .height(this.listHeight())
+        .cachedCount(4)
+      }
+      .width('78%')
+      .height(this.panelHeight())
+      .constraintSize({ maxWidth: 360, minWidth: 280, maxHeight: this.panelMaxHeight })
+      .backgroundColor(themeSurface())
+      .borderRadius(10)
+      .shadow({ radius: 24, color: themeShadowColor(), offsetX: 0, offsetY: 8 })
+    }
+    .width('100%')
+    .height('100%')
   }
 }
 
@@ -686,7 +839,6 @@ export struct SearchBookmarkDrawer {
   onAdd: () => void = () => {};
   onDelete: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
   onSettings: () => void = () => {};
-  onClose: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
   build() {
@@ -731,17 +883,6 @@ export struct SearchBookmarkDrawer {
           this.onAdd();
         })
 
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.xmark'))
-            .fontSize(20)
-            .fontColor([themeOnPrimaryText()])
-        }
-        .width(40)
-        .height(40)
-        .backgroundColor(themeOnPrimaryActionBackground())
-        .onClick(() => {
-          this.onClose();
-        })
       }
       .width('100%')
       .height(56)
@@ -4011,6 +4152,8 @@ export struct GalleryListContent {
   @State favoriteDrawerVisible: boolean = false;
   @State favoriteDrawerOffsetX: number = 288;
   @State favoriteDrawerOverlayOpacity: number = 0;
+  @State favoriteSettingsDialogVisible: boolean = false;
+  @State defaultFavoriteSlot: number | null = null;
   @State bookmarkDrawerVisible: boolean = false;
   @State bookmarkDrawerOffsetX: number = 288;
   @State bookmarkDrawerOverlayOpacity: number = 0;
@@ -4106,6 +4249,34 @@ export struct GalleryListContent {
     }, 220);
   }
 
+  private openFavoriteSettingsDialog(): void {
+    this.defaultFavoriteSlot = parseDefaultFavoriteSlot(ehSettingsStore.getValue(
+      DEFAULT_FAVORITE_SLOT_SETTING_KEY, DEFAULT_FAVORITE_SLOT_ASK));
+    this.favoriteSettingsDialogVisible = true;
+  }
+
+  private closeFavoriteSettingsDialog(): void {
+    this.favoriteSettingsDialogVisible = false;
+  }
+
+  private selectDefaultFavoriteSlot(slot: number | null): void {
+    this.defaultFavoriteSlot = slot;
+    ehSettingsStore.setValue(DEFAULT_FAVORITE_SLOT_SETTING_KEY, defaultFavoriteSlotSettingValue(slot));
+    this.favoriteSettingsDialogVisible = false;
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSettingsStore.save(context).catch(() => {
+      });
+    }
+  }
+
+  private favoriteSettingsDialogMaxHeight(): number {
+    if (this.viewportHeight <= 0) {
+      return 620;
+    }
+    return Math.max(280, this.viewportHeight - 96);
+  }
+
   private handleOpenFavoriteDrawerPan(event: GestureEvent | undefined): void {
     if (!this.showFavoriteButton || this.favoriteDrawerVisible || event === undefined) {
       return;
@@ -4189,6 +4360,10 @@ export struct GalleryListContent {
 
   private handleContentBack(): boolean {
     if (this.shouldHandleLocalBack()) {
+      if (this.favoriteSettingsDialogVisible) {
+        this.closeFavoriteSettingsDialog();
+        return true;
+      }
       if (this.bookmarkDrawerVisible) {
         this.closeBookmarkDrawer();
         return true;
@@ -5118,8 +5293,8 @@ export struct GalleryListContent {
             this.closeFavoriteDrawer();
             this.onFavoriteCatChange(favCat);
           },
-          onClose: () => {
-            this.closeFavoriteDrawer();
+          onSettings: () => {
+            this.openFavoriteSettingsDialog();
           }
           })
           .position({ x: this.favoriteDrawerLeft(), y: 0 })
@@ -5168,9 +5343,6 @@ export struct GalleryListContent {
           },
           onDelete: (bookmark: SearchBookmarkInfo) => {
             this.onDeleteBookmark(bookmark);
-          },
-          onClose: () => {
-            this.closeBookmarkDrawer();
           }
         })
           .position({ x: this.bookmarkDrawerLeft(), y: 0 })
@@ -5183,6 +5355,22 @@ export struct GalleryListContent {
                 this.closeBookmarkDrawer();
               })
           )
+      }
+
+      if (this.favoriteSettingsDialogVisible) {
+        DefaultFavoriteSlotDialog({
+          selectedSlot: this.defaultFavoriteSlot,
+          categories: this.favoriteCategories,
+          panelMaxHeight: this.favoriteSettingsDialogMaxHeight(),
+          onSelect: (slot: number | null) => {
+            this.selectDefaultFavoriteSlot(slot);
+          },
+          onClose: () => {
+            this.closeFavoriteSettingsDialog();
+          }
+        })
+          .zIndex(30)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }))
       }
 
       // FAB 悬浮按钮
