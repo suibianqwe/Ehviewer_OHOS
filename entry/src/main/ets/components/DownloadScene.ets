@@ -1587,7 +1587,10 @@ export struct DownloadScene {
 
   @Builder
   private downloadThumbnailWaterFlow() {
-    WaterFlow({ scroller: this.downloadScroller }) {
+    WaterFlow({
+      scroller: this.downloadScroller,
+      layoutMode: WaterFlowLayoutMode.SLIDING_WINDOW
+    }) {
       ForEach(this.visibleItems, (item: DownloadInfo, index: number) => {
         FlowItem() {
           this.downloadCardContent(item, index)

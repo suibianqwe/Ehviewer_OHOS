@@ -5000,7 +5000,11 @@ export struct GalleryListContent {
 
   @Builder
   private galleryThumbnailWaterFlow() {
-    WaterFlow({ footer: this.galleryListFooter(), scroller: this.listScroller }) {
+    WaterFlow({
+      footer: this.galleryListFooter(),
+      scroller: this.listScroller,
+      layoutMode: WaterFlowLayoutMode.SLIDING_WINDOW
+    }) {
       ForEach(this.galleries, (gallery: GalleryInfo, index: number) => {
         this.galleryFlowItem(gallery, index, index < this.galleryColumnCount())
       }, (gallery: GalleryInfo) => this.galleryCardKey(gallery))
