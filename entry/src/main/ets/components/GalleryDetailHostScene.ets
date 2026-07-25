@@ -341,8 +341,11 @@ export struct GalleryDetailHostScene {
   @State torrentList: TorrentInfo[] = [];
   @State commentGalleryLink: GalleryDetailLink = createEmptyGalleryDetailLink();
   @State viewportHeight: number = 0;
+  @State detailScrollResetVersion: number = 0;
+  @State detailStartScrollOffset: number = 0;
 
   aboutToAppear(): void {
+    this.detailStartScrollOffset = this.initialDetailScrollOffset;
     this.loadDetailFromLink();
     this.unregisterDetailBackHandler = pushDetailBackHandler(() => this.handleDetailSystemBack());
     this.unsubscribeDownloadStore = ehDownloadStore.subscribe((_items: DownloadInfo[]) => {
@@ -367,6 +370,9 @@ export struct GalleryDetailHostScene {
     if (this.detail.gid === this.detailLink.gid && this.detail.token === this.detailLink.token) {
       return;
     }
+    this.detailStartScrollOffset = 0;
+    this.detailScrollResetVersion++;
+    this.onDetailScrollUpdate(0);
     this.loadDetailFromLink();
   }
 
@@ -1473,7 +1479,8 @@ export struct GalleryDetailHostScene {
         archiverInfo: this.archiverInfo,
         hathArchiveList: this.hathArchiveList,
         torrentList: this.torrentList,
-        initialDetailScrollOffset: this.initialDetailScrollOffset,
+        initialDetailScrollOffset: this.detailStartScrollOffset,
+        detailScrollResetVersion: this.detailScrollResetVersion,
         onBack: this.onBack,
         onShowInfo: () => {
           this.showInfo = true;

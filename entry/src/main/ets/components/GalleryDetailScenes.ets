@@ -52,6 +52,7 @@ export struct GalleryDetailOverlayScene {
   @Prop archiverInfo: ArchiverInfo = { funds: '', options: [] };
   @Prop hathArchiveList: HathArchiveList = { formParamOr: '', options: [] };
   @Prop torrentList: TorrentInfo[] = [];
+  @Prop detailScrollResetVersion: number = 0;
   initialDetailScrollOffset: number = 0;
   onBack: () => void = () => {};
   onShowInfo: () => void = () => {};
@@ -135,6 +136,7 @@ export struct GalleryDetailOverlayScene {
         onLoadMorePreviews: this.onLoadMorePreviews,
         onRefreshDetail: this.onRefreshDetail,
         initialDetailScrollOffset: this.initialDetailScrollOffset,
+        detailScrollResetVersion: this.detailScrollResetVersion,
         onDetailScrollUpdate: this.onDetailScrollUpdate,
         onTagSearch: this.onTagSearch,
         onVoteTag: this.onVoteTag,
@@ -191,6 +193,7 @@ export struct GalleryDetailScene {
   @Prop archiverInfo: ArchiverInfo = { funds: '', options: [] };
   @Prop hathArchiveList: HathArchiveList = { formParamOr: '', options: [] };
   @Prop torrentList: TorrentInfo[] = [];
+  @Prop @Watch('onDetailScrollReset') detailScrollResetVersion: number = 0;
   onBack: () => void = () => {};
   onShowInfo: () => void = () => {};
   onCloseInfo: () => void = () => {};
@@ -239,6 +242,14 @@ export struct GalleryDetailScene {
 
   aboutToDisappear(): void {
     this.unregisterTransientBackHandler();
+  }
+
+  onDetailScrollReset(): void {
+    this.detailScroller.scrollTo({ xOffset: 0, yOffset: 0 });
+    this.onDetailScrollUpdate(0);
+    setTimeout(() => {
+      this.detailScroller.scrollTo({ xOffset: 0, yOffset: 0 });
+    }, 0);
   }
 
   private handleTransientSystemBack(): boolean {
