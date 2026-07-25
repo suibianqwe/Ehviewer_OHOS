@@ -354,7 +354,7 @@ export class EhDownloadManager {
       ehDownloadStore.setStorage(item.gid, downloadDirectory, workerState.fileSize);
       ehDownloadStore.setTransfer(item.gid, 0, 0);
       this.publishStatus('Download finished: ' + item.title);
-      await this.publishProgress(item, total, total);
+      await this.finishProgressNotificationUpdates();
       await publishDownloadResultNotification(context, DOWNLOAD_RESULT_NOTIFICATION_ID, item.title,
         'Download completed');
       this.saveDownloads(context);
@@ -363,6 +363,7 @@ export class EhDownloadManager {
       ehDownloadStore.setTransfer(item.gid, 0, 0);
       this.publishStatus('Download failed: ' + String(error));
       ehAppLog.error(context, 'DownloadManager', 'Download failed: ' + String(error));
+      await this.finishProgressNotificationUpdates();
       await publishDownloadResultNotification(context, DOWNLOAD_RESULT_NOTIFICATION_ID, item.title,
         'Download failed');
       this.saveDownloads(context);
@@ -681,10 +682,11 @@ export class EhDownloadManager {
       transferText += ' · ' + downloadSizeText(speed) + '/s';
     }
     try {
-      const status = total > 0 && finished >= total ? 'Download completed' : 'Downloading';
-      const notificationText: DownloadNotificationText = downloadNotificationText(item.title, status, transferText);
+      const notificationText: DownloadNotificationText =
+        downloadNotificationText(item.title, 'Downloading', transferText);
       const request: notificationManager.NotificationRequest = {
         id: this.notificationId,
+        updateOnly: true,
         content: {
           notificationContentType: notificationManager.ContentType.NOTIFICATION_CONTENT_SYSTEM_LIVE_VIEW,
           systemLiveView: {
@@ -711,6 +713,15 @@ export class EhDownloadManager {
         ehAppLog.warn(this.observerContext, 'DownloadManager', 'Progress notification failed: ' + String(error));
       }
     }
+  }
+
+  private async finishProgressNotificationUpdates(): Promise<void> {
+    this.pendingNotification = null;
+    const deadline = Date.now() + 3000;
+    while (this.notificationPublishPending && Date.now() < deadline) {
+      await wait(10);
+    }
+    this.pendingNotification = null;
   }
 
   private registerContinuousTaskObservers(context: common.UIAbilityContext): void {

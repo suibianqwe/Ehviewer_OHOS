@@ -68,11 +68,20 @@ export async function startPublicDownload(context: common.UIAbilityContext, url:
       }
     };
     const task = await request.agent.create(context, config);
+    let terminalHandled = false;
     const completed = (_progress: request.agent.Progress): void => {
+      if (terminalHandled) {
+        return;
+      }
+      terminalHandled = true;
       const saved = finishPublicDownload(context, task, cachePath, path, completed, failed);
       finishArchiveImport(context, path, directory, notificationId, displayName, saved, gallery, site);
     };
     const failed = (_progress: request.agent.Progress): void => {
+      if (terminalHandled) {
+        return;
+      }
+      terminalHandled = true;
       ehAppLog.error(context, 'PublicDownload', 'Download task failed tid=' + task.tid + ', target=' + path);
       removeFileQuietly(cachePath);
       releasePublicDownloadTask(task, completed, failed);
