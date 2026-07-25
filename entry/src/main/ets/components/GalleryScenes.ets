@@ -78,7 +78,15 @@ import { EhNavBar } from '../components/NavigationComponents';
 import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard, galleryThumbnailAspectRatio } from './GalleryCards';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
-import { SidePanelHeader, SidePanelRow } from './SidePanelComponents';
+import {
+  RightSidePanelLayer,
+  SIDE_PANEL_WIDTH,
+  sidePanelLeft,
+  SidePanelHeader,
+  SidePanelManagerHeader,
+  SidePanelRow,
+  shouldOpenSidePanel
+} from './SidePanelComponents';
 import {
   DOWNLOAD_LABEL_OPTION_ASK,
   DownloadLabelSelectionDialog
@@ -905,36 +913,13 @@ export struct SearchBookmarkManagerScene {
 
   build() {
     Column() {
-      Column()
-        .width('100%')
-        .height(this.statusBarHeight)
-        .backgroundColor(themePrimaryColor())
-
-      Row() {
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.chevron_left'))
-            .fontSize(22)
-            .fontColor([themeOnPrimaryText()])
-        }
-        .width(40)
-        .height(40)
-        .backgroundColor(themeOnPrimaryActionBackground())
-        .onClick(() => {
+      SidePanelManagerHeader({
+        statusBarHeight: this.statusBarHeight,
+        title: 'Bookmark settings',
+        onBack: () => {
           this.onBack();
-        })
-
-        Text(uiText('Bookmark settings'))
-          .fontSize(19)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(themeOnPrimaryText())
-          .layoutWeight(1)
-          .margin({ left: 12 })
-      }
-      .width('100%')
-      .height(56)
-      .padding({ left: 12, right: 12 })
-      .backgroundColor(themePrimaryColor())
-      .alignItems(VerticalAlign.Center)
+        }
+      })
 
       if (this.bookmarks.length === 0) {
         Column({ space: 8 }) {
@@ -1606,18 +1591,20 @@ export struct GalleryListScene {
       this.closeReader();
       return true;
     }
-    if (this.useSplitLayout() && this.activeSplitPane === SPLIT_PANE_FOCUS_RIGHT && this.showDetail) {
-      if (runDetailBackHandler()) {
-        return true;
-      }
-      this.closeDetail();
-      return true;
-    }
-    if (this.useSplitLayout() && this.activeSplitPane === SPLIT_PANE_FOCUS_LEFT) {
+    if (this.useSplitLayout() && this.activeSplitPane === SPLIT_PANE_FOCUS_RIGHT) {
       if (this.showBookmarkManager) {
         this.closeBookmarkManager();
         return true;
       }
+      if (this.showDetail) {
+        if (runDetailBackHandler()) {
+          return true;
+        }
+        this.closeDetail();
+        return true;
+      }
+    }
+    if (this.useSplitLayout() && this.activeSplitPane === SPLIT_PANE_FOCUS_LEFT) {
       if (this.showSearchResultScene) {
         this.closeSearchResultScene();
         return true;
@@ -2376,10 +2363,12 @@ export struct GalleryListScene {
   private openBookmarkManager(): void {
     this.refreshSearchBookmarks();
     this.showBookmarkManager = true;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
   }
 
   private closeBookmarkManager(): void {
     this.showBookmarkManager = false;
+    this.activeSplitPane = this.showDetail ? SPLIT_PANE_FOCUS_RIGHT : SPLIT_PANE_FOCUS_LEFT;
   }
 
   private renameSearchBookmark(bookmark: SearchBookmarkInfo, name: string): void {
@@ -3495,7 +3484,7 @@ export struct GalleryListScene {
               .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
           }
 
-          if (this.showDetail && !this.showReader) {
+          if ((this.showDetail || this.showBookmarkManager) && !this.showReader) {
             SplitPaneDivider({
               x: this.useSplitLayout() ? this.splitListPaneWidth() : 0,
               dividerVisible: this.useSplitLayout(),
@@ -4101,7 +4090,6 @@ export struct GalleryListContent {
   private translationVisibleItems: number[] = [];
   private unregisterActiveBackHandler: () => void = () => {};
   private barHeight: number = 56; // matches EhNavBar body height
-  private readonly FAVORITE_DRAWER_WIDTH: number = 288;
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
   @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
   @StorageProp(TRANSLATION_BUTTONS_VISIBLE_KEY) translationButtonsVisible: boolean = true;
@@ -4150,16 +4138,14 @@ export struct GalleryListContent {
 
   private favoriteDrawerLeft(): number {
     const effectiveWidth = this.effectiveContentWidth();
-    const width = effectiveWidth > 0 ? effectiveWidth :
-      mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value));
-    return Math.max(0, width - this.FAVORITE_DRAWER_WIDTH);
+    return sidePanelLeft(effectiveWidth,
+      mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value)));
   }
 
   private bookmarkDrawerLeft(): number {
     const effectiveWidth = this.effectiveContentWidth();
-    const width = effectiveWidth > 0 ? effectiveWidth :
-      mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value));
-    return Math.max(0, width - this.FAVORITE_DRAWER_WIDTH);
+    return sidePanelLeft(effectiveWidth,
+      mainContentWidthFallbackVp((value: number) => this.getUIContext().px2vp(value)));
   }
 
   private openFavoriteDrawer(): void {
@@ -4179,11 +4165,11 @@ export struct GalleryListContent {
       return;
     }
     this.getUIContext().animateTo({ duration: 200, curve: Curve.EaseIn }, () => {
-      this.favoriteDrawerOffsetX = this.FAVORITE_DRAWER_WIDTH;
+      this.favoriteDrawerOffsetX = SIDE_PANEL_WIDTH;
       this.favoriteDrawerOverlayOpacity = 0;
     });
     setTimeout(() => {
-      if (this.favoriteDrawerOffsetX > this.FAVORITE_DRAWER_WIDTH - 40) {
+      if (this.favoriteDrawerOffsetX > SIDE_PANEL_WIDTH - 40) {
         this.favoriteDrawerVisible = false;
       }
     }, 220);
@@ -4221,10 +4207,7 @@ export struct GalleryListContent {
     if (!this.showFavoriteButton || this.favoriteDrawerVisible || event === undefined) {
       return;
     }
-    const distanceX = event.offsetX;
-    const distanceY = Math.abs(event.offsetY);
-    const velocityX = event.velocityX;
-    if (distanceX < -72 && distanceY < Math.max(48, Math.abs(distanceX) * 0.7) && velocityX <= 80) {
+    if (shouldOpenSidePanel(event)) {
       this.openFavoriteDrawer();
     }
   }
@@ -4233,10 +4216,7 @@ export struct GalleryListContent {
     if (!this.showBookmarkButton || this.showFavoriteButton || this.bookmarkDrawerVisible || event === undefined) {
       return;
     }
-    const distanceX = event.offsetX;
-    const distanceY = Math.abs(event.offsetY);
-    const velocityX = event.velocityX;
-    if (distanceX < -72 && distanceY < Math.max(48, Math.abs(distanceX) * 0.7) && velocityX <= 80) {
+    if (shouldOpenSidePanel(event)) {
       this.openBookmarkDrawer();
     }
   }
@@ -4918,11 +4898,11 @@ export struct GalleryListContent {
       return;
     }
     this.getUIContext().animateTo({ duration: 200, curve: Curve.EaseIn }, () => {
-      this.bookmarkDrawerOffsetX = this.FAVORITE_DRAWER_WIDTH;
+      this.bookmarkDrawerOffsetX = SIDE_PANEL_WIDTH;
       this.bookmarkDrawerOverlayOpacity = 0;
     });
     setTimeout(() => {
-      if (this.bookmarkDrawerOffsetX > this.FAVORITE_DRAWER_WIDTH - 40) {
+      if (this.bookmarkDrawerOffsetX > SIDE_PANEL_WIDTH - 40) {
         this.bookmarkDrawerVisible = false;
       }
     }, 220);
@@ -5208,93 +5188,61 @@ export struct GalleryListContent {
       })
 
       if (this.favoriteDrawerVisible) {
-        Column()
-          .width('100%')
-          .height('100%')
-          .backgroundColor(themeScrimColor())
-          .opacity(this.favoriteDrawerOverlayOpacity)
-          .onClick(() => {
+        RightSidePanelLayer({
+          drawerLeft: this.favoriteDrawerLeft(),
+          drawerOffsetX: this.favoriteDrawerOffsetX,
+          overlayOpacity: this.favoriteDrawerOverlayOpacity,
+          layerZIndex: 15,
+          onClose: () => {
             this.closeFavoriteDrawer();
-          })
-          .gesture(
-            PanGesture({ fingers: 1, direction: PanDirection.Right, distance: 28 })
-              .onActionEnd(() => {
-                this.closeFavoriteDrawer();
-              })
-          )
-          .zIndex(15)
-
-        FavoriteCategoryDrawer({
-          statusBarHeight: this.statusBarVp(),
-          selectedFavCat: this.favoriteCat,
-          categories: this.favoriteCategories,
-          localFavoriteCount: this.favoriteLocalCount,
-          onSelect: (favCat: number) => {
-            this.closeFavoriteDrawer();
-            this.onFavoriteCatChange(favCat);
-          },
-          onSettings: () => {
-            this.openFavoriteSettingsDialog();
           }
+        }) {
+          FavoriteCategoryDrawer({
+            statusBarHeight: this.statusBarVp(),
+            selectedFavCat: this.favoriteCat,
+            categories: this.favoriteCategories,
+            localFavoriteCount: this.favoriteLocalCount,
+            onSelect: (favCat: number) => {
+              this.closeFavoriteDrawer();
+              this.onFavoriteCatChange(favCat);
+            },
+            onSettings: () => {
+              this.openFavoriteSettingsDialog();
+            }
           })
-          .position({ x: this.favoriteDrawerLeft(), y: 0 })
-          .translate({ x: this.favoriteDrawerOffsetX })
-          .zIndex(16)
-          .shadow({ radius: 32, color: themeShadowColor(), offsetX: -8, offsetY: 0 })
-          .gesture(
-            PanGesture({ fingers: 1, direction: PanDirection.Right, distance: 28 })
-              .onActionEnd(() => {
-                this.closeFavoriteDrawer();
-              })
-          )
+        }
       }
 
       if (this.bookmarkDrawerVisible) {
-        Column()
-          .width('100%')
-          .height('100%')
-          .backgroundColor(themeScrimColor())
-          .opacity(this.bookmarkDrawerOverlayOpacity)
-          .onClick(() => {
+        RightSidePanelLayer({
+          drawerLeft: this.bookmarkDrawerLeft(),
+          drawerOffsetX: this.bookmarkDrawerOffsetX,
+          overlayOpacity: this.bookmarkDrawerOverlayOpacity,
+          layerZIndex: 17,
+          onClose: () => {
             this.closeBookmarkDrawer();
-          })
-          .gesture(
-            PanGesture({ fingers: 1, direction: PanDirection.Right, distance: 28 })
-              .onActionEnd(() => {
-                this.closeBookmarkDrawer();
-              })
-          )
-          .zIndex(17)
-
-        SearchBookmarkDrawer({
-          statusBarHeight: this.statusBarVp(),
-          bookmarks: this.bookmarks,
-          onSelect: (bookmark: SearchBookmarkInfo) => {
-            this.closeBookmarkDrawer();
-            this.onSelectBookmark(bookmark);
-          },
-          onAdd: () => {
-            this.closeBookmarkDrawer();
-            this.onAddBookmark();
-          },
-          onSettings: () => {
-            this.closeBookmarkDrawer();
-            this.onBookmarkSettings();
-          },
-          onDelete: (bookmark: SearchBookmarkInfo) => {
-            this.onDeleteBookmark(bookmark);
           }
-        })
-          .position({ x: this.bookmarkDrawerLeft(), y: 0 })
-          .translate({ x: this.bookmarkDrawerOffsetX })
-          .zIndex(18)
-          .shadow({ radius: 32, color: themeShadowColor(), offsetX: -8, offsetY: 0 })
-          .gesture(
-            PanGesture({ fingers: 1, direction: PanDirection.Right, distance: 28 })
-              .onActionEnd(() => {
-                this.closeBookmarkDrawer();
-              })
-          )
+        }) {
+          SearchBookmarkDrawer({
+            statusBarHeight: this.statusBarVp(),
+            bookmarks: this.bookmarks,
+            onSelect: (bookmark: SearchBookmarkInfo) => {
+              this.closeBookmarkDrawer();
+              this.onSelectBookmark(bookmark);
+            },
+            onAdd: () => {
+              this.closeBookmarkDrawer();
+              this.onAddBookmark();
+            },
+            onSettings: () => {
+              this.closeBookmarkDrawer();
+              this.onBookmarkSettings();
+            },
+            onDelete: (bookmark: SearchBookmarkInfo) => {
+              this.onDeleteBookmark(bookmark);
+            }
+          })
+        }
       }
 
       if (this.favoriteSettingsDialogVisible) {

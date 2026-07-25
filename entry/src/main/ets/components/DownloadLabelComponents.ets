@@ -15,7 +15,7 @@ import {
   themeSurfaceVariant,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { SidePanelHeader, SidePanelRow } from './SidePanelComponents';
+import { SidePanelHeader, SidePanelManagerHeader, SidePanelRow } from './SidePanelComponents';
 
 export const DOWNLOAD_LABEL_FILTER_ALL: string = '__all__';
 export const DOWNLOAD_LABEL_OPTION_ASK: string = '__ask__';
@@ -349,42 +349,17 @@ export struct DownloadLabelManagerScene {
 
   build() {
     Column() {
-      Row() {
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.chevron_backward'))
-            .fontSize(22)
-            .fontColor([themePrimaryText()])
-        }
-        .width(42)
-        .height(42)
-        .backgroundColor(themeFieldBackground())
-        .onClick(() => {
+      SidePanelManagerHeader({
+        statusBarHeight: this.statusBarHeight,
+        title: 'Download labels',
+        showAdd: true,
+        onBack: () => {
           this.onBack();
-        })
-
-        Text(uiText('Download labels'))
-          .fontSize(21)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(themePrimaryText())
-          .layoutWeight(1)
-          .margin({ left: 10 })
-
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.plus'))
-            .fontSize(21)
-            .fontColor([themeSelectedText()])
-        }
-        .width(42)
-        .height(42)
-        .backgroundColor(themeSelectedBackground())
-        .onClick(() => {
+        },
+        onAdd: () => {
           this.onAdd();
-        })
-      }
-      .width('100%')
-      .height(this.statusBarHeight + 64)
-      .padding({ top: this.statusBarHeight, left: 14, right: 14 })
-      .alignItems(VerticalAlign.Center)
+        }
+      })
 
       if (this.labels.length === 0) {
         Column({ space: 10 }) {

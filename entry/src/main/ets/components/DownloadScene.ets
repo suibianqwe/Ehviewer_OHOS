@@ -99,6 +99,12 @@ import {
   DownloadLabelSelectionDialog
 } from './DownloadLabelComponents';
 import {
+  RightSidePanelLayer,
+  SIDE_PANEL_WIDTH,
+  sidePanelLeft,
+  shouldOpenSidePanel
+} from './SidePanelComponents';
+import {
   applyTagSuggestionToKeyword,
   buildSearchSuggestions,
   recordSearchHistory,
@@ -203,6 +209,8 @@ export struct DownloadScene {
   @State visibleItems: DownloadInfo[] = [];
   @State selectedDownloadLabel: string = DOWNLOAD_LABEL_FILTER_ALL;
   @State downloadLabelDrawerVisible: boolean = false;
+  @State downloadLabelDrawerOffsetX: number = SIDE_PANEL_WIDTH;
+  @State downloadLabelDrawerOverlayOpacity: number = 0;
   @State downloadLabelManagerVisible: boolean = false;
   @State defaultDownloadLabelDialogVisible: boolean = false;
   @State moveDownloadLabelDialogVisible: boolean = false;
@@ -328,7 +336,7 @@ export struct DownloadScene {
       return true;
     }
     if (this.downloadLabelManagerVisible) {
-      this.downloadLabelManagerVisible = false;
+      this.closeDownloadLabelManager();
       return true;
     }
     if (this.downloadLabelDrawerVisible) {
@@ -390,6 +398,8 @@ export struct DownloadScene {
     this.downloadActionsExpanded = false;
     this.statusFilterPanelVisible = false;
     this.downloadLabelDrawerVisible = false;
+    this.downloadLabelDrawerOffsetX = SIDE_PANEL_WIDTH;
+    this.downloadLabelDrawerOverlayOpacity = 0;
     this.downloadLabelManagerVisible = false;
     this.defaultDownloadLabelDialogVisible = false;
     this.moveDownloadLabelDialogVisible = false;
@@ -582,16 +592,44 @@ export struct DownloadScene {
   }
 
   private openDownloadLabelDrawer(): void {
+    if (this.downloadLabelDrawerVisible || this.downloadLabelManagerVisible) {
+      return;
+    }
     this.downloadActionsExpanded = false;
+    this.downloadLabelDrawerVisible = true;
     this.getUIContext().animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
-      this.downloadLabelDrawerVisible = true;
+      this.downloadLabelDrawerOffsetX = 0;
+      this.downloadLabelDrawerOverlayOpacity = 0.45;
     });
   }
 
   private closeDownloadLabelDrawer(): void {
-    this.getUIContext().animateTo({ duration: 180, curve: Curve.EaseInOut }, () => {
-      this.downloadLabelDrawerVisible = false;
+    if (!this.downloadLabelDrawerVisible) {
+      return;
+    }
+    this.getUIContext().animateTo({ duration: 200, curve: Curve.EaseIn }, () => {
+      this.downloadLabelDrawerOffsetX = SIDE_PANEL_WIDTH;
+      this.downloadLabelDrawerOverlayOpacity = 0;
     });
+    setTimeout(() => {
+      if (this.downloadLabelDrawerOffsetX > SIDE_PANEL_WIDTH - 40) {
+        this.downloadLabelDrawerVisible = false;
+      }
+    }, 220);
+  }
+
+  private downloadLabelDrawerLeft(): number {
+    return sidePanelLeft(this.availableSceneWidth(), this.windowContentWidthVp());
+  }
+
+  private handleOpenDownloadLabelDrawerPan(event: GestureEvent | undefined): void {
+    if (this.downloadLabelDrawerVisible || this.downloadLabelManagerVisible ||
+      this.showReader || this.showTagSearch) {
+      return;
+    }
+    if (shouldOpenSidePanel(event)) {
+      this.openDownloadLabelDrawer();
+    }
   }
 
   private selectDownloadLabel(label: string): void {
@@ -616,6 +654,14 @@ export struct DownloadScene {
   private openDownloadLabelManager(): void {
     this.closeDownloadLabelDrawer();
     this.downloadLabelManagerVisible = true;
+    this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
+    this.syncDownloadContentWidthForCurrentLayout();
+  }
+
+  private closeDownloadLabelManager(): void {
+    this.downloadLabelManagerVisible = false;
+    this.activeSplitPane = this.showDetail ? SPLIT_PANE_FOCUS_RIGHT : SPLIT_PANE_FOCUS_LEFT;
+    this.syncDownloadContentWidthForCurrentLayout();
   }
 
   private openAddDownloadLabel(): void {
@@ -1107,7 +1153,7 @@ export struct DownloadScene {
 
   private useSplitLayout(): boolean {
     return splitPaneModeEnabled() && this.availableSceneWidth() >= SPLIT_PANE_BREAKPOINT &&
-      this.showDetail && !this.showReader && !this.showTagSearch;
+      (this.showDetail || this.downloadLabelManagerVisible) && !this.showReader && !this.showTagSearch;
   }
 
   private availableSceneWidth(): number {
@@ -1820,45 +1866,7 @@ export struct DownloadScene {
   }
 
   build() {
-    if (this.downloadLabelManagerVisible) {
-      Stack({ alignContent: Alignment.Center }) {
-        DownloadLabelManagerScene({
-          labels: this.labels,
-          statusBarHeight: this.statusBarVp(),
-          onBack: () => {
-            this.downloadLabelManagerVisible = false;
-          },
-          onAdd: () => {
-            this.openAddDownloadLabel();
-          },
-          onRename: (label: string) => {
-            this.openRenameDownloadLabel(label);
-          },
-          onDelete: (label: string) => {
-            this.confirmDeleteDownloadLabel(label);
-          },
-          onMove: (from: number, to: number) => {
-            this.moveDownloadLabel(from, to);
-          }
-        })
-
-        if (this.downloadLabelEditDialogVisible) {
-          DownloadLabelEditDialog({
-            title: this.downloadLabelEditingOriginal.length === 0 ? 'New label' : 'Rename label',
-            value: $downloadLabelEditValue,
-            onConfirm: () => {
-              this.confirmDownloadLabelEdit();
-            },
-            onClose: () => {
-              this.downloadLabelEditDialogVisible = false;
-            }
-          })
-            .zIndex(20)
-        }
-      }
-      .width('100%')
-      .height('100%')
-    } else if (this.showTagSearch) {
+    if (this.showTagSearch) {
       GalleryListScene({
         sceneTitle: this.tagSearchTitle.length > 0 ? this.tagSearchTitle : 'Search',
         listMode: 'Search',
@@ -2243,9 +2251,15 @@ export struct DownloadScene {
           this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
         }
       })
+      .gesture(
+        PanGesture({ fingers: 1, direction: PanDirection.Left, distance: 28 })
+          .onActionEnd((event: GestureEvent | undefined) => {
+            this.handleOpenDownloadLabelDrawerPan(event);
+          })
+      )
       .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
 
-      if (this.showDetail) {
+      if (this.showDetail || this.downloadLabelManagerVisible) {
         SplitPaneDivider({
           x: this.useSplitLayout() ? this.splitListPaneWidth() : 0,
           dividerVisible: this.useSplitLayout(),
@@ -2299,36 +2313,67 @@ export struct DownloadScene {
             TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }))
       }
 
-      if (this.downloadLabelDrawerVisible) {
-        Column()
-          .width('100%')
-          .height('100%')
-          .backgroundColor(themeScrimColor())
-          .onClick(() => {
-            this.closeDownloadLabelDrawer();
-          })
-          .zIndex(30)
-          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
-
-        DownloadLabelDrawer({
-          statusBarHeight: this.statusBarVp(),
+      if (this.downloadLabelManagerVisible) {
+        DownloadLabelManagerScene({
           labels: this.labels,
-          items: this.items,
-          selectedLabel: this.selectedDownloadLabel,
-          onSelect: (label: string) => {
-            this.selectDownloadLabel(label);
+          statusBarHeight: this.statusBarVp(),
+          onBack: () => {
+            this.closeDownloadLabelManager();
           },
-          onDefaultLabel: () => {
-            this.openDefaultDownloadLabelDialog();
+          onAdd: () => {
+            this.openAddDownloadLabel();
           },
-          onSettings: () => {
-            this.openDownloadLabelManager();
+          onRename: (label: string) => {
+            this.openRenameDownloadLabel(label);
+          },
+          onDelete: (label: string) => {
+            this.confirmDeleteDownloadLabel(label);
+          },
+          onMove: (from: number, to: number) => {
+            this.moveDownloadLabel(from, to);
           }
         })
-          .align(Alignment.TopEnd)
-          .zIndex(31)
-          .transition(TransitionEffect.move(TransitionEdge.END)
-            .animation({ duration: 220, curve: Curve.EaseOut }))
+          .width(this.useSplitLayout() ? this.splitSidePaneWidth() : '100%')
+          .height('100%')
+          .position({ x: this.useSplitLayout() ? this.splitListPaneWidth() + 1 : 0, y: 0 })
+          .onTouch((event: TouchEvent) => {
+            if (shouldUpdateSplitPaneFocus(event)) {
+              this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
+            }
+          })
+          .zIndex(29)
+          .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
+          .transition(TransitionEffect.asymmetric(
+            TransitionEffect.move(TransitionEdge.END).animation({ duration: 260, curve: Curve.EaseOut }),
+            TransitionEffect.move(TransitionEdge.END).animation({ duration: 220, curve: Curve.EaseIn })))
+      }
+
+      if (this.downloadLabelDrawerVisible) {
+        RightSidePanelLayer({
+          drawerLeft: this.downloadLabelDrawerLeft(),
+          drawerOffsetX: this.downloadLabelDrawerOffsetX,
+          overlayOpacity: this.downloadLabelDrawerOverlayOpacity,
+          layerZIndex: 30,
+          onClose: () => {
+            this.closeDownloadLabelDrawer();
+          }
+        }) {
+          DownloadLabelDrawer({
+            statusBarHeight: this.statusBarVp(),
+            labels: this.labels,
+            items: this.items,
+            selectedLabel: this.selectedDownloadLabel,
+            onSelect: (label: string) => {
+              this.selectDownloadLabel(label);
+            },
+            onDefaultLabel: () => {
+              this.openDefaultDownloadLabelDialog();
+            },
+            onSettings: () => {
+              this.openDownloadLabelManager();
+            }
+          })
+        }
       }
 
       if (this.defaultDownloadLabelDialogVisible) {
@@ -2361,6 +2406,20 @@ export struct DownloadScene {
           },
           onClose: () => {
             this.moveDownloadLabelDialogVisible = false;
+          }
+        })
+          .zIndex(35)
+      }
+
+      if (this.downloadLabelEditDialogVisible) {
+        DownloadLabelEditDialog({
+          title: this.downloadLabelEditingOriginal.length === 0 ? 'New label' : 'Rename label',
+          value: $downloadLabelEditValue,
+          onConfirm: () => {
+            this.confirmDownloadLabelEdit();
+          },
+          onClose: () => {
+            this.downloadLabelEditDialogVisible = false;
           }
         })
           .zIndex(35)
