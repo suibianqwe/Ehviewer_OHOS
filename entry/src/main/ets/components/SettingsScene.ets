@@ -110,6 +110,7 @@ import {
 import {
   IDENTITY_AUTH_LOCKED_KEY,
   LANGUAGE_REVISION_KEY,
+  STATUS_BAR_HEIGHT_KEY,
   notifyGalleryTitleChanged,
   notifyLanguageChanged,
   notifyThemeChanged
@@ -3270,6 +3271,7 @@ export struct SettingsOptionPanel {
   @Prop allowCustomInput: boolean = false;
   @State customValue: string = '';
   @State viewportHeight: number = 640;
+  @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   onBack: () => void = () => {};
   onSelect: (value: string) => void = () => {};
 
@@ -3292,7 +3294,7 @@ export struct SettingsOptionPanel {
   }
 
   private panelChromeHeight(): number {
-    let height = 76;
+    let height = 66;
     if (this.summary.length > 0) {
       height += this.summary.length > 40 ? 56 : 37;
     }
@@ -3303,7 +3305,9 @@ export struct SettingsOptionPanel {
   }
 
   private availablePanelHeight(): number {
-    return Math.max(220, this.viewportHeight - 32);
+    const statusBarHeight = this.getUIContext().px2vp(this.statusBarHeightPx);
+    const verticalMargin = Math.max(16, statusBarHeight + 8);
+    return Math.max(96, this.viewportHeight - verticalMargin * 2);
   }
 
   private panelHeight(): number {
@@ -3386,6 +3390,7 @@ export struct SettingsOptionPanel {
                 .width('100%')
               }
               .width('100%')
+              .height(this.optionRowHeight(index))
               .padding(14)
               .backgroundColor(option === this.value ? themeSelectedBackground() : themeFieldBackground())
               .borderRadius(6)
@@ -3438,7 +3443,7 @@ export struct SettingsOptionPanel {
       .width('86%')
       .height(this.panelHeight())
       .constraintSize({ maxWidth: 420 })
-      .padding(18)
+      .padding({ left: 18, right: 18, top: 18, bottom: 8 })
       .backgroundColor(themeSurface())
       .borderRadius(8)
       .clip(true)
