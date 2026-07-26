@@ -81,6 +81,7 @@ export struct RightSidePanelLayer {
     }
     .width(this.layerWidth > 0 ? this.layerWidth : '100%')
     .height('100%')
+    .clip(true)
     .zIndex(this.layerZIndex)
   }
 }

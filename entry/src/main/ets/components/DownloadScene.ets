@@ -591,7 +591,7 @@ export struct DownloadScene {
   }
 
   private openDownloadLabelDrawer(): void {
-    if (this.downloadLabelDrawerVisible || this.downloadLabelManagerVisible) {
+    if (this.downloadLabelDrawerVisible) {
       return;
     }
     this.downloadActionsExpanded = false;
@@ -634,8 +634,7 @@ export struct DownloadScene {
   }
 
   private handleOpenDownloadLabelDrawerPan(event: GestureEvent | undefined): void {
-    if (this.downloadLabelDrawerVisible || this.downloadLabelManagerVisible ||
-      this.showReader || this.showTagSearch) {
+    if (this.downloadLabelDrawerVisible || this.showReader || this.showTagSearch) {
       return;
     }
     if (shouldOpenSidePanel(event)) {

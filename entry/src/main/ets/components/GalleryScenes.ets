@@ -802,14 +802,14 @@ export struct SearchBookmarkDrawer {
         statusBarHeight: this.statusBarHeight,
         title: 'Bookmarks',
         showFirstAction: true,
-        firstActionIcon: $r('sys.symbol.gearshape'),
+        firstActionIcon: $r('sys.symbol.plus'),
         showSecondAction: true,
-        secondActionIcon: $r('sys.symbol.plus'),
+        secondActionIcon: $r('sys.symbol.gearshape'),
         onFirstAction: () => {
-          this.onSettings();
+          this.onAdd();
         },
         onSecondAction: () => {
-          this.onAdd();
+          this.onSettings();
         }
       })
 
