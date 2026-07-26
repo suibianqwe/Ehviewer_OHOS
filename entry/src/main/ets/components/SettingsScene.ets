@@ -3265,15 +3265,13 @@ struct TranslationPromptPanel {
 export struct SettingsOptionPanel {
   @Prop title: string = '';
   @Prop summary: string = '';
-  @Prop @Watch('resetOptionMeasurements') value: string = '';
-  @Prop @Watch('resetOptionMeasurements') options: string[] = [];
+  @Prop value: string = '';
+  @Prop options: string[] = [];
   @Prop optionDescriptions: string[] = [];
   @Prop allowCustomInput: boolean = false;
   @State customValue: string = '';
   @State viewportHeight: number = 640;
-  @State optionMeasurementRevision: number = 0;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
-  private measuredOptionRowHeights: number[] = [];
   onBack: () => void = () => {};
   onSelect: (value: string) => void = () => {};
 
@@ -3287,29 +3285,13 @@ export struct SettingsOptionPanel {
     return 46;
   }
 
-  private resetOptionMeasurements(): void {
-    this.measuredOptionRowHeights = [];
-    this.optionMeasurementRevision++;
-  }
-
-  private recordOptionRowHeight(index: number, height: number): void {
-    const normalized = Math.ceil(height);
-    if (normalized <= 0 || Number.isNaN(normalized) || this.measuredOptionRowHeights[index] === normalized) {
-      return;
-    }
-    this.measuredOptionRowHeights[index] = normalized;
-    this.optionMeasurementRevision++;
-  }
-
   private optionListContentHeight(): number {
     if (this.options.length === 0) {
       return 64;
     }
     let height = Math.max(0, this.options.length - 1) * 8;
     for (let index = 0; index < this.options.length; index++) {
-      const measuredHeight = this.measuredOptionRowHeights[index];
-      height += measuredHeight !== undefined && measuredHeight > 0 ?
-        measuredHeight : this.estimatedOptionRowHeight(index);
+      height += this.estimatedOptionRowHeight(index);
     }
     return height;
   }
@@ -3414,9 +3396,6 @@ export struct SettingsOptionPanel {
               .padding(14)
               .backgroundColor(option === this.value ? themeSelectedBackground() : themeFieldBackground())
               .borderRadius(6)
-              .onAreaChange((_oldArea: Area, newArea: Area) => {
-                this.recordOptionRowHeight(index, newArea.height as number);
-              })
               .onClick(() => {
                 this.onSelect(option);
               })
