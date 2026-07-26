@@ -3269,8 +3269,50 @@ export struct SettingsOptionPanel {
   @Prop optionDescriptions: string[] = [];
   @Prop allowCustomInput: boolean = false;
   @State customValue: string = '';
+  @State viewportHeight: number = 640;
   onBack: () => void = () => {};
   onSelect: (value: string) => void = () => {};
+
+  private optionRowHeight(index: number): number {
+    if (index < this.optionDescriptions.length && this.optionDescriptions[index].length > 0) {
+      return 72;
+    }
+    return 64;
+  }
+
+  private optionListContentHeight(): number {
+    if (this.options.length === 0) {
+      return 64;
+    }
+    let height = Math.max(0, this.options.length - 1) * 8;
+    for (let index = 0; index < this.options.length; index++) {
+      height += this.optionRowHeight(index);
+    }
+    return height;
+  }
+
+  private panelChromeHeight(): number {
+    let height = 76;
+    if (this.summary.length > 0) {
+      height += this.summary.length > 40 ? 56 : 37;
+    }
+    if (this.allowCustomInput) {
+      height += 52;
+    }
+    return height;
+  }
+
+  private availablePanelHeight(): number {
+    return Math.max(220, this.viewportHeight - 32);
+  }
+
+  private panelHeight(): number {
+    return Math.min(this.availablePanelHeight(), this.panelChromeHeight() + this.optionListContentHeight());
+  }
+
+  private optionListHeight(): number {
+    return Math.max(64, this.panelHeight() - this.panelChromeHeight());
+  }
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
@@ -3355,9 +3397,10 @@ export struct SettingsOptionPanel {
           }, (option: string) => option)
         }
         .width('100%')
-        .height(Math.min(420, Math.max(64, this.options.length * 64)))
-        .constraintSize({ maxHeight: 420 })
+        .height(this.optionListHeight())
+        .constraintSize({ maxHeight: this.optionListContentHeight() })
         .cachedCount(4)
+        .scrollBar(BarState.Auto)
 
         if (this.allowCustomInput) {
           Row({ space: 8 }) {
@@ -3393,10 +3436,12 @@ export struct SettingsOptionPanel {
         }
       }
       .width('86%')
-      .constraintSize({ maxWidth: 420, maxHeight: '82%' })
+      .height(this.panelHeight())
+      .constraintSize({ maxWidth: 420 })
       .padding(18)
       .backgroundColor(themeSurface())
       .borderRadius(8)
+      .clip(true)
       .shadow({
         radius: 18,
         color: '#33000000',
@@ -3407,6 +3452,12 @@ export struct SettingsOptionPanel {
     .width('100%')
     .height('100%')
     .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      const height = newArea.height as number;
+      if (height > 0 && !Number.isNaN(height) && Math.abs(this.viewportHeight - height) >= 1) {
+        this.viewportHeight = height;
+      }
+    })
   }
 }
 

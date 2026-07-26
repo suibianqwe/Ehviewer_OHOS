@@ -405,7 +405,7 @@ export struct GalleryListRow {
         }, (tag: string, index: number) => tag + ':' + index.toString())
       }
       .padding({
-        left: this.isLooseLayout() ? 12 : 8,
+        left: this.isLooseLayout() ? 10 : 6,
         right: this.isLooseLayout() ? 10 : 6
       })
     }
@@ -416,7 +416,7 @@ export struct GalleryListRow {
     .scrollBar(BarState.Off)
     .padding({
       top: this.isLooseLayout() ? 6 : 4,
-      bottom: this.isLooseLayout() ? 8 : 6
+      bottom: this.isLooseLayout() ? 6 : 4
     })
   }
 
