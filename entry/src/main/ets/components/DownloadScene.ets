@@ -216,7 +216,6 @@ export struct DownloadScene {
   @State moveDownloadLabelDialogVisible: boolean = false;
   @State downloadLabelEditDialogVisible: boolean = false;
   @State downloadLabelEditValue: string = '';
-  @State downloadLabelEditingOriginal: string = '';
   @State query: string = '';
   @State searchMode: ListMode = ListMode.Normal;
   @State searchCategory: number = GalleryCategory.None;
@@ -619,7 +618,19 @@ export struct DownloadScene {
   }
 
   private downloadLabelDrawerLeft(): number {
-    return sidePanelLeft(this.availableSceneWidth(), this.windowContentWidthVp());
+    return sidePanelLeft(this.downloadListOverlayWidth(), this.windowContentWidthVp());
+  }
+
+  private downloadListOverlayWidth(): number {
+    return this.useSplitLayout() ? this.splitListPaneWidth() : this.availableSceneWidth();
+  }
+
+  private downloadSideOverlayWidth(): number {
+    return this.useSplitLayout() ? this.splitSidePaneWidth() : this.availableSceneWidth();
+  }
+
+  private downloadSideOverlayLeft(): number {
+    return this.useSplitLayout() ? this.splitListPaneWidth() + 1 : 0;
   }
 
   private handleOpenDownloadLabelDrawerPan(event: GestureEvent | undefined): void {
@@ -665,29 +676,22 @@ export struct DownloadScene {
   }
 
   private openAddDownloadLabel(): void {
-    this.downloadLabelEditingOriginal = '';
     this.downloadLabelEditValue = '';
     this.downloadLabelEditDialogVisible = true;
   }
 
-  private openRenameDownloadLabel(label: string): void {
-    this.downloadLabelEditingOriginal = label;
-    this.downloadLabelEditValue = label;
-    this.downloadLabelEditDialogVisible = true;
-  }
-
-  private confirmDownloadLabelEdit(): void {
-    const value = this.downloadLabelEditValue.trim();
+  private renameDownloadLabel(label: string, rawValue: string): void {
+    const value = rawValue.trim();
     if (value.length === 0) {
       this.showFloatingStatus('Label name cannot be empty');
       return;
     }
-    const selectedWasEditing = this.selectedDownloadLabel === this.downloadLabelEditingOriginal;
-    const defaultWasEditing = defaultDownloadLabelChoice() === this.downloadLabelEditingOriginal;
-    const changed = this.downloadLabelEditingOriginal.length === 0 ?
-      ehDownloadStore.addLabel(value) :
-      ehDownloadStore.renameLabel(this.downloadLabelEditingOriginal, value);
-    if (!changed) {
+    if (value === label) {
+      return;
+    }
+    const selectedWasEditing = this.selectedDownloadLabel === label;
+    const defaultWasEditing = defaultDownloadLabelChoice() === label;
+    if (!ehDownloadStore.renameLabel(label, value)) {
       this.showFloatingStatus('Download label already exists');
       return;
     }
@@ -696,6 +700,19 @@ export struct DownloadScene {
     }
     if (defaultWasEditing) {
       saveDefaultDownloadLabelChoice(value);
+    }
+    this.persistDownloads();
+  }
+
+  private confirmDownloadLabelEdit(): void {
+    const value = this.downloadLabelEditValue.trim();
+    if (value.length === 0) {
+      this.showFloatingStatus('Label name cannot be empty');
+      return;
+    }
+    if (!ehDownloadStore.addLabel(value)) {
+      this.showFloatingStatus('Download label already exists');
+      return;
     }
     this.downloadLabelEditDialogVisible = false;
     this.persistDownloads();
@@ -2316,6 +2333,7 @@ export struct DownloadScene {
       if (this.downloadLabelManagerVisible) {
         DownloadLabelManagerScene({
           labels: this.labels,
+          items: this.items,
           statusBarHeight: this.statusBarVp(),
           onBack: () => {
             this.closeDownloadLabelManager();
@@ -2323,8 +2341,8 @@ export struct DownloadScene {
           onAdd: () => {
             this.openAddDownloadLabel();
           },
-          onRename: (label: string) => {
-            this.openRenameDownloadLabel(label);
+          onRename: (label: string, value: string) => {
+            this.renameDownloadLabel(label, value);
           },
           onDelete: (label: string) => {
             this.confirmDeleteDownloadLabel(label);
@@ -2350,6 +2368,7 @@ export struct DownloadScene {
 
       if (this.downloadLabelDrawerVisible) {
         RightSidePanelLayer({
+          layerWidth: this.downloadListOverlayWidth(),
           drawerLeft: this.downloadLabelDrawerLeft(),
           drawerOffsetX: this.downloadLabelDrawerOffsetX,
           overlayOpacity: this.downloadLabelDrawerOverlayOpacity,
@@ -2391,6 +2410,9 @@ export struct DownloadScene {
             this.defaultDownloadLabelDialogVisible = false;
           }
         })
+          .width(this.downloadListOverlayWidth())
+          .height('100%')
+          .position({ x: 0, y: 0 })
           .zIndex(35)
       }
 
@@ -2408,12 +2430,15 @@ export struct DownloadScene {
             this.moveDownloadLabelDialogVisible = false;
           }
         })
+          .width(this.downloadListOverlayWidth())
+          .height('100%')
+          .position({ x: 0, y: 0 })
           .zIndex(35)
       }
 
       if (this.downloadLabelEditDialogVisible) {
         DownloadLabelEditDialog({
-          title: this.downloadLabelEditingOriginal.length === 0 ? 'New label' : 'Rename label',
+          title: 'New label',
           value: $downloadLabelEditValue,
           onConfirm: () => {
             this.confirmDownloadLabelEdit();
@@ -2422,6 +2447,9 @@ export struct DownloadScene {
             this.downloadLabelEditDialogVisible = false;
           }
         })
+          .width(this.downloadSideOverlayWidth())
+          .height('100%')
+          .position({ x: this.downloadSideOverlayLeft(), y: 0 })
           .zIndex(35)
       }
       }

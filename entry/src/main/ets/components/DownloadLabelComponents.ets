@@ -1,9 +1,9 @@
 import { DownloadInfo, DownloadLabel } from '../services/EhDownloadStore';
 import { LANGUAGE_REVISION_KEY, uiText } from '../shared/EhShared';
 import {
-  themeDangerText,
   themeDividerColor,
   themeFieldBackground,
+  themePageBackground,
   themePrimaryColor,
   themePrimaryText,
   themeScrimColor,
@@ -13,9 +13,15 @@ import {
   themeShadowColor,
   themeSurface,
   themeSurfaceVariant,
+  themeTertiaryText,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { SidePanelHeader, SidePanelManagerHeader, SidePanelRow } from './SidePanelComponents';
+import {
+  SidePanelEditableManagerRow,
+  SidePanelHeader,
+  SidePanelManagerHeader,
+  SidePanelRow
+} from './SidePanelComponents';
 
 export const DOWNLOAD_LABEL_FILTER_ALL: string = '__all__';
 export const DOWNLOAD_LABEL_OPTION_ASK: string = '__ask__';
@@ -339,13 +345,15 @@ export struct DownloadLabelEditDialog {
 @Component
 export struct DownloadLabelManagerScene {
   @Prop labels: DownloadLabel[] = [];
+  @Prop items: DownloadInfo[] = [];
   @Prop statusBarHeight: number = 0;
   onBack: () => void = () => {};
   onAdd: () => void = () => {};
-  onRename: (label: string) => void = (_label: string) => {};
+  onRename: (label: string, value: string) => void = (_label: string, _value: string) => {};
   onDelete: (label: string) => void = (_label: string) => {};
   onMove: (from: number, to: number) => void = (_from: number, _to: number) => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+  @State editingLabel: string = '';
 
   build() {
     Column() {
@@ -364,91 +372,67 @@ export struct DownloadLabelManagerScene {
       if (this.labels.length === 0) {
         Column({ space: 10 }) {
           SymbolGlyph($r('sys.symbol.folder'))
-            .fontSize(38)
-            .fontColor([themeSecondaryText()])
+            .fontSize(34)
+            .fontColor([themeTertiaryText()])
           Text(uiText('No download labels'))
-            .fontSize(17)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(themePrimaryText())
-          Text(uiText('Tap plus to create a download label'))
-            .fontSize(13)
+            .fontSize(16)
             .fontColor(themeSecondaryText())
         }
         .width('100%')
+        .height('100%')
         .layoutWeight(1)
-        .justifyContent(FlexAlign.Start)
+        .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
-        .padding({ top: 72 })
       } else {
-        List({ space: 10 }) {
+        List({ space: 8 }) {
+          ListItem() {
+            Row()
+              .height(0)
+          }
+
           ForEach(this.labels, (item: DownloadLabel) => {
             ListItem() {
-              Row() {
-                SymbolGlyph($r('sys.symbol.line_3_horizontal'))
-                  .fontSize(20)
-                  .fontColor([themeSecondaryText()])
-
-                SymbolGlyph($r('sys.symbol.folder'))
-                  .fontSize(22)
-                  .fontColor([themePrimaryColor()])
-                  .margin({ left: 12 })
-
-                Text(item.label)
-                  .fontSize(16)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(themePrimaryText())
-                  .layoutWeight(1)
-                  .margin({ left: 12 })
-                  .maxLines(1)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  .onClick(() => {
-                    this.onRename(item.label);
-                  })
-
-                Button({ type: ButtonType.Circle, stateEffect: true }) {
-                  SymbolGlyph($r('sys.symbol.gearshape'))
-                    .fontSize(17)
-                    .fontColor([themeSecondaryText()])
-                }
-                .width(38)
-                .height(38)
-                .backgroundColor(themeSurfaceVariant())
-                .onClick(() => {
-                  this.onRename(item.label);
-                })
-
-                Button({ type: ButtonType.Circle, stateEffect: true }) {
-                  SymbolGlyph($r('sys.symbol.trash'))
-                    .fontSize(17)
-                    .fontColor([themeDangerText()])
-                }
-                .width(38)
-                .height(38)
-                .backgroundColor(themeSurfaceVariant())
-                .margin({ left: 6 })
-                .onClick(() => {
+              SidePanelEditableManagerRow({
+                rowId: item.label,
+                value: item.label,
+                placeholder: 'Label name',
+                subtitle: downloadLabelItemCount(this.items, item.label).toString(),
+                editing: this.editingLabel === item.label,
+                onStartEdit: () => {
+                  this.editingLabel = item.label;
+                },
+                onFinishEdit: () => {
+                  if (this.editingLabel === item.label) {
+                    this.editingLabel = '';
+                  }
+                },
+                onCommit: (value: string) => {
+                  this.onRename(item.label, value);
+                },
+                onDelete: () => {
                   this.onDelete(item.label);
-                })
-              }
-              .width('100%')
-              .height(62)
-              .padding({ left: 14, right: 12 })
-              .backgroundColor(themeSurface())
-              .borderRadius(12)
-              .shadow({ radius: 6, color: themeShadowColor(), offsetX: 0, offsetY: 2 })
+                }
+              })
             }
           }, (item: DownloadLabel) => item.label + ':' + item.time.toString())
             .onMove((from: number, to: number) => {
               this.onMove(from, to);
             })
+
+          ListItem() {
+            Row()
+              .height(0)
+          }
         }
         .width('100%')
+        .height('100%')
         .layoutWeight(1)
-        .padding({ left: 14, right: 14, top: 8, bottom: 18 })
+        .padding({ left: 10, right: 10 })
+        .clip(false)
       }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(themeFieldBackground())
+    .backgroundColor(themePageBackground())
   }
 }

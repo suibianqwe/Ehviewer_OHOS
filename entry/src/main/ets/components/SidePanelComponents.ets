@@ -1,5 +1,7 @@
 import { LANGUAGE_REVISION_KEY, uiText } from '../shared/EhShared';
 import {
+  themeDangerText,
+  themeFieldBackground,
   themeOnPrimaryActionBackground,
   themeOnPrimaryText,
   themePrimaryColor,
@@ -10,6 +12,7 @@ import {
   themeSelectedBackgroundLight,
   themeSelectedText,
   themeShadowColor,
+  themeSurface,
   themeSurfaceVariant,
   themeTransparentColor
 } from '../shared/EhTheme';
@@ -32,6 +35,7 @@ export function shouldOpenSidePanel(event: GestureEvent | undefined): boolean {
 
 @Component
 export struct RightSidePanelLayer {
+  @Prop layerWidth: number = 0;
   @Prop drawerLeft: number = 0;
   @Prop drawerOffsetX: number = SIDE_PANEL_WIDTH;
   @Prop overlayOpacity: number = 0;
@@ -75,7 +79,7 @@ export struct RightSidePanelLayer {
           })
       )
     }
-    .width('100%')
+    .width(this.layerWidth > 0 ? this.layerWidth : '100%')
     .height('100%')
     .zIndex(this.layerZIndex)
   }
@@ -283,5 +287,137 @@ export struct SidePanelRow {
     .onClick(() => {
       this.onTap();
     })
+  }
+}
+
+@Component
+export struct SidePanelEditableManagerRow {
+  @Prop rowId: string = '';
+  @Prop @Watch('onValueChanged') value: string = '';
+  @Prop placeholder: string = '';
+  @Prop subtitle: string = '';
+  @Prop editing: boolean = false;
+  onStartEdit: () => void = () => {};
+  onFinishEdit: () => void = () => {};
+  onValueChange: (value: string) => void = (_value: string) => {};
+  onCommit: (value: string) => void = (_value: string) => {};
+  onDelete: () => void = () => {};
+  @State draftValue: string = '';
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+  private finishPending: boolean = false;
+
+  aboutToAppear(): void {
+    this.draftValue = this.value;
+  }
+
+  onValueChanged(): void {
+    this.draftValue = this.value;
+  }
+
+  private inputFocusId(): string {
+    let hash = 0;
+    for (let index = 0; index < this.rowId.length; index++) {
+      hash = ((hash * 31) + this.rowId.charCodeAt(index)) | 0;
+    }
+    return 'side-panel-manager-input-' + Math.abs(hash).toString();
+  }
+
+  private finishEditing(): void {
+    if (this.finishPending) {
+      return;
+    }
+    this.finishPending = true;
+    this.onCommit(this.draftValue);
+    this.onFinishEdit();
+    setTimeout(() => {
+      this.finishPending = false;
+    }, 0);
+  }
+
+  build() {
+    Column({ space: 6 }) {
+      Row({ space: 8 }) {
+        Column() {
+          Text('≡')
+            .fontSize(22)
+            .fontColor(themeSecondaryText())
+        }
+        .width(38)
+        .height(38)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
+        .backgroundColor(themeSurfaceVariant())
+        .borderRadius(19)
+
+        if (this.editing) {
+          TextInput({ text: this.draftValue, placeholder: uiText(this.placeholder) })
+            .id(this.inputFocusId())
+            .defaultFocus(true)
+            .onAppear(() => {
+              focusControl.requestFocus(this.inputFocusId());
+            })
+            .height(38)
+            .layoutWeight(1)
+            .fontSize(14)
+            .fontColor(themePrimaryText())
+            .backgroundColor(themeFieldBackground())
+            .borderRadius(8)
+            .padding({ left: 10, right: 10 })
+            .onChange((value: string) => {
+              this.draftValue = value;
+              this.onValueChange(value);
+            })
+            .onSubmit(() => {
+              this.finishEditing();
+            })
+            .onBlur(() => {
+              this.finishEditing();
+            })
+        } else {
+          Row() {
+            Text(this.draftValue.length > 0 ? this.draftValue : uiText(this.placeholder))
+              .fontSize(14)
+              .fontColor(this.draftValue.length > 0 ? themePrimaryText() : themeSecondaryText())
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+          }
+          .height(38)
+          .layoutWeight(1)
+          .padding({ left: 10, right: 10 })
+          .backgroundColor(themeFieldBackground())
+          .borderRadius(8)
+          .alignItems(VerticalAlign.Center)
+          .onClick(() => {
+            this.onStartEdit();
+          })
+        }
+
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r('sys.symbol.trash'))
+            .fontSize(18)
+            .fontColor([themeDangerText()])
+        }
+        .width(38)
+        .height(38)
+        .backgroundColor(themeSurfaceVariant())
+        .onClick(() => {
+          this.onDelete();
+        })
+      }
+      .width('100%')
+
+      if (this.subtitle.length > 0) {
+        Text(uiText(this.subtitle))
+          .fontSize(12)
+          .fontColor(themeSecondaryText())
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%')
+      }
+    }
+    .width('100%')
+    .padding(12)
+    .backgroundColor(themeSurface())
+    .borderRadius(8)
   }
 }

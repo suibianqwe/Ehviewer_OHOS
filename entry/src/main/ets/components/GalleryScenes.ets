@@ -83,6 +83,7 @@ import {
   SIDE_PANEL_WIDTH,
   sidePanelLeft,
   SidePanelHeader,
+  SidePanelEditableManagerRow,
   SidePanelManagerHeader,
   SidePanelRow,
   shouldOpenSidePanel
@@ -768,10 +769,6 @@ function bookmarkLocationLabel(route: GalleryRoute): string {
   return 'All site';
 }
 
-function bookmarkInputFocusId(id: string): string {
-  return 'bookmark-input-' + id;
-}
-
 function bookmarkSummary(item: SearchBookmarkInfo): string {
   const parts: string[] = [uiText(bookmarkLocationLabel(item.location)), uiText(bookmarkModeLabel(item.mode))];
   if (item.keyword.length > 0) {
@@ -944,28 +941,28 @@ export struct SearchBookmarkManagerScene {
 
           ForEach(this.bookmarks, (item: SearchBookmarkInfo, index: number) => {
             ListItem() {
-              SearchBookmarkManagerRow({
-                item: item,
-                index: index,
-                total: this.bookmarks.length,
+              SidePanelEditableManagerRow({
+                rowId: item.id,
+                value: item.name,
+                placeholder: 'Bookmark name',
+                subtitle: bookmarkSummary(item),
                 editing: this.editingBookmarkId === item.id,
-                onStartEdit: (bookmark: SearchBookmarkInfo) => {
-                  this.editingBookmarkId = bookmark.id;
-                  const focusId = bookmarkInputFocusId(bookmark.id);
-                  setTimeout(() => {
-                    focusControl.requestFocus(focusId);
-                  }, 0);
+                onStartEdit: () => {
+                  this.editingBookmarkId = item.id;
                 },
-                onFinishEdit: (bookmark: SearchBookmarkInfo) => {
-                  if (this.editingBookmarkId === bookmark.id) {
+                onFinishEdit: () => {
+                  if (this.editingBookmarkId === item.id) {
                     this.editingBookmarkId = '';
                   }
                 },
-                onRename: (bookmark: SearchBookmarkInfo, name: string) => {
-                  this.onRename(bookmark, name);
+                onValueChange: (name: string) => {
+                  this.onRename(item, name);
                 },
-                onDelete: (bookmark: SearchBookmarkInfo) => {
-                  this.onDelete(bookmark);
+                onCommit: (name: string) => {
+                  this.onRename(item, name);
+                },
+                onDelete: () => {
+                  this.onDelete(item);
                 }
               })
             }
@@ -990,129 +987,6 @@ export struct SearchBookmarkManagerScene {
     .width('100%')
     .height('100%')
     .backgroundColor(themePageBackground())
-  }
-}
-
-@Component
-export struct SearchBookmarkManagerRow {
-  @Prop @Watch('onItemChanged') item: SearchBookmarkInfo = {
-    id: '',
-    name: '',
-    mode: ListMode.Normal,
-    category: GalleryCategory.None,
-    keyword: '',
-    advanceSearch: -1,
-    minRating: -1,
-    pageFrom: -1,
-    pageTo: -1,
-    filterEnabled: true,
-    location: GalleryRoute.Home,
-    time: 0
-  };
-  @Prop index: number = 0;
-  @Prop total: number = 0;
-  @Prop editing: boolean = false;
-  onStartEdit: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
-  onFinishEdit: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
-  onRename: (bookmark: SearchBookmarkInfo, name: string) => void = (_bookmark: SearchBookmarkInfo, _name: string) => {};
-  onDelete: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
-  @State draftName: string = '';
-  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
-
-  aboutToAppear(): void {
-    this.draftName = this.item.name;
-  }
-
-  onItemChanged(): void {
-    this.draftName = this.item.name;
-  }
-
-  build() {
-    Column({ space: 6 }) {
-      Row({ space: 8 }) {
-        Column() {
-          Text('≡')
-            .fontSize(22)
-            .fontColor(themeSecondaryText())
-        }
-        .width(38)
-        .height(38)
-        .justifyContent(FlexAlign.Center)
-        .alignItems(HorizontalAlign.Center)
-        .backgroundColor(themeSurfaceVariant())
-        .borderRadius(19)
-
-        if (this.editing) {
-          TextInput({ text: this.draftName, placeholder: uiText('Bookmark name') })
-            .id(bookmarkInputFocusId(this.item.id))
-            .defaultFocus(true)
-            .onAppear(() => {
-              focusControl.requestFocus(bookmarkInputFocusId(this.item.id));
-            })
-            .height(38)
-            .layoutWeight(1)
-            .fontSize(14)
-            .fontColor(themePrimaryText())
-            .backgroundColor(themeFieldBackground())
-            .borderRadius(8)
-            .padding({ left: 10, right: 10 })
-            .onChange((value: string) => {
-              this.draftName = value;
-              this.onRename(this.item, value);
-            })
-            .onSubmit(() => {
-              this.onRename(this.item, this.draftName);
-              this.onFinishEdit(this.item);
-            })
-            .onBlur(() => {
-              this.onRename(this.item, this.draftName);
-              this.onFinishEdit(this.item);
-            })
-        } else {
-          Row() {
-            Text(this.draftName.length > 0 ? this.draftName : uiText('Bookmark name'))
-              .fontSize(14)
-              .fontColor(this.draftName.length > 0 ? themePrimaryText() : themeSecondaryText())
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-          }
-          .height(38)
-          .layoutWeight(1)
-          .padding({ left: 10, right: 10 })
-          .backgroundColor(themeFieldBackground())
-          .borderRadius(8)
-          .alignItems(VerticalAlign.Center)
-          .onClick(() => {
-            this.onStartEdit(this.item);
-          })
-        }
-
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.trash'))
-            .fontSize(18)
-            .fontColor([themeDangerText()])
-        }
-        .width(38)
-        .height(38)
-        .backgroundColor(themeSurfaceVariant())
-        .onClick(() => {
-          this.onDelete(this.item);
-        })
-      }
-      .width('100%')
-
-      Text(bookmarkSummary(this.item))
-        .fontSize(12)
-        .fontColor(themeSecondaryText())
-        .maxLines(2)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .width('100%')
-
-    }
-    .width('100%')
-    .padding(12)
-    .backgroundColor(themeSurface())
-    .borderRadius(8)
   }
 }
 
