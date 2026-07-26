@@ -518,6 +518,15 @@ export struct DownloadScene {
     return Math.max(360, this.viewportHeight - this.statusBarVp() - 56 - 28);
   }
 
+  private downloadToolActionsMaxHeight(): number {
+    if (this.viewportHeight <= 0) {
+      return 360;
+    }
+    const reservedTop = this.statusBarVp() + 56 + 8;
+    const reservedBottom = 24 + ACTION_BUBBLE_PRIMARY_SIZE + ACTION_BUBBLE_PRIMARY_GAP;
+    return Math.max(ACTION_BUBBLE_SIZE, this.viewportHeight - reservedTop - reservedBottom);
+  }
+
   private updateToolbarForScrollFrame(scrollOffset: number): number {
     const offset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
     if (offset <= 4) {
@@ -1586,6 +1595,15 @@ export struct DownloadScene {
     this.saveNavigationCache();
   }
 
+  private openRandomDownload(): void {
+    if (this.visibleItems.length === 0) {
+      this.showFloatingStatus('Random needs a loaded gallery list');
+      return;
+    }
+    const index = Math.floor(Math.random() * this.visibleItems.length);
+    this.openDetail(this.visibleItems[index]);
+  }
+
   private closeDetail(): void {
     this.restoreDetailWithFade = false;
     this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
@@ -2094,6 +2112,8 @@ export struct DownloadScene {
               hasSelection: this.downloadSelectionCount() > 0,
               canOperate: this.items.length > 0,
               canJump: this.downloadJumpTotalPages() > 1,
+              canRandom: this.visibleItems.length > 0,
+              maxExpandedHeight: this.downloadToolActionsMaxHeight(),
               showTranslationButton: this.translationButtonsVisible,
               translationEnabled: this.translationEnabled,
               onToggle: () => {
@@ -2113,6 +2133,9 @@ export struct DownloadScene {
               },
               onRestore: () => {
                 this.restoreDownloadedItems();
+              },
+              onRandom: () => {
+                this.openRandomDownload();
               },
               onTranslate: () => {
                 ehTranslationService.setEnabled(!this.translationEnabled);
@@ -2613,6 +2636,8 @@ struct DownloadToolColumn {
   @Prop hasSelection: boolean = false;
   @Prop canOperate: boolean = false;
   @Prop canJump: boolean = false;
+  @Prop canRandom: boolean = false;
+  @Prop maxExpandedHeight: number = 360;
   @Prop showTranslationButton: boolean = true;
   @Prop translationEnabled: boolean = false;
   @State activeActionIndex: number = -1;
@@ -2622,6 +2647,7 @@ struct DownloadToolColumn {
   onStart: () => void = () => {};
   onStop: () => void = () => {};
   onRestore: () => void = () => {};
+  onRandom: () => void = () => {};
   onTranslate: () => void = () => {};
   onSelectAll: () => void = () => {};
   onLabel: () => void = () => {};
@@ -2638,41 +2664,180 @@ struct DownloadToolColumn {
     if (!this.expanded) {
       return 0;
     }
-    const baseCount = this.showTranslationButton ? 6 : 5;
-    return this.hasSelection ? baseCount + 4 : baseCount;
+    if (this.hasSelection) {
+      return this.showTranslationButton ? 8 : 7;
+    }
+    return this.showTranslationButton ? 7 : 6;
   }
 
   private primaryIndex(): number {
     return this.actionCount();
   }
 
-  private expandedActionsHeight(): number {
+  private maxActionRows(): number {
+    return Math.max(1, Math.floor((Math.max(ACTION_BUBBLE_SIZE, this.maxExpandedHeight) +
+      ACTION_BUBBLE_GAP) / (ACTION_BUBBLE_SIZE + ACTION_BUBBLE_GAP)));
+  }
+
+  private actionColumnCount(): number {
     const count = this.actionCount();
     if (count <= 0) {
       return 0;
     }
-    return count * ACTION_BUBBLE_SIZE + (count - 1) * ACTION_BUBBLE_GAP;
+    return Math.ceil(count / this.maxActionRows());
   }
 
-  private hitActionIndex(y: number): number {
+  private actionRows(): number {
+    return Math.min(this.actionCount(), this.maxActionRows());
+  }
+
+  private expandedActionsHeight(): number {
+    const rows = this.actionRows();
+    if (rows <= 0) {
+      return 0;
+    }
+    return rows * ACTION_BUBBLE_SIZE + (rows - 1) * ACTION_BUBBLE_GAP;
+  }
+
+  private expandedActionsWidth(): number {
+    const columns = this.actionColumnCount();
+    if (columns <= 0) {
+      return 0;
+    }
+    return columns * ACTION_BUBBLE_SIZE + (columns - 1) * ACTION_BUBBLE_GAP;
+  }
+
+  private toolbarWidth(): number {
+    return Math.max(ACTION_BUBBLE_PRIMARY_SIZE, this.expandedActionsWidth());
+  }
+
+  private visualActionColumns(): number[] {
+    const columns: number[] = [];
+    for (let column = this.actionColumnCount() - 1; column >= 0; column--) {
+      columns.push(column);
+    }
+    return columns;
+  }
+
+  private actionIndexesForColumn(column: number): number[] {
+    const indexes: number[] = [];
+    const start = column * this.maxActionRows();
+    const end = Math.min(this.actionCount(), start + this.maxActionRows());
+    for (let index = start; index < end; index++) {
+      indexes.push(index);
+    }
+    return indexes;
+  }
+
+  private actionKind(index: number): string {
+    if (this.hasSelection) {
+      if (index === 0) return 'select';
+      if (index === 1) return 'label';
+      if (index === 2) return 'export';
+      if (index === 3) return 'delete';
+      if (index === 4) return 'jump';
+      if (index === 5) return 'start';
+      if (index === 6) return 'stop';
+      if (index === 7 && this.showTranslationButton) return 'translate';
+      return '';
+    }
+    if (index === 0) return 'status';
+    if (index === 1) return 'jump';
+    if (index === 2) return 'start';
+    if (index === 3) return 'stop';
+    if (index === 4) return 'scan';
+    if (index === 5 && this.showTranslationButton) return 'translate';
+    if (index === (this.showTranslationButton ? 6 : 5)) return 'random';
+    return '';
+  }
+
+  private actionLabel(index: number): string {
+    const kind = this.actionKind(index);
+    if (kind === 'select') return uiText('Select all');
+    if (kind === 'label') return uiText('Label');
+    if (kind === 'export') return uiText('Export');
+    if (kind === 'delete') return uiText('Delete');
+    if (kind === 'status') return uiText('Status');
+    if (kind === 'jump') return uiText('Jump');
+    if (kind === 'start') return uiText('Start all');
+    if (kind === 'stop') return uiText('Stop all');
+    if (kind === 'scan') return uiText('Scan');
+    if (kind === 'translate') {
+      return this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles');
+    }
+    if (kind === 'random') return uiText('Random');
+    return '';
+  }
+
+  private actionIcon(index: number): Resource {
+    const kind = this.actionKind(index);
+    if (kind === 'select') return $r('sys.symbol.checkmark_circle');
+    if (kind === 'label') return $r('sys.symbol.folder');
+    if (kind === 'export') return $r('sys.symbol.archivebox');
+    if (kind === 'delete') return $r('sys.symbol.trash');
+    if (kind === 'status') return $r('sys.symbol.funnel');
+    if (kind === 'jump') return $r('sys.symbol.chevron_forward');
+    if (kind === 'start' || kind === 'random') return $r('sys.symbol.play_fill');
+    if (kind === 'stop') return $r('sys.symbol.pause_fill');
+    if (kind === 'scan') return $r('sys.symbol.play_arrow_triangle_2_circlepath');
+    if (kind === 'translate') return $r('sys.symbol.translate');
+    return $r('sys.symbol.more');
+  }
+
+  private actionEnabled(index: number): boolean {
+    const kind = this.actionKind(index);
+    if (kind === 'jump') {
+      return this.canJump;
+    }
+    if (kind === 'stop') {
+      return this.canOperate;
+    }
+    if (kind === 'random') {
+      return this.canRandom;
+    }
+    return kind.length > 0;
+  }
+
+  private hitActionIndex(x: number, y: number): number {
     const count = this.actionCount();
     if (count > 0) {
       const actionsHeight = this.expandedActionsHeight();
-      if (y >= 0 && y <= actionsHeight) {
+      const actionsWidth = this.expandedActionsWidth();
+      const actionsLeft = this.toolbarWidth() - actionsWidth;
+      if (x >= actionsLeft && x <= this.toolbarWidth() && y >= 0 && y <= actionsHeight) {
+        const relativeX = x - actionsLeft;
+        const visualColumn = Math.floor(relativeX / (ACTION_BUBBLE_SIZE + ACTION_BUBBLE_GAP));
+        const columnLeft = visualColumn * (ACTION_BUBBLE_SIZE + ACTION_BUBBLE_GAP);
         const row = Math.floor(y / (ACTION_BUBBLE_SIZE + ACTION_BUBBLE_GAP));
         const rowTop = row * (ACTION_BUBBLE_SIZE + ACTION_BUBBLE_GAP);
-        if (row >= 0 && row < count && y >= rowTop && y <= rowTop + ACTION_BUBBLE_SIZE) {
-          return row;
+        if (visualColumn >= 0 && visualColumn < this.actionColumnCount() &&
+          relativeX <= columnLeft + ACTION_BUBBLE_SIZE &&
+          row >= 0 && row < this.maxActionRows() && y >= rowTop && y <= rowTop + ACTION_BUBBLE_SIZE) {
+          const logicalColumn = this.actionColumnCount() - visualColumn - 1;
+          const index = logicalColumn * this.maxActionRows() + row;
+          return index < count ? index : -1;
         }
       }
       const primaryTop = actionsHeight + ACTION_BUBBLE_PRIMARY_GAP;
-      if (y >= primaryTop && y <= primaryTop + ACTION_BUBBLE_PRIMARY_SIZE) {
+      const primaryLeft = this.toolbarWidth() - ACTION_BUBBLE_PRIMARY_SIZE;
+      if (x >= primaryLeft && x <= this.toolbarWidth() &&
+        y >= primaryTop && y <= primaryTop + ACTION_BUBBLE_PRIMARY_SIZE) {
         return this.primaryIndex();
       }
       return -1;
     }
-    if (y >= 0 && y <= ACTION_BUBBLE_PRIMARY_SIZE) {
+    if (x >= 0 && x <= ACTION_BUBBLE_PRIMARY_SIZE && y >= 0 && y <= ACTION_BUBBLE_PRIMARY_SIZE) {
       return this.primaryIndex();
+    }
+    return -1;
+  }
+
+  private touchX(event: TouchEvent): number {
+    if (event.touches.length > 0) {
+      return event.touches[0].x;
+    }
+    if (event.changedTouches.length > 0) {
+      return event.changedTouches[0].x;
     }
     return -1;
   }
@@ -2681,11 +2846,14 @@ struct DownloadToolColumn {
     if (event.touches.length > 0) {
       return event.touches[0].y;
     }
+    if (event.changedTouches.length > 0) {
+      return event.changedTouches[0].y;
+    }
     return -1;
   }
 
   private updateActiveAction(event: TouchEvent): void {
-    const index = this.hitActionIndex(this.touchY(event));
+    const index = this.hitActionIndex(this.touchX(event), this.touchY(event));
     if (index !== this.activeActionIndex) {
       this.getUIContext().animateTo({ duration: 120, curve: Curve.EaseOut }, () => {
         this.activeActionIndex = index;
@@ -2701,27 +2869,29 @@ struct DownloadToolColumn {
       this.toggleExpanded();
       return;
     }
-    const baseIndex = this.hasSelection ? index - 4 : index;
-    if (this.hasSelection && index === 0) {
+    const kind = this.actionKind(index);
+    if (kind === 'select') {
       this.onSelectAll();
-    } else if (this.hasSelection && index === 1) {
+    } else if (kind === 'label') {
       this.onLabel();
-    } else if (this.hasSelection && index === 2) {
+    } else if (kind === 'export') {
       this.onExportZip();
-    } else if (this.hasSelection && index === 3) {
+    } else if (kind === 'delete') {
       this.onDelete();
-    } else if (baseIndex === 0) {
+    } else if (kind === 'status') {
       this.onStatus();
-    } else if (baseIndex === 1) {
+    } else if (kind === 'jump' && this.canJump) {
       this.onJump();
-    } else if (baseIndex === 2) {
+    } else if (kind === 'start') {
       this.onStart();
-    } else if (baseIndex === 3 && this.canOperate) {
+    } else if (kind === 'stop' && this.canOperate) {
       this.onStop();
-    } else if (baseIndex === 4) {
+    } else if (kind === 'scan') {
       this.onRestore();
-    } else if (baseIndex === 5 && this.showTranslationButton) {
+    } else if (kind === 'translate') {
       this.onTranslate();
+    } else if (kind === 'random' && this.canRandom) {
+      this.onRandom();
     }
   }
 
@@ -2729,99 +2899,50 @@ struct DownloadToolColumn {
     if (event.type === TouchType.Down || event.type === TouchType.Move) {
       this.updateActiveAction(event);
     } else if (event.type === TouchType.Up) {
-      const index = this.hitActionIndex(this.touchY(event));
+      const index = this.hitActionIndex(this.touchX(event), this.touchY(event));
+      const fallbackIndex = index >= 0 ? index : this.activeActionIndex;
       this.activeActionIndex = -1;
-      this.triggerAction(index);
+      this.triggerAction(fallbackIndex);
     } else if (event.type === TouchType.Cancel) {
       this.activeActionIndex = -1;
     }
   }
 
-  private baseActionIndex(index: number): number {
-    return this.hasSelection ? index + 4 : index;
+  @Builder
+  private actionBubble(index: number) {
+    ActionBubble({
+      label: this.actionLabel(index),
+      symbolIcon: this.actionIcon(index),
+      isEnabled: this.actionEnabled(index),
+      checked: this.actionKind(index) === 'translate' && this.translationEnabled,
+      active: this.activeActionIndex === index,
+      directTap: false
+    })
   }
 
   build() {
     Column() {
       if (this.expanded) {
-        Column({ space: 8 }) {
-          if (this.hasSelection) {
-            ActionBubble({
-              label: uiText('Select all'),
-              symbolIcon: $r('sys.symbol.checkmark_circle'),
-              isEnabled: true,
-              active: this.activeActionIndex === 0,
-              directTap: false
-            })
-            ActionBubble({
-              label: uiText('Label'),
-              symbolIcon: $r('sys.symbol.folder'),
-              isEnabled: true,
-              active: this.activeActionIndex === 1,
-              directTap: false
-            })
-            ActionBubble({
-              label: uiText('Export'),
-              symbolIcon: $r('sys.symbol.archivebox'),
-              isEnabled: true,
-              active: this.activeActionIndex === 2,
-              directTap: false
-            })
-            ActionBubble({
-              label: uiText('Delete'),
-              symbolIcon: $r('sys.symbol.trash'),
-              isEnabled: true,
-              active: this.activeActionIndex === 3,
-              directTap: false
-            })
-          }
-          ActionBubble({
-            label: uiText('Status'),
-            symbolIcon: $r('sys.symbol.funnel'),
-            isEnabled: true,
-            active: this.activeActionIndex === this.baseActionIndex(0),
-            directTap: false
-          })
-          ActionBubble({
-            label: uiText('Jump'),
-            symbolIcon: $r('sys.symbol.chevron_forward'),
-            isEnabled: this.canJump,
-            active: this.activeActionIndex === this.baseActionIndex(1),
-            directTap: false
-          })
-          ActionBubble({
-            label: uiText('Start all'),
-            symbolIcon: $r('sys.symbol.play_fill'),
-            isEnabled: true,
-            active: this.activeActionIndex === this.baseActionIndex(2),
-            directTap: false
-          })
-          ActionBubble({
-            label: uiText('Stop all'),
-            symbolIcon: $r('sys.symbol.pause_fill'),
-            isEnabled: this.canOperate,
-            active: this.activeActionIndex === this.baseActionIndex(3),
-            directTap: false
-          })
-          ActionBubble({
-            label: uiText('Scan'),
-            symbolIcon: $r('sys.symbol.play_arrow_triangle_2_circlepath'),
-            isEnabled: true,
-            active: this.activeActionIndex === this.baseActionIndex(4),
-            directTap: false
-          })
-          if (this.showTranslationButton) {
-            ActionBubble({
-              label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
-              symbolIcon: $r('sys.symbol.translate'),
-              isEnabled: true,
-              checked: this.translationEnabled,
-              active: this.activeActionIndex === this.baseActionIndex(5),
-              directTap: false
-            })
-          }
+        Row({ space: ACTION_BUBBLE_GAP }) {
+          ForEach(this.visualActionColumns(), (column: number) => {
+            Column({ space: ACTION_BUBBLE_GAP }) {
+              ForEach(this.actionIndexesForColumn(column), (index: number) => {
+                Row() {
+                  this.actionBubble(index)
+                }
+                .width(ACTION_BUBBLE_SIZE)
+                .height(ACTION_BUBBLE_SIZE)
+                .justifyContent(FlexAlign.End)
+                .clip(false)
+              }, (index: number) => index.toString())
+            }
+            .width(ACTION_BUBBLE_SIZE)
+            .alignItems(HorizontalAlign.End)
+          }, (column: number) => column.toString())
         }
-        .alignItems(HorizontalAlign.End)
+        .width(this.expandedActionsWidth())
+        .height(this.expandedActionsHeight())
+        .alignItems(VerticalAlign.Top)
         .margin({ bottom: 10 })
         .transition(TransitionEffect.OPACITY
           .combine(TransitionEffect.translate({ y: 12 }))
@@ -2837,6 +2958,7 @@ struct DownloadToolColumn {
         directTap: false
       })
     }
+    .width(this.toolbarWidth())
     .alignItems(HorizontalAlign.End)
     .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
     .onTouch((event: TouchEvent) => {
