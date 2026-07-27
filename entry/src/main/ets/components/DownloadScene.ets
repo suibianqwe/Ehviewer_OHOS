@@ -2444,9 +2444,13 @@ export struct DownloadScene {
           labels: this.labels,
           selectedLabel: '',
           includeAsk: false,
+          showAddButton: true,
           panelMaxHeight: Math.max(320, this.viewportHeight - 24),
           onSelect: (label: string) => {
             this.moveSelectedDownloadsToLabel(label);
+          },
+          onAdd: () => {
+            this.openAddDownloadLabel();
           },
           onClose: () => {
             this.moveDownloadLabelDialogVisible = false;
@@ -2469,10 +2473,14 @@ export struct DownloadScene {
             this.downloadLabelEditDialogVisible = false;
           }
         })
-          .width(this.downloadSideOverlayWidth())
+          .width(this.moveDownloadLabelDialogVisible ?
+            this.downloadListOverlayWidth() : this.downloadSideOverlayWidth())
           .height('100%')
-          .position({ x: this.downloadSideOverlayLeft(), y: 0 })
-          .zIndex(35)
+          .position({
+            x: this.moveDownloadLabelDialogVisible ? 0 : this.downloadSideOverlayLeft(),
+            y: 0
+          })
+          .zIndex(36)
       }
       }
       .width('100%')

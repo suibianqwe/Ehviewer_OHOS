@@ -124,9 +124,11 @@ export struct DownloadLabelSelectionDialog {
   @Prop selectedLabel: string = '';
   @Prop includeAsk: boolean = false;
   @Prop showRemember: boolean = false;
+  @Prop showAddButton: boolean = false;
   @Prop panelMaxHeight: number = 680;
   onSelect: (label: string) => void = (_label: string) => {};
   onRememberChange: (remember: boolean) => void = (_remember: boolean) => {};
+  onAdd: () => void = () => {};
   onClose: () => void = () => {};
   @State remember: boolean = false;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
@@ -197,6 +199,22 @@ export struct DownloadLabelSelectionDialog {
             .layoutWeight(1)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+          if (this.showAddButton) {
+            Button({ type: ButtonType.Circle, stateEffect: true }) {
+              SymbolGlyph($r('sys.symbol.plus'))
+                .fontSize(20)
+                .fontColor([themePrimaryText()])
+            }
+            .width(40)
+            .height(40)
+            .margin({ right: 8 })
+            .backgroundColor(themeFieldBackground())
+            .accessibilityText(uiText('New label'))
+            .onClick(() => {
+              this.onAdd();
+            })
+          }
 
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.xmark'))
