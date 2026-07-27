@@ -1791,6 +1791,7 @@ export struct DownloadScene {
     Row()
       .width('100%')
       .height(this.downloadCardGap())
+      .backgroundColor(themePageBackground())
   }
 
   @Builder
@@ -1840,6 +1841,7 @@ export struct DownloadScene {
   @Builder
   private downloadThumbnailWaterFlow() {
     WaterFlow({
+      footer: this.downloadListEdgeSpacer(),
       scroller: this.downloadScroller,
       layoutMode: WaterFlowLayoutMode.SLIDING_WINDOW
     }) {
@@ -1862,8 +1864,7 @@ export struct DownloadScene {
     .cachedCount(4)
     .padding({
       left: this.downloadContentPadding(),
-      right: this.downloadContentPadding(),
-      bottom: this.downloadCardGap()
+      right: this.downloadContentPadding()
     })
     .translate({ y: this.downloadContentStartOffset() })
     .onAreaChange((_oldArea: Area, newArea: Area) => {
