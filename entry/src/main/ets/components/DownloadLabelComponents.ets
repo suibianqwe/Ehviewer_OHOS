@@ -345,7 +345,6 @@ export struct DownloadLabelEditDialog {
 @Component
 export struct DownloadLabelManagerScene {
   @Prop labels: DownloadLabel[] = [];
-  @Prop items: DownloadInfo[] = [];
   @Prop statusBarHeight: number = 0;
   onBack: () => void = () => {};
   onAdd: () => void = () => {};
@@ -396,7 +395,6 @@ export struct DownloadLabelManagerScene {
                 rowId: item.label,
                 value: item.label,
                 placeholder: 'Label name',
-                subtitle: downloadLabelItemCount(this.items, item.label).toString(),
                 editing: this.editingLabel === item.label,
                 onStartEdit: () => {
                   this.editingLabel = item.label;

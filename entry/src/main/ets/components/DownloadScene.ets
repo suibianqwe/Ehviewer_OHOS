@@ -2355,7 +2355,6 @@ export struct DownloadScene {
       if (this.downloadLabelManagerVisible) {
         DownloadLabelManagerScene({
           labels: this.labels,
-          items: this.items,
           statusBarHeight: this.statusBarVp(),
           onBack: () => {
             this.closeDownloadLabelManager();
