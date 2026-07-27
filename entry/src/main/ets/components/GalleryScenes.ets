@@ -2810,6 +2810,7 @@ export struct GalleryListScene {
         this.favoriteLocalCount = ehLocalFavoritesStore.count();
         this.galleries = this.galleries.filter((item: GalleryInfo) => item.gid !== gallery.gid);
         this.statusText = 'Removed from local favorites';
+        this.showFloatingStatus(this.statusText);
         this.renderVersion++;
         this.saveListCache();
       }).catch((error: Error) => {
@@ -2826,6 +2827,7 @@ export struct GalleryListScene {
         if (result.ok) {
           this.galleries = this.galleries.filter((item: GalleryInfo) => item.gid !== gallery.gid);
           this.saveListCache();
+          this.showFloatingStatus(result.message);
         }
         this.renderVersion++;
       }).catch((error: Error) => {

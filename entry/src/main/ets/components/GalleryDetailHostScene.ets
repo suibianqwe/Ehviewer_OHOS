@@ -770,15 +770,37 @@ export struct GalleryDetailHostScene {
       return;
     }
     if (this.detail.favoriteSlot === -1) {
+      const context = getAbilityContext();
+      if (context === undefined) {
+        this.detailStatus = 'Local favorites unavailable';
+        this.renderVersion++;
+        return;
+      }
+      const targetGid = this.detail.gid;
       this.favoriteBusy = true;
       this.detailStatus = 'Removing from local favorites...';
       this.optimisticFavorite = false;
       this.applyDetailFavoriteState(false, -2);
       this.renderVersion++;
-      this.removeLocalFavoriteIfNeeded();
-      this.detailStatus = 'Removed from local favorites';
-      this.favoriteBusy = false;
-      this.renderVersion++;
+      ehLocalFavoritesStore.ensureLoaded(context).then(() => {
+        ehLocalFavoritesStore.removeGallery(targetGid);
+        this.favoriteBusy = false;
+        if (this.detail.gid !== targetGid) {
+          return;
+        }
+        this.detailStatus = 'Removed from local favorites';
+        this.showToast(this.detailStatus);
+        this.renderVersion++;
+      }).catch((error: Error) => {
+        this.favoriteBusy = false;
+        if (this.detail.gid !== targetGid) {
+          return;
+        }
+        this.detailStatus = 'Favorite failed: ' + error.message;
+        this.optimisticFavorite = true;
+        this.applyDetailFavoriteState(true, -1);
+        this.renderVersion++;
+      });
       return;
     }
     this.detailStatus = 'Removing from favorites...';
@@ -793,6 +815,9 @@ export struct GalleryDetailHostScene {
         this.optimisticFavorite = result.ok ? result.nowFavorited : wasFavorited;
         this.applyDetailFavoriteState(this.optimisticFavorite, this.optimisticFavorite ? 0 : -2);
         this.favoriteBusy = false;
+        if (result.ok) {
+          this.showToast(result.message);
+        }
         this.renderVersion++;
       }).catch((error: Error) => {
         this.detailStatus = 'Favorite failed: ' + error.message;
@@ -869,6 +894,7 @@ export struct GalleryDetailHostScene {
       this.applyDetailFavoriteState(true, -1);
       this.detailStatus = 'Added to local favorites';
       this.favoriteBusy = false;
+      this.showToast(this.detailStatus);
       this.renderVersion++;
     }).catch((error: Error) => {
       this.detailStatus = 'Favorite failed: ' + error.message;
@@ -889,6 +915,9 @@ export struct GalleryDetailHostScene {
         this.optimisticFavorite = result.ok ? result.nowFavorited : false;
         this.applyDetailFavoriteState(this.optimisticFavorite, this.optimisticFavorite ? slot : -2);
         this.favoriteBusy = false;
+        if (result.ok) {
+          this.showToast(result.message);
+        }
         this.renderVersion++;
       }).catch((error: Error) => {
         this.detailStatus = 'Favorite failed: ' + error.message;
@@ -954,6 +983,7 @@ export struct GalleryDetailHostScene {
         nextDetail.ratingCount = result.ratingCount > 0 ? result.ratingCount : nextDetail.ratingCount;
         nextDetail.rated = true;
         this.detail = nextDetail;
+        this.showToast('Rating submitted');
       }
       this.renderVersion++;
     }).catch((error: Error) => {

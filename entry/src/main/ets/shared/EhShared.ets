@@ -890,7 +890,9 @@ export function zhText(text: string): string {
     case 'Move down': return '下移';
     case 'Local Favorites': return '本地收藏';
     case 'Add to favorites': return '添加到收藏';
+    case 'Added to favorites': return '已添加到收藏';
     case 'Remove from favorites': return '移出收藏';
+    case 'Removed from favorites': return '已移出收藏';
     case 'Remember favorite collection': return '记住收藏夹';
     case 'Choose favorite collection': return '选择收藏夹';
     case 'Adding to local favorites...': return '正在添加到本地收藏...';
@@ -1291,6 +1293,7 @@ export function zhText(text: string): string {
     case 'Export': return '导出';
     case 'Import': return '导入';
     case 'Rate': return '评分';
+    case 'Rating submitted': return '评分成功';
     case 'Cancel': return '取消';
     case 'Delete history': return '删除历史';
     case 'Submit': return '提交';
