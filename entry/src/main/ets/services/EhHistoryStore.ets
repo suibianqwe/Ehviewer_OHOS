@@ -52,6 +52,7 @@ interface StoredGalleryTagGroup {
 interface StoredReadPosition {
   gid?: number;
   pageIndex?: number;
+  progressUpdatedAt?: number;
   updatedAt?: number;
   readerTranslations?: ReaderPageTranslation[];
 }
@@ -59,8 +60,16 @@ interface StoredReadPosition {
 interface ReadPosition {
   gid: number;
   pageIndex: number;
+  progressUpdatedAt: number;
   updatedAt: number;
   readerTranslations: ReaderPageTranslation[];
+}
+
+export interface ReadingProgressBackupInfo {
+  gid: number;
+  pageIndex: number;
+  progressUpdatedAt: number;
+  updatedAt: number;
 }
 
 interface HistoryBackupFile {
@@ -167,22 +176,86 @@ export class EhHistoryStore {
     return -1;
   }
 
+  getReadingProgressCount(): number {
+    return this.readPositions.length;
+  }
+
+  getReadingProgressBackupItems(): ReadingProgressBackupInfo[] {
+    const result: ReadingProgressBackupInfo[] = [];
+    for (let i = 0; i < this.readPositions.length; i++) {
+      const position = this.readPositions[i];
+      const item: ReadingProgressBackupInfo = {
+        gid: position.gid,
+        pageIndex: position.pageIndex,
+        progressUpdatedAt: position.progressUpdatedAt,
+        updatedAt: position.updatedAt
+      };
+      result.push(item);
+    }
+    return result;
+  }
+
+  importReadingProgressBackupItems(items: ReadingProgressBackupInfo[]): number {
+    if (!Array.isArray(items)) {
+      return 0;
+    }
+    let changedCount = 0;
+    for (let i = 0; i < items.length; i++) {
+      const incoming = normalizeReadingProgressBackupInfo(items[i]);
+      if (incoming === null) {
+        continue;
+      }
+      const localIndex = this.findReadPositionIndex(incoming.gid);
+      let changed = false;
+      if (localIndex < 0) {
+        this.readPositions.push({
+          gid: incoming.gid,
+          pageIndex: incoming.pageIndex,
+          progressUpdatedAt: incoming.progressUpdatedAt,
+          updatedAt: incoming.updatedAt,
+          readerTranslations: []
+        });
+        changed = true;
+      } else {
+        const local = this.readPositions[localIndex];
+        if (incoming.progressUpdatedAt > local.progressUpdatedAt ||
+          (incoming.progressUpdatedAt === local.progressUpdatedAt && incoming.pageIndex > local.pageIndex)) {
+          local.pageIndex = incoming.pageIndex;
+          local.progressUpdatedAt = incoming.progressUpdatedAt;
+          changed = true;
+        }
+        local.updatedAt = Math.max(local.updatedAt, incoming.updatedAt);
+      }
+      if (changed) {
+        changedCount++;
+      }
+    }
+    if (changedCount > 0) {
+      this.queueSave();
+    }
+    return changedCount;
+  }
+
   setReadPage(gid: number, pageIndex: number): void {
     if (gid <= 0 || pageIndex < 0) {
       return;
     }
     for (let i = 0; i < this.readPositions.length; i++) {
       if (this.readPositions[i].gid === gid) {
+        const now = Date.now();
         this.readPositions[i].pageIndex = pageIndex;
-        this.readPositions[i].updatedAt = Date.now();
+        this.readPositions[i].progressUpdatedAt = now;
+        this.readPositions[i].updatedAt = now;
         this.queueSave();
         return;
       }
     }
+    const now = Date.now();
     this.readPositions.push({
       gid: gid,
       pageIndex: pageIndex,
-      updatedAt: Date.now(),
+      progressUpdatedAt: now,
+      updatedAt: now,
       readerTranslations: []
     });
     this.queueSave();
@@ -217,6 +290,7 @@ export class EhHistoryStore {
     this.readPositions.push({
       gid: gid,
       pageIndex: translation.pageIndex,
+      progressUpdatedAt: 0,
       updatedAt: Date.now(),
       readerTranslations: [cloneReaderPageTranslation(translation)]
     });
@@ -239,6 +313,15 @@ export class EhHistoryStore {
     }
     next.sort((left: ReaderPageTranslation, right: ReaderPageTranslation) => left.pageIndex - right.pageIndex);
     position.readerTranslations = next;
+  }
+
+  private findReadPositionIndex(gid: number): number {
+    for (let i = 0; i < this.readPositions.length; i++) {
+      if (this.readPositions[i].gid === gid) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   async load(context: common.UIAbilityContext): Promise<void> {
@@ -370,6 +453,7 @@ export class EhHistoryStore {
       positions.push({
         gid: this.readPositions[i].gid,
         pageIndex: this.readPositions[i].pageIndex,
+        progressUpdatedAt: this.readPositions[i].progressUpdatedAt,
         updatedAt: this.readPositions[i].updatedAt,
         readerTranslations: cloneReaderPageTranslations(this.readPositions[i].readerTranslations)
       });
@@ -537,12 +621,31 @@ function galleryInfoToStored(item: GalleryInfo): StoredGalleryInfo {
 }
 
 function storedToReadPosition(item: StoredReadPosition): ReadPosition {
+  const updatedAt = typeof item.updatedAt === 'number' ? item.updatedAt : 0;
   return {
     gid: typeof item.gid === 'number' ? item.gid : 0,
     pageIndex: typeof item.pageIndex === 'number' ? item.pageIndex : -1,
-    updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : 0,
+    progressUpdatedAt: typeof item.progressUpdatedAt === 'number' ? item.progressUpdatedAt : updatedAt,
+    updatedAt: updatedAt,
     readerTranslations: cloneReaderPageTranslations(item.readerTranslations)
   };
+}
+
+function normalizeReadingProgressBackupInfo(value: ReadingProgressBackupInfo): ReadingProgressBackupInfo | null {
+  if (value === undefined || value === null || typeof value.gid !== 'number' || value.gid <= 0 ||
+    typeof value.pageIndex !== 'number' || value.pageIndex < 0) {
+    return null;
+  }
+  const updatedAt = typeof value.updatedAt === 'number' && value.updatedAt >= 0 ? value.updatedAt : 0;
+  const progressUpdatedAt = typeof value.progressUpdatedAt === 'number' && value.progressUpdatedAt >= 0 ?
+    value.progressUpdatedAt : updatedAt;
+  const result: ReadingProgressBackupInfo = {
+    gid: value.gid,
+    pageIndex: value.pageIndex,
+    progressUpdatedAt: progressUpdatedAt,
+    updatedAt: Math.max(updatedAt, progressUpdatedAt)
+  };
+  return result;
 }
 
 function cloneGalleryInfos(items: GalleryInfo[]): GalleryInfo[] {

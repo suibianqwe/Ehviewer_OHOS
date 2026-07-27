@@ -2,6 +2,7 @@ import { ehBookmarkStore } from '../services/EhBookmarkStore';
 import { ehDownloadStore } from '../services/EhDownloadStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
 import { ehCommentBlacklistStore } from '../services/EhCommentBlacklistStore';
+import { ehHistoryStore } from '../services/EhHistoryStore';
 import {
   WifiMigrationDataKind,
   WifiMigrationPeer,
@@ -31,7 +32,7 @@ import { AppSubToolbar } from './NavigationComponents';
 export struct WifiMigrationPanel {
   onBack: () => void = () => {};
   @State role: WifiMigrationRole = WifiMigrationRole.Server;
-  @State dataKind: WifiMigrationDataKind = WifiMigrationDataKind.Bookmarks;
+  @State dataKind: WifiMigrationDataKind = WifiMigrationDataKind.Progress;
   @State phase: WifiMigrationPhase = WifiMigrationPhase.Idle;
   @State status: string = 'Wi-Fi transfer is idle';
   @State peerAddress: string = '';
@@ -46,6 +47,7 @@ export struct WifiMigrationPanel {
   @State transferredBytes: number = 0;
   @State totalBytes: number = 0;
   @State bookmarkCount: number = 0;
+  @State progressCount: number = 0;
   @State favoriteCount: number = 0;
   @State downloadCount: number = 0;
   @State blacklistCount: number = 0;
@@ -64,7 +66,8 @@ export struct WifiMigrationPanel {
     Promise.all([
       ehBookmarkStore.ensureLoaded(context),
       ehLocalFavoritesStore.ensureLoaded(context),
-      ehCommentBlacklistStore.ensureLoaded(context)
+      ehCommentBlacklistStore.ensureLoaded(context),
+      ehHistoryStore.ensureLoaded(context)
     ]).then(() => {
       this.refreshCounts();
     }).catch(() => {
@@ -100,6 +103,7 @@ export struct WifiMigrationPanel {
   }
 
   private refreshCounts(): void {
+    this.progressCount = ehHistoryStore.getReadingProgressCount();
     this.bookmarkCount = ehBookmarkStore.getItems().length;
     this.favoriteCount = ehLocalFavoritesStore.count();
     this.downloadCount = ehDownloadStore.getItems().length;
@@ -187,6 +191,7 @@ export struct WifiMigrationPanel {
   }
 
   private selectedCount(): number {
+    if (this.dataKind === WifiMigrationDataKind.Progress) return this.progressCount;
     if (this.dataKind === WifiMigrationDataKind.Bookmarks) return this.bookmarkCount;
     if (this.dataKind === WifiMigrationDataKind.Favorites) return this.favoriteCount;
     if (this.dataKind === WifiMigrationDataKind.Blacklist) return this.blacklistCount;
@@ -448,6 +453,8 @@ export struct WifiMigrationPanel {
                   .fontColor(themePrimaryColor())
               }
               .width('100%')
+              this.dataCard(WifiMigrationDataKind.Progress, 'Reading progress',
+                'Merge the latest reading position on both devices', this.progressCount, $r('sys.symbol.book'))
               this.dataCard(WifiMigrationDataKind.Bookmarks, 'Search bookmarks',
                 'Saved quick searches and their search options', this.bookmarkCount, $r('sys.symbol.bookmark'))
               this.dataCard(WifiMigrationDataKind.Favorites, 'Local favorites',
@@ -513,6 +520,10 @@ export struct WifiMigrationPanel {
               .lineHeight(19)
               .fontColor(themeSecondaryText())
             Text(uiText('Keep both transfer pages open until completion. Download transfer includes metadata and downloaded image files.'))
+              .fontSize(12)
+              .lineHeight(19)
+              .fontColor(themeSecondaryText())
+            Text(uiText('Reading progress is merged in both directions; the newer position is kept on both devices.'))
               .fontSize(12)
               .lineHeight(19)
               .fontColor(themeSecondaryText())

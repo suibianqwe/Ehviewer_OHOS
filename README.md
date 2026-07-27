@@ -10,8 +10,8 @@
 
 请在 [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases) 下载最新的未签名 HAP，可使用 [小白调试助手](https://github.com/likuai2010/auto-installer) 安装。
 
-- 当前版本：`0.5.6`
-- 安装包：[`EhViewer_OHOS_0.5.6.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.5.6/EhViewer_OHOS_0.5.6.hap)
+- 当前版本：`0.5.7`
+- 安装包：[`EhViewer_OHOS_0.5.7.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.5.7/EhViewer_OHOS_0.5.7.hap)
 - 目标 API：`26.0.0`
 - 兼容 API：`6.0.0(20)`
 
@@ -34,7 +34,7 @@ API 20 起可安装；低于 API 23 的设备会自动跳过不兼容的 SNI 域
 - 翻译：支持列表标题、详情标题、评论及漫画 OCR 翻译，可选网页翻译、DeepSeek、OpenAI、Gemini 和自定义兼容 API。
 - 下载：支持统一优先级并行调度、通知进度与速度、隐私通知、状态筛选、多选管理、恢复下载项和 ZIP 导入/导出。
 - 宽屏：支持可拖动分割线的左右分栏，列表、详情和设置页面保持独立路由与焦点返回逻辑。
-- 迁移：支持 JSON/安卓数据库导入、原 EhViewer 下载目录恢复，以及包含图片文件和评论黑名单的 Wi-Fi 直连传输。
+- 迁移：支持 JSON/安卓数据库导入、原 EhViewer 下载目录恢复，以及阅读进度双向同步、图片文件和评论黑名单的 Wi-Fi 直连传输。
 - 个性化：支持简体中文、繁体中文、明暗主题、多种主题色、标签翻译、过滤规则、评论黑名单和隐私保护。
 - 网络：支持系统/HTTP/SOCKS5 代理、DoH、内置 Hosts、SNI 域名前置、直连检测和网络诊断。
 

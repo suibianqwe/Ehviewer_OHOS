@@ -1633,8 +1633,8 @@ export function zhText(text: string): string {
     case 'Restore settings and local data from a supported backup file': return '从支持的备份文件恢复设置和本地数据';
     case 'Wi-Fi server/client': return 'Wi-Fi 服务器/客户端';
     case 'Wi-Fi Direct transfer': return 'Wi-Fi 直连传输';
-    case 'Transfer bookmarks, local favorites, comment blacklist, downloads and image files directly between nearby devices':
-      return '在附近设备间直连传输搜索书签、本地收藏、评论黑名单、下载记录和图片文件';
+    case 'Transfer reading progress, bookmarks, local favorites, comment blacklist, downloads and image files directly between nearby devices':
+      return '在附近设备间同步阅读进度，并直连传输搜索书签、本地收藏、评论黑名单、下载记录和图片文件';
     case 'Send data': return '发送数据';
     case 'Create a Wi-Fi Direct group': return '创建 Wi-Fi 直连群组';
     case 'Act as the migration server': return '作为迁移发送端';
@@ -1649,6 +1649,8 @@ export function zhText(text: string): string {
     case 'Port': return '端口';
     case 'Connected device': return '已连接设备';
     case 'Data to send': return '要发送的数据';
+    case 'Reading progress': return '阅读进度';
+    case 'Merge the latest reading position on both devices': return '双向合并两台设备的最新阅读位置';
     case 'Search bookmarks': return '搜索书签';
     case 'Saved quick searches and their search options': return '已保存的快捷搜索及搜索条件';
     case 'Local favorites': return '本地收藏';
@@ -1678,6 +1680,8 @@ export function zhText(text: string): string {
       return '在发送设备选择数据并开始发送；在接收设备扫描并选择发送设备。';
     case 'Keep both transfer pages open until completion. Download transfer includes metadata and downloaded image files.':
       return '传输完成前请保持两端页面开启；下载传输包含元数据和已下载图片文件。';
+    case 'Reading progress is merged in both directions; the newer position is kept on both devices.':
+      return '阅读进度会双向合并，两台设备最终都会保留较新的阅读位置。';
     case 'The direct group and data server stop automatically when this page is closed.':
       return '关闭此页面后，直连群组和数据服务器会自动停止。';
     case 'Compatible with the original Android app': return '兼容原 Android 应用';
@@ -1714,6 +1718,7 @@ export function zhText(text: string): string {
     case 'Sending downloaded images': return '正在发送已下载图片';
     case 'Receiving downloaded images': return '正在接收已下载图片';
     case 'Transfer completed': return '传输完成';
+    case 'Reading progress synchronized': return '阅读进度同步完成';
     case 'Received and saved transfer data': return '已接收并保存传输数据';
     case 'Waiting for page confirmation': return '等待接收端确认当前分页';
     case 'The receiving device did not confirm the data in time': return '接收设备未在规定时间内确认数据';
@@ -3266,7 +3271,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       'Save settings, history, downloads, filters and comment blacklist to a JSON file', 'Export', 'action'));
     rows.push(staticSettingsRow('import_data', 'Import data', 'Restore settings and local data from a supported backup file', 'Import', 'action'));
     rows.push(staticSettingsRow('wifi_transfer', 'Wi-Fi Direct transfer',
-      'Transfer bookmarks, local favorites, comment blacklist, downloads and image files directly between nearby devices', '',
+      'Transfer reading progress, bookmarks, local favorites, comment blacklist, downloads and image files directly between nearby devices', '',
       'navigation'));
     return rows;
   }

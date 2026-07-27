@@ -9,11 +9,12 @@ import { ehDownloadFileStore } from './EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from './EhDownloadStore';
 import { LocalFavoriteBackupInfo, ehLocalFavoritesStore } from './EhLocalFavoritesStore';
 import { CommentBlacklistBackupEntry, ehCommentBlacklistStore } from './EhCommentBlacklistStore';
+import { ReadingProgressBackupInfo, ehHistoryStore } from './EhHistoryStore';
 
 export const WIFI_MIGRATION_PORT: number = 54321;
 
 const TRANSFER_PROTOCOL: string = 'ehviewer-ohos-wifi-direct';
-const TRANSFER_VERSION: number = 2;
+const TRANSFER_VERSION: number = 3;
 const PACKET_METADATA: string = 'metadata';
 const PACKET_FILE: string = 'file';
 const PACKET_COMPLETE: string = 'complete';
@@ -30,6 +31,7 @@ export enum WifiMigrationRole {
 }
 
 export enum WifiMigrationDataKind {
+  Progress = 'progress',
   Bookmarks = 'bookmarks',
   Favorites = 'favorites',
   Blacklist = 'blacklist',
@@ -75,6 +77,7 @@ type WifiMigrationObserver = (snapshot: WifiMigrationSnapshot) => void;
 interface WifiTransferMetadata {
   version: number;
   kind: WifiMigrationDataKind;
+  readingProgress?: ReadingProgressBackupInfo[];
   bookmarks?: SearchBookmarkBackupInfo[];
   favorites?: LocalFavoriteBackupInfo[];
   blacklist?: CommentBlacklistBackupEntry[];
@@ -227,7 +230,7 @@ export class WifiMigrationSession {
     this.setState(WifiMigrationPhase.Starting, 'Preparing transfer data');
     await this.prepareStores();
     const plan = createTransferPlan(this.context, kind, this.encoder);
-    if (plan.itemCount <= 0 && plan.fileCount <= 0) {
+    if (kind !== WifiMigrationDataKind.Progress && plan.itemCount <= 0 && plan.fileCount <= 0) {
       this.setState(WifiMigrationPhase.Idle, 'No data is available for this transfer');
       return;
     }
@@ -354,7 +357,9 @@ export class WifiMigrationSession {
   private async prepareStores(): Promise<void> {
     await Promise.all([
       ehBookmarkStore.ensureLoaded(this.context),
-      ehLocalFavoritesStore.ensureLoaded(this.context)
+      ehLocalFavoritesStore.ensureLoaded(this.context),
+      ehCommentBlacklistStore.ensureLoaded(this.context),
+      ehHistoryStore.ensureLoaded(this.context)
     ]);
   }
 
@@ -605,6 +610,11 @@ export class WifiMigrationSession {
       this.awaitingAck = false;
       this.clearAckTimer();
       const sent = this.outgoingPackets[this.outgoingIndex];
+      if (sent.header.type === PACKET_COMPLETE && sent.header.kind === WifiMigrationDataKind.Progress &&
+        payload.length > 0) {
+        const merged = await this.importReadingProgressMetadata(payload);
+        this.transferredItems = Math.max(this.senderItemCount, merged);
+      }
       this.transferredBytes += sent.header.payloadLength;
       if (sent.header.type === PACKET_FILE && isLastFileChunk(sent.header)) {
         this.transferredFiles++;
@@ -612,8 +622,11 @@ export class WifiMigrationSession {
       this.outgoingIndex++;
       this.currentPage = this.outgoingIndex;
       if (this.outgoingIndex >= this.outgoingPackets.length) {
-        this.transferredItems = this.senderItemCount;
-        this.setState(WifiMigrationPhase.Completed, 'Transfer completed');
+        if (sent.header.kind !== WifiMigrationDataKind.Progress) {
+          this.transferredItems = this.senderItemCount;
+        }
+        this.setState(WifiMigrationPhase.Completed, sent.header.kind === WifiMigrationDataKind.Progress ?
+          'Reading progress synchronized' : 'Transfer completed');
       } else {
         this.emit();
         await this.sendCurrentPacket();
@@ -640,12 +653,17 @@ export class WifiMigrationSession {
       await this.finishIncomingDownloads();
     }
     this.transferredBytes += payload.length;
-    await this.sendAck(header.sequence);
+    let ackPayload = new Uint8Array(0);
+    if (header.type === PACKET_COMPLETE && header.kind === WifiMigrationDataKind.Progress) {
+      ackPayload = createReadingProgressMetadataBytes(this.encoder);
+    }
+    await this.sendAck(header.sequence, ackPayload);
     if (version !== this.sessionVersion || this.stopped) {
       return;
     }
     if (header.type === PACKET_COMPLETE) {
-      this.setState(WifiMigrationPhase.Completed, 'Received and saved transfer data');
+      this.setState(WifiMigrationPhase.Completed, header.kind === WifiMigrationDataKind.Progress ?
+        'Reading progress synchronized' : 'Received and saved transfer data');
     } else {
       this.emit();
     }
@@ -675,6 +693,9 @@ export class WifiMigrationSession {
       await ehCommentBlacklistStore.save(this.context);
       return count;
     }
+    if (metadata.kind === WifiMigrationDataKind.Progress) {
+      return await this.importReadingProgress(metadata);
+    }
     const labels = metadata.downloadLabels === undefined ? [] : metadata.downloadLabels;
     const downloads = metadata.downloads === undefined ? [] : metadata.downloads;
     let count = 0;
@@ -698,6 +719,22 @@ export class WifiMigrationSession {
     }
     metadata.downloads = normalizedDownloads;
     await ehDownloadStore.save(this.context);
+    return count;
+  }
+
+  private async importReadingProgressMetadata(payload: Uint8Array): Promise<number> {
+    const metadata = JSON.parse(this.decoder.decodeToString(payload)) as WifiTransferMetadata;
+    if (metadata.version !== TRANSFER_VERSION || metadata.kind !== WifiMigrationDataKind.Progress) {
+      throw new Error('Unsupported reading progress data');
+    }
+    return await this.importReadingProgress(metadata);
+  }
+
+  private async importReadingProgress(metadata: WifiTransferMetadata): Promise<number> {
+    await ehHistoryStore.ensureLoaded(this.context);
+    const items = metadata.readingProgress === undefined ? [] : metadata.readingProgress;
+    const count = ehHistoryStore.importReadingProgressBackupItems(items);
+    await ehHistoryStore.save(this.context);
     return count;
   }
 
@@ -763,18 +800,18 @@ export class WifiMigrationSession {
     }, ACK_TIMEOUT_MS);
   }
 
-  private async sendAck(sequence: number): Promise<void> {
+  private async sendAck(sequence: number, payload: Uint8Array): Promise<void> {
     const header: WifiTransferPacketHeader = {
       protocol: TRANSFER_PROTOCOL,
       version: TRANSFER_VERSION,
       type: PACKET_ACK,
       sequence: sequence,
-      payloadLength: 0,
+      payloadLength: payload.length,
       totalPackets: this.totalPages,
       totalBytes: this.totalBytes,
       totalFiles: this.totalFiles
     };
-    await this.sendPacket(header, new Uint8Array(0));
+    await this.sendPacket(header, payload);
   }
 
   private async sendPacket(header: WifiTransferPacketHeader, payload: Uint8Array): Promise<void> {
@@ -896,7 +933,10 @@ function createTransferPlan(context: common.UIAbilityContext, kind: WifiMigratio
   const metadata: WifiTransferMetadata = { version: TRANSFER_VERSION, kind: kind };
   let itemCount = 0;
   const files: TransferImageFile[] = [];
-  if (kind === WifiMigrationDataKind.Bookmarks) {
+  if (kind === WifiMigrationDataKind.Progress) {
+    metadata.readingProgress = ehHistoryStore.getReadingProgressBackupItems();
+    itemCount = metadata.readingProgress.length;
+  } else if (kind === WifiMigrationDataKind.Bookmarks) {
     metadata.bookmarks = ehBookmarkStore.getBackupItems();
     itemCount = metadata.bookmarks.length;
   } else if (kind === WifiMigrationDataKind.Favorites) {
@@ -954,6 +994,15 @@ function createTransferPlan(context: common.UIAbilityContext, kind: WifiMigratio
     packets[i].header.kind = kind;
   }
   return { packets: packets, itemCount: itemCount, fileCount: files.length, totalBytes: totalBytes };
+}
+
+function createReadingProgressMetadataBytes(encoder: util.TextEncoder): Uint8Array {
+  const metadata: WifiTransferMetadata = {
+    version: TRANSFER_VERSION,
+    kind: WifiMigrationDataKind.Progress,
+    readingProgress: ehHistoryStore.getReadingProgressBackupItems()
+  };
+  return encoder.encodeInto(JSON.stringify(metadata));
 }
 
 function baseHeader(type: string, sequence: number, payloadLength: number): WifiTransferPacketHeader {

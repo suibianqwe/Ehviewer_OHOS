@@ -1,5 +1,5 @@
-export const EH_APP_VERSION_NAME: string = '0.5.6';
-export const EH_APP_VERSION_CODE: number = 606;
+export const EH_APP_VERSION_NAME: string = '0.5.7';
+export const EH_APP_VERSION_CODE: number = 607;
 export const EH_TARGET_PLATFORM: string = 'HarmonyOS 26.0.0 / compatible API 6.0.0(20)';
 export const EH_AUTHOR_NAME: string = 'suibianqwe';
 export const EH_AUTHOR_URL: string = 'https://github.com/suibianqwe';
