@@ -1,0 +1,6 @@
+{
+  "name": "libreaderhdr.so",
+  "types": "./Index.d.ts",
+  "version": "1.0.0",
+  "description": "EhViewer reader SDR to HDR native bridge"
+}

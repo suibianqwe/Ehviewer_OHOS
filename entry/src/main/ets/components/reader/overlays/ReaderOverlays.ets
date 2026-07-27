@@ -352,6 +352,7 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuReadingDirection: string = 'Right to left';
   @Prop menuPageScaling: string = 'Fit screen';
   @Prop menuAdaptiveDualPage: boolean = false;
+  @Prop menuSdrToHdrEnabled: boolean = false;
   @Prop menuStartPosition: string = 'Top right';
   @Prop menuAutoTransferTime: string = '5s';
   @Prop menuKeepScreenOn: boolean = false;
@@ -372,6 +373,7 @@ export struct ReaderSettingsMenuOverlay {
   onReadingDirectionChange: (value: string) => void = (_value: string) => {};
   onPageScalingChange: (value: string) => void = (_value: string) => {};
   onAdaptiveDualPageChange: (value: boolean) => void = (_value: boolean) => {};
+  onSdrToHdrChange: (value: boolean) => void = (_value: boolean) => {};
   onStartPositionChange: (value: string) => void = (_value: string) => {};
   onAutoTransferTimeChange: (value: string) => void = (_value: string) => {};
   onKeepScreenOnChange: (value: boolean) => void = (_value: boolean) => {};
@@ -473,6 +475,13 @@ export struct ReaderSettingsMenuOverlay {
               label: uiText('Adaptive dual page'),
               value: this.menuAdaptiveDualPage,
               onChange: this.onAdaptiveDualPageChange
+            })
+            ReaderMenuDivider()
+
+            ReaderMenuToggle({
+              label: uiText('SDR to HDR'),
+              value: this.menuSdrToHdrEnabled,
+              onChange: this.onSdrToHdrChange
             })
             ReaderMenuDivider()
 

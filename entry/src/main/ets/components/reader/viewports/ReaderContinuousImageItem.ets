@@ -1,3 +1,4 @@
+import { image } from '@kit.ImageKit';
 import { GalleryPage } from '../../../model/GalleryModels';
 import { ReaderPageTranslation } from '../../../model/ReaderTranslationModels';
 import {
@@ -5,6 +6,7 @@ import {
   ImageDownloadProgress,
   readerImageCache
 } from '../../../services/ReaderImageCache';
+import { readerHdrService } from '../../../services/ReaderHdrService';
 import {
   createEmptyPage,
   getAbilityContext,
@@ -37,6 +39,7 @@ export struct ReaderContinuousImageItem {
   @Prop @Watch('onZoomScaleChange') zoomScale: number = READER_BASE_SCALE;
   @Prop sharedOffsetX: number = 0;
   @Prop @Watch('onActiveChange') isActive: boolean = false;
+  @Prop @Watch('onHdrEnabledChange') hdrEnabled: boolean = false;
   @Prop translation: ReaderPageTranslation | null = null;
   onTap: (x: number, y: number, w: number, h: number) => void =
     (_x: number, _y: number, _w: number, _h: number) => {};
@@ -59,11 +62,14 @@ export struct ReaderContinuousImageItem {
   @State displayImageHeight: number = 120;
   @State downloadProgress: number = -1;
   @State imageRetryVersion: number = 0;
+  @State hdrPixelMap: image.PixelMap | undefined = undefined;
   private isPinching: boolean = false;
   private pinchStartScale: number = READER_BASE_SCALE;
   private sourceSizeRequestId: number = 0;
   private downloadProgressRequestId: number = 0;
   private retainedImageUrl: string = '';
+  private retainedHdrKey: string = '';
+  private hdrRequestId: number = 0;
 
   aboutToAppear(): void {
     this.onImageSourceChange();
@@ -86,7 +92,8 @@ export struct ReaderContinuousImageItem {
 
   private imageNodeId(): string {
     const sourceKey = this.sourceImageCacheKey().length > 0 ? this.sourceImageCacheKey() : this.imageUrl();
-    return 'reader-continuous-image-' + this.imageRetryVersion.toString() + '-' + sourceKey;
+    return 'reader-continuous-image-' + this.imageRetryVersion.toString() + '-' +
+      (this.hdrPixelMap === undefined ? 'sdr-' : 'hdr-') + sourceKey;
   }
 
   private retryImage(): void {
@@ -116,6 +123,7 @@ export struct ReaderContinuousImageItem {
     this.sourceImageHeight = cachedSize.height;
     this.updateDisplayImageSize();
     this.loadCachedSourceImageSize(requestId, url).catch(() => {});
+    this.loadHdrPixelMap();
     this.startDownloadProgressMonitor();
   }
 
@@ -124,6 +132,42 @@ export struct ReaderContinuousImageItem {
     this.downloadProgressRequestId++;
     forgetReaderImageRuntimeState(this.retainedImageUrl);
     this.retainedImageUrl = '';
+    this.releaseHdrPixelMap();
+  }
+
+  onHdrEnabledChange(): void {
+    this.loadHdrPixelMap();
+  }
+
+  private loadHdrPixelMap(): void {
+    const sourcePath = this.localSourceImagePath();
+    const key = this.sourceImageCacheKey() + '|' + sourcePath;
+    if (!this.hdrEnabled || sourcePath.length === 0 || this.imageUrl().length === 0) {
+      this.releaseHdrPixelMap();
+      return;
+    }
+    if (this.retainedHdrKey === key) {
+      return;
+    }
+    this.releaseHdrPixelMap();
+    const requestId = this.hdrRequestId + 1;
+    this.hdrRequestId = requestId;
+    this.retainedHdrKey = key;
+    readerHdrService.acquire(key, sourcePath).then((pixelMap: image.PixelMap | undefined) => {
+      if (requestId !== this.hdrRequestId || key !== this.retainedHdrKey || !this.hdrEnabled) {
+        return;
+      }
+      this.hdrPixelMap = pixelMap;
+    }).catch(() => {});
+  }
+
+  private releaseHdrPixelMap(): void {
+    this.hdrRequestId++;
+    this.hdrPixelMap = undefined;
+    if (this.retainedHdrKey.length > 0) {
+      readerHdrService.release(this.retainedHdrKey);
+      this.retainedHdrKey = '';
+    }
   }
 
   private async loadCachedSourceImageSize(requestId: number, imageUrl: string): Promise<void> {
@@ -180,6 +224,7 @@ export struct ReaderContinuousImageItem {
       }, this.sourceImageCacheKey(), { retryLimit: 1 }).then(() => {
       if (requestId === this.downloadProgressRequestId) {
         this.downloadProgress = 100;
+        this.loadHdrPixelMap();
       }
     }).catch(() => {});
   }
@@ -306,11 +351,13 @@ export struct ReaderContinuousImageItem {
   build() {
     Stack({ alignContent: Alignment.Center }) {
       if (this.imageUrl().length > 0) {
-        Image(this.imageUrl())
+        Image(this.hdrPixelMap === undefined ? this.imageUrl() : this.hdrPixelMap)
           .id(this.imageNodeId())
           .width(this.displayWidth())
           .height(this.displayHeight())
           .objectFit(this.imageObjectFit())
+          .dynamicRangeMode(this.hdrPixelMap === undefined ? DynamicRangeMode.STANDARD : DynamicRangeMode.HIGH)
+          .hdrBrightness(this.hdrPixelMap === undefined ? 0 : 1)
           .syncLoad(this.shouldSyncLoadImage())
           .draggable(false)
           .backgroundColor(readerBackgroundColor())

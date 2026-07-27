@@ -138,6 +138,7 @@ export struct ReaderScene {
 
   @State fitMode: string = 'Fit screen';
   @State adaptiveDualPage: boolean = false;
+  @State sdrToHdrEnabled: boolean = false;
   @State startPosition: string = 'Top right';
   @State showInfo: boolean = false;
   @State preferOriginal: boolean = false;
@@ -216,6 +217,7 @@ export struct ReaderScene {
   @State menuReadingDirection: string = 'Right to left';
   @State menuPageScaling: string = 'Fit screen';
   @State menuAdaptiveDualPage: boolean = false;
+  @State menuSdrToHdrEnabled: boolean = false;
   @State menuStartPosition: string = 'Top right';
   @State menuKeepScreenOn: boolean = false;
   @State menuShowClock: boolean = true;
@@ -264,6 +266,7 @@ export struct ReaderScene {
     this.readerWindowActive = true;
     setReaderTransientStatusBarVisible(false);
     this.adaptiveDualPage = ehSettingsStore.getValue('adaptive_dual_page', 'Off') === 'On';
+    this.sdrToHdrEnabled = ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
     this.resetReaderImageSizesForGallery();
     this.syncReaderPreviewImageSizes();
     this.currentIndex = this.pageGroupAnchorForPageIndex(this.pageIndex);
@@ -956,6 +959,7 @@ export struct ReaderScene {
     this.menuReadingDirection = normalizeReadingDirectionOption(ehSettingsStore.getValue('reading_direction', 'Right to left'));
     this.menuPageScaling = normalizePageScalingOption(ehSettingsStore.getValue('page_scaling', 'Fit screen'));
     this.menuAdaptiveDualPage = ehSettingsStore.getValue('adaptive_dual_page', 'Off') === 'On';
+    this.menuSdrToHdrEnabled = ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
     this.menuStartPosition = normalizeStartPositionOption(ehSettingsStore.getValue('start_position', 'Top right'));
     this.menuKeepScreenOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
     this.menuShowClock = ehSettingsStore.getValue('gallery_show_clock', 'On') === 'On';
@@ -976,6 +980,7 @@ export struct ReaderScene {
     this.applyAdaptiveDualPageMenuConstraints();
     const previousAdaptiveDualPage = this.adaptiveDualPage;
     ehSettingsStore.setValue('adaptive_dual_page', this.menuAdaptiveDualPage ? 'On' : 'Off');
+    ehSettingsStore.setValue('reader_sdr_to_hdr', this.menuSdrToHdrEnabled ? 'On' : 'Off');
     ehSettingsStore.setValue('screen_rotation', this.menuScreenRotation);
     ehSettingsStore.setValue('reading_direction', this.menuReadingDirection);
     ehSettingsStore.setValue('page_scaling', this.menuPageScaling);
@@ -998,6 +1003,7 @@ export struct ReaderScene {
     }
     this.fitMode = nextFitMode;
     this.adaptiveDualPage = this.menuAdaptiveDualPage;
+    this.sdrToHdrEnabled = this.menuSdrToHdrEnabled;
     if (previousAdaptiveDualPage !== this.adaptiveDualPage) {
       this.onAdaptiveDualPageChange(this.adaptiveDualPage);
     }
@@ -1839,6 +1845,7 @@ export struct ReaderScene {
       fixedScale: this.fixedScale,
       startPosition: this.startPosition,
       isActive: this.pageGroupAnchorForPageIndex(index) === this.currentIndex,
+      hdrEnabled: this.sdrToHdrEnabled,
       translation: this.pageGroupAnchorForPageIndex(index) === this.currentIndex ?
         this.readerTranslationForPage(index) : null,
       allowEdgeSwipe: !this.swiperVertical,
@@ -1935,6 +1942,8 @@ export struct ReaderScene {
                 zoomScale: this.fixedScale,
                 sharedOffsetX: this.continuousOffsetX,
                 isActive: item.index === this.currentIndex,
+                hdrEnabled: this.sdrToHdrEnabled &&
+                  Math.abs(item.index - this.currentIndex) <= this.readerRenderScreenCacheCount(),
                 translation: item.index === this.currentIndex ? this.readerTranslationForPage(item.index) : null,
                 onTap: () => {},
                 onRetry: () => {
@@ -2140,6 +2149,7 @@ export struct ReaderScene {
           menuReadingDirection: this.menuReadingDirection,
           menuPageScaling: this.menuPageScaling,
           menuAdaptiveDualPage: this.menuAdaptiveDualPage,
+          menuSdrToHdrEnabled: this.menuSdrToHdrEnabled,
           menuStartPosition: this.menuStartPosition,
           menuAutoTransferTime: this.menuAutoTransferTime,
           menuKeepScreenOn: this.menuKeepScreenOn,
@@ -2171,6 +2181,9 @@ export struct ReaderScene {
           },
           onAdaptiveDualPageChange: (value: boolean) => {
             this.onMenuAdaptiveDualPageChange(value);
+          },
+          onSdrToHdrChange: (value: boolean) => {
+            this.menuSdrToHdrEnabled = value;
           },
           onStartPositionChange: (value: string) => {
             this.menuStartPosition = value;

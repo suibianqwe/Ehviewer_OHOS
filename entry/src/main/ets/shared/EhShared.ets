@@ -1520,6 +1520,9 @@ export function zhText(text: string): string {
     case 'Choose how reader pages fit the screen': return '选择阅读页面适应屏幕的方式';
     case 'Adaptive dual page': return '自适应一屏双页';
     case 'Show two wide or narrow pages together when both fit on screen': return '当两张横向或纵向页面能够容纳时在一屏内同时显示';
+    case 'SDR to HDR': return 'SDR 转 HDR';
+    case 'Convert reader images in the prerender range to HDR when supported':
+      return '设备支持时，将预渲染范围内的阅读图片转换为 HDR';
     case 'Start position': return '开页位置';
     case 'Where a gallery starts when opened': return '页面打开时的初始对齐位置';
     case 'Auto transfer time': return '自动翻页时间';
@@ -3083,6 +3086,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
           ['Actual size', 'Fit width', 'Fit height', 'Fit screen', 'Fixed scale']),
       optionSettingsRow('adaptive_dual_page', 'Adaptive dual page',
         'Show two wide or narrow pages together when both fit on screen', entries, ON_OFF_OPTIONS),
+      optionSettingsRow('reader_sdr_to_hdr', 'SDR to HDR',
+        'Convert reader images in the prerender range to HDR when supported', entries, ON_OFF_OPTIONS),
       optionSettingsRow('start_position', 'Start position', 'Where a gallery starts when opened', entries, ['Top left', 'Top right', 'Bottom left', 'Bottom right', 'Center']),
       optionSettingsRow('start_transfer_time', 'Auto transfer time', 'Delay before automatically advancing to the next page', entries, readerAutoTransferTimeOptions()),
       optionSettingsRow('reader_standalone', 'Standalone reader', 'Open reader in a standalone ability', entries, ON_OFF_OPTIONS),

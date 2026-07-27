@@ -5,5 +5,7 @@
   "main": "",
   "author": "xiaojieonly/Ehviewer_CN_SXJ contributors",
   "license": "GPL-3.0-or-later",
-  "dependencies": {}
+  "dependencies": {
+    "libreaderhdr.so": "file:./src/main/cpp/types/libreaderhdr"
+  }
 }
