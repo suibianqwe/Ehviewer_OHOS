@@ -24,14 +24,16 @@ import {
 } from '../services/EhWindowImmersive';
 import {
   themeOnPrimaryText,
+  themeDividerColor,
   themePageBackground,
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
   themeSurface,
+  themeSurfaceVariant,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, runDetailBackHandler, createEmptyDetail, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneGalleryDetail, cloneGalleryInfo, cloneTopListDetail, nextFloatingToolbarOffset, topListChipColor, currentGallerySite, uiText } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, runDetailBackHandler, createEmptyDetail, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneGalleryDetail, cloneGalleryInfo, cloneTopListDetail, nextFloatingToolbarOffset, currentGallerySite, uiText } from '../shared/EhShared';
 import { ActionBubble, GalleryListScene, GalleryListStateView } from './GalleryScenes';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
@@ -891,6 +893,7 @@ export struct TopListBoard {
   @Prop translateTitles: boolean = false;
   @State translationVisibleStart: number = -1;
   @State translationVisibleEnd: number = -1;
+  @State boardWidth: number = 360;
   onSelectList: (index: number) => void = () => {};
   onOpenBucket: (bucket: TopListBucket) => void = () => {};
   onOpenItem: (item: TopListItem, info: TopListInfo) => void = () => {};
@@ -914,6 +917,10 @@ export struct TopListBoard {
 
   private contentTopPadding(): number {
     return this.tabsVisualTop() + this.TABS_BAR_HEIGHT + 5;
+  }
+
+  private bucketContentWidth(): number {
+    return Math.max(220, this.boardWidth - 48);
   }
 
   @Builder
@@ -944,6 +951,7 @@ export struct TopListBoard {
             TopListBucketCard({
               bucket: bucket,
               info: this.info,
+              contentWidth: this.bucketContentWidth(),
               translateTitles: this.translateTitles,
               translationPriority: this.translationPriorityFor(index),
               canOpenBucket: this.info.kind === TopListKind.Gallery,
@@ -991,6 +999,12 @@ export struct TopListBoard {
     .width('100%')
     .height('100%')
     .backgroundColor(themePageBackground())
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      const width = areaDimensionToVp(newArea.width, (value: number) => this.getUIContext().px2vp(value));
+      if (width >= 240 && Math.abs(width - this.boardWidth) >= 1) {
+        this.boardWidth = width;
+      }
+    })
   }
 }
 
@@ -998,11 +1012,38 @@ export struct TopListBoard {
 export struct TopListBucketCard {
   @Prop bucket: TopListBucket = createEmptyTopListBucket();
   @Prop info: TopListInfo = createEmptyTopListInfo();
+  @Prop contentWidth: number = 312;
   @Prop canOpenBucket: boolean = false;
   @Prop translateTitles: boolean = false;
   @Prop translationPriority: number = 2;
   onOpenBucket: (bucket: TopListBucket) => void = () => {};
   onOpenItem: (item: TopListItem, info: TopListInfo) => void = () => {};
+
+  private columnCount(): number {
+    const targetWidth = this.info.kind === TopListKind.Gallery ? 300 : 210;
+    const calculated = Math.max(1, Math.floor((this.contentWidth + 8) / (targetWidth + 8)));
+    if (this.bucket.items.length <= 0) {
+      return 1;
+    }
+    return Math.min(this.bucket.items.length, calculated);
+  }
+
+  private columnsTemplate(): string {
+    const columns = this.columnCount();
+    let value = '1fr';
+    for (let i = 1; i < columns; i++) {
+      value += ' 1fr';
+    }
+    return value;
+  }
+
+  private gridHeight(): number {
+    const rows = Math.ceil(this.bucket.items.length / this.columnCount());
+    if (rows <= 0) {
+      return 0;
+    }
+    return rows * 56 + (rows - 1) * 8;
+  }
 
   build() {
     Column() {
@@ -1024,21 +1065,28 @@ export struct TopListBucketCard {
       }
       .width('100%')
 
-      Flex({ wrap: FlexWrap.Wrap }) {
+      Grid() {
         ForEach(this.bucket.items, (item: TopListItem, index: number) => {
-          TopListChip({
-            item: item,
-            color: topListChipColor(index),
-            translateTitle: this.translateTitles && this.info.kind === TopListKind.Gallery,
-            translationPriority: this.translationPriority,
-            onTap: () => {
-              this.onOpenItem(item, this.info);
-            }
-          })
+          GridItem() {
+            TopListChip({
+              item: item,
+              rank: index + 1,
+              translateTitle: this.translateTitles && this.info.kind === TopListKind.Gallery,
+              translationPriority: this.translationPriority,
+              onTap: () => {
+                this.onOpenItem(item, this.info);
+              }
+            })
+          }
         }, (item: TopListItem) => item.href + item.value)
       }
+      .columnsTemplate(this.columnsTemplate())
+      .columnsGap(8)
+      .rowsGap(8)
       .width('100%')
+      .height(this.gridHeight())
       .margin({ top: 8 })
+      .scrollBar(BarState.Off)
     }
     .width('100%')
     .padding(12)
@@ -1050,27 +1098,50 @@ export struct TopListBucketCard {
 @Component
 export struct TopListChip {
   item: TopListItem = createEmptyTopListItem();
-  color: string = themePrimaryColor();
+  @Prop rank: number = 0;
   @Prop translateTitle: boolean = false;
   @Prop translationPriority: number = 2;
   onTap: () => void = () => {};
 
   build() {
-    Column() {
-      TranslationText({
-        sourceText: this.item.value,
-        translationEnabled: this.translateTitle,
-        translationPriority: this.translationPriority,
-        fontSizeValue: 13,
-        lineHeightValue: 18,
-        fontColorValue: themeOnPrimaryText(),
-        maxLinesValue: 2
-      })
+    Row() {
+      Text(this.rank.toString())
+        .width(30)
+        .height(30)
+        .fontSize(13)
+        .fontWeight(this.rank <= 3 ? FontWeight.Bold : FontWeight.Medium)
+        .fontColor(themePrimaryColor())
+        .textAlign(TextAlign.Center)
+        .textVerticalAlign(TextVerticalAlign.CENTER)
+        .backgroundColor(themeSurface())
+        .borderRadius(15)
+
+      Column() {
+        TranslationText({
+          sourceText: this.item.value,
+          translationEnabled: this.translateTitle,
+          translationPriority: this.translationPriority,
+          fontSizeValue: 13,
+          lineHeightValue: 18,
+          fontColorValue: themePrimaryText(),
+          maxLinesValue: 2
+        })
+      }
+      .layoutWeight(1)
+      .margin({ left: 10 })
+
+      SymbolGlyph($r('sys.symbol.chevron_right'))
+        .fontSize(13)
+        .fontColor([themeSecondaryText()])
+        .margin({ left: 6 })
     }
-    .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-    .margin({ right: 8, bottom: 8 })
-    .backgroundColor(this.color)
-    .borderRadius(5)
+    .width('100%')
+    .height(56)
+    .padding({ left: 10, right: 10 })
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor(themeSurfaceVariant())
+    .border({ width: 0.5, color: themeDividerColor() })
+    .borderRadius(6)
     .onClick(() => {
       this.onTap();
     })

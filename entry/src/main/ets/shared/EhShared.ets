@@ -4118,8 +4118,3 @@ export function readerClockText(): string {
 function padTimeNumber(value: number): string {
   return value < 10 ? '0' + value.toString() : value.toString();
 }
-
-export function topListChipColor(index: number): string {
-  const colors: string[] = ['#2F6F8F', '#7A5A22', '#327A5B', '#A04462', '#4D6D8C', '#805A8F', '#8A4F2B', '#556B2F', '#6B7280', '#1F6B63'];
-  return colors[index % colors.length];
-}
