@@ -75,8 +75,7 @@ class ReaderHdrService {
     entry.cancelled = true;
     this.removeFromQueue(entry);
     if (entry.pixelMap !== undefined) {
-      this.releasePixelMap(entry.pixelMap);
-      entry.pixelMap = undefined;
+      return;
     }
     this.entries.delete(key);
   }

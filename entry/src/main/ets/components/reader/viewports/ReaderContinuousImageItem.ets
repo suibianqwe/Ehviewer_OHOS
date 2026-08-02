@@ -386,8 +386,7 @@ export struct ReaderContinuousImageItem {
             .backgroundColor('#80000000')
             .borderRadius(4)
             .padding({ left: 5, right: 5, top: 2, bottom: 2 })
-            .margin({ left: 8, bottom: 8 })
-            .align(Alignment.BottomStart)
+            .position({ x: 8, y: this.itemHeight() - 24 })
             .hitTestBehavior(HitTestMode.None)
         }
         if (this.translation !== null && this.displayImageWidth > 1 && this.displayImageHeight > 1) {
