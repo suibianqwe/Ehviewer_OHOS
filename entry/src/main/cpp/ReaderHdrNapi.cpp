@@ -15,6 +15,7 @@
 namespace {
 
 std::mutex g_conversionMutex;
+bool g_environmentInitialized = false;
 
 struct ConversionWork {
     napi_env env = nullptr;
@@ -53,6 +54,14 @@ void ExecuteConversion(napi_env env, void *data)
     if (!IsSdrToHdrSupported()) {
         conversion->result = IMAGE_PROCESSING_ERROR_UNSUPPORTED_PROCESSING;
         return;
+    }
+    if (!g_environmentInitialized) {
+        const ImageProcessing_ErrorCode initializeResult = OH_ImageProcessing_InitializeEnvironment();
+        if (initializeResult != IMAGE_PROCESSING_SUCCESS) {
+            conversion->result = initializeResult;
+            return;
+        }
+        g_environmentInitialized = true;
     }
     OH_ImageProcessing *processor = nullptr;
     ImageProcessing_ErrorCode result =
@@ -167,4 +176,13 @@ static napi_module readerHdrModule = {
 extern "C" __attribute__((constructor)) void RegisterReaderHdrModule()
 {
     napi_module_register(&readerHdrModule);
+}
+
+extern "C" __attribute__((destructor)) void DeinitializeReaderHdrEnvironment()
+{
+    std::lock_guard<std::mutex> guard(g_conversionMutex);
+    if (g_environmentInitialized) {
+        OH_ImageProcessing_DeinitializeEnvironment();
+        g_environmentInitialized = false;
+    }
 }

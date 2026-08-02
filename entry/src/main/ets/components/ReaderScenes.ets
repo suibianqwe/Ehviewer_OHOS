@@ -853,6 +853,10 @@ export struct ReaderScene {
     return READER_OFFSCREEN_RENDER_SCREEN_COUNT;
   }
 
+  private readerContinuousCacheCount(): number {
+    return this.readerRenderScreenCacheCount() + 2;
+  }
+
   private shouldRenderPageGroup(index: number): boolean {
     const currentVisualIndex = this.visualIndexForPageIndex(this.currentIndex);
     const targetVisualIndex = this.visualIndexForPageIndex(index);
@@ -1846,6 +1850,7 @@ export struct ReaderScene {
       startPosition: this.startPosition,
       isActive: this.pageGroupAnchorForPageIndex(index) === this.currentIndex,
       hdrEnabled: this.sdrToHdrEnabled,
+      hdrPriority: Math.abs(this.visualIndexForPageIndex(index) - this.visualIndexForPageIndex(this.currentIndex)),
       translation: this.pageGroupAnchorForPageIndex(index) === this.currentIndex ?
         this.readerTranslationForPage(index) : null,
       allowEdgeSwipe: !this.swiperVertical,
@@ -1943,7 +1948,8 @@ export struct ReaderScene {
                 sharedOffsetX: this.continuousOffsetX,
                 isActive: item.index === this.currentIndex,
                 hdrEnabled: this.sdrToHdrEnabled &&
-                  Math.abs(item.index - this.currentIndex) <= this.readerRenderScreenCacheCount(),
+                  Math.abs(item.index - this.currentIndex) <= this.readerContinuousCacheCount(),
+                hdrPriority: Math.abs(item.index - this.currentIndex),
                 translation: item.index === this.currentIndex ? this.readerTranslationForPage(item.index) : null,
                 onTap: () => {},
                 onRetry: () => {
@@ -1992,7 +1998,7 @@ export struct ReaderScene {
         .height('100%')
         .backgroundColor(readerBackgroundColor())
         .scrollBar(BarState.Off)
-        .cachedCount(this.readerRenderScreenCacheCount() + 2)
+        .cachedCount(this.readerContinuousCacheCount())
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
         .onScrollIndex((first: number) => {
           this.onContinuousScrollIndex(first);

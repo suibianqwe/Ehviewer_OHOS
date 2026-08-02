@@ -43,6 +43,7 @@ export struct ReaderImageViewport {
   @Prop startPosition: string = 'Top right';
   @Prop @Watch('onActiveChange') isActive: boolean = false;
   @Prop @Watch('onHdrEnabledChange') hdrEnabled: boolean = false;
+  @Prop @Watch('onHdrPriorityChange') hdrPriority: number = 0;
   @Prop translation: ReaderPageTranslation | null = null;
   @Prop allowEdgeSwipe: boolean = true;
   @Prop command: string = '';
@@ -191,6 +192,12 @@ export struct ReaderImageViewport {
     this.loadHdrPixelMap();
   }
 
+  onHdrPriorityChange(): void {
+    if (this.retainedHdrKey.length > 0) {
+      readerHdrService.updatePriority(this.retainedHdrKey, this.hdrPriority);
+    }
+  }
+
   private loadHdrPixelMap(): void {
     const sourcePath = this.localSourceImagePath();
     const key = this.sourceImageCacheKey() + '|' + sourcePath;
@@ -205,7 +212,7 @@ export struct ReaderImageViewport {
     const requestId = this.hdrRequestId + 1;
     this.hdrRequestId = requestId;
     this.retainedHdrKey = key;
-    readerHdrService.acquire(key, sourcePath).then((pixelMap: image.PixelMap | undefined) => {
+    readerHdrService.acquire(key, sourcePath, this.hdrPriority).then((pixelMap: image.PixelMap | undefined) => {
       if (requestId !== this.hdrRequestId || key !== this.retainedHdrKey || !this.hdrEnabled) {
         return;
       }

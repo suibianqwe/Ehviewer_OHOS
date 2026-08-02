@@ -40,6 +40,7 @@ export struct ReaderContinuousImageItem {
   @Prop sharedOffsetX: number = 0;
   @Prop @Watch('onActiveChange') isActive: boolean = false;
   @Prop @Watch('onHdrEnabledChange') hdrEnabled: boolean = false;
+  @Prop @Watch('onHdrPriorityChange') hdrPriority: number = 0;
   @Prop translation: ReaderPageTranslation | null = null;
   onTap: (x: number, y: number, w: number, h: number) => void =
     (_x: number, _y: number, _w: number, _h: number) => {};
@@ -139,6 +140,12 @@ export struct ReaderContinuousImageItem {
     this.loadHdrPixelMap();
   }
 
+  onHdrPriorityChange(): void {
+    if (this.retainedHdrKey.length > 0) {
+      readerHdrService.updatePriority(this.retainedHdrKey, this.hdrPriority);
+    }
+  }
+
   private loadHdrPixelMap(): void {
     const sourcePath = this.localSourceImagePath();
     const key = this.sourceImageCacheKey() + '|' + sourcePath;
@@ -153,7 +160,7 @@ export struct ReaderContinuousImageItem {
     const requestId = this.hdrRequestId + 1;
     this.hdrRequestId = requestId;
     this.retainedHdrKey = key;
-    readerHdrService.acquire(key, sourcePath).then((pixelMap: image.PixelMap | undefined) => {
+    readerHdrService.acquire(key, sourcePath, this.hdrPriority).then((pixelMap: image.PixelMap | undefined) => {
       if (requestId !== this.hdrRequestId || key !== this.retainedHdrKey || !this.hdrEnabled) {
         return;
       }
