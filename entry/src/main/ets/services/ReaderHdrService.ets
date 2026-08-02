@@ -115,9 +115,11 @@ class ReaderHdrService {
       } else {
         const lowest = this.findLowestPriorityNonProcessing();
         if (lowest >= 0) {
+          this.queue[lowest].entry.enqueued = false;
           this.queue[lowest].resolveTask(undefined);
           this.queue[lowest] = task;
         } else {
+          entry.enqueued = false;
           resolve(undefined);
           return;
         }
