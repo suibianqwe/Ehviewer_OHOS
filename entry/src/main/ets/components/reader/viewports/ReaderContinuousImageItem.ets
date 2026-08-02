@@ -378,6 +378,18 @@ export struct ReaderContinuousImageItem {
             this.failedImageUrl = this.imageUrl();
           })
           .translate({ x: this.sharedOffsetX, y: 0 })
+        if (this.hdrPixelMap !== undefined) {
+          Text('HDR')
+            .fontSize('9vp')
+            .fontColor('#FFD700')
+            .fontWeight(FontWeight.Bold)
+            .backgroundColor('#80000000')
+            .borderRadius(4)
+            .padding({ left: 5, right: 5, top: 2, bottom: 2 })
+            .margin({ left: 8, bottom: 8 })
+            .align(Alignment.BottomStart)
+            .hitTestBehavior(HitTestMode.None)
+        }
         if (this.translation !== null && this.displayImageWidth > 1 && this.displayImageHeight > 1) {
           ReaderTranslationOverlay({
             translation: this.translation,

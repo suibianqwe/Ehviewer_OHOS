@@ -478,6 +478,18 @@ export struct ReaderImageViewport {
             })
             .scale({ x: this.imageModel.currentScale, y: this.imageModel.currentScale, centerX: '50%', centerY: '50%' })
             .translate({ x: this.imageModel.currentOffsetX, y: this.imageModel.currentOffsetY })
+          if (this.hdrPixelMap !== undefined) {
+            Text('HDR')
+              .fontSize('9vp')
+              .fontColor('#FFD700')
+              .fontWeight(FontWeight.Bold)
+              .backgroundColor('#80000000')
+              .borderRadius(4)
+              .padding({ left: 5, right: 5, top: 2, bottom: 2 })
+              .margin({ left: 8, bottom: 8 })
+              .align(Alignment.BottomStart)
+              .hitTestBehavior(HitTestMode.None)
+          }
           if (this.translation !== null && this.displayImageWidth > 1 && this.displayImageHeight > 1) {
             ReaderTranslationOverlay({
               translation: this.translation,
