@@ -188,50 +188,31 @@ class ReaderHdrService {
 
   private async runConversion(sourcePath: string): Promise<image.PixelMap | undefined> {
     let source: image.ImageSource | undefined = undefined;
-    let sourcePixelMap: image.PixelMap | undefined = undefined;
-    let destinationPixelMap: image.PixelMap | undefined = undefined;
+    let pixelMap: image.PixelMap | undefined = undefined;
     try {
-      const srgb = colorSpaceManager.create(colorSpaceManager.ColorSpace.SRGB);
       const hlg = colorSpaceManager.create(colorSpaceManager.ColorSpace.BT2020_HLG);
       source = image.createImageSource(sourcePath);
-      sourcePixelMap = await source.createPixelMapUsingAllocator({
+      pixelMap = await source.createPixelMap({
         editable: false,
         desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
-        desiredColorSpace: srgb,
-        desiredDynamicRange: image.DecodingDynamicRange.SDR
-      }, image.AllocatorType.DMA);
-      const info = sourcePixelMap.getImageInfoSync();
+        desiredDynamicRange: image.DecodingDynamicRange.AUTO
+      });
+      const info = pixelMap.getImageInfoSync();
       if (info.size.width < 32 || info.size.height < 32 || info.size.width > 8880 || info.size.height > 8880) {
         return undefined;
       }
-      sourcePixelMap.setColorSpace(srgb);
-      await sourcePixelMap.setMetadata(image.HdrMetadataKey.HDR_METADATA_TYPE, image.HdrMetadataType.NONE);
-      destinationPixelMap = await source.createPixelMapUsingAllocator({
-        editable: true,
-        desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
-        desiredColorSpace: hlg,
-        desiredDynamicRange: image.DecodingDynamicRange.AUTO
-      }, image.AllocatorType.DMA);
-      destinationPixelMap.setColorSpace(hlg);
-      await destinationPixelMap.setMetadata(image.HdrMetadataKey.HDR_METADATA_TYPE,
+      pixelMap.setColorSpace(hlg);
+      await pixelMap.setMetadata(image.HdrMetadataKey.HDR_METADATA_TYPE,
         image.HdrMetadataType.ALTERNATE);
-      const result: number = await readerHdr.convertSdrToHdr(sourcePixelMap, destinationPixelMap);
-      if (result !== 0) {
-        hilog.warn(DOMAIN, TAG, `SDR to HDR conversion failed, result=${result}`);
-        return undefined;
-      }
-      const converted = destinationPixelMap;
-      destinationPixelMap = undefined;
-      return converted;
+      const result = pixelMap;
+      pixelMap = undefined;
+      return result;
     } catch (error) {
       hilog.warn(DOMAIN, TAG, `SDR to HDR conversion error: ${JSON.stringify(error)}`);
       return undefined;
     } finally {
-      if (destinationPixelMap !== undefined) {
-        this.releasePixelMap(destinationPixelMap);
-      }
-      if (sourcePixelMap !== undefined) {
-        this.releasePixelMap(sourcePixelMap);
+      if (pixelMap !== undefined) {
+        this.releasePixelMap(pixelMap);
       }
       if (source !== undefined) {
         try {
