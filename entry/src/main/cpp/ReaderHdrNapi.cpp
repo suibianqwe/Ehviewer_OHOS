@@ -37,7 +37,7 @@ bool IsSdrToHdrSupported()
     ImageProcessing_ColorSpaceInfo destinationInfo {
         .metadataType = HDR_METADATA_TYPE_ALTERNATE,
         .colorSpace = BT2020_HLG,
-        .pixelFormat = PIXEL_FORMAT_RGBA_8888
+        .pixelFormat = PIXEL_FORMAT_RGBA_1010102
     };
     return OH_ImageProcessing_IsColorSpaceConversionSupported(&sourceInfo, &destinationInfo);
 }
