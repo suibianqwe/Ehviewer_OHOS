@@ -30,6 +30,7 @@ class ReaderHdrService {
   private nextPriority: number = 0;
   private capabilityKnown: boolean = false;
   private capabilitySupported: boolean = false;
+  private hlgColorSpace: colorSpaceManager.ColorSpaceManager | undefined = undefined;
 
   acquire(key: string, sourcePath: string): Promise<image.PixelMap | undefined> {
     if (key.length === 0 || sourcePath.length === 0 || !this.isSupported()) {
@@ -177,11 +178,13 @@ class ReaderHdrService {
     const pixelMap = await this.runConversion(entry.sourcePath);
     entry.enqueued = false;
     entry.conversionDone = true;
-    if (pixelMap !== undefined && !entry.cancelled && entry.references > 0 &&
-      this.entries.get(entry.key) === entry) {
-      entry.pixelMap = pixelMap;
-    } else if (pixelMap !== undefined) {
-      this.releasePixelMap(pixelMap);
+    if (pixelMap !== undefined) {
+      hilog.info(DOMAIN, TAG, `HDR conversion succeeded for key`);
+      if (!entry.cancelled && entry.references > 0 && this.entries.get(entry.key) === entry) {
+        entry.pixelMap = pixelMap;
+      } else {
+        this.releasePixelMap(pixelMap);
+      }
     }
     task.resolveTask(entry.pixelMap);
   }
@@ -190,7 +193,9 @@ class ReaderHdrService {
     let source: image.ImageSource | undefined = undefined;
     let pixelMap: image.PixelMap | undefined = undefined;
     try {
-      const hlg = colorSpaceManager.create(colorSpaceManager.ColorSpace.BT2020_HLG);
+      if (this.hlgColorSpace === undefined) {
+        this.hlgColorSpace = colorSpaceManager.create(colorSpaceManager.ColorSpace.BT2020_HLG);
+      }
       source = image.createImageSource(sourcePath);
       pixelMap = await source.createPixelMapUsingAllocator({
         editable: false,
@@ -201,7 +206,7 @@ class ReaderHdrService {
       if (info.size.width < 32 || info.size.height < 32 || info.size.width > 8880 || info.size.height > 8880) {
         return undefined;
       }
-      pixelMap.setColorSpace(hlg);
+      pixelMap.setColorSpace(this.hlgColorSpace);
       await pixelMap.setMetadata(image.HdrMetadataKey.HDR_METADATA_TYPE,
         image.HdrMetadataType.ALTERNATE);
       const result = pixelMap;
