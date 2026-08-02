@@ -13,6 +13,8 @@ interface ReaderHdrCacheEntry {
   references: number;
   cancelled: boolean;
   pixelMap: image.PixelMap | undefined;
+  enqueued: boolean;
+  conversionDone: boolean;
 }
 
 interface ReaderHdrQueueTask {
@@ -43,14 +45,19 @@ class ReaderHdrService {
         sourcePath: sourcePath,
         references: 0,
         cancelled: false,
-        pixelMap: undefined
+        pixelMap: undefined,
+        enqueued: false,
+        conversionDone: false
       };
       this.entries.set(key, entry);
     }
     entry.references++;
     entry.cancelled = false;
-    if (entry.pixelMap !== undefined) {
+    if (entry.conversionDone) {
       return Promise.resolve(entry.pixelMap);
+    }
+    if (entry.enqueued) {
+      return Promise.resolve(undefined);
     }
     return this.enqueue(entry);
   }
@@ -94,6 +101,7 @@ class ReaderHdrService {
 
   private enqueue(entry: ReaderHdrCacheEntry): Promise<image.PixelMap | undefined> {
     return new Promise<image.PixelMap | undefined>((resolve: (value: image.PixelMap | undefined) => void) => {
+      entry.enqueued = true;
       const priority = this.nextPriority;
       this.nextPriority++;
       const task: ReaderHdrQueueTask = {
@@ -160,11 +168,15 @@ class ReaderHdrService {
   private async convert(task: ReaderHdrQueueTask): Promise<void> {
     const entry = task.entry;
     if (entry.cancelled || entry.references <= 0 || this.entries.get(entry.key) !== entry) {
+      entry.enqueued = false;
+      entry.conversionDone = true;
       task.resolveTask(undefined);
       this.cleanupCancelled();
       return;
     }
     const pixelMap = await this.runConversion(entry.sourcePath);
+    entry.enqueued = false;
+    entry.conversionDone = true;
     if (pixelMap !== undefined && !entry.cancelled && entry.references > 0 &&
       this.entries.get(entry.key) === entry) {
       entry.pixelMap = pixelMap;
