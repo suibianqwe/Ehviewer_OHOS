@@ -248,11 +248,7 @@ class ReaderHdrService {
       await this.releasePixelMap(decodedPixelMap);
       sourcePixelMap.setColorSpace(this.srgbColorSpace);
       await sourcePixelMap.setMetadata(image.HdrMetadataKey.HDR_METADATA_TYPE, image.HdrMetadataType.NONE);
-      destinationPixelMap = image.createPixelMapSync({
-        size: decodedInfo.size,
-        pixelFormat: image.PixelMapFormat.RGBA_1010102,
-        editable: true
-      });
+      destinationPixelMap = readerHdr.createDmaHdrPixelMap(decodedInfo.size.width, decodedInfo.size.height);
       destinationPixelMap.setColorSpace(this.hlgColorSpace);
       await destinationPixelMap.setMetadata(image.HdrMetadataKey.HDR_METADATA_TYPE,
         image.HdrMetadataType.ALTERNATE);

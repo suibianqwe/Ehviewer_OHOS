@@ -1,4 +1,5 @@
 #include <mutex>
+#include <vector>
 
 #include <hilog/log.h>
 #include <multimedia/image_framework/image_pixel_map_mdk.h>
@@ -28,6 +29,58 @@ struct ConversionWork {
     OH_PixelmapNative *destination = nullptr;
     int32_t result = IMAGE_PROCESSING_ERROR_UNKNOWN;
 };
+
+bool ConfigurePixelMapOptions(OH_Pixelmap_InitializationOptions *options, uint32_t width, uint32_t height,
+    int32_t pixelFormat, int32_t rowStride, bool editable)
+{
+    return options != nullptr &&
+        OH_PixelmapInitializationOptions_SetWidth(options, width) == IMAGE_SUCCESS &&
+        OH_PixelmapInitializationOptions_SetHeight(options, height) == IMAGE_SUCCESS &&
+        OH_PixelmapInitializationOptions_SetSrcPixelFormat(options, pixelFormat) == IMAGE_SUCCESS &&
+        OH_PixelmapInitializationOptions_SetPixelFormat(options, pixelFormat) == IMAGE_SUCCESS &&
+        OH_PixelmapInitializationOptions_SetRowStride(options, rowStride) == IMAGE_SUCCESS &&
+        OH_PixelmapInitializationOptions_SetAlphaType(options, PIXELMAP_ALPHA_TYPE_UNKNOWN) == IMAGE_SUCCESS &&
+        OH_PixelmapInitializationOptions_SetEditable(options, editable) == IMAGE_SUCCESS;
+}
+
+napi_value ConvertNativePixelMapToNapi(napi_env env, OH_PixelmapNative *pixelMap, const char *label)
+{
+    if (pixelMap == nullptr) {
+        return nullptr;
+    }
+    OH_NativeBuffer *nativeBuffer = nullptr;
+    const Image_ErrorCode bufferResult = OH_PixelmapNative_GetNativeBuffer(pixelMap, &nativeBuffer);
+    OH_Pixelmap_ImageInfo *imageInfo = nullptr;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t rowStride = 0;
+    int32_t pixelFormat = PIXEL_FORMAT_UNKNOWN;
+    bool isHdr = false;
+    if (OH_PixelmapImageInfo_Create(&imageInfo) == IMAGE_SUCCESS && imageInfo != nullptr &&
+        OH_PixelmapNative_GetImageInfo(pixelMap, imageInfo) == IMAGE_SUCCESS) {
+        OH_PixelmapImageInfo_GetWidth(imageInfo, &width);
+        OH_PixelmapImageInfo_GetHeight(imageInfo, &height);
+        OH_PixelmapImageInfo_GetRowStride(imageInfo, &rowStride);
+        OH_PixelmapImageInfo_GetPixelFormat(imageInfo, &pixelFormat);
+        OH_PixelmapImageInfo_GetDynamicRange(imageInfo, &isHdr);
+    }
+    if (imageInfo != nullptr) {
+        OH_PixelmapImageInfo_Release(imageInfo);
+    }
+    OH_LOG_INFO(LOG_APP,
+        "%{public}s DMA PixelMap: size=%{public}ux%{public}u stride=%{public}u format=%{public}d hdr=%{public}d "
+        "nativeBuffer=%{public}d/%{public}d",
+        label, width, height, rowStride, pixelFormat, isHdr, bufferResult, nativeBuffer != nullptr);
+    if (bufferResult != IMAGE_SUCCESS || nativeBuffer == nullptr) {
+        return nullptr;
+    }
+
+    napi_value result = nullptr;
+    if (OH_PixelmapNative_ConvertPixelmapNativeToNapi(env, pixelMap, &result) != IMAGE_SUCCESS) {
+        return nullptr;
+    }
+    return result;
+}
 
 bool IsSdrToHdrSupported()
 {
@@ -128,19 +181,73 @@ napi_value CreateCompatibleSdrPixelMap(napi_env env, napi_callback_info info)
         return nullptr;
     }
 
-    OhosPixelMapCreateOps createOps {};
-    createOps.width = sourceInfo.width;
-    createOps.height = sourceInfo.height;
-    createOps.pixelFormat = PIXEL_FORMAT_RGBA_8888;
-    createOps.editable = OHOS_PIXEL_MAP_READ_ONLY;
-    createOps.alphaType = OHOS_PIXEL_MAP_ALPHA_TYPE_UNKNOWN;
+    OH_Pixelmap_InitializationOptions *options = nullptr;
+    OH_PixelmapNative *nativeDestination = nullptr;
     const size_t bufferSize = static_cast<size_t>(sourceInfo.rowSize) * sourceInfo.height;
-    const int32_t result = OH_PixelMap_CreatePixelMapWithStride(env, createOps, sourcePixels, bufferSize,
-        static_cast<int32_t>(sourceInfo.rowSize), &destination);
+    Image_ErrorCode result = OH_PixelmapInitializationOptions_Create(&options);
+    if (result == IMAGE_SUCCESS && ConfigurePixelMapOptions(options, sourceInfo.width, sourceInfo.height,
+        PIXEL_FORMAT_RGBA_8888, static_cast<int32_t>(sourceInfo.rowSize), false)) {
+        result = OH_PixelmapNative_CreatePixelmapUsingAllocator(static_cast<uint8_t *>(sourcePixels), bufferSize,
+            options, IMAGE_ALLOCATOR_MODE_DMA, &nativeDestination);
+    } else if (result == IMAGE_SUCCESS) {
+        result = IMAGE_BAD_PARAMETER;
+    }
+    if (options != nullptr) {
+        OH_PixelmapInitializationOptions_Release(options);
+    }
     OH_PixelMap_UnAccessPixels(source);
-    if (result != IMAGE_RESULT_SUCCESS || destination == nullptr) {
+    if (result == IMAGE_SUCCESS && nativeDestination != nullptr) {
+        destination = ConvertNativePixelMapToNapi(env, nativeDestination, "SDR input");
+    }
+    if (nativeDestination != nullptr) {
+        OH_PixelmapNative_Release(nativeDestination);
+    }
+    if (result != IMAGE_SUCCESS || destination == nullptr) {
         OH_LOG_ERROR(LOG_APP, "Create compatible SDR PixelMap failed: %{public}d", result);
         napi_throw_error(env, nullptr, "failed to create compatible SDR PixelMap");
+        return nullptr;
+    }
+    return destination;
+}
+
+napi_value CreateDmaHdrPixelMap(napi_env env, napi_callback_info info)
+{
+    size_t argc = 2;
+    napi_value argv[2] = { nullptr, nullptr };
+    uint32_t width = 0;
+    uint32_t height = 0;
+    if (napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) != napi_ok || argc < 2 ||
+        napi_get_value_uint32(env, argv[0], &width) != napi_ok ||
+        napi_get_value_uint32(env, argv[1], &height) != napi_ok || width < 32 || height < 32) {
+        napi_throw_type_error(env, nullptr, "valid width and height are required");
+        return nullptr;
+    }
+
+    const int32_t rowStride = static_cast<int32_t>(width * 4);
+    std::vector<uint8_t> pixels(static_cast<size_t>(rowStride) * height, 0);
+    OH_Pixelmap_InitializationOptions *options = nullptr;
+    OH_PixelmapNative *nativePixelMap = nullptr;
+    Image_ErrorCode result = OH_PixelmapInitializationOptions_Create(&options);
+    if (result == IMAGE_SUCCESS && ConfigurePixelMapOptions(options, width, height, PIXEL_FORMAT_RGBA_1010102,
+        rowStride, true)) {
+        result = OH_PixelmapNative_CreatePixelmapUsingAllocator(pixels.data(), pixels.size(), options,
+            IMAGE_ALLOCATOR_MODE_DMA, &nativePixelMap);
+    } else if (result == IMAGE_SUCCESS) {
+        result = IMAGE_BAD_PARAMETER;
+    }
+    if (options != nullptr) {
+        OH_PixelmapInitializationOptions_Release(options);
+    }
+    napi_value destination = nullptr;
+    if (result == IMAGE_SUCCESS && nativePixelMap != nullptr) {
+        destination = ConvertNativePixelMapToNapi(env, nativePixelMap, "HDR output");
+    }
+    if (nativePixelMap != nullptr) {
+        OH_PixelmapNative_Release(nativePixelMap);
+    }
+    if (result != IMAGE_SUCCESS || destination == nullptr) {
+        OH_LOG_ERROR(LOG_APP, "Create DMA HDR PixelMap failed: %{public}d", result);
+        napi_throw_error(env, nullptr, "failed to create DMA HDR PixelMap");
         return nullptr;
     }
     return destination;
@@ -197,6 +304,7 @@ napi_value Init(napi_env env, napi_value exports)
         { "isSdrToHdrSupported", nullptr, IsSupported, nullptr, nullptr, nullptr, napi_default, nullptr },
         { "createCompatibleSdrPixelMap", nullptr, CreateCompatibleSdrPixelMap, nullptr, nullptr, nullptr,
             napi_default, nullptr },
+        { "createDmaHdrPixelMap", nullptr, CreateDmaHdrPixelMap, nullptr, nullptr, nullptr, napi_default, nullptr },
         { "convertSdrToHdr", nullptr, ConvertSdrToHdr, nullptr, nullptr, nullptr, napi_default, nullptr }
     };
     napi_define_properties(env, exports, sizeof(descriptors) / sizeof(descriptors[0]), descriptors);
