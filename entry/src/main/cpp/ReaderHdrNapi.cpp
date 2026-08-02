@@ -1,6 +1,7 @@
 #include <mutex>
 
 #include <hilog/log.h>
+#include <multimedia/image_framework/image_pixel_map_mdk.h>
 #include <multimedia/image_framework/image/pixelmap_native.h>
 #include <multimedia/video_processing_engine/image_processing.h>
 #include <multimedia/video_processing_engine/image_processing_types.h>
@@ -106,6 +107,45 @@ napi_value IsSupported(napi_env env, napi_callback_info info)
     return result;
 }
 
+napi_value CreateCompatibleSdrPixelMap(napi_env env, napi_callback_info info)
+{
+    size_t argc = 1;
+    napi_value argv[1] = { nullptr };
+    if (napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) != napi_ok || argc < 1 || argv[0] == nullptr) {
+        napi_throw_type_error(env, nullptr, "source PixelMap is required");
+        return nullptr;
+    }
+
+    NativePixelMap *source = OH_PixelMap_InitNativePixelMap(env, argv[0]);
+    OhosPixelMapInfos sourceInfo {};
+    void *sourcePixels = nullptr;
+    napi_value destination = nullptr;
+    if (source == nullptr || OH_PixelMap_GetImageInfo(source, &sourceInfo) != IMAGE_RESULT_SUCCESS ||
+        sourceInfo.width < 32 || sourceInfo.height < 32 || sourceInfo.pixelFormat != PIXEL_FORMAT_RGBA_8888 ||
+        sourceInfo.rowSize < sourceInfo.width * 4 || OH_PixelMap_AccessPixels(source, &sourcePixels) != IMAGE_RESULT_SUCCESS ||
+        sourcePixels == nullptr) {
+        napi_throw_error(env, nullptr, "failed to access SDR PixelMap");
+        return nullptr;
+    }
+
+    OhosPixelMapCreateOps createOps {};
+    createOps.width = sourceInfo.width;
+    createOps.height = sourceInfo.height;
+    createOps.pixelFormat = PIXEL_FORMAT_RGBA_8888;
+    createOps.editable = OHOS_PIXEL_MAP_READ_ONLY;
+    createOps.alphaType = OHOS_PIXEL_MAP_ALPHA_TYPE_UNKNOWN;
+    const size_t bufferSize = static_cast<size_t>(sourceInfo.rowSize) * sourceInfo.height;
+    const int32_t result = OH_PixelMap_CreatePixelMapWithStride(env, createOps, sourcePixels, bufferSize,
+        static_cast<int32_t>(sourceInfo.rowSize), &destination);
+    OH_PixelMap_UnAccessPixels(source);
+    if (result != IMAGE_RESULT_SUCCESS || destination == nullptr) {
+        OH_LOG_ERROR(LOG_APP, "Create compatible SDR PixelMap failed: %{public}d", result);
+        napi_throw_error(env, nullptr, "failed to create compatible SDR PixelMap");
+        return nullptr;
+    }
+    return destination;
+}
+
 napi_value ConvertSdrToHdr(napi_env env, napi_callback_info info)
 {
     size_t argc = 2;
@@ -155,6 +195,8 @@ napi_value Init(napi_env env, napi_value exports)
 {
     napi_property_descriptor descriptors[] = {
         { "isSdrToHdrSupported", nullptr, IsSupported, nullptr, nullptr, nullptr, napi_default, nullptr },
+        { "createCompatibleSdrPixelMap", nullptr, CreateCompatibleSdrPixelMap, nullptr, nullptr, nullptr,
+            napi_default, nullptr },
         { "convertSdrToHdr", nullptr, ConvertSdrToHdr, nullptr, nullptr, nullptr, napi_default, nullptr }
     };
     napi_define_properties(env, exports, sizeof(descriptors) / sizeof(descriptors[0]), descriptors);

@@ -189,6 +189,7 @@ export struct ReaderImageViewport {
   }
 
   onHdrEnabledChange(): void {
+    this.startDownloadProgressMonitor();
     this.loadHdrPixelMap();
   }
 
@@ -300,7 +301,7 @@ export struct ReaderImageViewport {
     if (this.localSourceImagePath().length > 0) {
       return;
     }
-    if (!this.isActive) {
+    if (!this.isActive && !this.hdrEnabled) {
       return;
     }
     const context = getAbilityContext();

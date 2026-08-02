@@ -13,6 +13,7 @@ add_library(readerhdr SHARED ReaderHdrNapi.cpp)
 target_link_libraries(readerhdr PUBLIC
     libace_napi.z.so
     libhilog_ndk.z.so
+    libpixelmap_ndk.z.so
     libpixelmap.so
     ${IMAGE_PROCESSING_LIBRARY}
 )

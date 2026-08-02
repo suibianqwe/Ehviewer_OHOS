@@ -243,14 +243,16 @@ class ReaderHdrService {
         !this.isEntryActive(entry)) {
         return undefined;
       }
+      const decodedPixelMap = sourcePixelMap;
+      sourcePixelMap = readerHdr.createCompatibleSdrPixelMap(decodedPixelMap);
+      await this.releasePixelMap(decodedPixelMap);
       sourcePixelMap.setColorSpace(this.srgbColorSpace);
       await sourcePixelMap.setMetadata(image.HdrMetadataKey.HDR_METADATA_TYPE, image.HdrMetadataType.NONE);
-      destinationPixelMap = image.createPixelMapUsingAllocatorSync({
+      destinationPixelMap = image.createPixelMapSync({
         size: decodedInfo.size,
         pixelFormat: image.PixelMapFormat.RGBA_1010102,
-        editable: true,
-        alphaType: decodedInfo.alphaType
-      }, image.AllocatorType.DMA);
+        editable: true
+      });
       destinationPixelMap.setColorSpace(this.hlgColorSpace);
       await destinationPixelMap.setMetadata(image.HdrMetadataKey.HDR_METADATA_TYPE,
         image.HdrMetadataType.ALTERNATE);
