@@ -192,11 +192,11 @@ class ReaderHdrService {
     try {
       const hlg = colorSpaceManager.create(colorSpaceManager.ColorSpace.BT2020_HLG);
       source = image.createImageSource(sourcePath);
-      pixelMap = await source.createPixelMap({
+      pixelMap = await source.createPixelMapUsingAllocator({
         editable: false,
         desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
         desiredDynamicRange: image.DecodingDynamicRange.AUTO
-      });
+      }, image.AllocatorType.DMA);
       const info = pixelMap.getImageInfoSync();
       if (info.size.width < 32 || info.size.height < 32 || info.size.width > 8880 || info.size.height > 8880) {
         return undefined;
