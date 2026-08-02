@@ -199,22 +199,19 @@ class ReaderHdrService {
         desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
         desiredColorSpace: srgb,
         desiredDynamicRange: image.DecodingDynamicRange.SDR
-      }, image.AllocatorType.SHARE_MEMORY);
+      }, image.AllocatorType.DMA);
       const info = sourcePixelMap.getImageInfoSync();
       if (info.size.width < 32 || info.size.height < 32 || info.size.width > 8880 || info.size.height > 8880) {
         return undefined;
       }
       sourcePixelMap.setColorSpace(srgb);
       await sourcePixelMap.setMetadata(image.HdrMetadataKey.HDR_METADATA_TYPE, image.HdrMetadataType.NONE);
-      destinationPixelMap = image.createPixelMapUsingAllocatorSync({
+      destinationPixelMap = await source.createPixelMapUsingAllocator({
         editable: true,
-        pixelFormat: image.PixelMapFormat.RGBA_1010102,
-        alphaType: image.AlphaType.PREMUL,
-        size: {
-          width: info.size.width,
-          height: info.size.height
-        }
-      }, image.AllocatorType.SHARE_MEMORY);
+        desiredPixelFormat: image.PixelMapFormat.RGBA_1010102,
+        desiredColorSpace: hlg,
+        desiredDynamicRange: image.DecodingDynamicRange.AUTO
+      }, image.AllocatorType.DMA);
       destinationPixelMap.setColorSpace(hlg);
       await destinationPixelMap.setMetadata(image.HdrMetadataKey.HDR_METADATA_TYPE,
         image.HdrMetadataType.ALTERNATE);
