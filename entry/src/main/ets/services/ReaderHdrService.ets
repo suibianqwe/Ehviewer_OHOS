@@ -208,7 +208,7 @@ class ReaderHdrService {
       await sourcePixelMap.setMetadata(image.HdrMetadataKey.HDR_METADATA_TYPE, image.HdrMetadataType.NONE);
       destinationPixelMap = await source.createPixelMapUsingAllocator({
         editable: true,
-        desiredPixelFormat: image.PixelMapFormat.RGBA_1010102,
+        desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
         desiredColorSpace: hlg,
         desiredDynamicRange: image.DecodingDynamicRange.AUTO
       }, image.AllocatorType.DMA);
