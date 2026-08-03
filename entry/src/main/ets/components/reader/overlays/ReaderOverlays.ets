@@ -352,6 +352,7 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuReadingDirection: string = 'Right to left';
   @Prop menuPageScaling: string = 'Fit screen';
   @Prop menuAdaptiveDualPage: boolean = false;
+  @Prop menuCropWhiteBorders: boolean = false;
   @Prop menuSdrToHdrEnabled: boolean = false;
   @Prop menuStartPosition: string = 'Top right';
   @Prop menuAutoTransferTime: string = '5s';
@@ -364,6 +365,7 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuUltraDarkBrightness: string = '50%';
   @State customBrightnessVisible: boolean = false;
   @State ultraDarkVisible: boolean = false;
+  @State selectedTab: number = 0;
   @Prop screenRotationOptions: string[] = [];
   @Prop readingDirectionOptions: string[] = [];
   @Prop pageScalingOptions: string[] = [];
@@ -373,6 +375,7 @@ export struct ReaderSettingsMenuOverlay {
   onReadingDirectionChange: (value: string) => void = (_value: string) => {};
   onPageScalingChange: (value: string) => void = (_value: string) => {};
   onAdaptiveDualPageChange: (value: boolean) => void = (_value: boolean) => {};
+  onCropWhiteBordersChange: (value: boolean) => void = (_value: boolean) => {};
   onSdrToHdrChange: (value: boolean) => void = (_value: boolean) => {};
   onStartPositionChange: (value: string) => void = (_value: string) => {};
   onAutoTransferTimeChange: (value: string) => void = (_value: string) => {};
@@ -398,6 +401,210 @@ export struct ReaderSettingsMenuOverlay {
 
   onMenuUltraDarkModeChange(): void {
     this.ultraDarkVisible = this.menuUltraDarkMode;
+  }
+
+  @Builder
+  private ReaderSettingsTabBar(label: string, index: number) {
+    Column({ space: 3 }) {
+      Text(label)
+        .fontSize(13)
+        .fontWeight(this.selectedTab === index ? FontWeight.Medium : FontWeight.Normal)
+        .fontColor(this.selectedTab === index ? '#FFFFFF' : '#94A3B8')
+        .maxLines(1)
+      Row()
+        .width(this.selectedTab === index ? 28 : 0)
+        .height(2)
+        .borderRadius(1)
+        .backgroundColor('#38BDF8')
+    }
+    .width('100%')
+    .height(40)
+    .justifyContent(FlexAlign.Center)
+  }
+
+  @Builder
+  private ReadingSettingsTab() {
+    Scroll() {
+      Column({ space: 0 }) {
+        ReaderMenuSelect({
+          label: uiText('Screen rotation'),
+          options: this.screenRotationOptions,
+          value: this.menuScreenRotation,
+          onChange: this.onScreenRotationChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuSelect({
+          label: uiText('Reading direction'),
+          options: this.readingDirectionOptions,
+          value: this.menuReadingDirection,
+          onChange: this.onReadingDirectionChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuSelect({
+          label: uiText('Page scaling'),
+          options: this.pageScalingOptions,
+          value: this.menuPageScaling,
+          onChange: this.onPageScalingChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuToggle({
+          label: uiText('Adaptive dual page'),
+          value: this.menuAdaptiveDualPage,
+          onChange: this.onAdaptiveDualPageChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuToggle({
+          label: uiText('Crop white borders'),
+          value: this.menuCropWhiteBorders,
+          onChange: this.onCropWhiteBordersChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuSelect({
+          label: uiText('Start position'),
+          options: ['Top left', 'Top right', 'Bottom left', 'Bottom right', 'Center'],
+          value: this.menuStartPosition,
+          onChange: this.onStartPositionChange
+        })
+      }
+      .width('100%')
+      .padding({ bottom: 8 })
+    }
+    .scrollable(ScrollDirection.Vertical)
+    .scrollBar(BarState.Off)
+    .width('100%')
+    .height('100%')
+  }
+
+  @Builder
+  private DisplaySettingsTab() {
+    Scroll() {
+      Column({ space: 0 }) {
+        ReaderMenuToggle({
+          label: uiText('SDR to HDR'),
+          value: this.menuSdrToHdrEnabled,
+          onChange: this.onSdrToHdrChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuToggle({
+          label: uiText('Reading fullscreen'),
+          value: this.menuReadingFullscreen,
+          onChange: this.onReadingFullscreenChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuToggle({
+          label: uiText('Keep screen on'),
+          value: this.menuKeepScreenOn,
+          onChange: this.onKeepScreenOnChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuToggle({
+          label: uiText('Custom brightness'),
+          value: this.customBrightnessVisible,
+          onChange: (value: boolean) => {
+            this.customBrightnessVisible = value;
+            this.onCustomBrightnessChange(value);
+          }
+        })
+        if (this.customBrightnessVisible) {
+          ReaderMenuDivider()
+          ReaderMenuSlider({
+            label: uiText('Screen lightness'),
+            value: readerBrightnessSliderValue(this.menuBrightnessLevel),
+            min: 0,
+            max: 100,
+            step: 1,
+            valueText: (value: number) => {
+              return readerBrightnessValue(value);
+            },
+            onChange: (value: number) => {
+              this.onBrightnessLevelChange(readerBrightnessValue(value));
+            }
+          })
+        }
+        ReaderMenuDivider()
+        ReaderMenuToggle({
+          label: uiText('Ultra dark mode'),
+          value: this.ultraDarkVisible,
+          onChange: (value: boolean) => {
+            this.ultraDarkVisible = value;
+            this.onUltraDarkModeChange(value);
+          }
+        })
+        if (this.ultraDarkVisible) {
+          ReaderMenuDivider()
+          ReaderMenuSlider({
+            label: uiText('Ultra dark brightness'),
+            value: readerUltraDarkSliderValue(this.menuUltraDarkBrightness),
+            min: 1,
+            max: 100,
+            step: 1,
+            valueText: (value: number) => {
+              return readerUltraDarkValue(value);
+            },
+            onChange: (value: number) => {
+              this.onUltraDarkBrightnessChange(readerUltraDarkValue(value));
+            }
+          })
+        }
+      }
+      .width('100%')
+      .padding({ bottom: 8 })
+    }
+    .scrollable(ScrollDirection.Vertical)
+    .scrollBar(BarState.Off)
+    .width('100%')
+    .height('100%')
+  }
+
+  @Builder
+  private ControlSettingsTab() {
+    Scroll() {
+      Column({ space: 0 }) {
+        ReaderMenuSlider({
+          label: uiText('Auto transfer time'),
+          value: readerAutoTransferSliderValue(this.menuAutoTransferTime),
+          min: 1,
+          max: 20,
+          step: 1,
+          valueText: (value: number) => {
+            return uiValue(readerAutoTransferValue(value));
+          },
+          onChange: (value: number) => {
+            this.onAutoTransferTimeChange(readerAutoTransferValue(value));
+          }
+        })
+        ReaderMenuDivider()
+        ReaderMenuToggle({
+          label: uiText('Volume page'),
+          value: this.menuVolumePage,
+          onChange: this.onVolumePageChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuToggle({
+          label: uiText('Show clock'),
+          value: this.menuShowClock,
+          onChange: this.onShowClockChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuToggle({
+          label: uiText('Show progress'),
+          value: this.menuShowProgress,
+          onChange: this.onShowProgressChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuToggle({
+          label: uiText('Show battery'),
+          value: this.menuShowBattery,
+          onChange: this.onShowBatteryChange
+        })
+      }
+      .width('100%')
+      .padding({ bottom: 8 })
+    }
+    .scrollable(ScrollDirection.Vertical)
+    .scrollBar(BarState.Off)
+    .width('100%')
+    .height('100%')
   }
 
   build() {
@@ -445,168 +652,29 @@ export struct ReaderSettingsMenuOverlay {
         .padding({ left: 12, right: 12, top: 6, bottom: 6 })
         .backgroundColor(themeScrimColor())
 
-        Scroll() {
-          Column({ space: 0 }) {
-            ReaderMenuSelect({
-              label: uiText('Screen rotation'),
-              options: this.screenRotationOptions,
-              value: this.menuScreenRotation,
-              onChange: this.onScreenRotationChange
-            })
-            ReaderMenuDivider()
-
-            ReaderMenuSelect({
-              label: uiText('Reading direction'),
-              options: this.readingDirectionOptions,
-              value: this.menuReadingDirection,
-              onChange: this.onReadingDirectionChange
-            })
-            ReaderMenuDivider()
-
-            ReaderMenuSelect({
-              label: uiText('Page scaling'),
-              options: this.pageScalingOptions,
-              value: this.menuPageScaling,
-              onChange: this.onPageScalingChange
-            })
-            ReaderMenuDivider()
-
-            ReaderMenuToggle({
-              label: uiText('Adaptive dual page'),
-              value: this.menuAdaptiveDualPage,
-              onChange: this.onAdaptiveDualPageChange
-            })
-            ReaderMenuDivider()
-
-            ReaderMenuToggle({
-              label: uiText('SDR to HDR'),
-              value: this.menuSdrToHdrEnabled,
-              onChange: this.onSdrToHdrChange
-            })
-            ReaderMenuDivider()
-
-            ReaderMenuSelect({
-              label: uiText('Start position'),
-              options: ['Top left', 'Top right', 'Bottom left', 'Bottom right', 'Center'],
-              value: this.menuStartPosition,
-              onChange: this.onStartPositionChange
-            })
-            ReaderMenuDivider()
-
-            ReaderMenuSlider({
-              label: uiText('Auto transfer time'),
-              value: readerAutoTransferSliderValue(this.menuAutoTransferTime),
-              min: 1,
-              max: 20,
-              step: 1,
-              valueText: (value: number) => {
-                return uiValue(readerAutoTransferValue(value));
-              },
-              onChange: (value: number) => {
-                this.onAutoTransferTimeChange(readerAutoTransferValue(value));
-              }
-            })
-            ReaderMenuDivider()
-
-            ReaderMenuToggle({
-              label: uiText('Keep screen on'),
-              value: this.menuKeepScreenOn,
-              onChange: this.onKeepScreenOnChange
-            })
-            ReaderMenuDivider()
-
-            ReaderMenuToggle({
-              label: uiText('Show clock'),
-              value: this.menuShowClock,
-              onChange: this.onShowClockChange
-            })
-            ReaderMenuDivider()
-
-            ReaderMenuToggle({
-              label: uiText('Show progress'),
-              value: this.menuShowProgress,
-              onChange: this.onShowProgressChange
-            })
-            ReaderMenuDivider()
-
-            ReaderMenuToggle({
-              label: uiText('Show battery'),
-              value: this.menuShowBattery,
-              onChange: this.onShowBatteryChange
-            })
-            ReaderMenuDivider()
-
-            ReaderMenuToggle({
-              label: uiText('Reading fullscreen'),
-              value: this.menuReadingFullscreen,
-              onChange: this.onReadingFullscreenChange
-            })
-            ReaderMenuDivider()
-
-            ReaderMenuToggle({
-              label: uiText('Volume page'),
-              value: this.menuVolumePage,
-              onChange: this.onVolumePageChange
-            })
-            ReaderMenuDivider()
-
-            ReaderMenuToggle({
-              label: uiText('Custom brightness'),
-              value: this.customBrightnessVisible,
-              onChange: (value: boolean) => {
-                this.customBrightnessVisible = value;
-                this.onCustomBrightnessChange(value);
-              }
-            })
-
-            if (this.customBrightnessVisible) {
-              ReaderMenuDivider()
-              ReaderMenuSlider({
-                label: uiText('Screen lightness'),
-                value: readerBrightnessSliderValue(this.menuBrightnessLevel),
-                min: 0,
-                max: 100,
-                step: 1,
-                valueText: (value: number) => {
-                  return readerBrightnessValue(value);
-                },
-                onChange: (value: number) => {
-                  this.onBrightnessLevelChange(readerBrightnessValue(value));
-                }
-              })
-            }
-            ReaderMenuDivider()
-
-            ReaderMenuToggle({
-              label: uiText('Ultra dark mode'),
-              value: this.ultraDarkVisible,
-              onChange: (value: boolean) => {
-                this.ultraDarkVisible = value;
-                this.onUltraDarkModeChange(value);
-              }
-            })
-
-            if (this.ultraDarkVisible) {
-              ReaderMenuDivider()
-              ReaderMenuSlider({
-                label: uiText('Ultra dark brightness'),
-                value: readerUltraDarkSliderValue(this.menuUltraDarkBrightness),
-                min: 1,
-                max: 100,
-                step: 1,
-                valueText: (value: number) => {
-                  return readerUltraDarkValue(value);
-                },
-                onChange: (value: number) => {
-                  this.onUltraDarkBrightnessChange(readerUltraDarkValue(value));
-                }
-              })
-            }
+        Tabs({ barPosition: BarPosition.Start, index: this.selectedTab }) {
+          TabContent() {
+            this.ReadingSettingsTab()
           }
-          .width('100%')
+          .tabBar(this.ReaderSettingsTabBar(uiText('Reading'), 0))
+
+          TabContent() {
+            this.DisplaySettingsTab()
+          }
+          .tabBar(this.ReaderSettingsTabBar(uiText('Display'), 1))
+
+          TabContent() {
+            this.ControlSettingsTab()
+          }
+          .tabBar(this.ReaderSettingsTabBar(uiText('Controls'), 2))
         }
-        .scrollable(ScrollDirection.Vertical)
-        .scrollBar(BarState.Off)
+        .barMode(BarMode.Fixed)
+        .barHeight(40)
+        .animationDuration(180)
+        .divider({ strokeWidth: 1, color: '#334155' })
+        .onChange((index: number) => {
+          this.selectedTab = index;
+        })
         .width('100%')
         .layoutWeight(1)
       }

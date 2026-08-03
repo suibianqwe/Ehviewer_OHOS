@@ -8,6 +8,10 @@ import {
 } from '../../../services/ReaderImageCache';
 import { readerHdrService } from '../../../services/ReaderHdrService';
 import {
+  ReaderCropRect,
+  readerWhiteBorderCropService
+} from '../../../services/ReaderWhiteBorderCropService';
+import {
   createEmptyPage,
   getAbilityContext,
   normalizePageScalingOption,
@@ -44,6 +48,7 @@ export struct ReaderImageViewport {
   @Prop @Watch('onActiveChange') isActive: boolean = false;
   @Prop @Watch('onHdrEnabledChange') hdrEnabled: boolean = false;
   @Prop @Watch('onHdrPriorityChange') hdrPriority: number = 0;
+  @Prop @Watch('onCropWhiteBordersChange') cropWhiteBorders: boolean = false;
   @Prop translation: ReaderPageTranslation | null = null;
   @Prop allowEdgeSwipe: boolean = true;
   @Prop command: string = '';
@@ -66,12 +71,14 @@ export struct ReaderImageViewport {
   @State downloadProgress: number = -1;
   @State imageRetryVersion: number = 0;
   @State hdrPixelMap: image.PixelMap | undefined = undefined;
+  @State cropRect: ReaderCropRect = new ReaderCropRect();
   private lastCommandVersion: number = -1;
   private sourceSizeRequestId: number = 0;
   private downloadProgressRequestId: number = 0;
   private retainedImageUrl: string = '';
   private retainedHdrKey: string = '';
   private hdrRequestId: number = 0;
+  private cropRequestId: number = 0;
 
   aboutToAppear(): void {
     this.onImageSourceChange();
@@ -154,6 +161,7 @@ export struct ReaderImageViewport {
 
   private onImageSourceChange(): void {
     const url = this.imageUrl();
+    this.cropRect = new ReaderCropRect();
     if (this.retainedImageUrl.length > 0 && this.retainedImageUrl !== url) {
       forgetReaderImageRuntimeState(this.retainedImageUrl);
     }
@@ -176,6 +184,7 @@ export struct ReaderImageViewport {
     this.reportImageSize();
     this.loadCachedSourceImageSize(requestId, url).catch(() => {});
     this.loadHdrPixelMap();
+    this.loadCropRect();
     this.startDownloadProgressMonitor();
     this.syncFixedScale();
   }
@@ -186,6 +195,14 @@ export struct ReaderImageViewport {
     forgetReaderImageRuntimeState(this.retainedImageUrl);
     this.retainedImageUrl = '';
     this.releaseHdrPixelMap();
+    this.cropRequestId++;
+  }
+
+  onCropWhiteBordersChange(): void {
+    this.cropRect = new ReaderCropRect();
+    this.updateDisplayImageSize();
+    this.reportImageSize();
+    this.loadCropRect();
   }
 
   onHdrEnabledChange(): void {
@@ -301,7 +318,7 @@ export struct ReaderImageViewport {
     if (this.localSourceImagePath().length > 0) {
       return;
     }
-    if (!this.isActive && !this.hdrEnabled) {
+    if (!this.isActive && !this.hdrEnabled && !this.cropWhiteBorders) {
       return;
     }
     const context = getAbilityContext();
@@ -319,6 +336,7 @@ export struct ReaderImageViewport {
       if (requestId === this.downloadProgressRequestId) {
         this.downloadProgress = 100;
         this.loadHdrPixelMap();
+        this.loadCropRect();
       }
     }).catch(() => {});
   }
@@ -337,14 +355,62 @@ export struct ReaderImageViewport {
     return this.displayImageHeight;
   }
 
+  private loadCropRect(): void {
+    const requestId = this.cropRequestId + 1;
+    this.cropRequestId = requestId;
+    if (!this.cropWhiteBorders) {
+      this.cropRect = new ReaderCropRect();
+      this.updateDisplayImageSize();
+      this.reportImageSize();
+      return;
+    }
+    const sourcePath = this.localSourceImagePath();
+    const cacheKey = this.sourceImageCacheKey();
+    if (sourcePath.length === 0) {
+      return;
+    }
+    readerWhiteBorderCropService.analyze(cacheKey, sourcePath).then((rect: ReaderCropRect) => {
+      if (requestId !== this.cropRequestId || !this.cropWhiteBorders || sourcePath !== this.localSourceImagePath()) {
+        return;
+      }
+      this.cropRect = rect;
+      this.updateDisplayImageSize();
+      this.reportImageSize();
+    }).catch(() => {});
+  }
+
+  private visibleSourceWidth(): number {
+    return Math.max(1, this.sourceImageWidth * this.cropRect.width);
+  }
+
+  private visibleSourceHeight(): number {
+    return Math.max(1, this.sourceImageHeight * this.cropRect.height);
+  }
+
+  private uncroppedDisplayWidth(): number {
+    return Math.max(1, this.displayImageWidth / Math.max(0.01, this.cropRect.width));
+  }
+
+  private uncroppedDisplayHeight(): number {
+    return Math.max(1, this.displayImageHeight / Math.max(0.01, this.cropRect.height));
+  }
+
+  private cropOffsetX(): number {
+    return -this.cropRect.x * this.uncroppedDisplayWidth();
+  }
+
+  private cropOffsetY(): number {
+    return -this.cropRect.y * this.uncroppedDisplayHeight();
+  }
+
   private updateDisplayImageSize(): void {
     const componentWidth = this.imageModel.componentWidth;
     const componentHeight = this.imageModel.componentHeight;
     if (componentWidth <= 0 || componentHeight <= 0) {
       return;
     }
-    const sourceWidth = this.hasSourceImageSize() ? this.sourceImageWidth : componentWidth;
-    const sourceHeight = this.hasSourceImageSize() ? this.sourceImageHeight : componentHeight;
+    const sourceWidth = this.hasSourceImageSize() ? this.visibleSourceWidth() : componentWidth;
+    const sourceHeight = this.hasSourceImageSize() ? this.visibleSourceHeight() : componentHeight;
     let displayWidth = componentWidth;
     let displayHeight = componentHeight;
     const normalized = normalizePageScalingOption(this.fitMode);
@@ -372,14 +438,14 @@ export struct ReaderImageViewport {
 
   private imageSourceWidthVp(sourceWidth: number): number {
     if (this.sourceImageWidth > 0) {
-      return this.getUIContext().px2vp(this.sourceImageWidth);
+      return this.getUIContext().px2vp(sourceWidth);
     }
     return sourceWidth;
   }
 
   private imageSourceHeightVp(sourceHeight: number): number {
     if (this.sourceImageHeight > 0) {
-      return this.getUIContext().px2vp(this.sourceImageHeight);
+      return this.getUIContext().px2vp(sourceHeight);
     }
     return sourceHeight;
   }
@@ -441,7 +507,7 @@ export struct ReaderImageViewport {
     if (this.sourceImageWidth <= 0 || this.sourceImageHeight <= 0) {
       return;
     }
-    this.onImageSizeChange(this.sourceImageWidth, this.sourceImageHeight);
+    this.onImageSizeChange(this.visibleSourceWidth(), this.visibleSourceHeight());
   }
 
   private shouldLetSwiperHandlePan(event: BaseGestureEvent): boolean {
@@ -458,34 +524,49 @@ export struct ReaderImageViewport {
     Stack({ alignContent: Alignment.Center }) {
       if (this.imageUrl().length > 0) {
         Stack({ alignContent: this.startAlignment() }) {
-          Image(this.hdrPixelMap === undefined ? this.imageUrl() : this.hdrPixelMap)
-            .id(this.imageNodeId())
-            .width(this.imageDisplayWidth())
-            .height(this.imageDisplayHeight())
-            .objectFit(this.imageObjectFit())
-            .dynamicRangeMode(this.hdrPixelMap === undefined ? DynamicRangeMode.STANDARD : DynamicRangeMode.HIGH)
-            .hdrBrightness(this.hdrPixelMap === undefined ? 0 : 1)
-            .syncLoad(this.shouldSyncLoadImage())
-            .draggable(false)
-            .backgroundColor(readerBackgroundColor())
-            .opacity(this.failedImageUrl === this.imageUrl() ? 0 : 1)
-            .onComplete((event?: ReaderImageCompleteEvent) => {
-              if (event !== undefined && event.width > 0 && event.height > 0 && this.sourceImageWidth <= 0) {
-                this.sourceImageWidth = event.width;
-                this.sourceImageHeight = event.height;
-                cacheReaderSourceImageSize(this.imageUrl(), event.width, event.height);
-                this.updateDisplayImageSize();
-                this.reportImageSize();
-              }
-              cacheReaderImageComplete(this.imageUrl());
-              this.completedImageUrl = this.imageUrl();
-              this.failedImageUrl = '';
-            })
-            .onError(() => {
-              this.failedImageUrl = this.imageUrl();
-            })
-            .scale({ x: this.imageModel.currentScale, y: this.imageModel.currentScale, centerX: '50%', centerY: '50%' })
-            .translate({ x: this.imageModel.currentOffsetX, y: this.imageModel.currentOffsetY })
+          Stack({ alignContent: Alignment.TopStart }) {
+            Image(this.hdrPixelMap === undefined ? this.imageUrl() : this.hdrPixelMap)
+              .id(this.imageNodeId())
+              .width(this.uncroppedDisplayWidth())
+              .height(this.uncroppedDisplayHeight())
+              .objectFit(this.imageObjectFit())
+              .dynamicRangeMode(this.hdrPixelMap === undefined ? DynamicRangeMode.STANDARD : DynamicRangeMode.HIGH)
+              .hdrBrightness(this.hdrPixelMap === undefined ? 0 : 1)
+              .syncLoad(this.shouldSyncLoadImage())
+              .draggable(false)
+              .backgroundColor(readerBackgroundColor())
+              .opacity(this.failedImageUrl === this.imageUrl() ? 0 : 1)
+              .position({ x: this.cropOffsetX(), y: this.cropOffsetY() })
+              .onComplete((event?: ReaderImageCompleteEvent) => {
+                if (event !== undefined && event.width > 0 && event.height > 0 && this.sourceImageWidth <= 0) {
+                  this.sourceImageWidth = event.width;
+                  this.sourceImageHeight = event.height;
+                  cacheReaderSourceImageSize(this.imageUrl(), event.width, event.height);
+                  this.updateDisplayImageSize();
+                  this.reportImageSize();
+                }
+                cacheReaderImageComplete(this.imageUrl());
+                this.completedImageUrl = this.imageUrl();
+                this.failedImageUrl = '';
+                this.loadCropRect();
+              })
+              .onError(() => {
+                this.failedImageUrl = this.imageUrl();
+              })
+            if (this.translation !== null && this.displayImageWidth > 1 && this.displayImageHeight > 1) {
+              ReaderTranslationOverlay({
+                translation: this.translation,
+                displayWidth: this.uncroppedDisplayWidth(),
+                displayHeight: this.uncroppedDisplayHeight()
+              })
+                .position({ x: this.cropOffsetX(), y: this.cropOffsetY() })
+            }
+          }
+          .width(this.imageDisplayWidth())
+          .height(this.imageDisplayHeight())
+          .clip(true)
+          .scale({ x: this.imageModel.currentScale, y: this.imageModel.currentScale, centerX: '50%', centerY: '50%' })
+          .translate({ x: this.imageModel.currentOffsetX, y: this.imageModel.currentOffsetY })
           if (this.hdrPixelMap !== undefined) {
             Text('HDR')
               .fontSize('9vp')
@@ -496,15 +577,6 @@ export struct ReaderImageViewport {
               .padding({ left: 5, right: 5, top: 2, bottom: 2 })
               .position({ x: 8, y: this.displayImageHeight - 24 })
               .hitTestBehavior(HitTestMode.None)
-          }
-          if (this.translation !== null && this.displayImageWidth > 1 && this.displayImageHeight > 1) {
-            ReaderTranslationOverlay({
-              translation: this.translation,
-              displayWidth: this.displayImageWidth,
-              displayHeight: this.displayImageHeight
-            })
-              .scale({ x: this.imageModel.currentScale, y: this.imageModel.currentScale, centerX: '50%', centerY: '50%' })
-              .translate({ x: this.imageModel.currentOffsetX, y: this.imageModel.currentOffsetY })
           }
         }
         .width('100%')

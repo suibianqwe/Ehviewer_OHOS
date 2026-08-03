@@ -84,6 +84,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'reading_direction', value: 'Right to left' },
     { key: 'page_scaling', value: 'Fit screen' },
     { key: 'adaptive_dual_page', value: 'Off' },
+    { key: 'reader_crop_white_borders', value: 'Off' },
     { key: 'reader_sdr_to_hdr', value: 'Off' },
     { key: 'start_position', value: 'Top right' },
     { key: 'start_transfer_time', value: '5s' },
