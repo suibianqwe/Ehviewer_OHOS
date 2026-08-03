@@ -427,13 +427,6 @@ export struct ReaderSettingsMenuOverlay {
     Scroll() {
       Column({ space: 0 }) {
         ReaderMenuSelect({
-          label: uiText('Screen rotation'),
-          options: this.screenRotationOptions,
-          value: this.menuScreenRotation,
-          onChange: this.onScreenRotationChange
-        })
-        ReaderMenuDivider()
-        ReaderMenuSelect({
           label: uiText('Reading direction'),
           options: this.readingDirectionOptions,
           value: this.menuReadingDirection,
@@ -454,7 +447,7 @@ export struct ReaderSettingsMenuOverlay {
         })
         ReaderMenuDivider()
         ReaderMenuToggle({
-          label: uiText('Crop white borders'),
+          label: uiText('Crop white and black borders'),
           value: this.menuCropWhiteBorders,
           onChange: this.onCropWhiteBordersChange
         })
@@ -479,6 +472,13 @@ export struct ReaderSettingsMenuOverlay {
   private DisplaySettingsTab() {
     Scroll() {
       Column({ space: 0 }) {
+        ReaderMenuSelect({
+          label: uiText('Screen rotation'),
+          options: this.screenRotationOptions,
+          value: this.menuScreenRotation,
+          onChange: this.onScreenRotationChange
+        })
+        ReaderMenuDivider()
         ReaderMenuToggle({
           label: uiText('SDR to HDR'),
           value: this.menuSdrToHdrEnabled,
@@ -489,12 +489,6 @@ export struct ReaderSettingsMenuOverlay {
           label: uiText('Reading fullscreen'),
           value: this.menuReadingFullscreen,
           onChange: this.onReadingFullscreenChange
-        })
-        ReaderMenuDivider()
-        ReaderMenuToggle({
-          label: uiText('Keep screen on'),
-          value: this.menuKeepScreenOn,
-          onChange: this.onKeepScreenOnChange
         })
         ReaderMenuDivider()
         ReaderMenuToggle({
@@ -560,6 +554,12 @@ export struct ReaderSettingsMenuOverlay {
   private ControlSettingsTab() {
     Scroll() {
       Column({ space: 0 }) {
+        ReaderMenuToggle({
+          label: uiText('Keep screen on'),
+          value: this.menuKeepScreenOn,
+          onChange: this.onKeepScreenOnChange
+        })
+        ReaderMenuDivider()
         ReaderMenuSlider({
           label: uiText('Auto transfer time'),
           value: readerAutoTransferSliderValue(this.menuAutoTransferTime),
@@ -656,17 +656,17 @@ export struct ReaderSettingsMenuOverlay {
           TabContent() {
             this.ReadingSettingsTab()
           }
-          .tabBar(this.ReaderSettingsTabBar(uiText('Reading'), 0))
+          .tabBar(this.ReaderSettingsTabBar(uiText('Page layout'), 0))
 
           TabContent() {
             this.DisplaySettingsTab()
           }
-          .tabBar(this.ReaderSettingsTabBar(uiText('Display'), 1))
+          .tabBar(this.ReaderSettingsTabBar(uiText('Screen display'), 1))
 
           TabContent() {
             this.ControlSettingsTab()
           }
-          .tabBar(this.ReaderSettingsTabBar(uiText('Controls'), 2))
+          .tabBar(this.ReaderSettingsTabBar(uiText('Reading aids'), 2))
         }
         .barMode(BarMode.Fixed)
         .barHeight(40)

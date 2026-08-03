@@ -133,7 +133,7 @@ function detectWhiteBorder(pixels: Uint8Array, width: number, height: number, by
   if (width < 12 || height < 12 || rowStride < width * 4) {
     return fullCropRect();
   }
-  const background = estimateWhiteBackground(pixels, width, height, rowStride);
+  const background = estimateBorderBackground(pixels, width, height, rowStride);
   if (background === null) {
     return fullCropRect();
   }
@@ -168,15 +168,17 @@ class ReaderCropBackground {
   red: number;
   green: number;
   blue: number;
+  dark: boolean;
 
-  constructor(red: number, green: number, blue: number) {
+  constructor(red: number, green: number, blue: number, dark: boolean) {
     this.red = red;
     this.green = green;
     this.blue = blue;
+    this.dark = dark;
   }
 }
 
-function estimateWhiteBackground(pixels: Uint8Array, width: number, height: number,
+function estimateBorderBackground(pixels: Uint8Array, width: number, height: number,
   rowStride: number): ReaderCropBackground | null {
   const patch = Math.max(2, Math.min(8, Math.floor(Math.min(width, height) * 0.04)));
   const corners: ReaderCropBackground[] = [];
@@ -184,18 +186,32 @@ function estimateWhiteBackground(pixels: Uint8Array, width: number, height: numb
   appendCornerBackground(corners, pixels, width, height, rowStride, width - patch, 0, patch);
   appendCornerBackground(corners, pixels, width, height, rowStride, 0, height - patch, patch);
   appendCornerBackground(corners, pixels, width, height, rowStride, width - patch, height - patch, patch);
-  if (corners.length < 2) {
+  let lightCount = 0;
+  let darkCount = 0;
+  for (let i = 0; i < corners.length; i++) {
+    if (corners[i].dark) {
+      darkCount++;
+    } else {
+      lightCount++;
+    }
+  }
+  const useDark = darkCount > lightCount;
+  const matchingCount = useDark ? darkCount : lightCount;
+  if (matchingCount < 2) {
     return null;
   }
   let red = 0;
   let green = 0;
   let blue = 0;
   for (let i = 0; i < corners.length; i++) {
+    if (corners[i].dark !== useDark) {
+      continue;
+    }
     red += corners[i].red;
     green += corners[i].green;
     blue += corners[i].blue;
   }
-  return new ReaderCropBackground(red / corners.length, green / corners.length, blue / corners.length);
+  return new ReaderCropBackground(red / matchingCount, green / matchingCount, blue / matchingCount, useDark);
 }
 
 function appendCornerBackground(result: ReaderCropBackground[], pixels: Uint8Array, width: number, height: number,
@@ -204,6 +220,8 @@ function appendCornerBackground(result: ReaderCropBackground[], pixels: Uint8Arr
   let green = 0;
   let blue = 0;
   let count = 0;
+  let minimumLuminance = 255;
+  let maximumLuminance = 0;
   const endX = Math.min(width, startX + patch);
   const endY = Math.min(height, startY + patch);
   for (let y = Math.max(0, startY); y < endY; y++) {
@@ -212,6 +230,9 @@ function appendCornerBackground(result: ReaderCropBackground[], pixels: Uint8Arr
       red += pixels[offset];
       green += pixels[offset + 1];
       blue += pixels[offset + 2];
+      const luminance = pixels[offset] * 0.2126 + pixels[offset + 1] * 0.7152 + pixels[offset + 2] * 0.0722;
+      minimumLuminance = Math.min(minimumLuminance, luminance);
+      maximumLuminance = Math.max(maximumLuminance, luminance);
       count++;
     }
   }
@@ -223,8 +244,11 @@ function appendCornerBackground(result: ReaderCropBackground[], pixels: Uint8Arr
   blue /= count;
   const luminance = red * 0.2126 + green * 0.7152 + blue * 0.0722;
   const spread = Math.max(red, green, blue) - Math.min(red, green, blue);
-  if (luminance >= 205 && spread <= 42) {
-    result.push(new ReaderCropBackground(red, green, blue));
+  const uniform = maximumLuminance - minimumLuminance <= 52;
+  if (uniform && luminance >= 205 && spread <= 48) {
+    result.push(new ReaderCropBackground(red, green, blue, false));
+  } else if (uniform && luminance <= 55 && spread <= 48) {
+    result.push(new ReaderCropBackground(red, green, blue, true));
   }
 }
 
@@ -235,6 +259,9 @@ function isBorderPixel(pixels: Uint8Array, offset: number, background: ReaderCro
   const luminance = red * 0.2126 + green * 0.7152 + blue * 0.0722;
   const distance = Math.abs(red - background.red) + Math.abs(green - background.green) +
     Math.abs(blue - background.blue);
+  if (background.dark) {
+    return luminance <= 72 && distance <= 84;
+  }
   return luminance >= 188 && distance <= 84;
 }
 

@@ -1968,7 +1968,8 @@ export struct ReaderScene {
                 isActive: item.index === this.currentIndex,
                 hdrEnabled: this.sdrToHdrEnabled &&
                   Math.abs(item.index - this.currentIndex) <= this.readerContinuousCacheCount(),
-                cropWhiteBorders: this.cropWhiteBorders,
+                cropWhiteBorders: this.cropWhiteBorders &&
+                  Math.abs(item.index - this.currentIndex) <= this.readerContinuousCacheCount(),
                 hdrPriority: Math.abs(item.index - this.currentIndex),
                 translation: item.index === this.currentIndex ? this.readerTranslationForPage(item.index) : null,
                 onTap: () => {},
