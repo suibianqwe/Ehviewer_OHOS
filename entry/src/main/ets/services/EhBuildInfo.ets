@@ -1,5 +1,5 @@
-export const EH_APP_VERSION_NAME: string = '0.5.7';
-export const EH_APP_VERSION_CODE: number = 607;
+export const EH_APP_VERSION_NAME: string = '0.6.0';
+export const EH_APP_VERSION_CODE: number = 610;
 export const EH_TARGET_PLATFORM: string = 'HarmonyOS 26.0.0 / compatible API 6.0.0(20)';
 export const EH_AUTHOR_NAME: string = 'suibianqwe';
 export const EH_AUTHOR_URL: string = 'https://github.com/suibianqwe';
@@ -9,5 +9,5 @@ export const EH_RELEASE_TAG: string = 'v' + EH_APP_VERSION_NAME;
 export const EH_RELEASE_URL: string = EH_REPOSITORY_URL + '/releases/tag/' + EH_RELEASE_TAG;
 export const EH_ISSUES_URL: string = EH_REPOSITORY_URL + '/issues';
 export const EH_GIT_BRANCH: string = 'main';
-export const EH_GIT_COMMIT: string = '302409e';
+export const EH_GIT_COMMIT: string = 'a667d48';
 export const EH_GIT_DESCRIBE: string = EH_RELEASE_TAG;
