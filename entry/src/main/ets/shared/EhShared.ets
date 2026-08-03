@@ -1539,8 +1539,16 @@ export function zhText(text: string): string {
     case 'Show reader progress overlay': return '在阅读器中显示阅读进度';
     case 'Show battery': return '显示电量';
     case 'Show battery overlay': return '在阅读器中显示电量浮层';
+    case 'Keyboard and mouse controls': return '键鼠控制';
+    case 'Use keyboard shortcuts, mouse wheel and side buttons to control the reader':
+      return '使用键盘快捷键、鼠标滚轮和侧键控制阅读器';
+    case 'Hardware controls': return '硬件控制';
+    case 'Use D-pad, remote control and game controller buttons in the reader':
+      return '使用方向键、遥控器和游戏手柄按键控制阅读器';
     case 'Volume page': return '音量键翻页';
     case 'Use volume buttons to turn pages': return '使用音量键翻页';
+    case 'Reverse volume buttons': return '反转音量键';
+    case 'Swap the page-turning direction of volume up and volume down': return '交换音量加键与音量减键的翻页方向';
     case 'Reading fullscreen': return '阅读全屏';
     case 'Hide system chrome while reading': return '阅读时隐藏系统界面';
     case 'Custom brightness': return '自定义亮度';
@@ -3102,7 +3110,13 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('gallery_show_clock', 'Show clock', 'Show clock overlay in the reader', entries, ON_OFF_OPTIONS),
       optionSettingsRow('gallery_show_progress', 'Show progress', 'Show reader progress overlay', entries, ON_OFF_OPTIONS),
       optionSettingsRow('gallery_show_battery', 'Show battery', 'Show battery overlay', entries, ON_OFF_OPTIONS),
+      optionSettingsRow('reader_keyboard_mouse_controls', 'Keyboard and mouse controls',
+        'Use keyboard shortcuts, mouse wheel and side buttons to control the reader', entries, ON_OFF_OPTIONS),
+      optionSettingsRow('reader_hardware_controls', 'Hardware controls',
+        'Use D-pad, remote control and game controller buttons in the reader', entries, ON_OFF_OPTIONS),
       optionSettingsRow('volume_page', 'Volume page', 'Use volume buttons to turn pages', entries, ON_OFF_OPTIONS),
+      optionSettingsRow('reverse_volume_page', 'Reverse volume buttons',
+        'Swap the page-turning direction of volume up and volume down', entries, ON_OFF_OPTIONS),
       optionSettingsRow('reading_fullscreen', 'Reading fullscreen', 'Hide system chrome while reading', entries, ON_OFF_OPTIONS),
       optionSettingsRow('reader_background', 'Reader background', 'Background color behind reader pages', entries, ['Black', 'White', 'Deep gray']),
       optionSettingsRow('custom_screen_lightness', 'Custom brightness', 'Enable custom reader brightness', entries, ON_OFF_OPTIONS),

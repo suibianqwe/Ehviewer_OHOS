@@ -7,7 +7,7 @@ import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { systemShare } from '@kit.ShareKit';
 import inputConsumer from '@ohos.multimodalInput.inputConsumer';
 import { KeyCode } from '@ohos.multimodalInput.keyCode';
-import { KeyEvent } from '@ohos.multimodalInput.keyEvent';
+import { KeyEvent as InputKeyEvent } from '@ohos.multimodalInput.keyEvent';
 import { GalleryPage, GalleryPreview } from '../model/GalleryModels';
 import { ReaderPageTranslation } from '../model/ReaderTranslationModels';
 import {
@@ -80,6 +80,7 @@ const READER_DUAL_PAGE_OVERFLOW_RATIO: number = 1.15;
 const READER_PAGE_GROUP_REFRESH_DELAY: number = 220;
 const READER_TRANSLATION_BUTTON_SIZE: number = 52;
 const READER_TRANSLATION_BUTTON_EDGE: number = 8;
+const READER_AXIS_PAGE_INTERVAL: number = 140;
 
 function mediaAssetTitle(fileName: string): string {
   const dotIndex = fileName.lastIndexOf('.');
@@ -226,7 +227,10 @@ export struct ReaderScene {
   @State menuShowProgress: boolean = true;
   @State menuShowBattery: boolean = true;
   @State menuReadingFullscreen: boolean = true;
+  @State menuKeyboardMouseControls: boolean = true;
+  @State menuHardwareControls: boolean = true;
   @State menuVolumePage: boolean = false;
+  @State menuReverseVolumePage: boolean = false;
   @State menuAutoTransferTime: string = '5s';
   @State menuCustomBrightness: boolean = false;
   @State menuBrightnessLevel: string = '50%';
@@ -240,6 +244,7 @@ export struct ReaderScene {
   private overlayRefreshTimer: number = -1;
   private overlayRefreshCount: number = 0;
   private screenTapTimer: number = -1;
+  private lastAxisPageAt: number = 0;
   private volumeUpConfig: inputConsumer.KeyPressedConfig = {
     key: KeyCode.KEYCODE_VOLUME_UP,
     action: 1,
@@ -253,10 +258,10 @@ export struct ReaderScene {
   private volumeUpRegistered: boolean = false;
   private volumeDownRegistered: boolean = false;
   private transientDisappearCleanupTimer: number = -1;
-  private volumeUpCallback: (event: KeyEvent) => void = (event: KeyEvent) => {
+  private volumeUpCallback: (event: InputKeyEvent) => void = (event: InputKeyEvent) => {
     this.handleVolumePageKey(event);
   };
-  private volumeDownCallback: (event: KeyEvent) => void = (event: KeyEvent) => {
+  private volumeDownCallback: (event: InputKeyEvent) => void = (event: InputKeyEvent) => {
     this.handleVolumePageKey(event);
   };
 
@@ -978,7 +983,11 @@ export struct ReaderScene {
     this.menuShowProgress = ehSettingsStore.getValue('gallery_show_progress', 'On') === 'On';
     this.menuShowBattery = ehSettingsStore.getValue('gallery_show_battery', 'On') === 'On';
     this.menuReadingFullscreen = ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On';
+    this.menuKeyboardMouseControls =
+      ehSettingsStore.getValue('reader_keyboard_mouse_controls', 'On') === 'On';
+    this.menuHardwareControls = ehSettingsStore.getValue('reader_hardware_controls', 'On') === 'On';
     this.menuVolumePage = ehSettingsStore.getValue('volume_page', 'Off') === 'On';
+    this.menuReverseVolumePage = ehSettingsStore.getValue('reverse_volume_page', 'Off') === 'On';
     this.menuAutoTransferTime = normalizeAutoTransferTimeOption(ehSettingsStore.getValue('start_transfer_time', '5s'));
     this.menuCustomBrightness = ehSettingsStore.getValue('custom_screen_lightness', 'Off') === 'On';
     this.menuBrightnessLevel = normalizeBrightnessLevelOption(ehSettingsStore.getValue('screen_lightness', '50%'));
@@ -1004,7 +1013,10 @@ export struct ReaderScene {
     ehSettingsStore.setValue('gallery_show_progress', this.menuShowProgress ? 'On' : 'Off');
     ehSettingsStore.setValue('gallery_show_battery', this.menuShowBattery ? 'On' : 'Off');
     ehSettingsStore.setValue('reading_fullscreen', this.menuReadingFullscreen ? 'On' : 'Off');
+    ehSettingsStore.setValue('reader_keyboard_mouse_controls', this.menuKeyboardMouseControls ? 'On' : 'Off');
+    ehSettingsStore.setValue('reader_hardware_controls', this.menuHardwareControls ? 'On' : 'Off');
     ehSettingsStore.setValue('volume_page', this.menuVolumePage ? 'On' : 'Off');
+    ehSettingsStore.setValue('reverse_volume_page', this.menuReverseVolumePage ? 'On' : 'Off');
     ehSettingsStore.setValue('start_transfer_time', normalizeAutoTransferTimeOption(this.menuAutoTransferTime));
     ehSettingsStore.setValue('custom_screen_lightness', this.menuCustomBrightness ? 'On' : 'Off');
     ehSettingsStore.setValue('screen_lightness', normalizeBrightnessLevelOption(this.menuBrightnessLevel));
@@ -1246,15 +1258,235 @@ export struct ReaderScene {
     }
   }
 
-  private handleVolumePageKey(event: KeyEvent): void {
+  private handleVolumePageKey(event: InputKeyEvent): void {
     if (!this.readerWindowActive || ehSettingsStore.getValue('volume_page', 'Off') !== 'On') {
       return;
     }
+    const reversed = ehSettingsStore.getValue('reverse_volume_page', 'Off') === 'On';
     if (event.key.code === KeyCode.KEYCODE_VOLUME_UP) {
-      this.previousReaderPage();
+      if (reversed) {
+        this.nextReaderPage();
+      } else {
+        this.previousReaderPage();
+      }
     } else if (event.key.code === KeyCode.KEYCODE_VOLUME_DOWN) {
-      this.nextReaderPage();
+      if (reversed) {
+        this.previousReaderPage();
+      } else {
+        this.nextReaderPage();
+      }
     }
+  }
+
+  private keyboardMouseControlsEnabled(): boolean {
+    return ehSettingsStore.getValue('reader_keyboard_mouse_controls', 'On') === 'On';
+  }
+
+  private hardwareControlsEnabled(): boolean {
+    return ehSettingsStore.getValue('reader_hardware_controls', 'On') === 'On';
+  }
+
+  private readerControlOverlayVisible(): boolean {
+    return this.menuVisible || this.imageActionsVisible || this.sliderVisible;
+  }
+
+  private dismissReaderControlOverlay(): boolean {
+    if (this.menuVisible) {
+      this.hideMenu();
+      return true;
+    }
+    if (this.imageActionsVisible) {
+      this.hideImageActions();
+      return true;
+    }
+    if (this.sliderVisible) {
+      this.hideSliderAndStopPlayback();
+      return true;
+    }
+    return false;
+  }
+
+  private isDpadControlKey(code: number): boolean {
+    return code === KeyCode.KEYCODE_DPAD_UP || code === KeyCode.KEYCODE_DPAD_DOWN ||
+      code === KeyCode.KEYCODE_DPAD_LEFT || code === KeyCode.KEYCODE_DPAD_RIGHT ||
+      code === KeyCode.KEYCODE_DPAD_CENTER;
+  }
+
+  private isGameControllerKey(code: number): boolean {
+    return code === KeyCode.KEYCODE_BUTTON_A || code === KeyCode.KEYCODE_BUTTON_B ||
+      code === KeyCode.KEYCODE_BUTTON_L1 || code === KeyCode.KEYCODE_BUTTON_R1 ||
+      code === KeyCode.KEYCODE_BUTTON_L2 || code === KeyCode.KEYCODE_BUTTON_R2 ||
+      code === KeyCode.KEYCODE_BUTTON_START || code === KeyCode.KEYCODE_BUTTON_SELECT ||
+      code === KeyCode.KEYCODE_BUTTON_MODE;
+  }
+
+  private isKeyboardReaderKey(code: number): boolean {
+    return code === KeyCode.KEYCODE_PAGE_UP || code === KeyCode.KEYCODE_PAGE_DOWN ||
+      code === KeyCode.KEYCODE_SPACE || code === KeyCode.KEYCODE_ENTER ||
+      code === KeyCode.KEYCODE_NUMPAD_ENTER || code === KeyCode.KEYCODE_ESCAPE ||
+      code === KeyCode.KEYCODE_MOVE_HOME || code === KeyCode.KEYCODE_MOVE_END ||
+      code === KeyCode.KEYCODE_PLUS || code === KeyCode.KEYCODE_EQUALS ||
+      code === KeyCode.KEYCODE_NUMPAD_ADD || code === KeyCode.KEYCODE_MINUS ||
+      code === KeyCode.KEYCODE_NUMPAD_SUBTRACT || code === KeyCode.KEYCODE_0 ||
+      code === KeyCode.KEYCODE_NUMPAD_0 || code === KeyCode.KEYCODE_MENU;
+  }
+
+  private readerKeyControlEnabled(event: KeyEvent): boolean {
+    const code = event.keyCode;
+    if (this.isGameControllerKey(code)) {
+      return this.hardwareControlsEnabled();
+    }
+    if (this.isDpadControlKey(code)) {
+      return event.keySource === KeySource.Keyboard ? this.keyboardMouseControlsEnabled() :
+        this.hardwareControlsEnabled();
+    }
+    if (code === KeyCode.KEYCODE_MENU && event.keySource !== KeySource.Keyboard) {
+      return this.hardwareControlsEnabled();
+    }
+    return this.isKeyboardReaderKey(code) && this.keyboardMouseControlsEnabled();
+  }
+
+  private turnReaderByHorizontalSide(leftSide: boolean): void {
+    if (this.swiperVertical) {
+      if (leftSide) {
+        this.previousReaderPage();
+      } else {
+        this.nextReaderPage();
+      }
+      return;
+    }
+    if (leftSide) {
+      this.jumpToAdjacentPageGroup(this.swiperReversed ? 1 : -1);
+    } else {
+      this.jumpToAdjacentPageGroup(this.swiperReversed ? -1 : 1);
+    }
+  }
+
+  private handleReaderKeyEvent(event: KeyEvent): boolean {
+    if (!this.readerWindowActive || !this.readerKeyControlEnabled(event)) {
+      return false;
+    }
+    const code = event.keyCode;
+    const isDismissKey = code === KeyCode.KEYCODE_ESCAPE || code === KeyCode.KEYCODE_BUTTON_B;
+    if (event.type !== KeyType.Down) {
+      return isDismissKey || !this.readerControlOverlayVisible();
+    }
+    if (isDismissKey) {
+      if (!this.dismissReaderControlOverlay()) {
+        this.onBack();
+      }
+      return true;
+    }
+    if (this.readerControlOverlayVisible()) {
+      if (code === KeyCode.KEYCODE_MENU || code === KeyCode.KEYCODE_BUTTON_START ||
+        code === KeyCode.KEYCODE_BUTTON_MODE) {
+        this.dismissReaderControlOverlay();
+        return true;
+      }
+      return false;
+    }
+    if (code === KeyCode.KEYCODE_PAGE_UP || code === KeyCode.KEYCODE_DPAD_UP ||
+      code === KeyCode.KEYCODE_BUTTON_L1 || code === KeyCode.KEYCODE_BUTTON_L2) {
+      this.previousReaderPage();
+      return true;
+    }
+    if (code === KeyCode.KEYCODE_PAGE_DOWN || code === KeyCode.KEYCODE_DPAD_DOWN ||
+      code === KeyCode.KEYCODE_BUTTON_R1 || code === KeyCode.KEYCODE_BUTTON_R2) {
+      this.nextReaderPage();
+      return true;
+    }
+    if (code === KeyCode.KEYCODE_DPAD_LEFT) {
+      this.turnReaderByHorizontalSide(true);
+      return true;
+    }
+    if (code === KeyCode.KEYCODE_DPAD_RIGHT) {
+      this.turnReaderByHorizontalSide(false);
+      return true;
+    }
+    if (code === KeyCode.KEYCODE_SPACE || code === KeyCode.KEYCODE_ENTER ||
+      code === KeyCode.KEYCODE_NUMPAD_ENTER || code === KeyCode.KEYCODE_DPAD_CENTER ||
+      code === KeyCode.KEYCODE_MENU || code === KeyCode.KEYCODE_BUTTON_A ||
+      code === KeyCode.KEYCODE_BUTTON_START || code === KeyCode.KEYCODE_BUTTON_MODE) {
+      this.showMenu();
+      return true;
+    }
+    if (code === KeyCode.KEYCODE_MOVE_HOME) {
+      this.jumpTo(0);
+      return true;
+    }
+    if (code === KeyCode.KEYCODE_MOVE_END) {
+      this.jumpTo(Math.max(0, this.totalPages - 1));
+      return true;
+    }
+    if (code === KeyCode.KEYCODE_PLUS || code === KeyCode.KEYCODE_EQUALS ||
+      code === KeyCode.KEYCODE_NUMPAD_ADD) {
+      if (!this.swiperVertical) {
+        this.issueViewportCommand('zoom_in');
+      }
+      return true;
+    }
+    if (code === KeyCode.KEYCODE_MINUS || code === KeyCode.KEYCODE_NUMPAD_SUBTRACT) {
+      if (!this.swiperVertical) {
+        this.issueViewportCommand('zoom_out');
+      }
+      return true;
+    }
+    if (code === KeyCode.KEYCODE_0 || code === KeyCode.KEYCODE_NUMPAD_0) {
+      if (!this.swiperVertical) {
+        this.issueViewportCommand('reset');
+      }
+      return true;
+    }
+    return false;
+  }
+
+  private handleReaderAxisEvent(event: AxisEvent): void {
+    if (!this.readerWindowActive || !this.keyboardMouseControlsEnabled() ||
+      this.readerControlOverlayVisible() || this.swiperVertical || event.action !== AxisAction.UPDATE) {
+      return;
+    }
+    const vertical = event.getVerticalAxisValue();
+    const horizontal = event.getHorizontalAxisValue();
+    const value = Math.abs(vertical) >= Math.abs(horizontal) ? vertical : horizontal;
+    if (Math.abs(value) < 0.01) {
+      return;
+    }
+    const now = Date.now();
+    if (now - this.lastAxisPageAt < READER_AXIS_PAGE_INTERVAL) {
+      return;
+    }
+    this.lastAxisPageAt = now;
+    if (value > 0) {
+      this.nextReaderPage();
+    } else {
+      this.previousReaderPage();
+    }
+  }
+
+  private handleReaderMouseEvent(event: MouseEvent): void {
+    if (!this.readerWindowActive || !this.keyboardMouseControlsEnabled() ||
+      event.action !== MouseAction.Release) {
+      return;
+    }
+    if (this.readerControlOverlayVisible()) {
+      if (event.button === MouseButton.Back || event.button === MouseButton.Middle) {
+        this.dismissReaderControlOverlay();
+        event.stopPropagation();
+      }
+      return;
+    }
+    if (event.button === MouseButton.Back) {
+      this.previousReaderPage();
+    } else if (event.button === MouseButton.Forward) {
+      this.nextReaderPage();
+    } else if (event.button === MouseButton.Middle) {
+      this.showMenu();
+    } else if (event.button === MouseButton.Right) {
+      this.showImageActions();
+    } else {
+      return;
+    }
+    event.stopPropagation();
   }
 
   private hideMenu(): void {
@@ -2184,7 +2416,10 @@ export struct ReaderScene {
           menuShowBattery: this.menuShowBattery,
           batteryText: this.batteryText(),
           menuReadingFullscreen: this.menuReadingFullscreen,
+          menuKeyboardMouseControls: this.menuKeyboardMouseControls,
+          menuHardwareControls: this.menuHardwareControls,
           menuVolumePage: this.menuVolumePage,
+          menuReverseVolumePage: this.menuReverseVolumePage,
           menuCustomBrightness: this.menuCustomBrightness,
           menuBrightnessLevel: this.menuBrightnessLevel,
           menuUltraDarkMode: this.menuUltraDarkMode,
@@ -2237,8 +2472,17 @@ export struct ReaderScene {
           onReadingFullscreenChange: (value: boolean) => {
             this.menuReadingFullscreen = value;
           },
+          onKeyboardMouseControlsChange: (value: boolean) => {
+            this.menuKeyboardMouseControls = value;
+          },
+          onHardwareControlsChange: (value: boolean) => {
+            this.menuHardwareControls = value;
+          },
           onVolumePageChange: (value: boolean) => {
             this.menuVolumePage = value;
+          },
+          onReverseVolumePageChange: (value: boolean) => {
+            this.menuReverseVolumePage = value;
           },
           onCustomBrightnessChange: (value: boolean) => {
             this.menuCustomBrightness = value;
@@ -2306,6 +2550,18 @@ export struct ReaderScene {
     }
     .width('100%')
     .height('100%')
+    .focusable(true)
+    .defaultFocus(true)
+    .focusOnTouch(true)
+    .onKeyEvent((event: KeyEvent): boolean => {
+      return this.handleReaderKeyEvent(event);
+    })
+    .onAxisEvent((event: AxisEvent) => {
+      this.handleReaderAxisEvent(event);
+    })
+    .onMouse((event: MouseEvent) => {
+      this.handleReaderMouseEvent(event);
+    })
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       let layoutChanged = false;
       const width = newArea.width as number;
