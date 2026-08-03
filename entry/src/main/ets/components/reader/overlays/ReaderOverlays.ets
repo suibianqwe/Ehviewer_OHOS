@@ -358,8 +358,6 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuAutoTransferTime: string = '5s';
   @Prop menuKeepScreenOn: boolean = false;
   @Prop menuReadingFullscreen: boolean = true;
-  @Prop menuKeyboardMouseControls: boolean = true;
-  @Prop menuHardwareControls: boolean = true;
   @Prop menuVolumePage: boolean = false;
   @Prop menuReverseVolumePage: boolean = false;
   @Prop @Watch('onMenuCustomBrightnessChange') menuCustomBrightness: boolean = false;
@@ -387,8 +385,6 @@ export struct ReaderSettingsMenuOverlay {
   onShowProgressChange: (value: boolean) => void = (_value: boolean) => {};
   onShowBatteryChange: (value: boolean) => void = (_value: boolean) => {};
   onReadingFullscreenChange: (value: boolean) => void = (_value: boolean) => {};
-  onKeyboardMouseControlsChange: (value: boolean) => void = (_value: boolean) => {};
-  onHardwareControlsChange: (value: boolean) => void = (_value: boolean) => {};
   onVolumePageChange: (value: boolean) => void = (_value: boolean) => {};
   onReverseVolumePageChange: (value: boolean) => void = (_value: boolean) => {};
   onCustomBrightnessChange: (value: boolean) => void = (_value: boolean) => {};
@@ -578,18 +574,6 @@ export struct ReaderSettingsMenuOverlay {
           onChange: (value: number) => {
             this.onAutoTransferTimeChange(readerAutoTransferValue(value));
           }
-        })
-        ReaderMenuDivider()
-        ReaderMenuToggle({
-          label: uiText('Keyboard and mouse controls'),
-          value: this.menuKeyboardMouseControls,
-          onChange: this.onKeyboardMouseControlsChange
-        })
-        ReaderMenuDivider()
-        ReaderMenuToggle({
-          label: uiText('Hardware controls'),
-          value: this.menuHardwareControls,
-          onChange: this.onHardwareControlsChange
         })
         ReaderMenuDivider()
         ReaderMenuToggle({

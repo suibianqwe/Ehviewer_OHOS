@@ -1,5 +1,4 @@
 import { common } from '@kit.AbilityKit';
-import { deviceInfo } from '@kit.BasicServicesKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
 import { ehCookieStore } from './EhCookieStore';
@@ -55,10 +54,11 @@ const IMAGE_RETRY_DELAYS_MS: number[] = [300, 900, 1800, 3200];
 const IMAGE_CONNECT_TIMEOUT_MS: number = 4500;
 const IMAGE_RESPONSE_MAX_BYTES: number = 128 * 1024 * 1024;
 const DEFAULT_IMAGE_RETRY_LIMIT: number = 5;
-// 后台缩略图会在瀑布流首帧集中创建。HarmonyOS 7 的共享 curl multi 在高并发请求完成后，
-// 继续把空闲连接复用给新句柄时可能发生原生空指针崩溃；阅读器和正式下载不受此上限影响。
-const MAX_BACKGROUND_IMAGE_DOWNLOADS: number = 4;
-const MAX_DOH_HATH_IMAGE_DOWNLOADS: number = 2;
+// 后台请求保持原有吞吐量，只在一批请求完成后给系统网络栈留出一个事件循环的收尾窗口。
+// 阅读器和正式下载不受该窗口影响，仍可立即抢占空闲槽位。
+const MAX_BACKGROUND_IMAGE_DOWNLOADS: number = 8;
+const MAX_DOH_HATH_IMAGE_DOWNLOADS: number = 4;
+const BACKGROUND_IMAGE_SETTLE_DELAY_MS: number = 32;
 const BACKGROUND_IMAGE_RESUME_DELAY_MS: number = 750;
 let activeImageDownloads: number = 0;
 let activeBackgroundImageDownloads: number = 0;
@@ -67,6 +67,8 @@ let imageTempFileSequence: number = 0;
 let imageSlotSequence: number = 0;
 let backgroundImageDispatchPaused: boolean = false;
 let backgroundImageResumeTimer: number = -1;
+let backgroundImageSettleUntil: number = 0;
+let backgroundImageSettleTimer: number = -1;
 
 export const IMAGE_DOWNLOAD_PRIORITY_BACKGROUND: number = 0;
 export const IMAGE_DOWNLOAD_PRIORITY_DOWNLOAD: number = 10;
@@ -293,10 +295,7 @@ export class ReaderImageCache {
     let outcomeRecorded = false;
     try {
       plan = createEhRequestPlan(imageUrl);
-      const isolatedBackgroundConnection = isBackgroundImagePriority(priority) &&
-        deviceInfo.apiAvailable('26.0.0');
-      const header = buildImageRequestHeader(plan, referer, ehCookieStore.getCookieHeaderForUrl(imageUrl),
-        isolatedBackgroundConnection);
+      const header = buildImageRequestHeader(plan, referer, ehCookieStore.getCookieHeaderForUrl(imageUrl));
       const timeout = imageRequestTimeoutMs();
       await ensureEhHostRules();
       const options: http.HttpRequestOptions = {
@@ -308,11 +307,6 @@ export class ReaderImageCache {
         readTimeout: imageRequestDeadlineMs(plan, attempt)
       };
       applyEhNetworkOptions(options, plan, useDnsOverHttps);
-      if (isolatedBackgroundConnection) {
-        // API 26 的后台缩略图不用跨 HttpRequest 复用连接，避开系统 curl multi 的连接迁移竞态。
-        // 请求对象仍按统一生命周期延迟销毁，不能在 Promise 完成时立即 destroy。
-        options.reuseConnections = false;
-      }
       if (plan.fronted) {
         markHttpRequestVolatile(request);
       }
@@ -434,15 +428,14 @@ export class ReaderImageCache {
   }
 }
 
-function buildImageRequestHeader(plan: EhRequestPlan, referer: string, cookieHeader: string,
-  closeConnection: boolean = false): ImageRequestHeader {
+function buildImageRequestHeader(plan: EhRequestPlan, referer: string, cookieHeader: string): ImageRequestHeader {
   const header: ImageRequestHeader = {
     'Host': plan.host,
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36 EhViewerHarmony/0.1',
     'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
     'Referer': referer,
-    'Connection': plan.fronted || closeConnection ? 'close' : 'keep-alive'
+    'Connection': plan.fronted ? 'close' : 'keep-alive'
   };
   if (cookieHeader.length > 0) {
     header.Cookie = cookieHeader;
@@ -1046,7 +1039,31 @@ function releaseImageSlot(slot: AcquiredImageSlot): void {
   if (slot.hath) {
     activeHathImageDownloads = Math.max(0, activeHathImageDownloads - 1);
   }
+  if (slot.background) {
+    markBackgroundImageSettleWindow();
+  }
   dispatchWaitingImageSlots();
+}
+
+function markBackgroundImageSettleWindow(): void {
+  backgroundImageSettleUntil = Math.max(backgroundImageSettleUntil,
+    Date.now() + BACKGROUND_IMAGE_SETTLE_DELAY_MS);
+  scheduleBackgroundImageSettleDispatch();
+}
+
+function scheduleBackgroundImageSettleDispatch(): void {
+  if (backgroundImageSettleTimer >= 0) {
+    clearTimeout(backgroundImageSettleTimer);
+  }
+  const delay = Math.max(1, backgroundImageSettleUntil - Date.now());
+  backgroundImageSettleTimer = setTimeout(() => {
+    backgroundImageSettleTimer = -1;
+    if (Date.now() < backgroundImageSettleUntil) {
+      scheduleBackgroundImageSettleDispatch();
+      return;
+    }
+    dispatchWaitingImageSlots();
+  }, delay);
 }
 
 function promoteImageSlot(key: string, priority: number): void {
@@ -1103,6 +1120,9 @@ function canDispatchImageSlot(slot: WaitingImageSlot, totalLimit: number): boole
     return true;
   }
   if (backgroundImageDispatchPaused) {
+    return false;
+  }
+  if (Date.now() < backgroundImageSettleUntil) {
     return false;
   }
   return activeBackgroundImageDownloads < Math.min(totalLimit, MAX_BACKGROUND_IMAGE_DOWNLOADS);

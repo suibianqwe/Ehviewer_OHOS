@@ -93,8 +93,6 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'gallery_show_clock', value: 'On' },
     { key: 'gallery_show_progress', value: 'On' },
     { key: 'gallery_show_battery', value: 'On' },
-    { key: 'reader_keyboard_mouse_controls', value: 'On' },
-    { key: 'reader_hardware_controls', value: 'On' },
     { key: 'volume_page', value: 'Off' },
     { key: 'reverse_volume_page', value: 'Off' },
     { key: 'reading_fullscreen', value: 'On' },

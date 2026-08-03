@@ -227,8 +227,6 @@ export struct ReaderScene {
   @State menuShowProgress: boolean = true;
   @State menuShowBattery: boolean = true;
   @State menuReadingFullscreen: boolean = true;
-  @State menuKeyboardMouseControls: boolean = true;
-  @State menuHardwareControls: boolean = true;
   @State menuVolumePage: boolean = false;
   @State menuReverseVolumePage: boolean = false;
   @State menuAutoTransferTime: string = '5s';
@@ -983,9 +981,6 @@ export struct ReaderScene {
     this.menuShowProgress = ehSettingsStore.getValue('gallery_show_progress', 'On') === 'On';
     this.menuShowBattery = ehSettingsStore.getValue('gallery_show_battery', 'On') === 'On';
     this.menuReadingFullscreen = ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On';
-    this.menuKeyboardMouseControls =
-      ehSettingsStore.getValue('reader_keyboard_mouse_controls', 'On') === 'On';
-    this.menuHardwareControls = ehSettingsStore.getValue('reader_hardware_controls', 'On') === 'On';
     this.menuVolumePage = ehSettingsStore.getValue('volume_page', 'Off') === 'On';
     this.menuReverseVolumePage = ehSettingsStore.getValue('reverse_volume_page', 'Off') === 'On';
     this.menuAutoTransferTime = normalizeAutoTransferTimeOption(ehSettingsStore.getValue('start_transfer_time', '5s'));
@@ -1013,8 +1008,6 @@ export struct ReaderScene {
     ehSettingsStore.setValue('gallery_show_progress', this.menuShowProgress ? 'On' : 'Off');
     ehSettingsStore.setValue('gallery_show_battery', this.menuShowBattery ? 'On' : 'Off');
     ehSettingsStore.setValue('reading_fullscreen', this.menuReadingFullscreen ? 'On' : 'Off');
-    ehSettingsStore.setValue('reader_keyboard_mouse_controls', this.menuKeyboardMouseControls ? 'On' : 'Off');
-    ehSettingsStore.setValue('reader_hardware_controls', this.menuHardwareControls ? 'On' : 'Off');
     ehSettingsStore.setValue('volume_page', this.menuVolumePage ? 'On' : 'Off');
     ehSettingsStore.setValue('reverse_volume_page', this.menuReverseVolumePage ? 'On' : 'Off');
     ehSettingsStore.setValue('start_transfer_time', normalizeAutoTransferTimeOption(this.menuAutoTransferTime));
@@ -1278,14 +1271,6 @@ export struct ReaderScene {
     }
   }
 
-  private keyboardMouseControlsEnabled(): boolean {
-    return ehSettingsStore.getValue('reader_keyboard_mouse_controls', 'On') === 'On';
-  }
-
-  private hardwareControlsEnabled(): boolean {
-    return ehSettingsStore.getValue('reader_hardware_controls', 'On') === 'On';
-  }
-
   private readerControlOverlayVisible(): boolean {
     return this.menuVisible || this.imageActionsVisible || this.sliderVisible;
   }
@@ -1333,17 +1318,7 @@ export struct ReaderScene {
 
   private readerKeyControlEnabled(event: KeyEvent): boolean {
     const code = event.keyCode;
-    if (this.isGameControllerKey(code)) {
-      return this.hardwareControlsEnabled();
-    }
-    if (this.isDpadControlKey(code)) {
-      return event.keySource === KeySource.Keyboard ? this.keyboardMouseControlsEnabled() :
-        this.hardwareControlsEnabled();
-    }
-    if (code === KeyCode.KEYCODE_MENU && event.keySource !== KeySource.Keyboard) {
-      return this.hardwareControlsEnabled();
-    }
-    return this.isKeyboardReaderKey(code) && this.keyboardMouseControlsEnabled();
+    return this.isGameControllerKey(code) || this.isDpadControlKey(code) || this.isKeyboardReaderKey(code);
   }
 
   private turnReaderByHorizontalSide(leftSide: boolean): void {
@@ -1441,8 +1416,8 @@ export struct ReaderScene {
   }
 
   private handleReaderAxisEvent(event: AxisEvent): void {
-    if (!this.readerWindowActive || !this.keyboardMouseControlsEnabled() ||
-      this.readerControlOverlayVisible() || this.swiperVertical || event.action !== AxisAction.UPDATE) {
+    if (!this.readerWindowActive || this.readerControlOverlayVisible() || this.swiperVertical ||
+      event.action !== AxisAction.UPDATE) {
       return;
     }
     const vertical = event.getVerticalAxisValue();
@@ -1464,8 +1439,7 @@ export struct ReaderScene {
   }
 
   private handleReaderMouseEvent(event: MouseEvent): void {
-    if (!this.readerWindowActive || !this.keyboardMouseControlsEnabled() ||
-      event.action !== MouseAction.Release) {
+    if (!this.readerWindowActive || event.action !== MouseAction.Release) {
       return;
     }
     if (this.readerControlOverlayVisible()) {
@@ -2416,8 +2390,6 @@ export struct ReaderScene {
           menuShowBattery: this.menuShowBattery,
           batteryText: this.batteryText(),
           menuReadingFullscreen: this.menuReadingFullscreen,
-          menuKeyboardMouseControls: this.menuKeyboardMouseControls,
-          menuHardwareControls: this.menuHardwareControls,
           menuVolumePage: this.menuVolumePage,
           menuReverseVolumePage: this.menuReverseVolumePage,
           menuCustomBrightness: this.menuCustomBrightness,
@@ -2471,12 +2443,6 @@ export struct ReaderScene {
           },
           onReadingFullscreenChange: (value: boolean) => {
             this.menuReadingFullscreen = value;
-          },
-          onKeyboardMouseControlsChange: (value: boolean) => {
-            this.menuKeyboardMouseControls = value;
-          },
-          onHardwareControlsChange: (value: boolean) => {
-            this.menuHardwareControls = value;
           },
           onVolumePageChange: (value: boolean) => {
             this.menuVolumePage = value;
