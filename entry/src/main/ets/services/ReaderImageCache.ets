@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { deviceInfo } from '@kit.BasicServicesKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
 import { ehCookieStore } from './EhCookieStore';
@@ -54,8 +55,10 @@ const IMAGE_RETRY_DELAYS_MS: number[] = [300, 900, 1800, 3200];
 const IMAGE_CONNECT_TIMEOUT_MS: number = 4500;
 const IMAGE_RESPONSE_MAX_BYTES: number = 128 * 1024 * 1024;
 const DEFAULT_IMAGE_RETRY_LIMIT: number = 5;
-const MAX_BACKGROUND_IMAGE_DOWNLOADS: number = 8;
-const MAX_DOH_HATH_IMAGE_DOWNLOADS: number = 4;
+// 后台缩略图会在瀑布流首帧集中创建。HarmonyOS 7 的共享 curl multi 在高并发请求完成后，
+// 继续把空闲连接复用给新句柄时可能发生原生空指针崩溃；阅读器和正式下载不受此上限影响。
+const MAX_BACKGROUND_IMAGE_DOWNLOADS: number = 4;
+const MAX_DOH_HATH_IMAGE_DOWNLOADS: number = 2;
 const BACKGROUND_IMAGE_RESUME_DELAY_MS: number = 750;
 let activeImageDownloads: number = 0;
 let activeBackgroundImageDownloads: number = 0;
@@ -290,7 +293,10 @@ export class ReaderImageCache {
     let outcomeRecorded = false;
     try {
       plan = createEhRequestPlan(imageUrl);
-      const header = buildImageRequestHeader(plan, referer, ehCookieStore.getCookieHeaderForUrl(imageUrl));
+      const isolatedBackgroundConnection = isBackgroundImagePriority(priority) &&
+        deviceInfo.apiAvailable('26.0.0');
+      const header = buildImageRequestHeader(plan, referer, ehCookieStore.getCookieHeaderForUrl(imageUrl),
+        isolatedBackgroundConnection);
       const timeout = imageRequestTimeoutMs();
       await ensureEhHostRules();
       const options: http.HttpRequestOptions = {
@@ -302,6 +308,11 @@ export class ReaderImageCache {
         readTimeout: imageRequestDeadlineMs(plan, attempt)
       };
       applyEhNetworkOptions(options, plan, useDnsOverHttps);
+      if (isolatedBackgroundConnection) {
+        // API 26 的后台缩略图不用跨 HttpRequest 复用连接，避开系统 curl multi 的连接迁移竞态。
+        // 请求对象仍按统一生命周期延迟销毁，不能在 Promise 完成时立即 destroy。
+        options.reuseConnections = false;
+      }
       if (plan.fronted) {
         markHttpRequestVolatile(request);
       }
@@ -423,14 +434,15 @@ export class ReaderImageCache {
   }
 }
 
-function buildImageRequestHeader(plan: EhRequestPlan, referer: string, cookieHeader: string): ImageRequestHeader {
+function buildImageRequestHeader(plan: EhRequestPlan, referer: string, cookieHeader: string,
+  closeConnection: boolean = false): ImageRequestHeader {
   const header: ImageRequestHeader = {
     'Host': plan.host,
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36 EhViewerHarmony/0.1',
     'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
     'Referer': referer,
-    'Connection': plan.fronted ? 'close' : 'keep-alive'
+    'Connection': plan.fronted || closeConnection ? 'close' : 'keep-alive'
   };
   if (cookieHeader.length > 0) {
     header.Cookie = cookieHeader;
