@@ -1,12 +1,14 @@
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <mutex>
 #include <vector>
 
 #include <hilog/log.h>
 #include <multimedia/image_framework/image_pixel_map_mdk.h>
 #include <multimedia/image_framework/image/pixelmap_native.h>
-#include <multimedia/video_processing_engine/image_processing.h>
-#include <multimedia/video_processing_engine/image_processing_types.h>
 #include <napi/native_api.h>
+#include <native_buffer/native_buffer.h>
 #include <native_color_space_manager/native_color_space_manager.h>
 
 #undef LOG_DOMAIN
@@ -17,7 +19,13 @@
 namespace {
 
 std::mutex g_conversionMutex;
-bool g_environmentInitialized = false;
+constexpr int32_t CONVERSION_SUCCESS = 0;
+constexpr int32_t CONVERSION_FAILED = 29200005;
+constexpr size_t SDR_LUT_SIZE = 256;
+constexpr size_t HLG_LUT_SIZE = 4096;
+std::once_flag g_transferLutOnce;
+std::array<float, SDR_LUT_SIZE> g_srgbToLinear {};
+std::array<uint16_t, HLG_LUT_SIZE> g_linearToHlg10 {};
 
 struct ConversionWork {
     napi_env env = nullptr;
@@ -27,8 +35,110 @@ struct ConversionWork {
     napi_ref destinationRef = nullptr;
     OH_PixelmapNative *source = nullptr;
     OH_PixelmapNative *destination = nullptr;
-    int32_t result = IMAGE_PROCESSING_ERROR_UNKNOWN;
+    int32_t result = CONVERSION_FAILED;
 };
+
+void InitializeTransferLuts()
+{
+    for (size_t i = 0; i < SDR_LUT_SIZE; ++i) {
+        const float encoded = static_cast<float>(i) / 255.0f;
+        g_srgbToLinear[i] = encoded <= 0.04045f ? encoded / 12.92f :
+            std::pow((encoded + 0.055f) / 1.055f, 2.4f);
+    }
+    constexpr float hlgA = 0.17883277f;
+    constexpr float hlgB = 0.28466892f;
+    constexpr float hlgC = 0.55991073f;
+    for (size_t i = 0; i < HLG_LUT_SIZE; ++i) {
+        const float linear = 0.5f * static_cast<float>(i) / static_cast<float>(HLG_LUT_SIZE - 1);
+        const float encoded = linear <= (1.0f / 12.0f) ? std::sqrt(3.0f * linear) :
+            hlgA * std::log(12.0f * linear - hlgB) + hlgC;
+        const long encoded10 = std::lround(encoded * 1023.0f);
+        g_linearToHlg10[i] = static_cast<uint16_t>(std::max(0L, std::min(1023L, encoded10)));
+    }
+}
+
+uint16_t LinearToHlg10(float linear)
+{
+    const float normalized = std::max(0.0f, std::min(1.0f, linear * 2.0f));
+    const size_t index = static_cast<size_t>(normalized * static_cast<float>(HLG_LUT_SIZE - 1) + 0.5f);
+    return g_linearToHlg10[index];
+}
+
+bool ConvertSdrBufferToHlg(OH_PixelmapNative *source, OH_PixelmapNative *destination)
+{
+    OH_NativeBuffer *sourceBuffer = nullptr;
+    OH_NativeBuffer *destinationBuffer = nullptr;
+    if (OH_PixelmapNative_GetNativeBuffer(source, &sourceBuffer) != IMAGE_SUCCESS || sourceBuffer == nullptr ||
+        OH_PixelmapNative_GetNativeBuffer(destination, &destinationBuffer) != IMAGE_SUCCESS ||
+        destinationBuffer == nullptr) {
+        OH_LOG_ERROR(LOG_APP, "SDR to HLG conversion cannot access NativeBuffer");
+        return false;
+    }
+    OH_NativeBuffer_Config sourceConfig {};
+    OH_NativeBuffer_Config destinationConfig {};
+    OH_NativeBuffer_GetConfig(sourceBuffer, &sourceConfig);
+    OH_NativeBuffer_GetConfig(destinationBuffer, &destinationConfig);
+    if (sourceConfig.width != destinationConfig.width || sourceConfig.height != destinationConfig.height ||
+        sourceConfig.width <= 0 || sourceConfig.height <= 0 || sourceConfig.stride < sourceConfig.width * 4 ||
+        destinationConfig.stride < destinationConfig.width * 4) {
+        OH_LOG_ERROR(LOG_APP,
+            "SDR to HLG invalid buffers: src=%{public}dx%{public}d/%{public}d dst=%{public}dx%{public}d/%{public}d",
+            sourceConfig.width, sourceConfig.height, sourceConfig.stride, destinationConfig.width,
+            destinationConfig.height, destinationConfig.stride);
+        return false;
+    }
+
+    void *sourceAddress = nullptr;
+    void *destinationAddress = nullptr;
+    if (OH_NativeBuffer_Map(sourceBuffer, &sourceAddress) != 0 || sourceAddress == nullptr) {
+        OH_LOG_ERROR(LOG_APP, "Map SDR NativeBuffer failed");
+        return false;
+    }
+    if (OH_NativeBuffer_Map(destinationBuffer, &destinationAddress) != 0 || destinationAddress == nullptr) {
+        OH_NativeBuffer_Unmap(sourceBuffer);
+        OH_LOG_ERROR(LOG_APP, "Map HDR NativeBuffer failed");
+        return false;
+    }
+
+    std::call_once(g_transferLutOnce, InitializeTransferLuts);
+    for (int32_t y = 0; y < sourceConfig.height; ++y) {
+        const auto *sourceRow = static_cast<const uint8_t *>(sourceAddress) +
+            static_cast<size_t>(y) * sourceConfig.stride;
+        auto *destinationRow = reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(destinationAddress) +
+            static_cast<size_t>(y) * destinationConfig.stride);
+        for (int32_t x = 0; x < sourceConfig.width; ++x) {
+            const uint8_t *pixel = sourceRow + static_cast<size_t>(x) * 4;
+            const float linearR = g_srgbToLinear[pixel[0]];
+            const float linearG = g_srgbToLinear[pixel[1]];
+            const float linearB = g_srgbToLinear[pixel[2]];
+            float rec2020R = 0.627404f * linearR + 0.329283f * linearG + 0.043313f * linearB;
+            float rec2020G = 0.069097f * linearR + 0.919540f * linearG + 0.011362f * linearB;
+            float rec2020B = 0.016391f * linearR + 0.088013f * linearG + 0.895595f * linearB;
+            const float luminance = 0.2627f * rec2020R + 0.6780f * rec2020G + 0.0593f * rec2020B;
+            if (luminance > 0.0f) {
+                const float luminance2 = luminance * luminance;
+                const float targetLuminance = 0.26f * luminance + 0.24f * luminance2 * luminance2;
+                const float scale = targetLuminance / luminance;
+                rec2020R *= scale;
+                rec2020G *= scale;
+                rec2020B *= scale;
+            }
+            const uint32_t r = LinearToHlg10(rec2020R);
+            const uint32_t g = LinearToHlg10(rec2020G);
+            const uint32_t b = LinearToHlg10(rec2020B);
+            const uint32_t a = (static_cast<uint32_t>(pixel[3]) * 3U + 127U) / 255U;
+            destinationRow[x] = r | (g << 10U) | (b << 20U) | (a << 30U);
+        }
+    }
+    const int32_t destinationUnmapResult = OH_NativeBuffer_Unmap(destinationBuffer);
+    const int32_t sourceUnmapResult = OH_NativeBuffer_Unmap(sourceBuffer);
+    if (sourceUnmapResult != 0 || destinationUnmapResult != 0) {
+        OH_LOG_ERROR(LOG_APP, "Unmap SDR/HDR NativeBuffer failed: %{public}d/%{public}d", sourceUnmapResult,
+            destinationUnmapResult);
+        return false;
+    }
+    return true;
+}
 
 bool ConfigurePixelMapOptions(OH_Pixelmap_InitializationOptions *options, uint32_t width, uint32_t height,
     int32_t pixelFormat, int32_t rowStride, bool editable)
@@ -84,17 +194,7 @@ napi_value ConvertNativePixelMapToNapi(napi_env env, OH_PixelmapNative *pixelMap
 
 bool IsSdrToHdrSupported()
 {
-    ImageProcessing_ColorSpaceInfo sourceInfo {
-        .metadataType = HDR_METADATA_TYPE_NONE,
-        .colorSpace = SRGB,
-        .pixelFormat = PIXEL_FORMAT_RGBA_8888
-    };
-    ImageProcessing_ColorSpaceInfo destinationInfo {
-        .metadataType = HDR_METADATA_TYPE_ALTERNATE,
-        .colorSpace = BT2020_HLG,
-        .pixelFormat = PIXEL_FORMAT_RGBA_1010102
-    };
-    return OH_ImageProcessing_IsColorSpaceConversionSupported(&sourceInfo, &destinationInfo);
+    return true;
 }
 
 void ExecuteConversion(napi_env env, void *data)
@@ -105,31 +205,8 @@ void ExecuteConversion(napi_env env, void *data)
         return;
     }
     std::lock_guard<std::mutex> guard(g_conversionMutex);
-    if (!IsSdrToHdrSupported()) {
-        conversion->result = IMAGE_PROCESSING_ERROR_UNSUPPORTED_PROCESSING;
-        return;
-    }
-    if (!g_environmentInitialized) {
-        const ImageProcessing_ErrorCode initializeResult = OH_ImageProcessing_InitializeEnvironment();
-        if (initializeResult != IMAGE_PROCESSING_SUCCESS) {
-            conversion->result = initializeResult;
-            return;
-        }
-        g_environmentInitialized = true;
-    }
-    OH_ImageProcessing *processor = nullptr;
-    ImageProcessing_ErrorCode result =
-        OH_ImageProcessing_Create(&processor, IMAGE_PROCESSING_TYPE_COLOR_SPACE_CONVERSION);
-    if (result == IMAGE_PROCESSING_SUCCESS) {
-        result = OH_ImageProcessing_ConvertColorSpace(processor, conversion->source, conversion->destination);
-    }
-    if (processor != nullptr) {
-        const ImageProcessing_ErrorCode destroyResult = OH_ImageProcessing_Destroy(processor);
-        if (result == IMAGE_PROCESSING_SUCCESS && destroyResult != IMAGE_PROCESSING_SUCCESS) {
-            result = destroyResult;
-        }
-    }
-    conversion->result = result;
+    conversion->result = ConvertSdrBufferToHlg(conversion->source, conversion->destination) ?
+        CONVERSION_SUCCESS : CONVERSION_FAILED;
 }
 
 void CompleteConversion(napi_env env, napi_status status, void *data)
@@ -139,7 +216,7 @@ void CompleteConversion(napi_env env, napi_status status, void *data)
         return;
     }
     napi_value value = nullptr;
-    const int32_t result = status == napi_ok ? conversion->result : IMAGE_PROCESSING_ERROR_UNKNOWN;
+    const int32_t result = status == napi_ok ? conversion->result : CONVERSION_FAILED;
     napi_create_int32(env, result, &value);
     napi_resolve_deferred(env, conversion->deferred, value);
     if (conversion->sourceRef != nullptr) {
@@ -326,13 +403,4 @@ static napi_module readerHdrModule = {
 extern "C" __attribute__((constructor)) void RegisterReaderHdrModule()
 {
     napi_module_register(&readerHdrModule);
-}
-
-extern "C" __attribute__((destructor)) void DeinitializeReaderHdrEnvironment()
-{
-    std::lock_guard<std::mutex> guard(g_conversionMutex);
-    if (g_environmentInitialized) {
-        OH_ImageProcessing_DeinitializeEnvironment();
-        g_environmentInitialized = false;
-    }
 }
