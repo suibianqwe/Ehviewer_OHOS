@@ -134,6 +134,7 @@ export enum SettingsPanel {
   Privacy = 'privacy',
   Translation = 'translation',
   TranslationPrompt = 'translation_prompt',
+  ReaderPresets = 'reader_presets',
   Advanced = 'advanced',
   WifiTransfer = 'wifi_transfer',
   About = 'about',
@@ -1512,6 +1513,28 @@ export function zhText(text: string): string {
     case 'Mobile data warning': return '移动网络警告';
     case 'You are using mobile data. Continue downloading?': return '当前正在使用移动网络，是否继续下载？';
     case 'Continue': return '继续';
+    case 'Reading presets': return '阅读预设';
+    case 'Save and quickly apply groups of reader settings': return '保存并快速应用成组的阅读设置';
+    case 'Save and quickly apply groups of page layout and image processing settings':
+      return '保存并快速应用页面排布与图像处理设置';
+    case 'Manga': return '漫画';
+    case 'Right-to-left single-page reading with screen fitting': return '从右到左单页阅读并适应屏幕';
+    case 'Dual-page manga': return '双页漫画';
+    case 'Right-to-left reading with adaptive dual-page layout': return '从右到左阅读并自适应一屏双页';
+    case 'Left-to-right comics': return '从左到右漫画';
+    case 'Left-to-right single-page reading with screen fitting': return '从左到右单页阅读并适应屏幕';
+    case 'Webtoon': return '条漫';
+    case 'Continuous top-to-bottom reading fitted to screen width': return '从上到下连续阅读并适应屏幕宽度';
+    case 'Custom reading preset': return '自定义阅读预设';
+    case 'Custom preset': return '自定义预设';
+    case 'Current settings': return '当前设置';
+    case 'In use': return '使用中';
+    case 'Save current settings': return '保存当前设置';
+    case 'Preset name': return '预设名称';
+    case 'Preset name is required': return '请输入预设名称';
+    case 'Reading preset saved': return '阅读预设已保存';
+    case 'Reading preset deleted': return '阅读预设已删除';
+    case 'Reading preset applied': return '阅读预设已应用';
     case 'Screen rotation': return '屏幕旋转';
     case 'Reader orientation policy': return '阅读器方向策略';
     case 'Reading direction': return '阅读方向';
@@ -3023,6 +3046,9 @@ export function settingsPanelTitle(panel: SettingsPanel): string {
   if (panel === SettingsPanel.TranslationPrompt) {
     return 'System prompts';
   }
+  if (panel === SettingsPanel.ReaderPresets) {
+    return 'Reading presets';
+  }
   if (panel === SettingsPanel.CommentBlacklist) {
     return 'Comment blacklist';
   }
@@ -3083,6 +3109,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     const continuousMode = readingDirection === 'Top to bottom';
     const adaptiveDualPage = settingEntryValue(entries, 'adaptive_dual_page', 'Off') === 'On';
     return [
+      staticSettingsRow('reader_presets', 'Reading presets',
+        'Save and quickly apply groups of reader settings', '', 'navigation'),
       optionSettingsRow('screen_rotation', 'Screen rotation', 'Reader orientation policy', entries,
         continuousMode || adaptiveDualPage ? ['Default', 'Portrait', 'Landscape', 'Auto rotate'] :
           ['Default', 'Portrait', 'Landscape', 'Auto rotate', 'Match image']),

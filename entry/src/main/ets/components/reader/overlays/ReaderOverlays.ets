@@ -348,6 +348,7 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuShowBattery: boolean = true;
   @Prop progressText: string = '';
   @Prop batteryText: string = '';
+  @Prop menuReaderPreset: string = 'Current settings';
   @Prop menuScreenRotation: string = 'Default';
   @Prop menuReadingDirection: string = 'Right to left';
   @Prop menuPageScaling: string = 'Fit screen';
@@ -370,8 +371,10 @@ export struct ReaderSettingsMenuOverlay {
   @Prop screenRotationOptions: string[] = [];
   @Prop readingDirectionOptions: string[] = [];
   @Prop pageScalingOptions: string[] = [];
+  @Prop readerPresetOptions: string[] = [];
   onDismiss: () => void = () => {};
   onBack: () => void = () => {};
+  onReaderPresetChange: (value: string) => void = (_value: string) => {};
   onScreenRotationChange: (value: string) => void = (_value: string) => {};
   onReadingDirectionChange: (value: string) => void = (_value: string) => {};
   onPageScalingChange: (value: string) => void = (_value: string) => {};
@@ -428,6 +431,13 @@ export struct ReaderSettingsMenuOverlay {
   private ReadingSettingsTab() {
     Scroll() {
       Column({ space: 0 }) {
+        ReaderMenuSelect({
+          label: uiText('Reading presets'),
+          options: this.readerPresetOptions,
+          value: this.menuReaderPreset,
+          onChange: this.onReaderPresetChange
+        })
+        ReaderMenuDivider()
         ReaderMenuSelect({
           label: uiText('Reading direction'),
           options: this.readingDirectionOptions,

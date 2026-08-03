@@ -52,6 +52,12 @@ import {
   serializeCustomTranslationPromptProfiles,
   uniqueTranslationPromptName
 } from '../services/TranslationPromptSupport';
+import {
+  allReaderPresetProfiles,
+  applyReaderPresetValues,
+  findReaderPresetProfile,
+  READER_CUSTOM_PRESETS_SETTING_KEY
+} from '../services/ReaderPresetSupport';
 import { EhHttpClient, NetworkDiagnosticResult } from '../services/EhHttpClient';
 import {
   currentDnsOverHttpsStatusText,
@@ -136,6 +142,7 @@ import { FilterPanel } from './DownloadMigrationScenes';
 import { BlockingBusyOverlay } from './BlockingBusyOverlay';
 import { ConfirmActionOverlay } from './ConfirmActionOverlay';
 import { MyTagsPanel } from './MyTagsPanel';
+import { ReaderPresetPanel } from './ReaderPresetPanel';
 import { AppSubToolbar, AppToolbar } from './NavigationComponents';
 import {
   clearAllWebCookies,
@@ -1127,6 +1134,10 @@ export struct SettingsScene {
       this.openPanel(SettingsPanel.TranslationPrompt);
       return true;
     }
+    if (key === 'reader_presets') {
+      this.openPanel(SettingsPanel.ReaderPresets);
+      return true;
+    }
     if (key === 'donate') {
       this.statusText = 'Donation is not available in this version.';
       return true;
@@ -1216,6 +1227,36 @@ export struct SettingsScene {
     this.settingEntries = ehSettingsStore.getEntries();
     ehTranslationService.clearCache();
     this.showFloatingStatus(status);
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSettingsStore.save(context).catch((error: Error) => {
+        this.showFloatingStatus('Save failed: ' + error.message);
+      });
+    }
+  }
+
+  private saveReaderPresets(customProfiles: string, status: string): void {
+    ehSettingsStore.setValue(READER_CUSTOM_PRESETS_SETTING_KEY, customProfiles);
+    this.settingEntries = ehSettingsStore.getEntries();
+    this.showFloatingStatus(status);
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSettingsStore.save(context).catch((error: Error) => {
+        this.showFloatingStatus('Save failed: ' + error.message);
+      });
+    }
+  }
+
+  private applyReaderPreset(profileId: string): void {
+    const customProfiles = ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]');
+    const profile = findReaderPresetProfile(allReaderPresetProfiles(customProfiles), profileId);
+    if (profile === null) {
+      return;
+    }
+    applyReaderPresetValues(profile.values);
+    this.settingEntries = ehSettingsStore.getEntries();
+    this.settingsRenderRevision++;
+    this.showFloatingStatus('Reading preset applied');
     const context = getAbilityContext();
     if (context !== undefined) {
       ehSettingsStore.save(context).catch((error: Error) => {
@@ -2248,6 +2289,31 @@ export struct SettingsScene {
           },
           onSave: (selectedId: string, customProfiles: string, status: string) => {
             this.saveTranslationPrompt(selectedId, customProfiles, status);
+          }
+        })
+          .width(this.settingsLayerWidth())
+          .height('100%')
+          .position({ x: this.settingsLayerTranslateX(), y: 0 })
+          .onTouch((event: TouchEvent) => {
+            if (shouldUpdateSplitPaneFocus(event)) {
+              this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
+            }
+          })
+          .zIndex(10)
+          .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
+          .transition(TransitionEffect.move(TransitionEdge.END)
+            .animation({ duration: 300, curve: Curve.EaseOut }))
+      } else if (this.panel === SettingsPanel.ReaderPresets) {
+        ReaderPresetPanel({
+          customProfiles: settingEntryValue(this.settingEntries, READER_CUSTOM_PRESETS_SETTING_KEY, '[]'),
+          onBack: () => {
+            this.closePanel();
+          },
+          onApply: (profileId: string) => {
+            this.applyReaderPreset(profileId);
+          },
+          onSave: (customProfiles: string, status: string) => {
+            this.saveReaderPresets(customProfiles, status);
           }
         })
           .width(this.settingsLayerWidth())

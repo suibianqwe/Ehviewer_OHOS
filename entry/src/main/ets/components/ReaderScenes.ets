@@ -26,6 +26,15 @@ import {
   setReaderTransientStatusBarVisible
 } from '../services/EhWindowImmersive';
 import { READER_TRANSLATION_BUTTON_VISIBLE_KEY, ehSettingsStore } from '../services/EhSettingsStore';
+import {
+  activeReaderPresetProfile,
+  allReaderPresetProfiles,
+  createReaderPresetValues,
+  findReaderPresetByName,
+  ReaderPresetProfile,
+  ReaderPresetValues,
+  READER_CUSTOM_PRESETS_SETTING_KEY
+} from '../services/ReaderPresetSupport';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { IMAGE_DOWNLOAD_PRIORITY_READER, readerImageCache } from '../services/ReaderImageCache';
 import {
@@ -216,6 +225,8 @@ export struct ReaderScene {
 
   // Menu settings state (reflects ehSettingsStore, applied on menu close)
   @State menuScreenRotation: string = 'Default';
+  @State menuReaderPreset: string = 'Current settings';
+  @State menuReaderPresetOptions: string[] = [];
   @State menuReadingDirection: string = 'Right to left';
   @State menuPageScaling: string = 'Fit screen';
   @State menuAdaptiveDualPage: boolean = false;
@@ -986,6 +997,7 @@ export struct ReaderScene {
     this.menuAutoTransferTime = normalizeAutoTransferTimeOption(ehSettingsStore.getValue('start_transfer_time', '5s'));
     this.menuCustomBrightness = ehSettingsStore.getValue('custom_screen_lightness', 'Off') === 'On';
     this.menuBrightnessLevel = normalizeBrightnessLevelOption(ehSettingsStore.getValue('screen_lightness', '50%'));
+    this.syncMenuReaderPreset();
     this.menuVisible = true;
     this.syncReaderTransientStatusBar();
     this.clearAutoTransferTimer();
@@ -1077,6 +1089,50 @@ export struct ReaderScene {
     return ['Actual size', 'Fit width', 'Fit height', 'Fit screen', 'Fixed scale'];
   }
 
+  private currentMenuReaderPresetValues(): ReaderPresetValues {
+    return createReaderPresetValues(this.menuScreenRotation, this.menuReadingDirection, this.menuPageScaling,
+      this.menuAdaptiveDualPage, this.menuCropWhiteBorders, this.menuSdrToHdrEnabled, this.menuStartPosition);
+  }
+
+  private syncMenuReaderPreset(): void {
+    const profiles = allReaderPresetProfiles(
+      ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]'));
+    const options: string[] = [];
+    for (let i = 0; i < profiles.length; i++) {
+      options.push(profiles[i].name);
+    }
+    options.push('Current settings');
+    this.menuReaderPresetOptions = options;
+    const active = activeReaderPresetProfile(profiles, this.currentMenuReaderPresetValues());
+    this.menuReaderPreset = active === null ? 'Current settings' : active.name;
+  }
+
+  private markMenuReaderPresetCustom(): void {
+    this.menuReaderPreset = 'Current settings';
+  }
+
+  private onMenuReaderPresetChange(value: string): void {
+    if (value === 'Current settings') {
+      this.menuReaderPreset = value;
+      return;
+    }
+    const profiles = allReaderPresetProfiles(
+      ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]'));
+    const profile: ReaderPresetProfile | null = findReaderPresetByName(profiles, value);
+    if (profile === null) {
+      return;
+    }
+    this.menuScreenRotation = profile.values.screenRotation;
+    this.menuReadingDirection = profile.values.readingDirection;
+    this.menuPageScaling = profile.values.pageScaling;
+    this.menuAdaptiveDualPage = profile.values.adaptiveDualPage;
+    this.menuCropWhiteBorders = profile.values.cropWhiteBorders;
+    this.menuSdrToHdrEnabled = profile.values.sdrToHdr;
+    this.menuStartPosition = profile.values.startPosition;
+    this.applyAdaptiveDualPageMenuConstraints();
+    this.menuReaderPreset = profile.name;
+  }
+
   private readerMenuReadingDirectionOptions(): string[] {
     return this.menuAdaptiveDualPage ? ['Left to right', 'Right to left'] :
       ['Left to right', 'Right to left', 'Top to bottom'];
@@ -1098,6 +1154,7 @@ export struct ReaderScene {
   private onMenuAdaptiveDualPageChange(value: boolean): void {
     this.menuAdaptiveDualPage = value;
     this.applyAdaptiveDualPageMenuConstraints();
+    this.markMenuReaderPresetCustom();
   }
 
   private onMenuReadingDirectionChange(value: string): void {
@@ -1109,6 +1166,7 @@ export struct ReaderScene {
     if (previous !== 'Top to bottom' && this.menuReadingDirection === 'Top to bottom') {
       this.applyContinuousMenuConstraints();
     }
+    this.markMenuReaderPresetCustom();
   }
 
   private async applyBrightness(): Promise<void> {
@@ -2378,6 +2436,8 @@ export struct ReaderScene {
           menuShowClock: this.menuShowClock,
           menuShowProgress: this.menuShowProgress,
           progressText: this.progressText(),
+          menuReaderPreset: this.menuReaderPreset,
+          readerPresetOptions: this.menuReaderPresetOptions,
           menuScreenRotation: this.menuScreenRotation,
           menuReadingDirection: this.menuReadingDirection,
           menuPageScaling: this.menuPageScaling,
@@ -2405,26 +2465,34 @@ export struct ReaderScene {
           onBack: () => {
             this.onBack();
           },
+          onReaderPresetChange: (value: string) => {
+            this.onMenuReaderPresetChange(value);
+          },
           onScreenRotationChange: (value: string) => {
             this.menuScreenRotation = value;
+            this.markMenuReaderPresetCustom();
           },
           onReadingDirectionChange: (value: string) => {
             this.onMenuReadingDirectionChange(value);
           },
           onPageScalingChange: (value: string) => {
             this.menuPageScaling = value;
+            this.markMenuReaderPresetCustom();
           },
           onAdaptiveDualPageChange: (value: boolean) => {
             this.onMenuAdaptiveDualPageChange(value);
           },
           onCropWhiteBordersChange: (value: boolean) => {
             this.menuCropWhiteBorders = value;
+            this.markMenuReaderPresetCustom();
           },
           onSdrToHdrChange: (value: boolean) => {
             this.menuSdrToHdrEnabled = value;
+            this.markMenuReaderPresetCustom();
           },
           onStartPositionChange: (value: string) => {
             this.menuStartPosition = value;
+            this.markMenuReaderPresetCustom();
           },
           onAutoTransferTimeChange: (value: string) => {
             this.menuAutoTransferTime = value;

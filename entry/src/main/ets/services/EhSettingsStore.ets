@@ -86,6 +86,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'adaptive_dual_page', value: 'Off' },
     { key: 'reader_crop_white_borders', value: 'Off' },
     { key: 'reader_sdr_to_hdr', value: 'Off' },
+    { key: 'reader_custom_presets', value: '[]' },
     { key: 'start_position', value: 'Top right' },
     { key: 'start_transfer_time', value: '5s' },
     { key: 'reader_standalone', value: 'On' },
