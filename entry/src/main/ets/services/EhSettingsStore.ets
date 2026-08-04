@@ -85,6 +85,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'page_scaling', value: 'Fit screen' },
     { key: 'adaptive_dual_page', value: 'Off' },
     { key: 'reader_crop_white_borders', value: 'Off' },
+    { key: 'reader_image_super_resolution', value: 'Off' },
     { key: 'reader_sdr_to_hdr', value: 'Off' },
     { key: 'reader_custom_presets', value: '[]' },
     { key: 'start_position', value: 'Top right' },
@@ -168,6 +169,7 @@ export class EhSettingsStore {
     }
     this.valueByKey.set(key, value);
     this.enforceAdaptiveDualPageConstraints();
+    this.enforceReaderImageEnhancementConstraints(key);
     if (key === 'translation_buttons_enabled') {
       this.syncTranslationButtonVisibility();
     }
@@ -186,6 +188,15 @@ export class EhSettingsStore {
     }
     if (this.getValue('screen_rotation', 'Default') === 'Match image') {
       this.replaceEntryValue('screen_rotation', 'Default');
+    }
+  }
+
+  private enforceReaderImageEnhancementConstraints(changedKey: string): void {
+    if (changedKey === 'reader_image_super_resolution' &&
+      this.getValue('reader_image_super_resolution', 'Off') === 'On') {
+      this.replaceEntryValue('reader_sdr_to_hdr', 'Off');
+    } else if (changedKey === 'reader_sdr_to_hdr' && this.getValue('reader_sdr_to_hdr', 'Off') === 'On') {
+      this.replaceEntryValue('reader_image_super_resolution', 'Off');
     }
   }
 

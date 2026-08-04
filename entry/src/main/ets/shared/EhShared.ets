@@ -1545,6 +1545,9 @@ export function zhText(text: string): string {
     case 'Show two wide or narrow pages together when both fit on screen': return '当两张横向或纵向页面能够容纳时在一屏内同时显示';
     case 'Crop white and black borders': return '自动裁切白边/黑边';
     case 'Automatically trim uniform light or dark margins while reading': return '阅读时自动裁去图片四周均匀的浅色或深色空白';
+    case 'Image super resolution': return '图片超分';
+    case 'Use the system image engine to enhance low-resolution reader pages':
+      return '使用系统图片引擎增强低分辨率阅读页面';
     case 'SDR to HDR': return 'SDR 转 HDR';
     case 'Convert reader images in the prerender range to HDR when supported':
       return '设备支持时，将预渲染范围内的阅读图片转换为 HDR';
@@ -3123,6 +3126,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
         'Show two wide or narrow pages together when both fit on screen', entries, ON_OFF_OPTIONS),
       optionSettingsRow('reader_crop_white_borders', 'Crop white and black borders',
         'Automatically trim uniform light or dark margins while reading', entries, ON_OFF_OPTIONS),
+      optionSettingsRow('reader_image_super_resolution', 'Image super resolution',
+        'Use the system image engine to enhance low-resolution reader pages', entries, ON_OFF_OPTIONS),
       optionSettingsRow('reader_sdr_to_hdr', 'SDR to HDR',
         'Convert reader images in the prerender range to HDR when supported', entries, ON_OFF_OPTIONS),
       optionSettingsRow('start_position', 'Start position', 'Where a gallery starts when opened', entries, ['Top left', 'Top right', 'Bottom left', 'Bottom right', 'Center']),

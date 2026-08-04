@@ -7,6 +7,7 @@ import {
   readerImageCache
 } from '../../../services/ReaderImageCache';
 import { readerHdrService } from '../../../services/ReaderHdrService';
+import { readerSuperResolutionService } from '../../../services/ReaderSuperResolutionService';
 import {
   ReaderCropRect,
   readerWhiteBorderCropService
@@ -47,6 +48,7 @@ export struct ReaderImageViewport {
   @Prop startPosition: string = 'Top right';
   @Prop @Watch('onActiveChange') isActive: boolean = false;
   @Prop @Watch('onHdrEnabledChange') hdrEnabled: boolean = false;
+  @Prop @Watch('onSuperResolutionEnabledChange') superResolutionEnabled: boolean = false;
   @Prop @Watch('onHdrPriorityChange') hdrPriority: number = 0;
   @Prop @Watch('onCropWhiteBordersChange') cropWhiteBorders: boolean = false;
   @Prop translation: ReaderPageTranslation | null = null;
@@ -71,6 +73,7 @@ export struct ReaderImageViewport {
   @State downloadProgress: number = -1;
   @State imageRetryVersion: number = 0;
   @State hdrPixelMap: image.PixelMap | undefined = undefined;
+  @State superResolutionPixelMap: image.PixelMap | undefined = undefined;
   @State cropRect: ReaderCropRect = new ReaderCropRect();
   private lastCommandVersion: number = -1;
   private sourceSizeRequestId: number = 0;
@@ -78,6 +81,8 @@ export struct ReaderImageViewport {
   private retainedImageUrl: string = '';
   private retainedHdrKey: string = '';
   private hdrRequestId: number = 0;
+  private retainedSuperResolutionKey: string = '';
+  private superResolutionRequestId: number = 0;
   private cropRequestId: number = 0;
 
   aboutToAppear(): void {
@@ -126,8 +131,19 @@ export struct ReaderImageViewport {
 
   private imageNodeId(): string {
     const sourceKey = this.sourceImageCacheKey().length > 0 ? this.sourceImageCacheKey() : this.imageUrl();
+    const processingMode = this.hdrPixelMap !== undefined ? 'hdr-' :
+      (this.superResolutionPixelMap !== undefined ? 'sr-' : 'sdr-');
     return 'reader-image-' + this.imageRetryVersion.toString() + '-' +
-      (this.hdrPixelMap === undefined ? 'sdr-' : 'hdr-') + sourceKey;
+      processingMode + sourceKey;
+  }
+
+  private displayPixelMap(): image.PixelMap | undefined {
+    return this.hdrPixelMap !== undefined ? this.hdrPixelMap : this.superResolutionPixelMap;
+  }
+
+  private displayImageSource(): string | image.PixelMap {
+    const pixelMap = this.displayPixelMap();
+    return pixelMap === undefined ? this.imageUrl() : pixelMap;
   }
 
   private retryImage(): void {
@@ -184,6 +200,7 @@ export struct ReaderImageViewport {
     this.reportImageSize();
     this.loadCachedSourceImageSize(requestId, url).catch(() => {});
     this.loadHdrPixelMap();
+    this.loadSuperResolutionPixelMap();
     this.loadCropRect();
     this.startDownloadProgressMonitor();
     this.syncFixedScale();
@@ -195,6 +212,7 @@ export struct ReaderImageViewport {
     forgetReaderImageRuntimeState(this.retainedImageUrl);
     this.retainedImageUrl = '';
     this.releaseHdrPixelMap();
+    this.releaseSuperResolutionPixelMap();
     this.cropRequestId++;
   }
 
@@ -210,9 +228,17 @@ export struct ReaderImageViewport {
     this.loadHdrPixelMap();
   }
 
+  onSuperResolutionEnabledChange(): void {
+    this.startDownloadProgressMonitor();
+    this.loadSuperResolutionPixelMap();
+  }
+
   onHdrPriorityChange(): void {
     if (this.retainedHdrKey.length > 0) {
       readerHdrService.updatePriority(this.retainedHdrKey, this.hdrPriority);
+    }
+    if (this.retainedSuperResolutionKey.length > 0) {
+      readerSuperResolutionService.updatePriority(this.retainedSuperResolutionKey, this.hdrPriority);
     }
   }
 
@@ -244,6 +270,39 @@ export struct ReaderImageViewport {
     if (this.retainedHdrKey.length > 0) {
       readerHdrService.release(this.retainedHdrKey);
       this.retainedHdrKey = '';
+    }
+  }
+
+  private loadSuperResolutionPixelMap(): void {
+    const sourcePath = this.localSourceImagePath();
+    const key = this.sourceImageCacheKey() + '|' + sourcePath + '|sr';
+    if (!this.superResolutionEnabled || sourcePath.length === 0 || this.imageUrl().length === 0) {
+      this.releaseSuperResolutionPixelMap();
+      return;
+    }
+    if (this.retainedSuperResolutionKey === key) {
+      return;
+    }
+    this.releaseSuperResolutionPixelMap();
+    const requestId = this.superResolutionRequestId + 1;
+    this.superResolutionRequestId = requestId;
+    this.retainedSuperResolutionKey = key;
+    readerSuperResolutionService.acquire(key, sourcePath, this.hdrPriority)
+      .then((pixelMap: image.PixelMap | undefined) => {
+        if (requestId !== this.superResolutionRequestId || key !== this.retainedSuperResolutionKey ||
+          !this.superResolutionEnabled) {
+          return;
+        }
+        this.superResolutionPixelMap = pixelMap;
+      }).catch(() => {});
+  }
+
+  private releaseSuperResolutionPixelMap(): void {
+    this.superResolutionRequestId++;
+    this.superResolutionPixelMap = undefined;
+    if (this.retainedSuperResolutionKey.length > 0) {
+      readerSuperResolutionService.release(this.retainedSuperResolutionKey);
+      this.retainedSuperResolutionKey = '';
     }
   }
 
@@ -318,7 +377,7 @@ export struct ReaderImageViewport {
     if (this.localSourceImagePath().length > 0) {
       return;
     }
-    if (!this.isActive && !this.hdrEnabled && !this.cropWhiteBorders) {
+    if (!this.isActive && !this.hdrEnabled && !this.superResolutionEnabled && !this.cropWhiteBorders) {
       return;
     }
     const context = getAbilityContext();
@@ -336,6 +395,7 @@ export struct ReaderImageViewport {
       if (requestId === this.downloadProgressRequestId) {
         this.downloadProgress = 100;
         this.loadHdrPixelMap();
+        this.loadSuperResolutionPixelMap();
         this.loadCropRect();
       }
     }).catch(() => {});
@@ -525,7 +585,7 @@ export struct ReaderImageViewport {
       if (this.imageUrl().length > 0) {
         Stack({ alignContent: this.startAlignment() }) {
           Stack({ alignContent: Alignment.TopStart }) {
-            Image(this.hdrPixelMap === undefined ? this.imageUrl() : this.hdrPixelMap)
+            Image(this.displayImageSource())
               .id(this.imageNodeId())
               .width(this.uncroppedDisplayWidth())
               .height(this.uncroppedDisplayHeight())
@@ -548,6 +608,7 @@ export struct ReaderImageViewport {
                 cacheReaderImageComplete(this.imageUrl());
                 this.completedImageUrl = this.imageUrl();
                 this.failedImageUrl = '';
+                this.loadSuperResolutionPixelMap();
                 this.loadCropRect();
               })
               .onError(() => {
@@ -571,6 +632,16 @@ export struct ReaderImageViewport {
             Text('HDR')
               .fontSize('9vp')
               .fontColor('#FFD700')
+              .fontWeight(FontWeight.Bold)
+              .backgroundColor('#80000000')
+              .borderRadius(4)
+              .padding({ left: 5, right: 5, top: 2, bottom: 2 })
+              .position({ x: 8, y: this.displayImageHeight - 24 })
+              .hitTestBehavior(HitTestMode.None)
+          } else if (this.superResolutionPixelMap !== undefined) {
+            Text('SR')
+              .fontSize('9vp')
+              .fontColor(Color.White)
               .fontWeight(FontWeight.Bold)
               .backgroundColor('#80000000')
               .borderRadius(4)

@@ -37,6 +37,7 @@ import {
 } from '../services/ReaderPresetSupport';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { IMAGE_DOWNLOAD_PRIORITY_READER, readerImageCache } from '../services/ReaderImageCache';
+import { readerSuperResolutionService } from '../services/ReaderSuperResolutionService';
 import {
   createEmptyPage,
   getAbilityContext,
@@ -149,6 +150,7 @@ export struct ReaderScene {
   @State fitMode: string = 'Fit screen';
   @State adaptiveDualPage: boolean = false;
   @State cropWhiteBorders: boolean = false;
+  @State imageSuperResolutionEnabled: boolean = false;
   @State sdrToHdrEnabled: boolean = false;
   @State startPosition: string = 'Top right';
   @State showInfo: boolean = false;
@@ -231,6 +233,7 @@ export struct ReaderScene {
   @State menuPageScaling: string = 'Fit screen';
   @State menuAdaptiveDualPage: boolean = false;
   @State menuCropWhiteBorders: boolean = false;
+  @State menuImageSuperResolutionEnabled: boolean = false;
   @State menuSdrToHdrEnabled: boolean = false;
   @State menuStartPosition: string = 'Top right';
   @State menuKeepScreenOn: boolean = false;
@@ -283,7 +286,10 @@ export struct ReaderScene {
     setReaderTransientStatusBarVisible(false);
     this.adaptiveDualPage = ehSettingsStore.getValue('adaptive_dual_page', 'Off') === 'On';
     this.cropWhiteBorders = ehSettingsStore.getValue('reader_crop_white_borders', 'Off') === 'On';
-    this.sdrToHdrEnabled = ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
+    this.imageSuperResolutionEnabled =
+      ehSettingsStore.getValue('reader_image_super_resolution', 'Off') === 'On';
+    this.sdrToHdrEnabled = !this.imageSuperResolutionEnabled &&
+      ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
     this.resetReaderImageSizesForGallery();
     if (!this.cropWhiteBorders) {
       this.syncReaderPreviewImageSizes();
@@ -389,6 +395,7 @@ export struct ReaderScene {
     this.clearScreenTapTimer();
     this.clearAutoTransferTimer();
     this.clearOverlayRefreshTimer();
+    readerSuperResolutionService.clear();
     this.unregisterVolumePageKeys();
     this.resetReaderBrightness().catch(() => {});
   }
@@ -985,7 +992,10 @@ export struct ReaderScene {
     this.menuPageScaling = normalizePageScalingOption(ehSettingsStore.getValue('page_scaling', 'Fit screen'));
     this.menuAdaptiveDualPage = ehSettingsStore.getValue('adaptive_dual_page', 'Off') === 'On';
     this.menuCropWhiteBorders = ehSettingsStore.getValue('reader_crop_white_borders', 'Off') === 'On';
-    this.menuSdrToHdrEnabled = ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
+    this.menuImageSuperResolutionEnabled =
+      ehSettingsStore.getValue('reader_image_super_resolution', 'Off') === 'On';
+    this.menuSdrToHdrEnabled = !this.menuImageSuperResolutionEnabled &&
+      ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
     this.menuStartPosition = normalizeStartPositionOption(ehSettingsStore.getValue('start_position', 'Top right'));
     this.menuKeepScreenOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
     this.menuShowClock = ehSettingsStore.getValue('gallery_show_clock', 'On') === 'On';
@@ -1010,6 +1020,8 @@ export struct ReaderScene {
     const previousCropWhiteBorders = this.cropWhiteBorders;
     ehSettingsStore.setValue('adaptive_dual_page', this.menuAdaptiveDualPage ? 'On' : 'Off');
     ehSettingsStore.setValue('reader_crop_white_borders', this.menuCropWhiteBorders ? 'On' : 'Off');
+    ehSettingsStore.setValue('reader_image_super_resolution',
+      this.menuImageSuperResolutionEnabled ? 'On' : 'Off');
     ehSettingsStore.setValue('reader_sdr_to_hdr', this.menuSdrToHdrEnabled ? 'On' : 'Off');
     ehSettingsStore.setValue('screen_rotation', this.menuScreenRotation);
     ehSettingsStore.setValue('reading_direction', this.menuReadingDirection);
@@ -1035,6 +1047,7 @@ export struct ReaderScene {
     this.fitMode = nextFitMode;
     this.adaptiveDualPage = this.menuAdaptiveDualPage;
     this.cropWhiteBorders = this.menuCropWhiteBorders;
+    this.imageSuperResolutionEnabled = this.menuImageSuperResolutionEnabled;
     this.sdrToHdrEnabled = this.menuSdrToHdrEnabled;
     if (previousAdaptiveDualPage !== this.adaptiveDualPage) {
       this.onAdaptiveDualPageChange(this.adaptiveDualPage);
@@ -1091,7 +1104,8 @@ export struct ReaderScene {
 
   private currentMenuReaderPresetValues(): ReaderPresetValues {
     return createReaderPresetValues(this.menuScreenRotation, this.menuReadingDirection, this.menuPageScaling,
-      this.menuAdaptiveDualPage, this.menuCropWhiteBorders, this.menuSdrToHdrEnabled, this.menuStartPosition);
+      this.menuAdaptiveDualPage, this.menuCropWhiteBorders, this.menuImageSuperResolutionEnabled,
+      this.menuSdrToHdrEnabled, this.menuStartPosition);
   }
 
   private syncMenuReaderPreset(): void {
@@ -1127,6 +1141,7 @@ export struct ReaderScene {
     this.menuPageScaling = profile.values.pageScaling;
     this.menuAdaptiveDualPage = profile.values.adaptiveDualPage;
     this.menuCropWhiteBorders = profile.values.cropWhiteBorders;
+    this.menuImageSuperResolutionEnabled = profile.values.imageSuperResolution;
     this.menuSdrToHdrEnabled = profile.values.sdrToHdr;
     this.menuStartPosition = profile.values.startPosition;
     this.applyAdaptiveDualPageMenuConstraints();
@@ -1154,6 +1169,22 @@ export struct ReaderScene {
   private onMenuAdaptiveDualPageChange(value: boolean): void {
     this.menuAdaptiveDualPage = value;
     this.applyAdaptiveDualPageMenuConstraints();
+    this.markMenuReaderPresetCustom();
+  }
+
+  private onMenuImageSuperResolutionChange(value: boolean): void {
+    this.menuImageSuperResolutionEnabled = value;
+    if (value) {
+      this.menuSdrToHdrEnabled = false;
+    }
+    this.markMenuReaderPresetCustom();
+  }
+
+  private onMenuSdrToHdrChange(value: boolean): void {
+    this.menuSdrToHdrEnabled = value;
+    if (value) {
+      this.menuImageSuperResolutionEnabled = false;
+    }
     this.markMenuReaderPresetCustom();
   }
 
@@ -2132,6 +2163,7 @@ export struct ReaderScene {
       startPosition: this.startPosition,
       isActive: this.pageGroupAnchorForPageIndex(index) === this.currentIndex,
       hdrEnabled: this.sdrToHdrEnabled,
+      superResolutionEnabled: this.imageSuperResolutionEnabled,
       cropWhiteBorders: this.cropWhiteBorders,
       hdrPriority: Math.abs(this.visualIndexForPageIndex(index) - this.visualIndexForPageIndex(this.currentIndex)),
       translation: this.pageGroupAnchorForPageIndex(index) === this.currentIndex ?
@@ -2231,6 +2263,8 @@ export struct ReaderScene {
                 sharedOffsetX: this.continuousOffsetX,
                 isActive: item.index === this.currentIndex,
                 hdrEnabled: this.sdrToHdrEnabled &&
+                  Math.abs(item.index - this.currentIndex) <= this.readerContinuousCacheCount(),
+                superResolutionEnabled: this.imageSuperResolutionEnabled &&
                   Math.abs(item.index - this.currentIndex) <= this.readerContinuousCacheCount(),
                 cropWhiteBorders: this.cropWhiteBorders &&
                   Math.abs(item.index - this.currentIndex) <= this.readerContinuousCacheCount(),
@@ -2443,6 +2477,7 @@ export struct ReaderScene {
           menuPageScaling: this.menuPageScaling,
           menuAdaptiveDualPage: this.menuAdaptiveDualPage,
           menuCropWhiteBorders: this.menuCropWhiteBorders,
+          menuImageSuperResolution: this.menuImageSuperResolutionEnabled,
           menuSdrToHdrEnabled: this.menuSdrToHdrEnabled,
           menuStartPosition: this.menuStartPosition,
           menuAutoTransferTime: this.menuAutoTransferTime,
@@ -2486,9 +2521,11 @@ export struct ReaderScene {
             this.menuCropWhiteBorders = value;
             this.markMenuReaderPresetCustom();
           },
+          onImageSuperResolutionChange: (value: boolean) => {
+            this.onMenuImageSuperResolutionChange(value);
+          },
           onSdrToHdrChange: (value: boolean) => {
-            this.menuSdrToHdrEnabled = value;
-            this.markMenuReaderPresetCustom();
+            this.onMenuSdrToHdrChange(value);
           },
           onStartPositionChange: (value: string) => {
             this.menuStartPosition = value;

@@ -354,6 +354,7 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuPageScaling: string = 'Fit screen';
   @Prop menuAdaptiveDualPage: boolean = false;
   @Prop menuCropWhiteBorders: boolean = false;
+  @Prop menuImageSuperResolution: boolean = false;
   @Prop menuSdrToHdrEnabled: boolean = false;
   @Prop menuStartPosition: string = 'Top right';
   @Prop menuAutoTransferTime: string = '5s';
@@ -380,6 +381,7 @@ export struct ReaderSettingsMenuOverlay {
   onPageScalingChange: (value: string) => void = (_value: string) => {};
   onAdaptiveDualPageChange: (value: boolean) => void = (_value: boolean) => {};
   onCropWhiteBordersChange: (value: boolean) => void = (_value: boolean) => {};
+  onImageSuperResolutionChange: (value: boolean) => void = (_value: boolean) => {};
   onSdrToHdrChange: (value: boolean) => void = (_value: boolean) => {};
   onStartPositionChange: (value: string) => void = (_value: string) => {};
   onAutoTransferTimeChange: (value: string) => void = (_value: string) => {};
@@ -489,6 +491,12 @@ export struct ReaderSettingsMenuOverlay {
           options: this.screenRotationOptions,
           value: this.menuScreenRotation,
           onChange: this.onScreenRotationChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuToggle({
+          label: uiText('Image super resolution'),
+          value: this.menuImageSuperResolution,
+          onChange: this.onImageSuperResolutionChange
         })
         ReaderMenuDivider()
         ReaderMenuToggle({

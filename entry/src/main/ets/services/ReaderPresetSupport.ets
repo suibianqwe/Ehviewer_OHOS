@@ -8,6 +8,7 @@ export interface ReaderPresetValues {
   pageScaling: string;
   adaptiveDualPage: boolean;
   cropWhiteBorders: boolean;
+  imageSuperResolution: boolean;
   sdrToHdr: boolean;
   startPosition: string;
 }
@@ -26,6 +27,7 @@ interface StoredReaderPresetValues {
   pageScaling?: string;
   adaptiveDualPage?: boolean;
   cropWhiteBorders?: boolean;
+  imageSuperResolution?: boolean;
   sdrToHdr?: boolean;
   startPosition?: string;
 }
@@ -42,28 +44,32 @@ const BUILT_IN_READER_PRESETS: ReaderPresetProfile[] = [
     name: 'Manga',
     summary: 'Right-to-left single-page reading with screen fitting',
     builtIn: true,
-    values: createReaderPresetValues('Default', 'Right to left', 'Fit screen', false, false, false, 'Top right')
+    values: createReaderPresetValues('Default', 'Right to left', 'Fit screen', false, false, false, false,
+      'Top right')
   },
   {
     id: 'reader_preset_dual_manga',
     name: 'Dual-page manga',
     summary: 'Right-to-left reading with adaptive dual-page layout',
     builtIn: true,
-    values: createReaderPresetValues('Default', 'Right to left', 'Fit screen', true, true, false, 'Top right')
+    values: createReaderPresetValues('Default', 'Right to left', 'Fit screen', true, true, false, false,
+      'Top right')
   },
   {
     id: 'reader_preset_comic',
     name: 'Left-to-right comics',
     summary: 'Left-to-right single-page reading with screen fitting',
     builtIn: true,
-    values: createReaderPresetValues('Default', 'Left to right', 'Fit screen', false, false, false, 'Top left')
+    values: createReaderPresetValues('Default', 'Left to right', 'Fit screen', false, false, false, false,
+      'Top left')
   },
   {
     id: 'reader_preset_webtoon',
     name: 'Webtoon',
     summary: 'Continuous top-to-bottom reading fitted to screen width',
     builtIn: true,
-    values: createReaderPresetValues('Default', 'Top to bottom', 'Fit width', false, false, false, 'Top left')
+    values: createReaderPresetValues('Default', 'Top to bottom', 'Fit width', false, false, false, false,
+      'Top left')
   }
 ];
 
@@ -107,6 +113,7 @@ export function serializeCustomReaderPresetProfiles(profiles: ReaderPresetProfil
       pageScaling: profile.values.pageScaling,
       adaptiveDualPage: profile.values.adaptiveDualPage,
       cropWhiteBorders: profile.values.cropWhiteBorders,
+      imageSuperResolution: profile.values.imageSuperResolution,
       sdrToHdr: profile.values.sdrToHdr,
       startPosition: profile.values.startPosition
     };
@@ -158,6 +165,7 @@ export function readerPresetValuesFromSettings(): ReaderPresetValues {
     ehSettingsStore.getValue('page_scaling', 'Fit screen'),
     ehSettingsStore.getValue('adaptive_dual_page', 'Off') === 'On',
     ehSettingsStore.getValue('reader_crop_white_borders', 'Off') === 'On',
+    ehSettingsStore.getValue('reader_image_super_resolution', 'Off') === 'On',
     ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On',
     ehSettingsStore.getValue('start_position', 'Top right')
   );
@@ -170,6 +178,7 @@ export function applyReaderPresetValues(values: ReaderPresetValues): void {
   ehSettingsStore.setValue('reading_direction', values.readingDirection);
   ehSettingsStore.setValue('page_scaling', values.pageScaling);
   ehSettingsStore.setValue('reader_crop_white_borders', values.cropWhiteBorders ? 'On' : 'Off');
+  ehSettingsStore.setValue('reader_image_super_resolution', values.imageSuperResolution ? 'On' : 'Off');
   ehSettingsStore.setValue('reader_sdr_to_hdr', values.sdrToHdr ? 'On' : 'Off');
   ehSettingsStore.setValue('start_position', values.startPosition);
   ehSettingsStore.setValue('adaptive_dual_page', values.adaptiveDualPage ? 'On' : 'Off');
@@ -212,11 +221,12 @@ export function cloneReaderPresetProfiles(profiles: ReaderPresetProfile[]): Read
 
 export function cloneReaderPresetValues(values: ReaderPresetValues): ReaderPresetValues {
   return createReaderPresetValues(values.screenRotation, values.readingDirection, values.pageScaling,
-    values.adaptiveDualPage, values.cropWhiteBorders, values.sdrToHdr, values.startPosition);
+    values.adaptiveDualPage, values.cropWhiteBorders, values.imageSuperResolution, values.sdrToHdr,
+    values.startPosition);
 }
 
 export function createReaderPresetValues(screenRotation: string, readingDirection: string, pageScaling: string,
-  adaptiveDualPage: boolean, cropWhiteBorders: boolean, sdrToHdr: boolean,
+  adaptiveDualPage: boolean, cropWhiteBorders: boolean, imageSuperResolution: boolean, sdrToHdr: boolean,
   startPosition: string): ReaderPresetValues {
   return {
     screenRotation: normalizeOption(screenRotation, ['Default', 'Portrait', 'Landscape', 'Auto rotate', 'Match image'], 'Default'),
@@ -224,6 +234,7 @@ export function createReaderPresetValues(screenRotation: string, readingDirectio
     pageScaling: normalizeOption(pageScaling, ['Actual size', 'Fit width', 'Fit height', 'Fit screen', 'Fixed scale'], 'Fit screen'),
     adaptiveDualPage: adaptiveDualPage,
     cropWhiteBorders: cropWhiteBorders,
+    imageSuperResolution: imageSuperResolution,
     sdrToHdr: sdrToHdr,
     startPosition: normalizeOption(startPosition, ['Top left', 'Top right', 'Bottom left', 'Bottom right', 'Center'], 'Top right')
   };
@@ -239,6 +250,7 @@ function parseStoredReaderPresetValues(value: StoredReaderPresetValues | undefin
     typeof value.pageScaling === 'string' ? value.pageScaling : 'Fit screen',
     value.adaptiveDualPage === true,
     value.cropWhiteBorders === true,
+    value.imageSuperResolution === true,
     value.sdrToHdr === true,
     typeof value.startPosition === 'string' ? value.startPosition : 'Top right'
   );
@@ -247,7 +259,8 @@ function parseStoredReaderPresetValues(value: StoredReaderPresetValues | undefin
 function readerPresetValuesEqual(left: ReaderPresetValues, right: ReaderPresetValues): boolean {
   return left.screenRotation === right.screenRotation && left.readingDirection === right.readingDirection &&
     left.pageScaling === right.pageScaling && left.adaptiveDualPage === right.adaptiveDualPage &&
-    left.cropWhiteBorders === right.cropWhiteBorders && left.sdrToHdr === right.sdrToHdr &&
+    left.cropWhiteBorders === right.cropWhiteBorders &&
+    left.imageSuperResolution === right.imageSuperResolution && left.sdrToHdr === right.sdrToHdr &&
     left.startPosition === right.startPosition;
 }
 
