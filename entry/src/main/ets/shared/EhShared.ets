@@ -1533,8 +1533,17 @@ export function zhText(text: string): string {
     case 'Preset name': return '预设名称';
     case 'Preset name is required': return '请输入预设名称';
     case 'Reading preset saved': return '阅读预设已保存';
+    case 'Reading preset updated': return '阅读预设已更新';
     case 'Reading preset deleted': return '阅读预设已删除';
     case 'Reading preset applied': return '阅读预设已应用';
+    case 'New preset': return '新建';
+    case 'Save preset': return '保存';
+    case 'Edit preset': return '编辑';
+    case 'Delete preset': return '删除';
+    case 'New reading preset': return '新建阅读预设';
+    case 'Edit reading preset': return '编辑阅读预设';
+    case 'Delete reading preset': return '删除阅读预设';
+    case 'Delete this reading preset?': return '确定删除此阅读预设吗？';
     case 'Screen rotation': return '屏幕旋转';
     case 'Reader orientation policy': return '阅读器方向策略';
     case 'Reading direction': return '阅读方向';

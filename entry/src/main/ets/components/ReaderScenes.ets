@@ -30,10 +30,14 @@ import {
   activeReaderPresetProfile,
   allReaderPresetProfiles,
   createReaderPresetValues,
+  deleteCustomReaderPreset,
   findReaderPresetByName,
+  findReaderPresetProfile,
   ReaderPresetProfile,
+  ReaderPresetSaveResult,
   ReaderPresetValues,
-  READER_CUSTOM_PRESETS_SETTING_KEY
+  READER_CUSTOM_PRESETS_SETTING_KEY,
+  saveCustomReaderPreset
 } from '../services/ReaderPresetSupport';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { IMAGE_DOWNLOAD_PRIORITY_READER, readerImageCache } from '../services/ReaderImageCache';
@@ -229,6 +233,7 @@ export struct ReaderScene {
   @State menuScreenRotation: string = 'Default';
   @State menuReaderPreset: string = 'Current settings';
   @State menuReaderPresetOptions: string[] = [];
+  @State menuReaderPresetTargetId: string = '';
   @State menuReadingDirection: string = 'Right to left';
   @State menuPageScaling: string = 'Fit screen';
   @State menuAdaptiveDualPage: boolean = false;
@@ -1111,14 +1116,19 @@ export struct ReaderScene {
   private syncMenuReaderPreset(): void {
     const profiles = allReaderPresetProfiles(
       ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]'));
+    this.updateMenuReaderPresetOptions(profiles);
+    const active = activeReaderPresetProfile(profiles, this.currentMenuReaderPresetValues());
+    this.menuReaderPreset = active === null ? 'Current settings' : active.name;
+    this.menuReaderPresetTargetId = active === null ? '' : active.id;
+  }
+
+  private updateMenuReaderPresetOptions(profiles: ReaderPresetProfile[]): void {
     const options: string[] = [];
     for (let i = 0; i < profiles.length; i++) {
       options.push(profiles[i].name);
     }
     options.push('Current settings');
     this.menuReaderPresetOptions = options;
-    const active = activeReaderPresetProfile(profiles, this.currentMenuReaderPresetValues());
-    this.menuReaderPreset = active === null ? 'Current settings' : active.name;
   }
 
   private markMenuReaderPresetCustom(): void {
@@ -1128,6 +1138,7 @@ export struct ReaderScene {
   private onMenuReaderPresetChange(value: string): void {
     if (value === 'Current settings') {
       this.menuReaderPreset = value;
+      this.menuReaderPresetTargetId = '';
       return;
     }
     const profiles = allReaderPresetProfiles(
@@ -1146,6 +1157,97 @@ export struct ReaderScene {
     this.menuStartPosition = profile.values.startPosition;
     this.applyAdaptiveDualPageMenuConstraints();
     this.menuReaderPreset = profile.name;
+    this.menuReaderPresetTargetId = profile.id;
+  }
+
+  private menuReaderPresetTarget(): ReaderPresetProfile | null {
+    const profiles = allReaderPresetProfiles(
+      ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]'));
+    return findReaderPresetProfile(profiles, this.menuReaderPresetTargetId);
+  }
+
+  private menuReaderPresetIsCustom(): boolean {
+    const profile = this.menuReaderPresetTarget();
+    return profile !== null && !profile.builtIn;
+  }
+
+  private menuReaderPresetTargetName(): string {
+    const profile = this.menuReaderPresetTarget();
+    return profile === null ? '' : profile.name;
+  }
+
+  private persistReaderPresetRaw(raw: string, status: string): void {
+    ehSettingsStore.setValue(READER_CUSTOM_PRESETS_SETTING_KEY, raw);
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSettingsStore.save(context).catch(() => {
+        this.showToast(uiText('Save failed'));
+      });
+    }
+    this.showToast(uiText(status));
+  }
+
+  private selectSavedReaderPreset(profile: ReaderPresetProfile): void {
+    const profiles = allReaderPresetProfiles(
+      ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]'));
+    this.updateMenuReaderPresetOptions(profiles);
+    this.menuReaderPreset = profile.name;
+    this.menuReaderPresetTargetId = profile.id;
+  }
+
+  private createMenuReaderPreset(name: string): void {
+    const raw = ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]');
+    const result: ReaderPresetSaveResult = saveCustomReaderPreset(raw, '', name,
+      this.currentMenuReaderPresetValues());
+    if (result.profile === null) {
+      this.showToast(uiText('Save failed'));
+      return;
+    }
+    this.persistReaderPresetRaw(result.raw, 'Reading preset saved');
+    this.selectSavedReaderPreset(result.profile);
+  }
+
+  private saveMenuReaderPreset(): void {
+    const target = this.menuReaderPresetTarget();
+    if (target === null || target.builtIn) {
+      return;
+    }
+    const raw = ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]');
+    const result: ReaderPresetSaveResult = saveCustomReaderPreset(raw, target.id, target.name,
+      this.currentMenuReaderPresetValues());
+    if (result.profile === null) {
+      this.showToast(uiText('Save failed'));
+      return;
+    }
+    this.persistReaderPresetRaw(result.raw, 'Reading preset saved');
+    this.selectSavedReaderPreset(result.profile);
+  }
+
+  private editMenuReaderPreset(name: string): void {
+    const target = this.menuReaderPresetTarget();
+    if (target === null || target.builtIn) {
+      return;
+    }
+    const raw = ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]');
+    const result: ReaderPresetSaveResult = saveCustomReaderPreset(raw, target.id, name,
+      this.currentMenuReaderPresetValues());
+    if (result.profile === null) {
+      this.showToast(uiText('Save failed'));
+      return;
+    }
+    this.persistReaderPresetRaw(result.raw, 'Reading preset updated');
+    this.selectSavedReaderPreset(result.profile);
+  }
+
+  private deleteMenuReaderPreset(): void {
+    const target = this.menuReaderPresetTarget();
+    if (target === null || target.builtIn) {
+      return;
+    }
+    const raw = ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]');
+    this.persistReaderPresetRaw(deleteCustomReaderPreset(raw, target.id), 'Reading preset deleted');
+    this.menuReaderPresetTargetId = '';
+    this.syncMenuReaderPreset();
   }
 
   private readerMenuReadingDirectionOptions(): string[] {
@@ -2471,6 +2573,8 @@ export struct ReaderScene {
           menuShowProgress: this.menuShowProgress,
           progressText: this.progressText(),
           menuReaderPreset: this.menuReaderPreset,
+          menuReaderPresetCustom: this.menuReaderPresetIsCustom(),
+          menuReaderPresetEditName: this.menuReaderPresetTargetName(),
           readerPresetOptions: this.menuReaderPresetOptions,
           menuScreenRotation: this.menuScreenRotation,
           menuReadingDirection: this.menuReadingDirection,
@@ -2502,6 +2606,18 @@ export struct ReaderScene {
           },
           onReaderPresetChange: (value: string) => {
             this.onMenuReaderPresetChange(value);
+          },
+          onCreateReaderPreset: (name: string) => {
+            this.createMenuReaderPreset(name);
+          },
+          onSaveReaderPreset: () => {
+            this.saveMenuReaderPreset();
+          },
+          onEditReaderPreset: (name: string) => {
+            this.editMenuReaderPreset(name);
+          },
+          onDeleteReaderPreset: () => {
+            this.deleteMenuReaderPreset();
           },
           onScreenRotationChange: (value: string) => {
             this.menuScreenRotation = value;

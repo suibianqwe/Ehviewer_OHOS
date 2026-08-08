@@ -1,13 +1,11 @@
 import {
   activeReaderPresetProfile,
   allReaderPresetProfiles,
-  cloneReaderPresetProfiles,
-  createCustomReaderPreset,
-  parseCustomReaderPresetProfiles,
+  deleteCustomReaderPreset,
   ReaderPresetProfile,
+  ReaderPresetSaveResult,
   readerPresetValuesFromSettings,
-  serializeCustomReaderPresetProfiles,
-  uniqueReaderPresetName
+  saveCustomReaderPreset
 } from '../services/ReaderPresetSupport';
 import { uiText } from '../shared/EhShared';
 import {
@@ -58,11 +56,13 @@ export struct ReaderPresetPanel {
       this.onSave(this.localCustomProfiles, 'Preset name is required');
       return;
     }
-    const custom = cloneReaderPresetProfiles(parseCustomReaderPresetProfiles(this.localCustomProfiles));
-    const profile = createCustomReaderPreset(uniqueReaderPresetName(this.profiles, preferred),
+    const result: ReaderPresetSaveResult = saveCustomReaderPreset(this.localCustomProfiles, '', preferred,
       readerPresetValuesFromSettings());
-    custom.push(profile);
-    this.localCustomProfiles = serializeCustomReaderPresetProfiles(custom);
+    if (result.profile === null) {
+      return;
+    }
+    const profile = result.profile;
+    this.localCustomProfiles = result.raw;
     this.presetName = '';
     this.reloadProfiles();
     this.activeId = profile.id;
@@ -73,13 +73,7 @@ export struct ReaderPresetPanel {
     if (profile.builtIn) {
       return;
     }
-    const custom = cloneReaderPresetProfiles(parseCustomReaderPresetProfiles(this.localCustomProfiles));
-    for (let i = custom.length - 1; i >= 0; i--) {
-      if (custom[i].id === profile.id) {
-        custom.splice(i, 1);
-      }
-    }
-    this.localCustomProfiles = serializeCustomReaderPresetProfiles(custom);
+    this.localCustomProfiles = deleteCustomReaderPreset(this.localCustomProfiles, profile.id);
     this.reloadProfiles();
     this.onSave(this.localCustomProfiles, 'Reading preset deleted');
   }

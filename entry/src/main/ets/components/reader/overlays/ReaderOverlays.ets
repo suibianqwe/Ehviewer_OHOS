@@ -349,6 +349,8 @@ export struct ReaderSettingsMenuOverlay {
   @Prop progressText: string = '';
   @Prop batteryText: string = '';
   @Prop menuReaderPreset: string = 'Current settings';
+  @Prop menuReaderPresetCustom: boolean = false;
+  @Prop menuReaderPresetEditName: string = '';
   @Prop menuScreenRotation: string = 'Default';
   @Prop menuReadingDirection: string = 'Right to left';
   @Prop menuPageScaling: string = 'Fit screen';
@@ -369,6 +371,9 @@ export struct ReaderSettingsMenuOverlay {
   @State customBrightnessVisible: boolean = false;
   @State ultraDarkVisible: boolean = false;
   @State selectedTab: number = 0;
+  @State presetDialogMode: string = '';
+  @State presetEditorName: string = '';
+  @State presetNameError: boolean = false;
   @Prop screenRotationOptions: string[] = [];
   @Prop readingDirectionOptions: string[] = [];
   @Prop pageScalingOptions: string[] = [];
@@ -376,6 +381,10 @@ export struct ReaderSettingsMenuOverlay {
   onDismiss: () => void = () => {};
   onBack: () => void = () => {};
   onReaderPresetChange: (value: string) => void = (_value: string) => {};
+  onCreateReaderPreset: (name: string) => void = (_name: string) => {};
+  onSaveReaderPreset: () => void = () => {};
+  onEditReaderPreset: (name: string) => void = (_name: string) => {};
+  onDeleteReaderPreset: () => void = () => {};
   onScreenRotationChange: (value: string) => void = (_value: string) => {};
   onReadingDirectionChange: (value: string) => void = (_value: string) => {};
   onPageScalingChange: (value: string) => void = (_value: string) => {};
@@ -410,6 +419,185 @@ export struct ReaderSettingsMenuOverlay {
     this.ultraDarkVisible = this.menuUltraDarkMode;
   }
 
+  private openPresetEditor(mode: string): void {
+    this.presetDialogMode = mode;
+    this.presetEditorName = mode === 'edit' ? this.menuReaderPresetEditName : '';
+    this.presetNameError = false;
+  }
+
+  private closePresetDialog(): void {
+    this.presetDialogMode = '';
+    this.presetNameError = false;
+  }
+
+  private confirmPresetEditor(): void {
+    const name = this.presetEditorName.trim();
+    if (name.length === 0) {
+      this.presetNameError = true;
+      return;
+    }
+    if (this.presetDialogMode === 'create') {
+      this.onCreateReaderPreset(name);
+    } else if (this.presetDialogMode === 'edit') {
+      this.onEditReaderPreset(name);
+    }
+    this.closePresetDialog();
+  }
+
+  @Builder
+  private PresetActionButton(label: string, symbol: Resource, enabled: boolean, action: () => void) {
+    Button({ type: ButtonType.Normal, stateEffect: enabled }) {
+      Column({ space: 3 }) {
+        SymbolGlyph(symbol)
+          .fontSize(17)
+          .fontColor([enabled ? '#E5E7EB' : '#64748B'])
+        Text(uiText(label))
+          .fontSize(11)
+          .fontColor(enabled ? '#CBD5E1' : '#64748B')
+          .maxLines(1)
+      }
+      .justifyContent(FlexAlign.Center)
+    }
+    .layoutWeight(1)
+    .height(48)
+    .enabled(enabled)
+    .backgroundColor(Color.Transparent)
+    .borderRadius(6)
+    .onClick(action)
+  }
+
+  @Builder
+  private PresetActions() {
+    Row({ space: 2 }) {
+      this.PresetActionButton('New preset', $r('sys.symbol.plus'), true, () => {
+        this.openPresetEditor('create');
+      })
+      this.PresetActionButton('Save preset', $r('sys.symbol.save'), true, () => {
+        if (this.menuReaderPresetCustom) {
+          this.onSaveReaderPreset();
+        } else {
+          this.openPresetEditor('create');
+        }
+      })
+      this.PresetActionButton('Edit preset', $r('sys.symbol.square_and_pencil'), this.menuReaderPresetCustom, () => {
+        this.openPresetEditor('edit');
+      })
+      this.PresetActionButton('Delete preset', $r('sys.symbol.trash'), this.menuReaderPresetCustom, () => {
+        this.presetDialogMode = 'delete';
+        this.presetNameError = false;
+      })
+    }
+    .width('100%')
+    .height(52)
+    .padding({ left: 10, right: 10, top: 2, bottom: 2 })
+  }
+
+  @Builder
+  private PresetDialog() {
+    Stack({ alignContent: Alignment.Center }) {
+      Stack() {}
+        .width('100%')
+        .height('100%')
+        .backgroundColor('#99000000')
+        .onClick(() => {
+          this.closePresetDialog();
+        })
+
+      Column({ space: 14 }) {
+        Row() {
+          Text(uiText(this.presetDialogMode === 'create' ? 'New reading preset' :
+            (this.presetDialogMode === 'edit' ? 'Edit reading preset' : 'Delete reading preset')))
+            .fontSize(17)
+            .fontWeight(FontWeight.Medium)
+            .fontColor('#F8FAFC')
+            .layoutWeight(1)
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.xmark'))
+              .fontSize(16)
+              .fontColor([Color.White])
+          }
+          .width(32)
+          .height(32)
+          .backgroundColor('#334155')
+          .onClick(() => {
+            this.closePresetDialog();
+          })
+        }
+        .width('100%')
+
+        if (this.presetDialogMode === 'delete') {
+          Text(uiText('Delete this reading preset?'))
+            .fontSize(14)
+            .fontColor('#CBD5E1')
+            .width('100%')
+        } else {
+          Column({ space: 5 }) {
+            TextInput({ text: this.presetEditorName, placeholder: uiText('Preset name') })
+              .width('100%')
+              .height(42)
+              .fontSize(14)
+              .fontColor('#F8FAFC')
+              .placeholderColor('#94A3B8')
+              .caretColor('#38BDF8')
+              .backgroundColor('#1E293B')
+              .borderRadius(6)
+              .border({ width: this.presetNameError ? 1 : 0, color: '#F87171' })
+              .onChange((value: string) => {
+                this.presetEditorName = value;
+                this.presetNameError = false;
+              })
+            if (this.presetNameError) {
+              Text(uiText('Preset name is required'))
+                .fontSize(11)
+                .fontColor('#FCA5A5')
+                .width('100%')
+            }
+          }
+          .width('100%')
+        }
+
+        Row({ space: 10 }) {
+          Button(uiText('Cancel'))
+            .layoutWeight(1)
+            .height(40)
+            .fontSize(14)
+            .fontColor('#CBD5E1')
+            .backgroundColor('#334155')
+            .borderRadius(6)
+            .onClick(() => {
+              this.closePresetDialog();
+            })
+          Button(uiText(this.presetDialogMode === 'delete' ? 'Delete' : 'Save'))
+            .layoutWeight(1)
+            .height(40)
+            .fontSize(14)
+            .fontColor(Color.White)
+            .backgroundColor(this.presetDialogMode === 'delete' ? '#B91C1C' : '#0284C7')
+            .borderRadius(6)
+            .onClick(() => {
+              if (this.presetDialogMode === 'delete') {
+                this.onDeleteReaderPreset();
+                this.closePresetDialog();
+              } else {
+                this.confirmPresetEditor();
+              }
+            })
+        }
+        .width('100%')
+      }
+      .width('68%')
+      .constraintSize({ minWidth: 260, maxWidth: 340 })
+      .padding(18)
+      .backgroundColor('#F7111827')
+      .borderRadius(12)
+      .shadow({ radius: 18, color: '#66000000', offsetY: 8 })
+    }
+    .width('100%')
+    .height('100%')
+    .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
+    .zIndex(2)
+  }
+
   @Builder
   private ReaderSettingsTabBar(label: string, index: number) {
     Column({ space: 3 }) {
@@ -439,6 +627,7 @@ export struct ReaderSettingsMenuOverlay {
           value: this.menuReaderPreset,
           onChange: this.onReaderPresetChange
         })
+        this.PresetActions()
         ReaderMenuDivider()
         ReaderMenuSelect({
           label: uiText('Reading direction'),
@@ -713,6 +902,9 @@ export struct ReaderSettingsMenuOverlay {
       .clip(true)
       .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
       .zIndex(1)
+      if (this.presetDialogMode.length > 0) {
+        this.PresetDialog()
+      }
     }
     .width('100%')
     .height('100%')

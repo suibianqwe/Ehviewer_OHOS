@@ -21,6 +21,11 @@ export interface ReaderPresetProfile {
   values: ReaderPresetValues;
 }
 
+export class ReaderPresetSaveResult {
+  raw: string = '[]';
+  profile: ReaderPresetProfile | null = null;
+}
+
 interface StoredReaderPresetValues {
   screenRotation?: string;
   readingDirection?: string;
@@ -194,11 +199,52 @@ export function createCustomReaderPreset(name: string, values: ReaderPresetValue
   };
 }
 
+export function saveCustomReaderPreset(raw: string, profileId: string, preferredName: string,
+  values: ReaderPresetValues): ReaderPresetSaveResult {
+  const result = new ReaderPresetSaveResult();
+  const custom = cloneReaderPresetProfiles(parseCustomReaderPresetProfiles(raw));
+  let targetIndex = -1;
+  for (let i = 0; i < custom.length; i++) {
+    if (custom[i].id === profileId) {
+      targetIndex = i;
+      break;
+    }
+  }
+  const profiles = allReaderPresetProfiles(raw);
+  const name = uniqueReaderPresetNameExcept(profiles, preferredName, profileId);
+  if (targetIndex >= 0) {
+    custom[targetIndex].name = name;
+    custom[targetIndex].values = cloneReaderPresetValues(values);
+    result.profile = cloneReaderPresetProfiles([custom[targetIndex]])[0];
+  } else {
+    const profile = createCustomReaderPreset(name, values);
+    custom.push(profile);
+    result.profile = cloneReaderPresetProfiles([profile])[0];
+  }
+  result.raw = serializeCustomReaderPresetProfiles(custom);
+  return result;
+}
+
+export function deleteCustomReaderPreset(raw: string, profileId: string): string {
+  const custom = cloneReaderPresetProfiles(parseCustomReaderPresetProfiles(raw));
+  for (let i = custom.length - 1; i >= 0; i--) {
+    if (custom[i].id === profileId) {
+      custom.splice(i, 1);
+    }
+  }
+  return serializeCustomReaderPresetProfiles(custom);
+}
+
 export function uniqueReaderPresetName(profiles: ReaderPresetProfile[], preferred: string): string {
+  return uniqueReaderPresetNameExcept(profiles, preferred, '');
+}
+
+export function uniqueReaderPresetNameExcept(profiles: ReaderPresetProfile[], preferred: string,
+  excludedId: string): string {
   const base = preferred.trim().length > 0 ? preferred.trim() : 'Custom preset';
   let candidate = base;
   let suffix = 2;
-  while (readerPresetNameExists(profiles, candidate)) {
+  while (readerPresetNameExistsExcept(profiles, candidate, excludedId)) {
     candidate = base + ' ' + suffix.toString();
     suffix++;
   }
@@ -265,8 +311,12 @@ function readerPresetValuesEqual(left: ReaderPresetValues, right: ReaderPresetVa
 }
 
 function readerPresetNameExists(profiles: ReaderPresetProfile[], name: string): boolean {
+  return readerPresetNameExistsExcept(profiles, name, '');
+}
+
+function readerPresetNameExistsExcept(profiles: ReaderPresetProfile[], name: string, excludedId: string): boolean {
   for (let i = 0; i < profiles.length; i++) {
-    if (profiles[i].name === name) {
+    if (profiles[i].id !== excludedId && profiles[i].name === name) {
       return true;
     }
   }
