@@ -1310,7 +1310,7 @@ export function zhText(text: string): string {
     case 'Retry Key': return '重试密钥';
     case 'Fit': return '适配';
     case 'Fit width': return '匹配宽度';
-    case 'Fit height': return '匹配长度';
+    case 'Fit height': return '匹配高度';
     case 'Actual size': return '原始尺寸';
     case 'Fit screen': return '匹配屏幕';
     case 'Fixed scale': return '固定缩放';

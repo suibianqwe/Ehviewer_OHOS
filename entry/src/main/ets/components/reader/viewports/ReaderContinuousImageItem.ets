@@ -46,6 +46,8 @@ export struct ReaderContinuousImageItem {
   @Prop @Watch('onActiveChange') isActive: boolean = false;
   @Prop @Watch('onHdrEnabledChange') hdrEnabled: boolean = false;
   @Prop @Watch('onSuperResolutionEnabledChange') superResolutionEnabled: boolean = false;
+  @Prop @Watch('onSuperResolutionTargetChange') superResolutionTargetWidth: number = 0;
+  @Prop @Watch('onSuperResolutionTargetChange') superResolutionTargetHeight: number = 0;
   @Prop @Watch('onHdrPriorityChange') hdrPriority: number = 0;
   @Prop @Watch('onCropWhiteBordersChange') cropWhiteBorders: boolean = false;
   @Prop translation: ReaderPageTranslation | null = null;
@@ -189,6 +191,22 @@ export struct ReaderContinuousImageItem {
     this.loadHdrPixelMap();
   }
 
+  onSuperResolutionTargetChange(): void {
+    if (!this.superResolutionEnabled) {
+      return;
+    }
+    this.releaseHdrPixelMap();
+    this.releaseSuperResolutionPixelMap();
+    this.loadSuperResolutionPixelMap();
+    this.loadHdrPixelMap();
+  }
+
+  private superResolutionKey(sourcePath: string): string {
+    return this.sourceImageCacheKey() + '|' + sourcePath + '|sr|' +
+      Math.max(0, Math.round(this.superResolutionTargetWidth)).toString() + 'x' +
+      Math.max(0, Math.round(this.superResolutionTargetHeight)).toString();
+  }
+
   onHdrPriorityChange(): void {
     if (this.retainedHdrKey.length > 0) {
       readerHdrService.updatePriority(this.retainedHdrKey, this.hdrPriority);
@@ -211,7 +229,7 @@ export struct ReaderContinuousImageItem {
     }
     if (this.superResolutionEnabled && this.superResolutionPixelMap !== undefined &&
       this.retainedSuperResolutionKey.length > 0) {
-      const key = this.sourceImageCacheKey() + '|' + sourcePath + '|sr-hdr';
+      const key = this.retainedSuperResolutionKey + '|hdr';
       if (this.retainedHdrKey === key) {
         return;
       }
@@ -242,7 +260,7 @@ export struct ReaderContinuousImageItem {
   private async acquireHdrFromSuperResolution(requestId: number, hdrKey: string, sourcePath: string,
     superResolutionKey: string): Promise<void> {
     const enhancedPixelMap = await readerSuperResolutionService.acquire(superResolutionKey, sourcePath,
-      this.hdrPriority);
+      this.hdrPriority, this.superResolutionTargetWidth, this.superResolutionTargetHeight);
     try {
       if (enhancedPixelMap === undefined || requestId !== this.hdrRequestId || hdrKey !== this.retainedHdrKey ||
         !this.hdrEnabled || !this.superResolutionEnabled) {
@@ -272,7 +290,7 @@ export struct ReaderContinuousImageItem {
 
   private loadSuperResolutionPixelMap(): void {
     const sourcePath = this.localSourceImagePath();
-    const key = this.sourceImageCacheKey() + '|' + sourcePath + '|sr';
+    const key = this.superResolutionKey(sourcePath);
     if (!this.superResolutionEnabled || sourcePath.length === 0 || this.imageUrl().length === 0) {
       this.releaseSuperResolutionPixelMap();
       return;
@@ -285,7 +303,8 @@ export struct ReaderContinuousImageItem {
     const requestId = this.superResolutionRequestId + 1;
     this.superResolutionRequestId = requestId;
     this.retainedSuperResolutionKey = key;
-    readerSuperResolutionService.acquire(key, sourcePath, this.hdrPriority)
+    readerSuperResolutionService.acquire(key, sourcePath, this.hdrPriority,
+      this.superResolutionTargetWidth, this.superResolutionTargetHeight)
       .then((pixelMap: image.PixelMap | undefined) => {
         if (requestId !== this.superResolutionRequestId || key !== this.retainedSuperResolutionKey ||
           !this.superResolutionEnabled) {

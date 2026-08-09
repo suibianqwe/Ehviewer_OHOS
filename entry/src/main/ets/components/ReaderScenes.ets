@@ -122,6 +122,11 @@ interface ReaderPageImageSize {
   height: number;
 }
 
+interface ReaderSuperResolutionDisplayTarget {
+  width: number;
+  height: number;
+}
+
 interface ReaderPageGroupItem {
   index: number;
   key: string;
@@ -942,6 +947,60 @@ export struct ReaderScene {
     return result;
   }
 
+  private superResolutionViewportSize(index: number): ReaderSuperResolutionDisplayTarget {
+    let width = Math.max(1, this.readerLayoutWidth);
+    let height = Math.max(1, this.readerLayoutHeight);
+    if (!this.isContinuousVerticalMode()) {
+      const groupIndex = this.pageGroupAnchorForPageIndex(index);
+      if (this.shouldPairPage(groupIndex)) {
+        if (this.readerLayoutHeight >= this.readerLayoutWidth) {
+          width = this.pairedPageCrossExtent(groupIndex);
+          height = this.pairedPageDisplayExtent(groupIndex, index);
+        } else {
+          width = this.pairedPageDisplayExtent(groupIndex, index);
+          height = this.pairedPageCrossExtent(groupIndex);
+        }
+      }
+    }
+    return {
+      width: Math.max(1, Math.round(this.getUIContext().vp2px(width))),
+      height: Math.max(1, Math.round(this.getUIContext().vp2px(height)))
+    };
+  }
+
+  private superResolutionDisplayTarget(index: number): ReaderSuperResolutionDisplayTarget {
+    const empty: ReaderSuperResolutionDisplayTarget = { width: 0, height: 0 };
+    if (this.readerLayoutWidth <= 0 || this.readerLayoutHeight <= 0) {
+      return empty;
+    }
+    const viewport = this.superResolutionViewportSize(index);
+    const source = this.pageImageSize(index);
+    const mode = normalizePageScalingOption(this.fitMode);
+    if (this.isContinuousVerticalMode() || mode === 'Fit width' || mode === 'Fixed scale') {
+      return {
+        width: Math.round(viewport.width * (mode === 'Fixed scale' ? Math.max(1, this.fixedScale) : 1)),
+        height: 0
+      };
+    }
+    if (mode === 'Fit height') {
+      return { width: 0, height: viewport.height };
+    }
+    if (mode === 'Actual size' && source !== null && source.width > 0) {
+      return { width: source.width, height: 0 };
+    }
+    if (mode !== 'Fit screen' || source === null || source.width <= 0 || source.height <= 0) {
+      return empty;
+    }
+    const widthScale = viewport.width / source.width;
+    const heightScale = viewport.height / source.height;
+    return widthScale <= heightScale ? { width: viewport.width, height: 0 } :
+      { width: 0, height: viewport.height };
+  }
+
+  private superResolutionTargetKey(target: ReaderSuperResolutionDisplayTarget): string {
+    return Math.max(0, target.width).toString() + 'x' + Math.max(0, target.height).toString();
+  }
+
   private syncImageProcessingPrefetch(): void {
     if (!this.readerWindowActive || (!this.imageSuperResolutionEnabled && !this.sdrToHdrEnabled)) {
       this.imageProcessingPrefetchScope.clear();
@@ -958,9 +1017,11 @@ export struct ReaderScene {
       }
       const original = this.preferOriginal && page.originImageUrl.length > 0;
       const sourceKey = readerPageImageCacheKey(page, original);
-      const superResolutionKey = sourceKey + '|' + sourcePath + '|sr';
-      const hdrKey = sourceKey + '|' + sourcePath +
-        (this.imageSuperResolutionEnabled ? '|sr-hdr' : '|hdr');
+      const target = this.superResolutionDisplayTarget(pageIndex);
+      const targetKey = this.superResolutionTargetKey(target);
+      const superResolutionKey = sourceKey + '|' + sourcePath + '|sr|' + targetKey;
+      const hdrKey = this.imageSuperResolutionEnabled ? superResolutionKey + '|hdr' :
+        sourceKey + '|' + sourcePath + '|hdr';
       const fallbackHdrKey = sourceKey + '|' + sourcePath + '|hdr';
       const priority = this.isContinuousVerticalMode() ? Math.abs(pageIndex - this.currentIndex) :
         Math.abs(this.visualIndexForPageIndex(pageIndex) - this.visualIndexForPageIndex(this.currentIndex));
@@ -971,6 +1032,8 @@ export struct ReaderScene {
         superResolutionKey: superResolutionKey,
         hdrKey: hdrKey,
         fallbackHdrKey: fallbackHdrKey,
+        targetWidth: target.width,
+        targetHeight: target.height,
         superResolution: this.imageSuperResolutionEnabled,
         hdr: this.sdrToHdrEnabled,
         priority: priority
@@ -2380,6 +2443,8 @@ export struct ReaderScene {
       isActive: this.pageGroupAnchorForPageIndex(index) === this.currentIndex,
       hdrEnabled: this.sdrToHdrEnabled,
       superResolutionEnabled: this.imageSuperResolutionEnabled,
+      superResolutionTargetWidth: this.superResolutionDisplayTarget(index).width,
+      superResolutionTargetHeight: this.superResolutionDisplayTarget(index).height,
       cropWhiteBorders: this.cropWhiteBorders,
       hdrPriority: Math.abs(this.visualIndexForPageIndex(index) - this.visualIndexForPageIndex(this.currentIndex)),
       translation: this.pageGroupAnchorForPageIndex(index) === this.currentIndex ?
@@ -2482,6 +2547,8 @@ export struct ReaderScene {
                   Math.abs(item.index - this.currentIndex) <= this.readerContinuousCacheCount(),
                 superResolutionEnabled: this.imageSuperResolutionEnabled &&
                   Math.abs(item.index - this.currentIndex) <= this.readerContinuousCacheCount(),
+                superResolutionTargetWidth: this.superResolutionDisplayTarget(item.index).width,
+                superResolutionTargetHeight: this.superResolutionDisplayTarget(item.index).height,
                 cropWhiteBorders: this.cropWhiteBorders &&
                   Math.abs(item.index - this.currentIndex) <= this.readerContinuousCacheCount(),
                 hdrPriority: Math.abs(item.index - this.currentIndex),
@@ -2495,6 +2562,7 @@ export struct ReaderScene {
                   this.showImageActions(item.index);
                 },
                 onImageSizeChange: (width: number, height: number) => {
+                  this.rememberPageImageSize(item.index, width, height);
                   if (item.index === this.currentIndex) {
                     this.onActiveImageSizeChange(width, height);
                   }
@@ -2880,6 +2948,7 @@ export struct ReaderScene {
         this.normalizeCurrentPageGroup();
         this.syncReaderPageIndexSource();
         this.syncComicTranslationButtonPosition();
+        this.syncImageProcessingPrefetch();
       }
     })
     .backgroundColor(readerBackgroundColor())
