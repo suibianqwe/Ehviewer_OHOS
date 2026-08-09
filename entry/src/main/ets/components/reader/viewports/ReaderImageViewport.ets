@@ -22,7 +22,6 @@ import {
 } from '../../../shared/EhShared';
 import {
   READER_BASE_SCALE,
-  READER_DOUBLE_TAP_SCALE,
   READER_INERTIA_DURATION,
   ReaderImageCompleteEvent,
   ReaderPreviewModel,
@@ -112,7 +111,8 @@ export struct ReaderImageViewport {
     } else if (this.command === 'zoom_out') {
       this.imageModel.zoomBy(0.8);
     } else if (this.command === 'double_zoom') {
-      this.imageModel.setScale(READER_DOUBLE_TAP_SCALE);
+      this.imageModel.toggleDoubleTap(this.imageModel.componentWidth / 2,
+        this.imageModel.componentHeight / 2);
     } else if (this.command === 'reset') {
       this.imageModel.reset();
     } else if (this.command === 'fixed_scale') {
@@ -764,7 +764,9 @@ export struct ReaderImageViewport {
       GestureGroup(GestureMode.Exclusive,
         TapGesture({ count: 2 })
           .onAction((event: GestureEvent) => {
-            this.imageModel.toggleDoubleTap(this.tapCenterX(event), this.tapCenterY(event));
+            this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseOut }, () => {
+              this.imageModel.toggleDoubleTap(this.tapCenterX(event), this.tapCenterY(event));
+            });
             this.reportState();
           }),
         TapGesture({ count: 1 })

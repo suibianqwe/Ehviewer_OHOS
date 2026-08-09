@@ -271,19 +271,50 @@ export class ReaderPreviewModel {
   }
 
   toggleDoubleTap(centerX: number, centerY: number): void {
-    if (Math.abs(this.currentScale - READER_BASE_SCALE) > 0.01) {
-      this.reset();
+    const fitScale = this.fitScreenScale();
+    const zoomScale = this.clampScale(Math.max(READER_DOUBLE_TAP_SCALE, fitScale * 2));
+    if (this.currentScale < fitScale - 0.01) {
+      this.setCenteredScale(fitScale);
       return;
     }
+    if (this.currentScale >= fitScale * 1.5 - 0.01 || zoomScale <= fitScale + 0.01) {
+      this.setCenteredScale(fitScale);
+      return;
+    }
+    this.setScaleAroundPoint(zoomScale, centerX, centerY);
+  }
+
+  private fitScreenScale(): number {
+    if (this.imageWidth <= 0 || this.imageHeight <= 0 ||
+      this.componentWidth <= 0 || this.componentHeight <= 0) {
+      return READER_BASE_SCALE;
+    }
+    return this.clampScale(Math.min(
+      this.componentWidth / this.imageWidth,
+      this.componentHeight / this.imageHeight
+    ));
+  }
+
+  private setCenteredScale(target: number): void {
+    this.currentScale = this.clampScale(target);
+    this.currentOffsetX = 0;
+    this.currentOffsetY = 0;
+    this.centerX = 0.5;
+    this.centerY = 0.5;
+    this.restrictBoundary();
+    this.commit();
+  }
+
+  private setScaleAroundPoint(target: number, centerX: number, centerY: number): void {
     const center = this.evaluateCenter(centerX, centerY);
     this.centerX = center[0];
     this.centerY = center[1];
-    this.lastScale = READER_BASE_SCALE;
-    this.lastOffsetX = 0;
-    this.lastOffsetY = 0;
-    this.currentScale = READER_DOUBLE_TAP_SCALE;
-    this.currentOffsetX = (0.5 - this.centerX) * this.imageWidth * (1 - READER_DOUBLE_TAP_SCALE);
-    this.currentOffsetY = (0.5 - this.centerY) * this.imageHeight * (1 - READER_DOUBLE_TAP_SCALE);
+    const oldScale = Math.max(READER_MIN_SCALE, this.currentScale);
+    const nextScale = this.clampScale(target);
+    const deltaScale = nextScale / oldScale;
+    this.currentScale = nextScale;
+    this.currentOffsetX += (0.5 - this.centerX) * this.imageWidth * (1 - deltaScale) * oldScale;
+    this.currentOffsetY += (0.5 - this.centerY) * this.imageHeight * (1 - deltaScale) * oldScale;
     this.restrictBoundary();
     this.commit();
   }
