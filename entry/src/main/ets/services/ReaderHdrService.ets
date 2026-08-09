@@ -9,6 +9,7 @@ const DOMAIN = 0x3210;
 interface ReaderHdrCacheEntry {
   key: string;
   sourcePath: string;
+  sourcePixelMap: image.PixelMap | undefined;
   references: number;
   cancelled: boolean;
   pixelMap: image.PixelMap | undefined;
@@ -45,6 +46,41 @@ class ReaderHdrService {
       entry = {
         key: key,
         sourcePath: sourcePath,
+        sourcePixelMap: undefined,
+        references: 0,
+        cancelled: false,
+        pixelMap: undefined,
+        pending: undefined,
+        completed: false
+      };
+      this.entries.set(key, entry);
+    }
+    entry.references++;
+    entry.cancelled = false;
+    if (entry.completed) {
+      return Promise.resolve(entry.pixelMap);
+    }
+    if (entry.pending !== undefined) {
+      this.updatePriority(key, priority);
+      return entry.pending;
+    }
+    return this.enqueue(entry, priority);
+  }
+
+  acquirePixelMap(key: string, sourcePixelMap: image.PixelMap,
+    priority: number = 0): Promise<image.PixelMap | undefined> {
+    if (key.length === 0 || !this.isSupported()) {
+      return Promise.resolve(undefined);
+    }
+    let entry = this.entries.get(key);
+    if (entry === undefined || entry.sourcePath.length > 0) {
+      if (entry !== undefined) {
+        this.disposeEntry(entry);
+      }
+      entry = {
+        key: key,
+        sourcePath: '',
+        sourcePixelMap: sourcePixelMap,
         references: 0,
         cancelled: false,
         pixelMap: undefined,
@@ -192,38 +228,66 @@ class ReaderHdrService {
     let source: image.ImageSource | undefined = undefined;
     let sourcePixelMap: image.PixelMap | undefined = undefined;
     let destinationPixelMap: image.PixelMap | undefined = undefined;
+    let decodedWidth: number = 0;
+    let decodedHeight: number = 0;
+    let mimeType: string = 'pixelmap';
     try {
-      source = image.createImageSource(entry.sourcePath);
-      const sourceInfo = source.getImageInfoSync();
-      const frameCount = await source.getFrameCount();
-      if (frameCount !== 1) {
-        hilog.info(DOMAIN, TAG, `Skip multi-frame image, frames=${frameCount}`);
-        return undefined;
-      }
-      const mimeType = sourceInfo.mimeType.toLowerCase();
-      if (mimeType.indexOf('svg') >= 0) {
-        hilog.info(DOMAIN, TAG, 'Skip SVG image because DMA decoding is unsupported');
-        return undefined;
-      }
-      if (sourceInfo.size.width < 32 || sourceInfo.size.height < 32 ||
-        sourceInfo.size.width > 8880 || sourceInfo.size.height > 8880) {
-        return undefined;
-      }
-      if (!this.isEntryActive(entry)) {
-        return undefined;
-      }
-      if (sourceInfo.isHdr) {
+      if (entry.sourcePixelMap !== undefined) {
+        const enhancedInfo = entry.sourcePixelMap.getImageInfoSync();
+        decodedWidth = enhancedInfo.size.width;
+        decodedHeight = enhancedInfo.size.height;
+        if (enhancedInfo.isHdr || enhancedInfo.pixelFormat !== image.PixelMapFormat.RGBA_8888 ||
+          decodedWidth < 32 || decodedHeight < 32 || decodedWidth > 8880 || decodedHeight > 8880 ||
+          !this.isEntryActive(entry)) {
+          return undefined;
+        }
+        sourcePixelMap = readerHdr.createCompatibleSdrPixelMap(entry.sourcePixelMap);
+      } else {
+        source = image.createImageSource(entry.sourcePath);
+        const sourceInfo = source.getImageInfoSync();
+        const frameCount = await source.getFrameCount();
+        if (frameCount !== 1) {
+          hilog.info(DOMAIN, TAG, `Skip multi-frame image, frames=${frameCount}`);
+          return undefined;
+        }
+        mimeType = sourceInfo.mimeType.toLowerCase();
+        if (mimeType.indexOf('svg') >= 0) {
+          hilog.info(DOMAIN, TAG, 'Skip SVG image because DMA decoding is unsupported');
+          return undefined;
+        }
+        decodedWidth = sourceInfo.size.width;
+        decodedHeight = sourceInfo.size.height;
+        if (decodedWidth < 32 || decodedHeight < 32 || decodedWidth > 8880 || decodedHeight > 8880 ||
+          !this.isEntryActive(entry)) {
+          return undefined;
+        }
+        if (sourceInfo.isHdr) {
+          sourcePixelMap = await source.createPixelMapUsingAllocator({
+            editable: false,
+            index: 0,
+            desiredDynamicRange: image.DecodingDynamicRange.AUTO
+          }, image.AllocatorType.DMA);
+          if (!sourcePixelMap.getImageInfoSync().isHdr) {
+            return undefined;
+          }
+          const existingHdr = sourcePixelMap;
+          sourcePixelMap = undefined;
+          return existingHdr;
+        }
         sourcePixelMap = await source.createPixelMapUsingAllocator({
           editable: false,
           index: 0,
-          desiredDynamicRange: image.DecodingDynamicRange.AUTO
+          desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
+          desiredDynamicRange: image.DecodingDynamicRange.SDR
         }, image.AllocatorType.DMA);
-        if (!sourcePixelMap.getImageInfoSync().isHdr) {
+        const decodedInfo = sourcePixelMap.getImageInfoSync();
+        if (decodedInfo.pixelFormat !== image.PixelMapFormat.RGBA_8888 || decodedInfo.isHdr ||
+          !this.isEntryActive(entry)) {
           return undefined;
         }
-        const existingHdr = sourcePixelMap;
-        sourcePixelMap = undefined;
-        return existingHdr;
+        const decodedPixelMap = sourcePixelMap;
+        sourcePixelMap = readerHdr.createCompatibleSdrPixelMap(decodedPixelMap);
+        await this.releasePixelMap(decodedPixelMap);
       }
       if (this.srgbColorSpace === undefined) {
         this.srgbColorSpace = colorSpaceManager.create(colorSpaceManager.ColorSpace.SRGB);
@@ -231,24 +295,9 @@ class ReaderHdrService {
       if (this.hlgColorSpace === undefined) {
         this.hlgColorSpace = colorSpaceManager.create(colorSpaceManager.ColorSpace.BT2020_HLG);
       }
-      sourcePixelMap = await source.createPixelMapUsingAllocator({
-        editable: false,
-        index: 0,
-        desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
-        desiredColorSpace: this.srgbColorSpace,
-        desiredDynamicRange: image.DecodingDynamicRange.SDR
-      }, image.AllocatorType.DMA);
-      const decodedInfo = sourcePixelMap.getImageInfoSync();
-      if (decodedInfo.pixelFormat !== image.PixelMapFormat.RGBA_8888 || decodedInfo.isHdr ||
-        !this.isEntryActive(entry)) {
-        return undefined;
-      }
-      const decodedPixelMap = sourcePixelMap;
-      sourcePixelMap = readerHdr.createCompatibleSdrPixelMap(decodedPixelMap);
-      await this.releasePixelMap(decodedPixelMap);
       sourcePixelMap.setColorSpace(this.srgbColorSpace);
       await sourcePixelMap.setMetadata(image.HdrMetadataKey.HDR_METADATA_TYPE, image.HdrMetadataType.NONE);
-      destinationPixelMap = readerHdr.createDmaHdrPixelMap(decodedInfo.size.width, decodedInfo.size.height);
+      destinationPixelMap = readerHdr.createDmaHdrPixelMap(decodedWidth, decodedHeight);
       destinationPixelMap.setColorSpace(this.hlgColorSpace);
       await destinationPixelMap.setMetadata(image.HdrMetadataKey.HDR_METADATA_TYPE,
         image.HdrMetadataType.ALTERNATE);

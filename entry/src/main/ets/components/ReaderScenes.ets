@@ -41,7 +41,6 @@ import {
 } from '../services/ReaderPresetSupport';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { IMAGE_DOWNLOAD_PRIORITY_READER, readerImageCache } from '../services/ReaderImageCache';
-import { readerSuperResolutionService } from '../services/ReaderSuperResolutionService';
 import {
   createEmptyPage,
   getAbilityContext,
@@ -293,8 +292,7 @@ export struct ReaderScene {
     this.cropWhiteBorders = ehSettingsStore.getValue('reader_crop_white_borders', 'Off') === 'On';
     this.imageSuperResolutionEnabled =
       ehSettingsStore.getValue('reader_image_super_resolution', 'Off') === 'On';
-    this.sdrToHdrEnabled = !this.imageSuperResolutionEnabled &&
-      ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
+    this.sdrToHdrEnabled = ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
     this.resetReaderImageSizesForGallery();
     if (!this.cropWhiteBorders) {
       this.syncReaderPreviewImageSizes();
@@ -400,7 +398,6 @@ export struct ReaderScene {
     this.clearScreenTapTimer();
     this.clearAutoTransferTimer();
     this.clearOverlayRefreshTimer();
-    readerSuperResolutionService.clear();
     this.unregisterVolumePageKeys();
     this.resetReaderBrightness().catch(() => {});
   }
@@ -999,8 +996,7 @@ export struct ReaderScene {
     this.menuCropWhiteBorders = ehSettingsStore.getValue('reader_crop_white_borders', 'Off') === 'On';
     this.menuImageSuperResolutionEnabled =
       ehSettingsStore.getValue('reader_image_super_resolution', 'Off') === 'On';
-    this.menuSdrToHdrEnabled = !this.menuImageSuperResolutionEnabled &&
-      ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
+    this.menuSdrToHdrEnabled = ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
     this.menuStartPosition = normalizeStartPositionOption(ehSettingsStore.getValue('start_position', 'Top right'));
     this.menuKeepScreenOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
     this.menuShowClock = ehSettingsStore.getValue('gallery_show_clock', 'On') === 'On';
@@ -1276,17 +1272,11 @@ export struct ReaderScene {
 
   private onMenuImageSuperResolutionChange(value: boolean): void {
     this.menuImageSuperResolutionEnabled = value;
-    if (value) {
-      this.menuSdrToHdrEnabled = false;
-    }
     this.markMenuReaderPresetCustom();
   }
 
   private onMenuSdrToHdrChange(value: boolean): void {
     this.menuSdrToHdrEnabled = value;
-    if (value) {
-      this.menuImageSuperResolutionEnabled = false;
-    }
     this.markMenuReaderPresetCustom();
   }
 
