@@ -24,6 +24,7 @@ export interface ReaderPresetProfile {
 export class ReaderPresetSaveResult {
   raw: string = '[]';
   profile: ReaderPresetProfile | null = null;
+  error: string = '';
 }
 
 interface StoredReaderPresetValues {
@@ -40,6 +41,7 @@ interface StoredReaderPresetValues {
 interface StoredReaderPresetProfile {
   id?: string;
   name?: string;
+  builtIn?: boolean;
   values?: StoredReaderPresetValues;
 }
 
@@ -84,51 +86,55 @@ export function builtInReaderPresetProfiles(): ReaderPresetProfile[] {
 
 export function parseCustomReaderPresetProfiles(raw: string): ReaderPresetProfile[] {
   const result: ReaderPresetProfile[] = [];
-  if (raw.trim().length === 0) {
-    return result;
-  }
-  try {
-    const parsed = JSON.parse(raw) as StoredReaderPresetProfile[];
-    if (!Array.isArray(parsed)) {
-      return result;
+  const parsed = parseStoredReaderPresetProfiles(raw);
+  for (let i = 0; i < parsed.length; i++) {
+    const id = typeof parsed[i].id === 'string' ? (parsed[i].id as string).trim() : '';
+    const name = typeof parsed[i].name === 'string' ? (parsed[i].name as string).trim() : '';
+    const values = parseStoredReaderPresetValues(parsed[i].values);
+    if (parsed[i].builtIn !== true && !isBuiltInReaderPresetId(id) && id.length > 0 && name.length > 0 &&
+      !isReservedReaderPresetName(name) && values !== null && findReaderPresetProfile(result, id) === null &&
+      !readerPresetNameExists(BUILT_IN_READER_PRESETS.concat(result), name)) {
+      result.push({ id: id, name: name, summary: 'Custom reading preset', builtIn: false, values: values });
     }
-    for (let i = 0; i < parsed.length; i++) {
-      const id = typeof parsed[i].id === 'string' ? (parsed[i].id as string).trim() : '';
-      const name = typeof parsed[i].name === 'string' ? (parsed[i].name as string).trim() : '';
-      const values = parseStoredReaderPresetValues(parsed[i].values);
-      if (id.length > 0 && name.length > 0 && values !== null && findReaderPresetProfile(result, id) === null) {
-        result.push({ id: id, name: name, summary: 'Custom reading preset', builtIn: false, values: values });
-      }
-    }
-  } catch (error) {
   }
   return result;
 }
 
 export function serializeCustomReaderPresetProfiles(profiles: ReaderPresetProfile[]): string {
+  return serializeStoredReaderPresetProfiles(profiles, []);
+}
+
+function serializeStoredReaderPresetProfiles(customProfiles: ReaderPresetProfile[],
+  builtInOverrides: ReaderPresetProfile[]): string {
   const result: StoredReaderPresetProfile[] = [];
-  for (let i = 0; i < profiles.length; i++) {
-    const profile = profiles[i];
+  for (let i = 0; i < customProfiles.length; i++) {
+    const profile = customProfiles[i];
     if (profile.builtIn || profile.id.trim().length === 0 || profile.name.trim().length === 0) {
       continue;
     }
-    const values: StoredReaderPresetValues = {
-      screenRotation: profile.values.screenRotation,
-      readingDirection: profile.values.readingDirection,
-      pageScaling: profile.values.pageScaling,
-      adaptiveDualPage: profile.values.adaptiveDualPage,
-      cropWhiteBorders: profile.values.cropWhiteBorders,
-      imageSuperResolution: profile.values.imageSuperResolution,
-      sdrToHdr: profile.values.sdrToHdr,
-      startPosition: profile.values.startPosition
-    };
-    result.push({ id: profile.id, name: profile.name.trim(), values: values });
+    result.push({ id: profile.id, name: profile.name.trim(), builtIn: false,
+      values: storedReaderPresetValues(profile.values) });
+  }
+  for (let i = 0; i < builtInOverrides.length; i++) {
+    const profile = builtInOverrides[i];
+    if (!profile.builtIn || !isBuiltInReaderPresetId(profile.id)) {
+      continue;
+    }
+    result.push({ id: profile.id, name: profile.name, builtIn: true,
+      values: storedReaderPresetValues(profile.values) });
   }
   return JSON.stringify(result);
 }
 
 export function allReaderPresetProfiles(customRaw: string): ReaderPresetProfile[] {
   const result = builtInReaderPresetProfiles();
+  const overrides = parseBuiltInReaderPresetOverrides(customRaw);
+  for (let i = 0; i < overrides.length; i++) {
+    const index = result.findIndex((profile: ReaderPresetProfile) => profile.id === overrides[i].id);
+    if (index >= 0) {
+      result[index].values = cloneReaderPresetValues(overrides[i].values);
+    }
+  }
   const custom = parseCustomReaderPresetProfiles(customRaw);
   for (let i = 0; i < custom.length; i++) {
     result.push(custom[i]);
@@ -202,7 +208,9 @@ export function createCustomReaderPreset(name: string, values: ReaderPresetValue
 export function saveCustomReaderPreset(raw: string, profileId: string, preferredName: string,
   values: ReaderPresetValues): ReaderPresetSaveResult {
   const result = new ReaderPresetSaveResult();
+  result.raw = raw;
   const custom = cloneReaderPresetProfiles(parseCustomReaderPresetProfiles(raw));
+  const overrides = parseBuiltInReaderPresetOverrides(raw);
   let targetIndex = -1;
   for (let i = 0; i < custom.length; i++) {
     if (custom[i].id === profileId) {
@@ -211,7 +219,19 @@ export function saveCustomReaderPreset(raw: string, profileId: string, preferred
     }
   }
   const profiles = allReaderPresetProfiles(raw);
-  const name = uniqueReaderPresetNameExcept(profiles, preferredName, profileId);
+  const name = preferredName.trim();
+  if (name.length === 0) {
+    result.error = 'Preset name is required';
+    return result;
+  }
+  if (isReservedReaderPresetName(name)) {
+    result.error = 'Preset name is reserved';
+    return result;
+  }
+  if (readerPresetNameExistsExcept(profiles, name, profileId)) {
+    result.error = 'Preset name already exists';
+    return result;
+  }
   if (targetIndex >= 0) {
     custom[targetIndex].name = name;
     custom[targetIndex].values = cloneReaderPresetValues(values);
@@ -221,34 +241,46 @@ export function saveCustomReaderPreset(raw: string, profileId: string, preferred
     custom.push(profile);
     result.profile = cloneReaderPresetProfiles([profile])[0];
   }
-  result.raw = serializeCustomReaderPresetProfiles(custom);
+  result.raw = serializeStoredReaderPresetProfiles(custom, overrides);
+  return result;
+}
+
+export function saveReaderPreset(raw: string, profileId: string, preferredName: string,
+  values: ReaderPresetValues): ReaderPresetSaveResult {
+  const builtIn = findReaderPresetProfile(BUILT_IN_READER_PRESETS, profileId);
+  if (builtIn === null) {
+    return saveCustomReaderPreset(raw, profileId, preferredName, values);
+  }
+  const result = new ReaderPresetSaveResult();
+  const custom = cloneReaderPresetProfiles(parseCustomReaderPresetProfiles(raw));
+  const overrides = parseBuiltInReaderPresetOverrides(raw);
+  let targetIndex = overrides.findIndex((profile: ReaderPresetProfile) => profile.id === profileId);
+  const updated: ReaderPresetProfile = {
+    id: builtIn.id,
+    name: builtIn.name,
+    summary: builtIn.summary,
+    builtIn: true,
+    values: cloneReaderPresetValues(values)
+  };
+  if (targetIndex >= 0) {
+    overrides[targetIndex] = updated;
+  } else {
+    overrides.push(updated);
+  }
+  result.raw = serializeStoredReaderPresetProfiles(custom, overrides);
+  result.profile = cloneReaderPresetProfiles([updated])[0];
   return result;
 }
 
 export function deleteCustomReaderPreset(raw: string, profileId: string): string {
   const custom = cloneReaderPresetProfiles(parseCustomReaderPresetProfiles(raw));
+  const overrides = parseBuiltInReaderPresetOverrides(raw);
   for (let i = custom.length - 1; i >= 0; i--) {
     if (custom[i].id === profileId) {
       custom.splice(i, 1);
     }
   }
-  return serializeCustomReaderPresetProfiles(custom);
-}
-
-export function uniqueReaderPresetName(profiles: ReaderPresetProfile[], preferred: string): string {
-  return uniqueReaderPresetNameExcept(profiles, preferred, '');
-}
-
-export function uniqueReaderPresetNameExcept(profiles: ReaderPresetProfile[], preferred: string,
-  excludedId: string): string {
-  const base = preferred.trim().length > 0 ? preferred.trim() : 'Custom preset';
-  let candidate = base;
-  let suffix = 2;
-  while (readerPresetNameExistsExcept(profiles, candidate, excludedId)) {
-    candidate = base + ' ' + suffix.toString();
-    suffix++;
-  }
-  return candidate;
+  return serializeStoredReaderPresetProfiles(custom, overrides);
 }
 
 export function cloneReaderPresetProfiles(profiles: ReaderPresetProfile[]): ReaderPresetProfile[] {
@@ -315,12 +347,61 @@ function readerPresetNameExists(profiles: ReaderPresetProfile[], name: string): 
 }
 
 function readerPresetNameExistsExcept(profiles: ReaderPresetProfile[], name: string, excludedId: string): boolean {
+  const normalized = name.trim().toLowerCase();
   for (let i = 0; i < profiles.length; i++) {
-    if (profiles[i].id !== excludedId && profiles[i].name === name) {
+    if (profiles[i].id !== excludedId && profiles[i].name.trim().toLowerCase() === normalized) {
       return true;
     }
   }
   return false;
+}
+
+function parseStoredReaderPresetProfiles(raw: string): StoredReaderPresetProfile[] {
+  if (raw.trim().length === 0) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(raw) as StoredReaderPresetProfile[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function parseBuiltInReaderPresetOverrides(raw: string): ReaderPresetProfile[] {
+  const result: ReaderPresetProfile[] = [];
+  const parsed = parseStoredReaderPresetProfiles(raw);
+  for (let i = 0; i < parsed.length; i++) {
+    const id = typeof parsed[i].id === 'string' ? (parsed[i].id as string).trim() : '';
+    const builtIn = findReaderPresetProfile(BUILT_IN_READER_PRESETS, id);
+    const values = parseStoredReaderPresetValues(parsed[i].values);
+    if (parsed[i].builtIn === true && builtIn !== null && values !== null &&
+      findReaderPresetProfile(result, id) === null) {
+      result.push({ id: builtIn.id, name: builtIn.name, summary: builtIn.summary, builtIn: true, values: values });
+    }
+  }
+  return result;
+}
+
+function storedReaderPresetValues(values: ReaderPresetValues): StoredReaderPresetValues {
+  return {
+    screenRotation: values.screenRotation,
+    readingDirection: values.readingDirection,
+    pageScaling: values.pageScaling,
+    adaptiveDualPage: values.adaptiveDualPage,
+    cropWhiteBorders: values.cropWhiteBorders,
+    imageSuperResolution: values.imageSuperResolution,
+    sdrToHdr: values.sdrToHdr,
+    startPosition: values.startPosition
+  };
+}
+
+function isBuiltInReaderPresetId(id: string): boolean {
+  return findReaderPresetProfile(BUILT_IN_READER_PRESETS, id) !== null;
+}
+
+function isReservedReaderPresetName(name: string): boolean {
+  return name.trim().toLowerCase() === 'current settings';
 }
 
 function normalizeOption(value: string, options: string[], fallback: string): string {

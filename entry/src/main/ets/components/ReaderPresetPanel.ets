@@ -52,13 +52,15 @@ export struct ReaderPresetPanel {
 
   private saveCurrentPreset(): void {
     const preferred = this.presetName.trim();
-    if (preferred.length === 0) {
-      this.onSave(this.localCustomProfiles, 'Preset name is required');
+    const nameError = this.presetNameError(preferred);
+    if (nameError.length > 0) {
+      this.onSave(this.localCustomProfiles, nameError);
       return;
     }
     const result: ReaderPresetSaveResult = saveCustomReaderPreset(this.localCustomProfiles, '', preferred,
       readerPresetValuesFromSettings());
     if (result.profile === null) {
+      this.onSave(this.localCustomProfiles, result.error.length > 0 ? result.error : 'Save failed');
       return;
     }
     const profile = result.profile;
@@ -67,6 +69,23 @@ export struct ReaderPresetPanel {
     this.reloadProfiles();
     this.activeId = profile.id;
     this.onSave(this.localCustomProfiles, 'Reading preset saved');
+  }
+
+  private presetNameError(name: string): string {
+    const normalized = name.trim().toLowerCase();
+    if (normalized.length === 0) {
+      return 'Preset name is required';
+    }
+    if (normalized === 'current settings' || normalized === uiText('Current settings').trim().toLowerCase()) {
+      return 'Preset name is reserved';
+    }
+    for (let i = 0; i < this.profiles.length; i++) {
+      if (this.profiles[i].name.trim().toLowerCase() === normalized ||
+        uiText(this.profiles[i].name).trim().toLowerCase() === normalized) {
+        return 'Preset name already exists';
+      }
+    }
+    return '';
   }
 
   private deleteProfile(profile: ReaderPresetProfile): void {

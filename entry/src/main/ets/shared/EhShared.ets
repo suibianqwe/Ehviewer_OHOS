@@ -1532,6 +1532,8 @@ export function zhText(text: string): string {
     case 'Save current settings': return '保存当前设置';
     case 'Preset name': return '预设名称';
     case 'Preset name is required': return '请输入预设名称';
+    case 'Preset name already exists': return '预设名称已存在';
+    case 'Preset name is reserved': return '不能使用该预设名称';
     case 'Reading preset saved': return '阅读预设已保存';
     case 'Reading preset updated': return '阅读预设已更新';
     case 'Reading preset renamed': return '阅读预设已重命名';

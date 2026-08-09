@@ -348,9 +348,10 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuShowBattery: boolean = true;
   @Prop progressText: string = '';
   @Prop batteryText: string = '';
-  @Prop menuReaderPreset: string = 'Current settings';
-  @Prop menuReaderPresetCustom: boolean = false;
-  @Prop menuReaderPresetEditName: string = '';
+  @Link menuReaderPreset: string;
+  @Link menuReaderPresetSelected: boolean;
+  @Link menuReaderPresetCustom: boolean;
+  @Link menuReaderPresetEditName: string;
   @Prop menuScreenRotation: string = 'Default';
   @Prop menuReadingDirection: string = 'Right to left';
   @Prop menuPageScaling: string = 'Fit screen';
@@ -377,7 +378,7 @@ export struct ReaderSettingsMenuOverlay {
   @Prop screenRotationOptions: string[] = [];
   @Prop readingDirectionOptions: string[] = [];
   @Prop pageScalingOptions: string[] = [];
-  @Prop readerPresetOptions: string[] = [];
+  @Link readerPresetOptions: string[];
   onDismiss: () => void = () => {};
   onBack: () => void = () => {};
   onReaderPresetChange: (value: string) => void = (_value: string) => {};
@@ -473,7 +474,7 @@ export struct ReaderSettingsMenuOverlay {
         this.openPresetEditor('create');
       })
       this.PresetActionButton('Save preset', $r('sys.symbol.save'), true, () => {
-        if (this.menuReaderPresetCustom) {
+        if (this.menuReaderPresetSelected) {
           this.onSaveReaderPreset();
         } else {
           this.openPresetEditor('create');
