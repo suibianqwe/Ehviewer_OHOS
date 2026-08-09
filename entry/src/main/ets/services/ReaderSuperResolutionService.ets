@@ -163,7 +163,9 @@ class ReaderSuperResolutionService {
     const pixelMap = await this.runEnhancement(entry);
     if (pixelMap !== undefined && this.isEntryActive(entry)) {
       entry.pixelMap = pixelMap;
-      hilog.info(DOMAIN, TAG, 'Image super-resolution succeeded');
+      const outputInfo = pixelMap.getImageInfoSync();
+      hilog.info(DOMAIN, TAG, `Image super-resolution succeeded: output=${outputInfo.size.width}x${outputInfo.size.height}, ` +
+        `target=${entry.targetWidth}x${entry.targetHeight}`);
     } else if (pixelMap !== undefined) {
       this.releasePixelMap(pixelMap);
     }
@@ -347,7 +349,15 @@ class ReaderSuperResolutionService {
       }
       const plan = this.enhancementPlan(sourceInfo.size.width, sourceInfo.size.height,
         entry.targetWidth, entry.targetHeight);
-      if (plan === null || !this.isEntryActive(entry) || !await this.ensureProcessor() ||
+      if (plan === null) {
+        hilog.info(DOMAIN, TAG, `Image super-resolution skipped: source=${sourceInfo.size.width}x${sourceInfo.size.height}, ` +
+          `target=${entry.targetWidth}x${entry.targetHeight}`);
+        return undefined;
+      }
+      hilog.info(DOMAIN, TAG, `Image super-resolution started: source=${sourceInfo.size.width}x${sourceInfo.size.height}, ` +
+        `target=${entry.targetWidth}x${entry.targetHeight}, output=${plan.width}x${plan.height}, ` +
+        `scale=${plan.scale.toFixed(3)}, quality=${plan.level}, segmented=${plan.segmented}`);
+      if (!this.isEntryActive(entry) || !await this.ensureProcessor() ||
         this.processor === undefined) {
         return undefined;
       }

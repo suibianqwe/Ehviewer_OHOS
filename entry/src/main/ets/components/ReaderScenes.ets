@@ -4,6 +4,7 @@ import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { batteryInfo } from '@kit.BasicServicesKit';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
+import { image } from '@kit.ImageKit';
 import { systemShare } from '@kit.ShareKit';
 import inputConsumer from '@ohos.multimodalInput.inputConsumer';
 import { KeyCode } from '@ohos.multimodalInput.keyCode';
@@ -46,6 +47,8 @@ import {
   ReaderImageProcessingPrefetchScope
 } from '../services/ReaderImageProcessingPrefetchService';
 import { IMAGE_DOWNLOAD_PRIORITY_READER, readerImageCache } from '../services/ReaderImageCache';
+import { readerHdrService } from '../services/ReaderHdrService';
+import { readerSuperResolutionService } from '../services/ReaderSuperResolutionService';
 import {
   createEmptyPage,
   getAbilityContext,
@@ -75,8 +78,10 @@ import {
   addUniquePath,
   albumImageFileType,
   copyFileContent,
+  packPixelMapContent,
   readerImageExtension,
   readerImageFileName,
+  readerProcessedImageFileName,
   removeFileIfExists,
   stripFileScheme
 } from './reader/io/ReaderImageFileOps';
@@ -131,6 +136,24 @@ interface ReaderPageGroupItem {
   index: number;
   key: string;
   paired: boolean;
+}
+
+class ReaderProcessedImageLease {
+  pixelMap: image.PixelMap | undefined = undefined;
+  superResolutionKey: string = '';
+  hdrKey: string = '';
+
+  release(): void {
+    if (this.hdrKey.length > 0) {
+      readerHdrService.release(this.hdrKey);
+      this.hdrKey = '';
+    }
+    if (this.superResolutionKey.length > 0) {
+      readerSuperResolutionService.release(this.superResolutionKey);
+      this.superResolutionKey = '';
+    }
+    this.pixelMap = undefined;
+  }
 }
 
 @Component
@@ -1960,13 +1983,19 @@ export struct ReaderScene {
       this.showToast(uiText('Save failed'));
       return;
     }
+    const processedImage = await this.acquireProcessedImageForSave(page, index, sourcePath);
     try {
       const helper = photoAccessHelper.getPhotoAccessHelper(context);
-      const fileName = readerImageFileName(index, sourcePath, this.currentImageShareTarget());
+      const hasProcessedImage = processedImage.pixelMap !== undefined;
+      const fileName = hasProcessedImage ? readerProcessedImageFileName(index) :
+        readerImageFileName(index, sourcePath, this.currentImageShareTarget());
       const title = mediaAssetTitle(fileName);
       // @SuppressWarnings permission
-      const uri = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE, albumImageFileType(sourcePath), { title: title });
-      if (copyFileContent(sourcePath, uri)) {
+      const uri = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE,
+        hasProcessedImage ? 'jpeg' : albumImageFileType(sourcePath), { title: title });
+      const saved = hasProcessedImage && processedImage.pixelMap !== undefined ?
+        await packPixelMapContent(processedImage.pixelMap, uri) : copyFileContent(sourcePath, uri);
+      if (saved) {
         this.showToast(uiText('Saved to album') + ': ' + fileName);
         this.hideImageActions();
       } else {
@@ -1974,7 +2003,47 @@ export struct ReaderScene {
       }
     } catch (error) {
       this.showToast(uiText('Save failed'));
+    } finally {
+      processedImage.release();
     }
+  }
+
+  private async acquireProcessedImageForSave(page: GalleryPage, index: number,
+    sourcePath: string): Promise<ReaderProcessedImageLease> {
+    const lease = new ReaderProcessedImageLease();
+    if ((!this.imageSuperResolutionEnabled && !this.sdrToHdrEnabled) || sourcePath.length === 0) {
+      return lease;
+    }
+    const original = this.preferOriginal && page.originImageUrl.length > 0;
+    const sourceKey = readerPageImageCacheKey(page, original);
+    let superResolutionPixelMap: image.PixelMap | undefined = undefined;
+    if (this.imageSuperResolutionEnabled) {
+      const target = this.superResolutionDisplayTarget(index);
+      lease.superResolutionKey = sourceKey + '|' + sourcePath + '|sr|' + this.superResolutionTargetKey(target);
+      try {
+        superResolutionPixelMap = await readerSuperResolutionService.acquire(lease.superResolutionKey,
+          sourcePath, 0, target.width, target.height);
+      } catch (_error) {
+        superResolutionPixelMap = undefined;
+      }
+    }
+    if (this.sdrToHdrEnabled) {
+      try {
+        if (superResolutionPixelMap !== undefined && lease.superResolutionKey.length > 0) {
+          lease.hdrKey = lease.superResolutionKey + '|hdr';
+          lease.pixelMap = await readerHdrService.acquirePixelMap(lease.hdrKey, superResolutionPixelMap, 0);
+        } else {
+          lease.hdrKey = sourceKey + '|' + sourcePath + '|hdr';
+          lease.pixelMap = await readerHdrService.acquire(lease.hdrKey, sourcePath, 0);
+        }
+      } catch (_error) {
+        lease.pixelMap = undefined;
+      }
+    }
+    if (lease.pixelMap === undefined) {
+      lease.pixelMap = superResolutionPixelMap;
+    }
+    return lease;
   }
 
   private currentImageShareTarget(): string {
@@ -2139,16 +2208,24 @@ export struct ReaderScene {
     if (sourcePath.length === 0) {
       return;
     }
-    const options = new picker.DocumentSaveOptions();
-    options.newFileNames = [readerImageFileName(index, sourcePath, this.currentImageShareTarget())];
-    const documentPicker = new picker.DocumentViewPicker(context);
-    const uris = await documentPicker.save(options);
-    if (uris.length === 0) {
-      return;
-    }
+    const processedImage = await this.acquireProcessedImageForSave(page, index, sourcePath);
     try {
-      copyFileContent(sourcePath, uris[0]);
-    } catch (error) {
+      const options = new picker.DocumentSaveOptions();
+      options.newFileNames = [processedImage.pixelMap !== undefined ? readerProcessedImageFileName(index) :
+        readerImageFileName(index, sourcePath, this.currentImageShareTarget())];
+      const documentPicker = new picker.DocumentViewPicker(context);
+      const uris = await documentPicker.save(options);
+      if (uris.length === 0) {
+        return;
+      }
+      if (processedImage.pixelMap !== undefined) {
+        await packPixelMapContent(processedImage.pixelMap, uris[0]);
+      } else {
+        copyFileContent(sourcePath, uris[0]);
+      }
+    } catch (_error) {
+    } finally {
+      processedImage.release();
     }
   }
 

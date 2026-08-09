@@ -1,4 +1,5 @@
 import { fileIo as fs } from '@kit.CoreFileKit';
+import { image } from '@kit.ImageKit';
 
 export function stripFileScheme(path: string): string {
   return path.indexOf('file://') === 0 ? path.substring('file://'.length) : path;
@@ -7,6 +8,10 @@ export function stripFileScheme(path: string): string {
 export function readerImageFileName(index: number, sourcePath: string, sourceUrl: string): string {
   const ext = readerImageExtension(sourcePath.length > 0 ? sourcePath : sourceUrl);
   return 'ehviewer_page_' + (index + 1).toString() + ext;
+}
+
+export function readerProcessedImageFileName(index: number): string {
+  return 'ehviewer_page_' + (index + 1).toString() + '.jpg';
 }
 
 export function readerImageExtension(value: string): string {
@@ -101,6 +106,37 @@ export function copyFileContent(sourcePath: string, targetUri: string): boolean 
       try {
         fs.closeSync(targetFd);
       } catch (error) {
+      }
+    }
+  }
+}
+
+export async function packPixelMapContent(pixelMap: image.PixelMap, targetUri: string): Promise<boolean> {
+  let targetFd = -1;
+  let imagePacker: image.ImagePacker | undefined = undefined;
+  try {
+    const targetFile = fs.openSync(targetUri, fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
+    targetFd = targetFile.fd;
+    imagePacker = image.createImagePacker();
+    await imagePacker.packToFile(pixelMap, targetFd, {
+      format: 'image/jpeg',
+      quality: 100,
+      desiredDynamicRange: image.PackingDynamicRange.AUTO
+    });
+    return true;
+  } catch (_error) {
+    return false;
+  } finally {
+    if (imagePacker !== undefined) {
+      try {
+        await imagePacker.release();
+      } catch (_error) {
+      }
+    }
+    if (targetFd >= 0) {
+      try {
+        fs.closeSync(targetFd);
+      } catch (_error) {
       }
     }
   }
