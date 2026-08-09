@@ -667,6 +667,8 @@ export struct ReaderImageViewport {
               .width(this.uncroppedDisplayWidth())
               .height(this.uncroppedDisplayHeight())
               .objectFit(this.imageObjectFit())
+              .interpolation(this.displayPixelMap() !== undefined && this.isActive ?
+                ImageInterpolation.High : ImageInterpolation.Low)
               .dynamicRangeMode(this.hdrPixelMap === undefined ? DynamicRangeMode.STANDARD : DynamicRangeMode.HIGH)
               .hdrBrightness(this.hdrPixelMap === undefined ? 0 : 1)
               .syncLoad(this.shouldSyncLoadImage())

@@ -5,9 +5,11 @@ const TAG = 'ReaderSuperResolution';
 const DOMAIN = 0x3210;
 const MIN_DIMENSION: number = 32;
 const MEDIUM_MAX_DIMENSION: number = 3000;
-const HIGH_MIN_DIMENSION: number = 512;
+// API 23+ accepts HIGH input dimensions from 180 px while HIGH output still starts at 512 px.
+const HIGH_MIN_INPUT_DIMENSION: number = 180;
+const HIGH_MIN_OUTPUT_DIMENSION: number = 512;
 const HIGH_MAX_DIMENSION: number = 2000;
-const SEGMENT_OVERLAP: number = 16;
+const SEGMENT_OVERLAP: number = 32;
 
 interface ReaderSuperResolutionEntry {
   key: string;
@@ -34,6 +36,11 @@ class ReaderSuperResolutionPlan {
   scale: number = 1;
   segmented: boolean = false;
   level: videoProcessingEngine.QualityLevel = videoProcessingEngine.QualityLevel.MEDIUM;
+}
+
+class ReaderSuperResolutionSegmentRegion {
+  start: number = 0;
+  end: number = 0;
 }
 
 class ReaderSuperResolutionService {
@@ -163,9 +170,14 @@ class ReaderSuperResolutionService {
     const pixelMap = await this.runEnhancement(entry);
     if (pixelMap !== undefined && this.isEntryActive(entry)) {
       entry.pixelMap = pixelMap;
-      const outputInfo = pixelMap.getImageInfoSync();
-      hilog.info(DOMAIN, TAG, `Image super-resolution succeeded: output=${outputInfo.size.width}x${outputInfo.size.height}, ` +
-        `target=${entry.targetWidth}x${entry.targetHeight}`);
+      try {
+        const outputInfo = pixelMap.getImageInfoSync();
+        hilog.info(DOMAIN, TAG,
+          `Image super-resolution succeeded: output=${outputInfo.size.width}x${outputInfo.size.height}, ` +
+          `target=${entry.targetWidth}x${entry.targetHeight}`);
+      } catch (_error) {
+        hilog.info(DOMAIN, TAG, 'Image super-resolution succeeded');
+      }
     } else if (pixelMap !== undefined) {
       this.releasePixelMap(pixelMap);
     }
@@ -234,11 +246,16 @@ class ReaderSuperResolutionService {
     scale = Math.min(scale, MEDIUM_MAX_DIMENSION / width);
     const outputWidth = Math.max(MIN_DIMENSION, Math.round(width * scale));
     const outputHeight = Math.max(MIN_DIMENSION, Math.round(height * scale));
-    const segmented = height > MEDIUM_MAX_DIMENSION || outputHeight > MEDIUM_MAX_DIMENSION;
-    const highQuality = !segmented && width >= HIGH_MIN_DIMENSION && height >= HIGH_MIN_DIMENSION &&
-      width <= HIGH_MAX_DIMENSION && height <= HIGH_MAX_DIMENSION &&
-      outputWidth >= HIGH_MIN_DIMENSION && outputHeight >= HIGH_MIN_DIMENSION &&
-      outputWidth <= HIGH_MAX_DIMENSION && outputHeight <= HIGH_MAX_DIMENSION;
+    const highMinimumRegion = Math.max(HIGH_MIN_INPUT_DIMENSION,
+      Math.ceil(HIGH_MIN_OUTPUT_DIMENSION / scale));
+    const highMaximumRegion = Math.min(HIGH_MAX_DIMENSION, Math.floor(HIGH_MAX_DIMENSION / scale));
+    const highQuality = width >= HIGH_MIN_INPUT_DIMENSION && height >= HIGH_MIN_INPUT_DIMENSION &&
+      outputWidth >= HIGH_MIN_OUTPUT_DIMENSION && outputHeight >= HIGH_MIN_OUTPUT_DIMENSION &&
+      highMinimumRegion <= highMaximumRegion;
+    const highNeedsTiling = highQuality && (width > HIGH_MAX_DIMENSION || height > HIGH_MAX_DIMENSION ||
+      outputWidth > HIGH_MAX_DIMENSION || outputHeight > HIGH_MAX_DIMENSION);
+    const mediumNeedsTiling = width > MEDIUM_MAX_DIMENSION || height > MEDIUM_MAX_DIMENSION ||
+      outputWidth > MEDIUM_MAX_DIMENSION || outputHeight > MEDIUM_MAX_DIMENSION;
     if (scale <= 1 && !highQuality) {
       return null;
     }
@@ -246,7 +263,7 @@ class ReaderSuperResolutionService {
     plan.width = outputWidth;
     plan.height = outputHeight;
     plan.scale = scale;
-    plan.segmented = segmented;
+    plan.segmented = highQuality ? highNeedsTiling : mediumNeedsTiling;
     plan.level = highQuality ? videoProcessingEngine.QualityLevel.HIGH :
       videoProcessingEngine.QualityLevel.MEDIUM;
     return plan;
@@ -254,72 +271,95 @@ class ReaderSuperResolutionService {
 
   private async enhanceSegmented(source: image.ImageSource, sourceWidth: number, sourceHeight: number,
     plan: ReaderSuperResolutionPlan, entry: ReaderSuperResolutionEntry): Promise<image.PixelMap | undefined> {
-    if (this.processor === undefined || plan.width > MEDIUM_MAX_DIMENSION) {
+    if (this.processor === undefined) {
       return undefined;
     }
     const outputBuffer = new ArrayBuffer(plan.width * plan.height * 4);
     const outputPixels = new Uint8Array(outputBuffer);
-    const maximumRegionHeight = Math.max(MIN_DIMENSION,
-      Math.min(MEDIUM_MAX_DIMENSION, Math.floor(MEDIUM_MAX_DIMENSION / plan.scale)));
-    const coreHeight = Math.max(MIN_DIMENSION, maximumRegionHeight - SEGMENT_OVERLAP * 2);
-    let coreStart = 0;
-    while (coreStart < sourceHeight) {
+    const highQuality = plan.level === videoProcessingEngine.QualityLevel.HIGH;
+    const minimumInputDimension = highQuality ? HIGH_MIN_INPUT_DIMENSION : MIN_DIMENSION;
+    const minimumOutputDimension = highQuality ? HIGH_MIN_OUTPUT_DIMENSION : MIN_DIMENSION;
+    const maximumDimension = highQuality ? HIGH_MAX_DIMENSION : MEDIUM_MAX_DIMENSION;
+    const minimumRegionDimension = Math.max(minimumInputDimension,
+      Math.ceil(minimumOutputDimension / plan.scale));
+    const maximumRegionDimension = Math.min(maximumDimension, Math.floor(maximumDimension / plan.scale));
+    if (minimumRegionDimension > maximumRegionDimension) {
+      return undefined;
+    }
+    const coreDimension = Math.max(minimumInputDimension,
+      maximumRegionDimension - SEGMENT_OVERLAP * 2);
+    let coreStartY = 0;
+    while (coreStartY < sourceHeight) {
       if (!this.isEntryActive(entry)) {
         return undefined;
       }
-      const coreEnd = Math.min(sourceHeight, coreStart + coreHeight);
-      let regionStart = Math.max(0, coreStart - SEGMENT_OVERLAP);
-      let regionEnd = Math.min(sourceHeight, coreEnd + SEGMENT_OVERLAP);
-      if (regionEnd - regionStart < MIN_DIMENSION) {
-        regionStart = Math.max(0, regionEnd - MIN_DIMENSION);
+      const coreEndY = Math.min(sourceHeight, coreStartY + coreDimension);
+      const regionY = this.segmentRegion(coreStartY, coreEndY, sourceHeight, minimumRegionDimension);
+      let coreStartX = 0;
+      while (coreStartX < sourceWidth) {
+        if (!this.isEntryActive(entry)) {
+          return undefined;
+        }
+        const coreEndX = Math.min(sourceWidth, coreStartX + coreDimension);
+        const regionX = this.segmentRegion(coreStartX, coreEndX, sourceWidth, minimumRegionDimension);
+        const regionWidth = regionX.end - regionX.start;
+        const regionHeight = regionY.end - regionY.start;
+        const segmentTargetWidth = Math.max(minimumOutputDimension, Math.round(regionWidth * plan.scale));
+        const segmentTargetHeight = Math.max(minimumOutputDimension, Math.round(regionHeight * plan.scale));
+        let sourcePixelMap: image.PixelMap | undefined = undefined;
+        let enhancedPixelMap: image.PixelMap | undefined = undefined;
+        try {
+          sourcePixelMap = await source.createPixelMapUsingAllocator({
+            editable: false,
+            index: 0,
+            desiredRegion: {
+              x: regionX.start,
+              y: regionY.start,
+              size: { width: regionWidth, height: regionHeight }
+            },
+            desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
+            desiredDynamicRange: image.DecodingDynamicRange.SDR
+          }, image.AllocatorType.DMA);
+          enhancedPixelMap = await this.enhancePixelMap(sourcePixelMap, segmentTargetWidth,
+            segmentTargetHeight, plan.level);
+          const segmentInfo = enhancedPixelMap.getImageInfoSync();
+          const segmentStride = enhancedPixelMap.getBytesNumberPerRow();
+          const segmentBuffer = new ArrayBuffer(enhancedPixelMap.getPixelBytesNumber());
+          await enhancedPixelMap.readPixelsToBuffer(segmentBuffer);
+          const segmentPixels = new Uint8Array(segmentBuffer);
+          const copyStartX = Math.max(0, Math.round((coreStartX - regionX.start) * plan.scale));
+          const copyStartY = Math.max(0, Math.round((coreStartY - regionY.start) * plan.scale));
+          const destinationX = Math.round(coreStartX * plan.scale);
+          const destinationY = Math.round(coreStartY * plan.scale);
+          const desiredCopyWidth = coreEndX >= sourceWidth ? plan.width - destinationX :
+            Math.round((coreEndX - coreStartX) * plan.scale);
+          const desiredCopyHeight = coreEndY >= sourceHeight ? plan.height - destinationY :
+            Math.round((coreEndY - coreStartY) * plan.scale);
+          const copyWidth = Math.max(0, Math.min(desiredCopyWidth,
+            segmentInfo.size.width - copyStartX, plan.width - destinationX));
+          const copyHeight = Math.max(0, Math.min(desiredCopyHeight,
+            segmentInfo.size.height - copyStartY, plan.height - destinationY));
+          const copyRowBytes = copyWidth * 4;
+          const outputRowBytes = plan.width * 4;
+          for (let row = 0; row < copyHeight; row++) {
+            const sourceOffset = (copyStartY + row) * segmentStride + copyStartX * 4;
+            const destinationOffset = (destinationY + row) * outputRowBytes + destinationX * 4;
+            outputPixels.set(segmentPixels.subarray(sourceOffset, sourceOffset + copyRowBytes), destinationOffset);
+          }
+        } catch (error) {
+          hilog.warn(DOMAIN, TAG, `Image super-resolution segment failed: ${String(error)}`);
+          return undefined;
+        } finally {
+          if (enhancedPixelMap !== undefined) {
+            await this.releasePixelMap(enhancedPixelMap);
+          }
+          if (sourcePixelMap !== undefined) {
+            await this.releasePixelMap(sourcePixelMap);
+          }
+        }
+        coreStartX = coreEndX;
       }
-      const regionHeight = regionEnd - regionStart;
-      const segmentTargetHeight = Math.max(MIN_DIMENSION, Math.round(regionHeight * plan.scale));
-      let sourcePixelMap: image.PixelMap | undefined = undefined;
-      let enhancedPixelMap: image.PixelMap | undefined = undefined;
-      try {
-        sourcePixelMap = await source.createPixelMapUsingAllocator({
-          editable: false,
-          index: 0,
-          desiredRegion: {
-            x: 0,
-            y: regionStart,
-            size: { width: sourceWidth, height: regionHeight }
-          },
-          desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
-          desiredDynamicRange: image.DecodingDynamicRange.SDR
-        }, image.AllocatorType.DMA);
-        enhancedPixelMap = await this.processor.enhanceDetail(sourcePixelMap, plan.width,
-          segmentTargetHeight, videoProcessingEngine.QualityLevel.MEDIUM);
-        const segmentInfo = enhancedPixelMap.getImageInfoSync();
-        const segmentStride = enhancedPixelMap.getBytesNumberPerRow();
-        const segmentBuffer = new ArrayBuffer(enhancedPixelMap.getPixelBytesNumber());
-        await enhancedPixelMap.readPixelsToBuffer(segmentBuffer);
-        const segmentPixels = new Uint8Array(segmentBuffer);
-        const copyStart = Math.max(0, Math.round((coreStart - regionStart) * plan.scale));
-        const destinationY = Math.round(coreStart * plan.scale);
-        const desiredCopyHeight = coreEnd >= sourceHeight ? plan.height - destinationY :
-          Math.round((coreEnd - coreStart) * plan.scale);
-        const copyHeight = Math.max(0, Math.min(desiredCopyHeight,
-          segmentInfo.size.height - copyStart, plan.height - destinationY));
-        const rowBytes = plan.width * 4;
-        for (let row = 0; row < copyHeight; row++) {
-          const sourceOffset = (copyStart + row) * segmentStride;
-          const destinationOffset = (destinationY + row) * rowBytes;
-          outputPixels.set(segmentPixels.subarray(sourceOffset, sourceOffset + rowBytes), destinationOffset);
-        }
-      } catch (error) {
-        hilog.warn(DOMAIN, TAG, `Image super-resolution segment failed: ${String(error)}`);
-        return undefined;
-      } finally {
-        if (enhancedPixelMap !== undefined) {
-          await this.releasePixelMap(enhancedPixelMap);
-        }
-        if (sourcePixelMap !== undefined) {
-          await this.releasePixelMap(sourcePixelMap);
-        }
-      }
-      coreStart = coreEnd;
+      coreStartY = coreEndY;
     }
     if (!this.isEntryActive(entry)) {
       return undefined;
@@ -333,6 +373,42 @@ class ReaderSuperResolutionService {
     } catch (error) {
       hilog.warn(DOMAIN, TAG, `Image super-resolution stitching failed: ${String(error)}`);
       return undefined;
+    }
+  }
+
+  private segmentRegion(coreStart: number, coreEnd: number, total: number,
+    minimumDimension: number): ReaderSuperResolutionSegmentRegion {
+    let start = Math.max(0, coreStart - SEGMENT_OVERLAP);
+    let end = Math.min(total, coreEnd + SEGMENT_OVERLAP);
+    if (end - start < minimumDimension) {
+      start = Math.max(0, Math.min(start, total - minimumDimension));
+      end = Math.min(total, Math.max(end, start + minimumDimension));
+      start = Math.max(0, end - minimumDimension);
+    }
+    const region = new ReaderSuperResolutionSegmentRegion();
+    region.start = start;
+    region.end = end;
+    return region;
+  }
+
+  private async enhancePixelMap(sourcePixelMap: image.PixelMap, width: number, height: number,
+    level: videoProcessingEngine.QualityLevel): Promise<image.PixelMap> {
+    if (this.processor === undefined) {
+      throw new Error('Image processor is unavailable');
+    }
+    try {
+      return await this.processor.enhanceDetail(sourcePixelMap, width, height, level);
+    } catch (error) {
+      if (level !== videoProcessingEngine.QualityLevel.HIGH) {
+        throw new Error(String(error));
+      }
+      hilog.warn(DOMAIN, TAG, `HIGH super-resolution failed, retrying MEDIUM: ${String(error)}`);
+      try {
+        return await this.processor.enhanceDetail(sourcePixelMap, width, height,
+          videoProcessingEngine.QualityLevel.MEDIUM);
+      } catch (fallbackError) {
+        throw new Error(String(fallbackError));
+      }
     }
   }
 
@@ -375,7 +451,7 @@ class ReaderSuperResolutionService {
         !this.isEntryActive(entry)) {
         return undefined;
       }
-      return await this.processor.enhanceDetail(sourcePixelMap, plan.width, plan.height, plan.level);
+      return await this.enhancePixelMap(sourcePixelMap, plan.width, plan.height, plan.level);
     } catch (error) {
       hilog.warn(DOMAIN, TAG, `Image super-resolution failed: ${String(error)}`);
       return undefined;
