@@ -41,6 +41,10 @@ import {
   saveReaderPreset
 } from '../services/ReaderPresetSupport';
 import { galleryPageCache } from '../services/GalleryPageCache';
+import {
+  ReaderImageProcessingPrefetchPlan,
+  ReaderImageProcessingPrefetchScope
+} from '../services/ReaderImageProcessingPrefetchService';
 import { IMAGE_DOWNLOAD_PRIORITY_READER, readerImageCache } from '../services/ReaderImageCache';
 import {
   createEmptyPage,
@@ -64,7 +68,8 @@ import {
   READER_MAX_SCALE,
   READER_MIN_SCALE,
   READER_OFFSCREEN_RENDER_SCREEN_COUNT,
-  readerBackgroundColor
+  readerBackgroundColor,
+  readerLocalSourceImagePath
 } from './reader/core/ReaderCore';
 import {
   addUniquePath,
@@ -127,7 +132,7 @@ interface ReaderPageGroupItem {
 export struct ReaderScene {
   @Prop @Watch('onRenderVersionChange') renderVersion: number = 0;
   @Prop page: GalleryPage = createEmptyPage();
-  @Prop readerPages: ReaderPageState[] = [];
+  @Prop @Watch('onReaderPagesChange') readerPages: ReaderPageState[] = [];
   @Prop @Watch('onReaderPreviewsChange') readerPreviews: GalleryPreview[] = [];
   @Prop @Watch('onGalleryIdChange') galleryId: number = 0;
   @Prop statusText: string = '';
@@ -199,6 +204,8 @@ export struct ReaderScene {
   private readerPageIndexesReversed: boolean = false;
   private readerPageIndexesSignature: string = '';
   private readerPageGroupRevision: number = 0;
+  private imageProcessingPrefetchScope: ReaderImageProcessingPrefetchScope =
+    new ReaderImageProcessingPrefetchScope();
   private readerPageImageSizes: ReaderPageImageSize[] = [];
   private readerImageSizeGalleryId: number = -1;
   private pageGroupRefreshTimer: number = -1;
@@ -321,6 +328,7 @@ export struct ReaderScene {
     this.applyReaderWindowSettings();
     this.applyBrightnessFromSettings().catch(() => {});
     this.updateVolumePageBinding();
+    this.syncImageProcessingPrefetch();
   }
 
   aboutToDisappear(): void {
@@ -388,6 +396,7 @@ export struct ReaderScene {
 
   private cleanupReaderScene(): void {
     this.readerWindowActive = false;
+    this.imageProcessingPrefetchScope.clear();
     setReaderTransientStatusBarVisible(false);
     this.unregisterReaderAvoidAreaListener();
     this.readerWindowSettingsRevision++;
@@ -572,9 +581,11 @@ export struct ReaderScene {
 
   onRenderVersionChange(): void {
     this.applyReaderWindowSettings();
+    this.syncImageProcessingPrefetch();
   }
 
   onGalleryIdChange(): void {
+    this.imageProcessingPrefetchScope.clear();
     if (!this.resetReaderImageSizesForGallery()) {
       return;
     }
@@ -586,7 +597,12 @@ export struct ReaderScene {
     this.readerPageIndexesCount = -1;
     if (this.readerWindowActive) {
       this.syncReaderPageIndexSource();
+      this.syncImageProcessingPrefetch();
     }
+  }
+
+  onReaderPagesChange(): void {
+    this.syncImageProcessingPrefetch();
   }
 
   onReaderPreviewsChange(): void {
@@ -599,6 +615,7 @@ export struct ReaderScene {
     this.currentIndex = this.pageGroupAnchorForPageIndex(this.currentIndex);
     this.sliderLiveIndex = this.clampReaderPageIndex(this.currentIndex);
     this.syncReaderPageIndexSource();
+    this.syncImageProcessingPrefetch();
   }
 
   private statusBarHeightVp(): number {
@@ -707,6 +724,7 @@ export struct ReaderScene {
     this.imageActionsVisible = false;
     this.scheduleAutoTransfer();
     this.syncReaderPageIndexSource();
+    this.syncImageProcessingPrefetch();
     try {
       this.swiperController.changeIndex(this.visualIndexForPageIndex(this.currentIndex), false);
     } catch (e) {}
@@ -812,6 +830,7 @@ export struct ReaderScene {
       this.pageGroupRefreshPending = false;
       this.normalizeCurrentPageGroup();
       this.syncReaderPageIndexSource();
+      this.syncImageProcessingPrefetch();
     }, Math.max(0, delay)) as number;
   }
 
@@ -895,6 +914,69 @@ export struct ReaderScene {
     const currentVisualIndex = this.visualIndexForPageIndex(this.currentIndex);
     const targetVisualIndex = this.visualIndexForPageIndex(index);
     return Math.abs(targetVisualIndex - currentVisualIndex) <= this.readerRenderScreenCacheCount();
+  }
+
+  private imageProcessingPrefetchPageIndexes(): number[] {
+    const result: number[] = [];
+    const count = this.totalPages <= 0 ? 1 : this.totalPages;
+    if (this.isContinuousVerticalMode()) {
+      const radius = this.readerContinuousCacheCount();
+      const first = Math.max(0, this.currentIndex - radius);
+      const last = Math.min(count - 1, this.currentIndex + radius);
+      for (let index = first; index <= last; index++) {
+        result.push(index);
+      }
+      return result;
+    }
+    const groups = this.pageGroupIndexesAscending();
+    const currentGroup = groups.indexOf(this.pageGroupAnchorForPageIndex(this.currentIndex));
+    const firstGroup = Math.max(0, currentGroup - this.readerRenderScreenCacheCount());
+    const lastGroup = Math.min(groups.length - 1, currentGroup + this.readerRenderScreenCacheCount());
+    for (let i = firstGroup; i <= lastGroup; i++) {
+      const pageIndex = groups[i];
+      result.push(pageIndex);
+      if (this.shouldPairPage(pageIndex) && pageIndex + 1 < count) {
+        result.push(pageIndex + 1);
+      }
+    }
+    return result;
+  }
+
+  private syncImageProcessingPrefetch(): void {
+    if (!this.readerWindowActive || (!this.imageSuperResolutionEnabled && !this.sdrToHdrEnabled)) {
+      this.imageProcessingPrefetchScope.clear();
+      return;
+    }
+    const pageIndexes = this.imageProcessingPrefetchPageIndexes();
+    const plans: ReaderImageProcessingPrefetchPlan[] = [];
+    for (let i = 0; i < pageIndexes.length; i++) {
+      const pageIndex = pageIndexes[i];
+      const page = this.pageForIndex(pageIndex);
+      const sourcePath = readerLocalSourceImagePath(page, this.preferOriginal);
+      if (sourcePath.length === 0) {
+        continue;
+      }
+      const original = this.preferOriginal && page.originImageUrl.length > 0;
+      const sourceKey = readerPageImageCacheKey(page, original);
+      const superResolutionKey = sourceKey + '|' + sourcePath + '|sr';
+      const hdrKey = sourceKey + '|' + sourcePath +
+        (this.imageSuperResolutionEnabled ? '|sr-hdr' : '|hdr');
+      const fallbackHdrKey = sourceKey + '|' + sourcePath + '|hdr';
+      const priority = this.isContinuousVerticalMode() ? Math.abs(pageIndex - this.currentIndex) :
+        Math.abs(this.visualIndexForPageIndex(pageIndex) - this.visualIndexForPageIndex(this.currentIndex));
+      plans.push({
+        id: pageIndex.toString() + '|' + superResolutionKey + '|' + hdrKey + '|' +
+          (this.imageSuperResolutionEnabled ? '1' : '0') + (this.sdrToHdrEnabled ? '1' : '0'),
+        sourcePath: sourcePath,
+        superResolutionKey: superResolutionKey,
+        hdrKey: hdrKey,
+        fallbackHdrKey: fallbackHdrKey,
+        superResolution: this.imageSuperResolutionEnabled,
+        hdr: this.sdrToHdrEnabled,
+        priority: priority
+      });
+    }
+    this.imageProcessingPrefetchScope.sync(plans);
   }
 
   private syncReaderPageIndexSource(): void {
@@ -1078,6 +1160,7 @@ export struct ReaderScene {
     }
     this.applyReaderWindowSettings();
     this.updateVolumePageBinding();
+    this.syncImageProcessingPrefetch();
     if (this.autoTransferPlaying) {
       this.scheduleAutoTransfer();
     }
@@ -2146,6 +2229,7 @@ export struct ReaderScene {
     }
     this.resetActiveImageSize();
     this.currentIndex = index;
+    this.syncImageProcessingPrefetch();
     this.isDisableSwipe = false;
     this.zoomPercent = this.isFixedScaleMode() ? Math.round(this.fixedScale * 100) : 100;
     this.imageActionsVisible = false;
@@ -2165,6 +2249,7 @@ export struct ReaderScene {
     }
     this.currentIndex = pageIndex;
     this.sliderLiveIndex = pageIndex;
+    this.syncImageProcessingPrefetch();
     this.onJump(pageIndex);
   }
 
