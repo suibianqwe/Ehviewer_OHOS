@@ -233,6 +233,8 @@ export struct ReaderScene {
   @State menuReaderPreset: string = 'Current settings';
   @State menuReaderPresetOptions: string[] = [];
   @State menuReaderPresetTargetId: string = '';
+  @State menuReaderPresetCustom: boolean = false;
+  @State menuReaderPresetEditName: string = '';
   @State menuReadingDirection: string = 'Right to left';
   @State menuPageScaling: string = 'Fit screen';
   @State menuAdaptiveDualPage: boolean = false;
@@ -1116,6 +1118,8 @@ export struct ReaderScene {
     const active = activeReaderPresetProfile(profiles, this.currentMenuReaderPresetValues());
     this.menuReaderPreset = active === null ? 'Current settings' : active.name;
     this.menuReaderPresetTargetId = active === null ? '' : active.id;
+    this.menuReaderPresetCustom = active !== null && !active.builtIn;
+    this.menuReaderPresetEditName = active === null ? '' : active.name;
   }
 
   private updateMenuReaderPresetOptions(profiles: ReaderPresetProfile[]): void {
@@ -1135,6 +1139,8 @@ export struct ReaderScene {
     if (value === 'Current settings') {
       this.menuReaderPreset = value;
       this.menuReaderPresetTargetId = '';
+      this.menuReaderPresetCustom = false;
+      this.menuReaderPresetEditName = '';
       return;
     }
     const profiles = allReaderPresetProfiles(
@@ -1154,22 +1160,14 @@ export struct ReaderScene {
     this.applyAdaptiveDualPageMenuConstraints();
     this.menuReaderPreset = profile.name;
     this.menuReaderPresetTargetId = profile.id;
+    this.menuReaderPresetCustom = !profile.builtIn;
+    this.menuReaderPresetEditName = profile.name;
   }
 
   private menuReaderPresetTarget(): ReaderPresetProfile | null {
     const profiles = allReaderPresetProfiles(
       ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]'));
     return findReaderPresetProfile(profiles, this.menuReaderPresetTargetId);
-  }
-
-  private menuReaderPresetIsCustom(): boolean {
-    const profile = this.menuReaderPresetTarget();
-    return profile !== null && !profile.builtIn;
-  }
-
-  private menuReaderPresetTargetName(): string {
-    const profile = this.menuReaderPresetTarget();
-    return profile === null ? '' : profile.name;
   }
 
   private persistReaderPresetRaw(raw: string, status: string): void {
@@ -1189,6 +1187,8 @@ export struct ReaderScene {
     this.updateMenuReaderPresetOptions(profiles);
     this.menuReaderPreset = profile.name;
     this.menuReaderPresetTargetId = profile.id;
+    this.menuReaderPresetCustom = !profile.builtIn;
+    this.menuReaderPresetEditName = profile.name;
   }
 
   private createMenuReaderPreset(name: string): void {
@@ -1219,19 +1219,18 @@ export struct ReaderScene {
     this.selectSavedReaderPreset(result.profile);
   }
 
-  private editMenuReaderPreset(name: string): void {
+  private renameMenuReaderPreset(name: string): void {
     const target = this.menuReaderPresetTarget();
     if (target === null || target.builtIn) {
       return;
     }
     const raw = ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]');
-    const result: ReaderPresetSaveResult = saveCustomReaderPreset(raw, target.id, name,
-      this.currentMenuReaderPresetValues());
+    const result: ReaderPresetSaveResult = saveCustomReaderPreset(raw, target.id, name, target.values);
     if (result.profile === null) {
       this.showToast(uiText('Save failed'));
       return;
     }
-    this.persistReaderPresetRaw(result.raw, 'Reading preset updated');
+    this.persistReaderPresetRaw(result.raw, 'Reading preset renamed');
     this.selectSavedReaderPreset(result.profile);
   }
 
@@ -1243,6 +1242,8 @@ export struct ReaderScene {
     const raw = ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]');
     this.persistReaderPresetRaw(deleteCustomReaderPreset(raw, target.id), 'Reading preset deleted');
     this.menuReaderPresetTargetId = '';
+    this.menuReaderPresetCustom = false;
+    this.menuReaderPresetEditName = '';
     this.syncMenuReaderPreset();
   }
 
@@ -2563,8 +2564,8 @@ export struct ReaderScene {
           menuShowProgress: this.menuShowProgress,
           progressText: this.progressText(),
           menuReaderPreset: this.menuReaderPreset,
-          menuReaderPresetCustom: this.menuReaderPresetIsCustom(),
-          menuReaderPresetEditName: this.menuReaderPresetTargetName(),
+          menuReaderPresetCustom: this.menuReaderPresetCustom,
+          menuReaderPresetEditName: this.menuReaderPresetEditName,
           readerPresetOptions: this.menuReaderPresetOptions,
           menuScreenRotation: this.menuScreenRotation,
           menuReadingDirection: this.menuReadingDirection,
@@ -2603,8 +2604,8 @@ export struct ReaderScene {
           onSaveReaderPreset: () => {
             this.saveMenuReaderPreset();
           },
-          onEditReaderPreset: (name: string) => {
-            this.editMenuReaderPreset(name);
+          onRenameReaderPreset: (name: string) => {
+            this.renameMenuReaderPreset(name);
           },
           onDeleteReaderPreset: () => {
             this.deleteMenuReaderPreset();

@@ -130,9 +130,9 @@ export struct ReaderMenuDivider {
 
 @Component
 export struct ReaderMenuSelect {
-  label: string = '';
-  options: string[] = [];
-  value: string = '';
+  @Prop label: string = '';
+  @Prop options: string[] = [];
+  @Prop value: string = '';
   onChange: (v: string) => void = () => {};
 
   build() {

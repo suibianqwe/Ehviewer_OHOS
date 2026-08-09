@@ -383,7 +383,7 @@ export struct ReaderSettingsMenuOverlay {
   onReaderPresetChange: (value: string) => void = (_value: string) => {};
   onCreateReaderPreset: (name: string) => void = (_name: string) => {};
   onSaveReaderPreset: () => void = () => {};
-  onEditReaderPreset: (name: string) => void = (_name: string) => {};
+  onRenameReaderPreset: (name: string) => void = (_name: string) => {};
   onDeleteReaderPreset: () => void = () => {};
   onScreenRotationChange: (value: string) => void = (_value: string) => {};
   onReadingDirectionChange: (value: string) => void = (_value: string) => {};
@@ -421,7 +421,7 @@ export struct ReaderSettingsMenuOverlay {
 
   private openPresetEditor(mode: string): void {
     this.presetDialogMode = mode;
-    this.presetEditorName = mode === 'edit' ? this.menuReaderPresetEditName : '';
+    this.presetEditorName = mode === 'rename' ? this.menuReaderPresetEditName : '';
     this.presetNameError = false;
   }
 
@@ -438,8 +438,8 @@ export struct ReaderSettingsMenuOverlay {
     }
     if (this.presetDialogMode === 'create') {
       this.onCreateReaderPreset(name);
-    } else if (this.presetDialogMode === 'edit') {
-      this.onEditReaderPreset(name);
+    } else if (this.presetDialogMode === 'rename') {
+      this.onRenameReaderPreset(name);
     }
     this.closePresetDialog();
   }
@@ -479,8 +479,8 @@ export struct ReaderSettingsMenuOverlay {
           this.openPresetEditor('create');
         }
       })
-      this.PresetActionButton('Edit preset', $r('sys.symbol.square_and_pencil'), this.menuReaderPresetCustom, () => {
-        this.openPresetEditor('edit');
+      this.PresetActionButton('Rename preset', $r('sys.symbol.square_and_pencil'), this.menuReaderPresetCustom, () => {
+        this.openPresetEditor('rename');
       })
       this.PresetActionButton('Delete preset', $r('sys.symbol.trash'), this.menuReaderPresetCustom, () => {
         this.presetDialogMode = 'delete';
@@ -506,7 +506,7 @@ export struct ReaderSettingsMenuOverlay {
       Column({ space: 14 }) {
         Row() {
           Text(uiText(this.presetDialogMode === 'create' ? 'New reading preset' :
-            (this.presetDialogMode === 'edit' ? 'Edit reading preset' : 'Delete reading preset')))
+            (this.presetDialogMode === 'rename' ? 'Rename reading preset' : 'Delete reading preset')))
             .fontSize(17)
             .fontWeight(FontWeight.Medium)
             .fontColor('#F8FAFC')
