@@ -10,6 +10,7 @@ export interface ReaderImageProcessingPrefetchPlan {
   fallbackHdrKey: string;
   targetWidth: number;
   targetHeight: number;
+  superResolutionEngine: string;
   superResolution: boolean;
   hdr: boolean;
   priority: number;
@@ -23,6 +24,7 @@ class ReaderImageProcessingReservation {
   fallbackHdrKey: string;
   targetWidth: number;
   targetHeight: number;
+  superResolutionEngine: string;
   retainedHdrKey: string = '';
   superResolution: boolean;
   hdr: boolean;
@@ -39,6 +41,7 @@ class ReaderImageProcessingReservation {
     this.fallbackHdrKey = plan.fallbackHdrKey;
     this.targetWidth = plan.targetWidth;
     this.targetHeight = plan.targetHeight;
+    this.superResolutionEngine = plan.superResolutionEngine;
     this.superResolution = plan.superResolution;
     this.hdr = plan.hdr;
     this.priority = plan.priority;
@@ -84,7 +87,7 @@ export class ReaderImageProcessingPrefetchScope {
       reservation.superResolutionRetained = true;
       readerSuperResolutionService.acquire(reservation.superResolutionKey, reservation.sourcePath,
         reservation.priority, reservation.targetWidth,
-        reservation.targetHeight).then((pixelMap: image.PixelMap | undefined) => {
+        reservation.targetHeight, reservation.superResolutionEngine).then((pixelMap: image.PixelMap | undefined) => {
         if (!reservation.active || !reservation.hdr) {
           return;
         }

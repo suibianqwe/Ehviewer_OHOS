@@ -26,6 +26,7 @@ import {
 import { previewThumbnailCache } from '../services/PreviewThumbnailCache';
 import { FilterRule, ehFilterStore } from '../services/EhFilterStore';
 import { CommentBlacklistBackupEntry } from '../services/EhCommentBlacklistStore';
+import { readerSuperResolutionEngineOptions } from '../services/ReaderSuperResolutionSupport';
 import { LocalFavoriteBackupInfo } from '../services/EhLocalFavoritesStore';
 import { SearchBookmarkBackupInfo } from '../services/EhBookmarkStore';
 import { EH_AUTHOR_NAME, EH_RELEASE_TAG } from '../services/EhBuildInfo';
@@ -1560,6 +1561,11 @@ export function zhText(text: string): string {
     case 'Image super resolution': return '图片超分';
     case 'Use the system image engine to enhance low-resolution reader pages':
       return '使用系统图片引擎增强低分辨率阅读页面';
+    case 'Super-resolution engine': return '超分引擎';
+    case 'Choose detail enhancement or Core Vision AI on API 26 devices':
+      return '在 API 26 设备上选择细节增强或 Core Vision AI 超分';
+    case 'Detail enhancer': return '细节增强';
+    case 'Core Vision AI': return 'Core Vision AI';
     case 'SDR to HDR': return 'SDR 转 HDR';
     case 'Convert reader images in the prerender range to HDR; super resolution runs first when both are enabled':
       return '设备支持时，将预渲染范围内的阅读图片转换为 HDR；同时开启超分时先超分再转换';
@@ -3123,7 +3129,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     const readingDirection = normalizeReadingDirectionOption(settingEntryValue(entries, 'reading_direction', 'Right to left'));
     const continuousMode = readingDirection === 'Top to bottom';
     const adaptiveDualPage = settingEntryValue(entries, 'adaptive_dual_page', 'Off') === 'On';
-    return [
+    const rows: SettingsRowItem[] = [
       staticSettingsRow('reader_presets', 'Reading presets',
         'Save and quickly apply groups of reader settings', '', 'navigation'),
       optionSettingsRow('screen_rotation', 'Screen rotation', 'Reader orientation policy', entries,
@@ -3139,7 +3145,15 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('reader_crop_white_borders', 'Crop white and black borders',
         'Automatically trim uniform light or dark margins while reading', entries, ON_OFF_OPTIONS),
       optionSettingsRow('reader_image_super_resolution', 'Image super resolution',
-        'Use the system image engine to enhance low-resolution reader pages', entries, ON_OFF_OPTIONS),
+        'Use the system image engine to enhance low-resolution reader pages', entries, ON_OFF_OPTIONS)
+    ];
+    const superResolutionEngines = readerSuperResolutionEngineOptions();
+    if (settingEntryValue(entries, 'reader_image_super_resolution', 'Off') === 'On' &&
+      superResolutionEngines.length > 1) {
+      rows.push(optionSettingsRow('reader_super_resolution_engine', 'Super-resolution engine',
+        'Choose detail enhancement or Core Vision AI on API 26 devices', entries, superResolutionEngines));
+    }
+    rows.push(
       optionSettingsRow('reader_sdr_to_hdr', 'SDR to HDR',
         'Convert reader images in the prerender range to HDR; super resolution runs first when both are enabled',
         entries, ON_OFF_OPTIONS),
@@ -3159,7 +3173,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('screen_lightness', 'Screen lightness', 'Custom reader brightness when enabled', entries, readerBrightnessLevelOptions()),
       optionSettingsRow('ultra_dark_mode', 'Ultra dark mode', 'Dim reader with a black overlay and minimum system brightness', entries, ON_OFF_OPTIONS),
       optionSettingsRow('ultra_dark_lightness', 'Ultra dark brightness', 'Black overlay opacity while ultra dark mode is enabled', entries, readerUltraDarkLightnessOptions())
-    ];
+    );
+    return rows;
   }
 
   if (panel === SettingsPanel.Download) {

@@ -1,4 +1,8 @@
 import { ehSettingsStore } from './EhSettingsStore';
+import {
+  normalizeReaderSuperResolutionEngine,
+  READER_SUPER_RESOLUTION_ENGINE_DETAIL
+} from './ReaderSuperResolutionSupport';
 
 export const READER_CUSTOM_PRESETS_SETTING_KEY: string = 'reader_custom_presets';
 
@@ -9,6 +13,7 @@ export interface ReaderPresetValues {
   adaptiveDualPage: boolean;
   cropWhiteBorders: boolean;
   imageSuperResolution: boolean;
+  superResolutionEngine: string;
   sdrToHdr: boolean;
   startPosition: string;
 }
@@ -34,6 +39,7 @@ interface StoredReaderPresetValues {
   adaptiveDualPage?: boolean;
   cropWhiteBorders?: boolean;
   imageSuperResolution?: boolean;
+  superResolutionEngine?: string;
   sdrToHdr?: boolean;
   startPosition?: string;
 }
@@ -51,7 +57,8 @@ const BUILT_IN_READER_PRESETS: ReaderPresetProfile[] = [
     name: 'Manga',
     summary: 'Right-to-left single-page reading with screen fitting',
     builtIn: true,
-    values: createReaderPresetValues('Default', 'Right to left', 'Fit screen', false, false, false, false,
+    values: createReaderPresetValues('Default', 'Right to left', 'Fit screen', false, false, false,
+      READER_SUPER_RESOLUTION_ENGINE_DETAIL, false,
       'Top right')
   },
   {
@@ -59,7 +66,8 @@ const BUILT_IN_READER_PRESETS: ReaderPresetProfile[] = [
     name: 'Dual-page manga',
     summary: 'Right-to-left reading with adaptive dual-page layout',
     builtIn: true,
-    values: createReaderPresetValues('Default', 'Right to left', 'Fit screen', true, true, false, false,
+    values: createReaderPresetValues('Default', 'Right to left', 'Fit screen', true, true, false,
+      READER_SUPER_RESOLUTION_ENGINE_DETAIL, false,
       'Top right')
   },
   {
@@ -67,7 +75,8 @@ const BUILT_IN_READER_PRESETS: ReaderPresetProfile[] = [
     name: 'Left-to-right comics',
     summary: 'Left-to-right single-page reading with screen fitting',
     builtIn: true,
-    values: createReaderPresetValues('Default', 'Left to right', 'Fit screen', false, false, false, false,
+    values: createReaderPresetValues('Default', 'Left to right', 'Fit screen', false, false, false,
+      READER_SUPER_RESOLUTION_ENGINE_DETAIL, false,
       'Top left')
   },
   {
@@ -75,7 +84,8 @@ const BUILT_IN_READER_PRESETS: ReaderPresetProfile[] = [
     name: 'Webtoon',
     summary: 'Continuous top-to-bottom reading fitted to screen width',
     builtIn: true,
-    values: createReaderPresetValues('Default', 'Top to bottom', 'Fit width', false, false, false, false,
+    values: createReaderPresetValues('Default', 'Top to bottom', 'Fit width', false, false, false,
+      READER_SUPER_RESOLUTION_ENGINE_DETAIL, false,
       'Top left')
   }
 ];
@@ -177,6 +187,7 @@ export function readerPresetValuesFromSettings(): ReaderPresetValues {
     ehSettingsStore.getValue('adaptive_dual_page', 'Off') === 'On',
     ehSettingsStore.getValue('reader_crop_white_borders', 'Off') === 'On',
     ehSettingsStore.getValue('reader_image_super_resolution', 'Off') === 'On',
+    ehSettingsStore.getValue('reader_super_resolution_engine', READER_SUPER_RESOLUTION_ENGINE_DETAIL),
     ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On',
     ehSettingsStore.getValue('start_position', 'Top right')
   );
@@ -190,6 +201,7 @@ export function applyReaderPresetValues(values: ReaderPresetValues): void {
   ehSettingsStore.setValue('page_scaling', values.pageScaling);
   ehSettingsStore.setValue('reader_crop_white_borders', values.cropWhiteBorders ? 'On' : 'Off');
   ehSettingsStore.setValue('reader_image_super_resolution', values.imageSuperResolution ? 'On' : 'Off');
+  ehSettingsStore.setValue('reader_super_resolution_engine', values.superResolutionEngine);
   ehSettingsStore.setValue('reader_sdr_to_hdr', values.sdrToHdr ? 'On' : 'Off');
   ehSettingsStore.setValue('start_position', values.startPosition);
   ehSettingsStore.setValue('adaptive_dual_page', values.adaptiveDualPage ? 'On' : 'Off');
@@ -299,13 +311,14 @@ export function cloneReaderPresetProfiles(profiles: ReaderPresetProfile[]): Read
 
 export function cloneReaderPresetValues(values: ReaderPresetValues): ReaderPresetValues {
   return createReaderPresetValues(values.screenRotation, values.readingDirection, values.pageScaling,
-    values.adaptiveDualPage, values.cropWhiteBorders, values.imageSuperResolution, values.sdrToHdr,
+    values.adaptiveDualPage, values.cropWhiteBorders, values.imageSuperResolution, values.superResolutionEngine,
+    values.sdrToHdr,
     values.startPosition);
 }
 
 export function createReaderPresetValues(screenRotation: string, readingDirection: string, pageScaling: string,
-  adaptiveDualPage: boolean, cropWhiteBorders: boolean, imageSuperResolution: boolean, sdrToHdr: boolean,
-  startPosition: string): ReaderPresetValues {
+  adaptiveDualPage: boolean, cropWhiteBorders: boolean, imageSuperResolution: boolean,
+  superResolutionEngine: string, sdrToHdr: boolean, startPosition: string): ReaderPresetValues {
   return {
     screenRotation: normalizeOption(screenRotation, ['Default', 'Portrait', 'Landscape', 'Auto rotate', 'Match image'], 'Default'),
     readingDirection: normalizeOption(readingDirection, ['Left to right', 'Right to left', 'Top to bottom'], 'Right to left'),
@@ -313,6 +326,7 @@ export function createReaderPresetValues(screenRotation: string, readingDirectio
     adaptiveDualPage: adaptiveDualPage,
     cropWhiteBorders: cropWhiteBorders,
     imageSuperResolution: imageSuperResolution,
+    superResolutionEngine: normalizeReaderSuperResolutionEngine(superResolutionEngine),
     sdrToHdr: sdrToHdr,
     startPosition: normalizeOption(startPosition, ['Top left', 'Top right', 'Bottom left', 'Bottom right', 'Center'], 'Top right')
   };
@@ -329,6 +343,8 @@ function parseStoredReaderPresetValues(value: StoredReaderPresetValues | undefin
     value.adaptiveDualPage === true,
     value.cropWhiteBorders === true,
     value.imageSuperResolution === true,
+    typeof value.superResolutionEngine === 'string' ? value.superResolutionEngine :
+      READER_SUPER_RESOLUTION_ENGINE_DETAIL,
     value.sdrToHdr === true,
     typeof value.startPosition === 'string' ? value.startPosition : 'Top right'
   );
@@ -338,7 +354,8 @@ function readerPresetValuesEqual(left: ReaderPresetValues, right: ReaderPresetVa
   return left.screenRotation === right.screenRotation && left.readingDirection === right.readingDirection &&
     left.pageScaling === right.pageScaling && left.adaptiveDualPage === right.adaptiveDualPage &&
     left.cropWhiteBorders === right.cropWhiteBorders &&
-    left.imageSuperResolution === right.imageSuperResolution && left.sdrToHdr === right.sdrToHdr &&
+    left.imageSuperResolution === right.imageSuperResolution &&
+    left.superResolutionEngine === right.superResolutionEngine && left.sdrToHdr === right.sdrToHdr &&
     left.startPosition === right.startPosition;
 }
 
@@ -391,6 +408,7 @@ function storedReaderPresetValues(values: ReaderPresetValues): StoredReaderPrese
     adaptiveDualPage: values.adaptiveDualPage,
     cropWhiteBorders: values.cropWhiteBorders,
     imageSuperResolution: values.imageSuperResolution,
+    superResolutionEngine: values.superResolutionEngine,
     sdrToHdr: values.sdrToHdr,
     startPosition: values.startPosition
   };

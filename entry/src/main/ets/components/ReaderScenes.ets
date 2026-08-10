@@ -50,6 +50,12 @@ import { IMAGE_DOWNLOAD_PRIORITY_READER, readerImageCache } from '../services/Re
 import { readerHdrService } from '../services/ReaderHdrService';
 import { readerSuperResolutionService } from '../services/ReaderSuperResolutionService';
 import {
+  effectiveReaderSuperResolutionEngine,
+  readerSuperResolutionEngineCacheKey,
+  readerSuperResolutionEngineOptions,
+  READER_SUPER_RESOLUTION_ENGINE_DETAIL
+} from '../services/ReaderSuperResolutionSupport';
+import {
   createEmptyPage,
   getAbilityContext,
   readerDisplayImageUrl,
@@ -188,6 +194,7 @@ export struct ReaderScene {
   @State adaptiveDualPage: boolean = false;
   @State cropWhiteBorders: boolean = false;
   @State imageSuperResolutionEnabled: boolean = false;
+  @State imageSuperResolutionEngine: string = READER_SUPER_RESOLUTION_ENGINE_DETAIL;
   @State sdrToHdrEnabled: boolean = false;
   @State startPosition: string = 'Top right';
   @State showInfo: boolean = false;
@@ -277,6 +284,7 @@ export struct ReaderScene {
   @State menuAdaptiveDualPage: boolean = false;
   @State menuCropWhiteBorders: boolean = false;
   @State menuImageSuperResolutionEnabled: boolean = false;
+  @State menuImageSuperResolutionEngine: string = READER_SUPER_RESOLUTION_ENGINE_DETAIL;
   @State menuSdrToHdrEnabled: boolean = false;
   @State menuStartPosition: string = 'Top right';
   @State menuKeepScreenOn: boolean = false;
@@ -331,6 +339,8 @@ export struct ReaderScene {
     this.cropWhiteBorders = ehSettingsStore.getValue('reader_crop_white_borders', 'Off') === 'On';
     this.imageSuperResolutionEnabled =
       ehSettingsStore.getValue('reader_image_super_resolution', 'Off') === 'On';
+    this.imageSuperResolutionEngine = effectiveReaderSuperResolutionEngine(
+      ehSettingsStore.getValue('reader_super_resolution_engine', READER_SUPER_RESOLUTION_ENGINE_DETAIL));
     this.sdrToHdrEnabled = ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
     this.resetReaderImageSizesForGallery();
     if (!this.cropWhiteBorders) {
@@ -1042,7 +1052,8 @@ export struct ReaderScene {
       const sourceKey = readerPageImageCacheKey(page, original);
       const target = this.superResolutionDisplayTarget(pageIndex);
       const targetKey = this.superResolutionTargetKey(target);
-      const superResolutionKey = sourceKey + '|' + sourcePath + '|sr|' + targetKey;
+      const engineKey = readerSuperResolutionEngineCacheKey(this.imageSuperResolutionEngine);
+      const superResolutionKey = sourceKey + '|' + sourcePath + '|sr|' + engineKey + '|' + targetKey;
       const hdrKey = this.imageSuperResolutionEnabled ? superResolutionKey + '|hdr' :
         sourceKey + '|' + sourcePath + '|hdr';
       const fallbackHdrKey = sourceKey + '|' + sourcePath + '|hdr';
@@ -1057,6 +1068,7 @@ export struct ReaderScene {
         fallbackHdrKey: fallbackHdrKey,
         targetWidth: target.width,
         targetHeight: target.height,
+        superResolutionEngine: this.imageSuperResolutionEngine,
         superResolution: this.imageSuperResolutionEnabled,
         hdr: this.sdrToHdrEnabled,
         priority: priority
@@ -1168,6 +1180,8 @@ export struct ReaderScene {
     this.menuCropWhiteBorders = ehSettingsStore.getValue('reader_crop_white_borders', 'Off') === 'On';
     this.menuImageSuperResolutionEnabled =
       ehSettingsStore.getValue('reader_image_super_resolution', 'Off') === 'On';
+    this.menuImageSuperResolutionEngine = effectiveReaderSuperResolutionEngine(
+      ehSettingsStore.getValue('reader_super_resolution_engine', READER_SUPER_RESOLUTION_ENGINE_DETAIL));
     this.menuSdrToHdrEnabled = ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
     this.menuStartPosition = normalizeStartPositionOption(ehSettingsStore.getValue('start_position', 'Top right'));
     this.menuKeepScreenOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
@@ -1195,6 +1209,7 @@ export struct ReaderScene {
     ehSettingsStore.setValue('reader_crop_white_borders', this.menuCropWhiteBorders ? 'On' : 'Off');
     ehSettingsStore.setValue('reader_image_super_resolution',
       this.menuImageSuperResolutionEnabled ? 'On' : 'Off');
+    ehSettingsStore.setValue('reader_super_resolution_engine', this.menuImageSuperResolutionEngine);
     ehSettingsStore.setValue('reader_sdr_to_hdr', this.menuSdrToHdrEnabled ? 'On' : 'Off');
     ehSettingsStore.setValue('screen_rotation', this.menuScreenRotation);
     ehSettingsStore.setValue('reading_direction', this.menuReadingDirection);
@@ -1221,6 +1236,7 @@ export struct ReaderScene {
     this.adaptiveDualPage = this.menuAdaptiveDualPage;
     this.cropWhiteBorders = this.menuCropWhiteBorders;
     this.imageSuperResolutionEnabled = this.menuImageSuperResolutionEnabled;
+    this.imageSuperResolutionEngine = effectiveReaderSuperResolutionEngine(this.menuImageSuperResolutionEngine);
     this.sdrToHdrEnabled = this.menuSdrToHdrEnabled;
     if (previousAdaptiveDualPage !== this.adaptiveDualPage) {
       this.onAdaptiveDualPageChange(this.adaptiveDualPage);
@@ -1279,7 +1295,7 @@ export struct ReaderScene {
   private currentMenuReaderPresetValues(): ReaderPresetValues {
     return createReaderPresetValues(this.menuScreenRotation, this.menuReadingDirection, this.menuPageScaling,
       this.menuAdaptiveDualPage, this.menuCropWhiteBorders, this.menuImageSuperResolutionEnabled,
-      this.menuSdrToHdrEnabled, this.menuStartPosition);
+      this.menuImageSuperResolutionEngine, this.menuSdrToHdrEnabled, this.menuStartPosition);
   }
 
   private syncMenuReaderPreset(): void {
@@ -1328,6 +1344,7 @@ export struct ReaderScene {
     this.menuAdaptiveDualPage = profile.values.adaptiveDualPage;
     this.menuCropWhiteBorders = profile.values.cropWhiteBorders;
     this.menuImageSuperResolutionEnabled = profile.values.imageSuperResolution;
+    this.menuImageSuperResolutionEngine = effectiveReaderSuperResolutionEngine(profile.values.superResolutionEngine);
     this.menuSdrToHdrEnabled = profile.values.sdrToHdr;
     this.menuStartPosition = profile.values.startPosition;
     this.applyAdaptiveDualPageMenuConstraints();
@@ -1480,6 +1497,11 @@ export struct ReaderScene {
 
   private onMenuImageSuperResolutionChange(value: boolean): void {
     this.menuImageSuperResolutionEnabled = value;
+    this.markMenuReaderPresetCustom();
+  }
+
+  private onMenuImageSuperResolutionEngineChange(value: string): void {
+    this.menuImageSuperResolutionEngine = effectiveReaderSuperResolutionEngine(value);
     this.markMenuReaderPresetCustom();
   }
 
@@ -2019,10 +2041,12 @@ export struct ReaderScene {
     let superResolutionPixelMap: image.PixelMap | undefined = undefined;
     if (this.imageSuperResolutionEnabled) {
       const target = this.superResolutionDisplayTarget(index);
-      lease.superResolutionKey = sourceKey + '|' + sourcePath + '|sr|' + this.superResolutionTargetKey(target);
+      lease.superResolutionKey = sourceKey + '|' + sourcePath + '|sr|' +
+        readerSuperResolutionEngineCacheKey(this.imageSuperResolutionEngine) + '|' +
+        this.superResolutionTargetKey(target);
       try {
         superResolutionPixelMap = await readerSuperResolutionService.acquire(lease.superResolutionKey,
-          sourcePath, 0, target.width, target.height);
+          sourcePath, 0, target.width, target.height, this.imageSuperResolutionEngine);
       } catch (_error) {
         superResolutionPixelMap = undefined;
       }
@@ -2520,6 +2544,7 @@ export struct ReaderScene {
       isActive: this.pageGroupAnchorForPageIndex(index) === this.currentIndex,
       hdrEnabled: this.sdrToHdrEnabled,
       superResolutionEnabled: this.imageSuperResolutionEnabled,
+      superResolutionEngine: this.imageSuperResolutionEngine,
       superResolutionTargetWidth: this.superResolutionDisplayTarget(index).width,
       superResolutionTargetHeight: this.superResolutionDisplayTarget(index).height,
       cropWhiteBorders: this.cropWhiteBorders,
@@ -2624,6 +2649,7 @@ export struct ReaderScene {
                   Math.abs(item.index - this.currentIndex) <= this.readerContinuousCacheCount(),
                 superResolutionEnabled: this.imageSuperResolutionEnabled &&
                   Math.abs(item.index - this.currentIndex) <= this.readerContinuousCacheCount(),
+                superResolutionEngine: this.imageSuperResolutionEngine,
                 superResolutionTargetWidth: this.superResolutionDisplayTarget(item.index).width,
                 superResolutionTargetHeight: this.superResolutionDisplayTarget(item.index).height,
                 cropWhiteBorders: this.cropWhiteBorders &&
@@ -2842,6 +2868,7 @@ export struct ReaderScene {
           menuAdaptiveDualPage: this.menuAdaptiveDualPage,
           menuCropWhiteBorders: this.menuCropWhiteBorders,
           menuImageSuperResolution: this.menuImageSuperResolutionEnabled,
+          menuImageSuperResolutionEngine: this.menuImageSuperResolutionEngine,
           menuSdrToHdrEnabled: this.menuSdrToHdrEnabled,
           menuStartPosition: this.menuStartPosition,
           menuAutoTransferTime: this.menuAutoTransferTime,
@@ -2858,6 +2885,7 @@ export struct ReaderScene {
           screenRotationOptions: this.readerMenuScreenRotationOptions(),
           readingDirectionOptions: this.readerMenuReadingDirectionOptions(),
           pageScalingOptions: this.readerMenuPageScalingOptions(),
+          superResolutionEngineOptions: readerSuperResolutionEngineOptions(),
           onDismiss: () => {
             this.hideMenu();
           },
@@ -2899,6 +2927,9 @@ export struct ReaderScene {
           },
           onImageSuperResolutionChange: (value: boolean) => {
             this.onMenuImageSuperResolutionChange(value);
+          },
+          onImageSuperResolutionEngineChange: (value: string) => {
+            this.onMenuImageSuperResolutionEngineChange(value);
           },
           onSdrToHdrChange: (value: boolean) => {
             this.onMenuSdrToHdrChange(value);

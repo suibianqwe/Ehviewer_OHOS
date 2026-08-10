@@ -358,6 +358,7 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuAdaptiveDualPage: boolean = false;
   @Prop menuCropWhiteBorders: boolean = false;
   @Prop menuImageSuperResolution: boolean = false;
+  @Prop menuImageSuperResolutionEngine: string = 'Detail enhancer';
   @Prop menuSdrToHdrEnabled: boolean = false;
   @Prop menuStartPosition: string = 'Top right';
   @Prop menuAutoTransferTime: string = '5s';
@@ -378,6 +379,7 @@ export struct ReaderSettingsMenuOverlay {
   @Prop screenRotationOptions: string[] = [];
   @Prop readingDirectionOptions: string[] = [];
   @Prop pageScalingOptions: string[] = [];
+  @Prop superResolutionEngineOptions: string[] = [];
   @Link readerPresetOptions: string[];
   onDismiss: () => void = () => {};
   onBack: () => void = () => {};
@@ -392,6 +394,7 @@ export struct ReaderSettingsMenuOverlay {
   onAdaptiveDualPageChange: (value: boolean) => void = (_value: boolean) => {};
   onCropWhiteBordersChange: (value: boolean) => void = (_value: boolean) => {};
   onImageSuperResolutionChange: (value: boolean) => void = (_value: boolean) => {};
+  onImageSuperResolutionEngineChange: (value: string) => void = (_value: string) => {};
   onSdrToHdrChange: (value: boolean) => void = (_value: boolean) => {};
   onStartPositionChange: (value: string) => void = (_value: string) => {};
   onAutoTransferTimeChange: (value: string) => void = (_value: string) => {};
@@ -688,6 +691,15 @@ export struct ReaderSettingsMenuOverlay {
           value: this.menuImageSuperResolution,
           onChange: this.onImageSuperResolutionChange
         })
+        if (this.menuImageSuperResolution && this.superResolutionEngineOptions.length > 1) {
+          ReaderMenuDivider()
+          ReaderMenuSelect({
+            label: uiText('Super-resolution engine'),
+            options: this.superResolutionEngineOptions,
+            value: this.menuImageSuperResolutionEngine,
+            onChange: this.onImageSuperResolutionEngineChange
+          })
+        }
         ReaderMenuDivider()
         ReaderMenuToggle({
           label: uiText('SDR to HDR'),

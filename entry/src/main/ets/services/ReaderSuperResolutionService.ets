@@ -1,5 +1,12 @@
 import { image, videoProcessingEngine } from '@kit.ImageKit';
+import { imageSuperResolution, visionBase } from '@kit.CoreVisionKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import {
+  coreVisionSuperResolutionAvailable,
+  effectiveReaderSuperResolutionEngine,
+  READER_SUPER_RESOLUTION_ENGINE_CORE_VISION,
+  READER_SUPER_RESOLUTION_ENGINE_DETAIL
+} from './ReaderSuperResolutionSupport';
 
 const TAG = 'ReaderSuperResolution';
 const DOMAIN = 0x3210;
@@ -10,10 +17,14 @@ const HIGH_MIN_INPUT_DIMENSION: number = 180;
 const HIGH_MIN_OUTPUT_DIMENSION: number = 512;
 const HIGH_MAX_DIMENSION: number = 2000;
 const SEGMENT_OVERLAP: number = 32;
+const CORE_VISION_MAX_INPUT_DIMENSION: number = 3000;
+const CORE_VISION_MAX_INPUT_PIXELS: number = 2500000;
+const CORE_VISION_MAX_ASPECT_RATIO: number = 10;
 
 interface ReaderSuperResolutionEntry {
   key: string;
   sourcePath: string;
+  engine: string;
   targetWidth: number;
   targetHeight: number;
   references: number;
@@ -50,21 +61,27 @@ class ReaderSuperResolutionService {
   private nextSequence: number = 0;
   private processor: videoProcessingEngine.ImageProcessor | undefined = undefined;
   private environmentPromise: Promise<boolean> | undefined = undefined;
-  private capabilityUnavailable: boolean = false;
+  private detailEnhancerUnavailable: boolean = false;
+  private coreVisionAnalyzer: imageSuperResolution.ImageSRAnalyzer | undefined = undefined;
+  private coreVisionAnalyzerPromise: Promise<boolean> | undefined = undefined;
+  private coreVisionUnavailable: boolean = false;
 
   acquire(key: string, sourcePath: string, priority: number = 0,
-    targetWidth: number = 0, targetHeight: number = 0): Promise<image.PixelMap | undefined> {
-    if (key.length === 0 || sourcePath.length === 0 || this.capabilityUnavailable) {
+    targetWidth: number = 0, targetHeight: number = 0,
+    engine: string = READER_SUPER_RESOLUTION_ENGINE_DETAIL): Promise<image.PixelMap | undefined> {
+    if (key.length === 0 || sourcePath.length === 0) {
       return Promise.resolve(undefined);
     }
+    const effectiveEngine = effectiveReaderSuperResolutionEngine(engine);
     let entry = this.entries.get(key);
-    if (entry === undefined || entry.sourcePath !== sourcePath) {
+    if (entry === undefined || entry.sourcePath !== sourcePath || entry.engine !== effectiveEngine) {
       if (entry !== undefined) {
         this.disposeEntry(entry);
       }
       entry = {
         key: key,
         sourcePath: sourcePath,
+        engine: effectiveEngine,
         targetWidth: Math.max(0, Math.round(targetWidth)),
         targetHeight: Math.max(0, Math.round(targetHeight)),
         references: 0,
@@ -208,7 +225,7 @@ class ReaderSuperResolutionService {
     if (this.processor !== undefined) {
       return true;
     }
-    if (this.capabilityUnavailable) {
+    if (this.detailEnhancerUnavailable) {
       return false;
     }
     if (this.environmentPromise === undefined) {
@@ -222,19 +239,127 @@ class ReaderSuperResolutionService {
       await videoProcessingEngine.initializeEnvironment();
       this.processor = videoProcessingEngine.create();
       if (this.processor === undefined || this.processor === null) {
-        this.capabilityUnavailable = true;
+        this.detailEnhancerUnavailable = true;
         return false;
       }
       return true;
     } catch (error) {
-      this.capabilityUnavailable = true;
+      this.detailEnhancerUnavailable = true;
       hilog.warn(DOMAIN, TAG, `System image super-resolution is unavailable: ${String(error)}`);
       return false;
     }
   }
 
+  private async ensureCoreVisionAnalyzer(): Promise<boolean> {
+    if (this.coreVisionAnalyzer !== undefined) {
+      return true;
+    }
+    if (this.coreVisionUnavailable || !coreVisionSuperResolutionAvailable()) {
+      return false;
+    }
+    if (this.coreVisionAnalyzerPromise === undefined) {
+      this.coreVisionAnalyzerPromise = this.initializeCoreVisionAnalyzer();
+    }
+    return this.coreVisionAnalyzerPromise;
+  }
+
+  private async initializeCoreVisionAnalyzer(): Promise<boolean> {
+    try {
+      this.coreVisionAnalyzer = await imageSuperResolution.ImageSRAnalyzer.create();
+      if (this.coreVisionAnalyzer === undefined || this.coreVisionAnalyzer === null) {
+        this.coreVisionUnavailable = true;
+        return false;
+      }
+      return true;
+    } catch (error) {
+      this.coreVisionUnavailable = true;
+      hilog.warn(DOMAIN, TAG, `Core Vision AI super-resolution is unavailable: ${String(error)}`);
+      return false;
+    }
+  }
+
+  private coreVisionInputSize(width: number, height: number): image.Size {
+    const pixelScale = Math.sqrt(CORE_VISION_MAX_INPUT_PIXELS / Math.max(1, width * height));
+    const dimensionScale = Math.min(CORE_VISION_MAX_INPUT_DIMENSION / Math.max(1, width),
+      CORE_VISION_MAX_INPUT_DIMENSION / Math.max(1, height));
+    const scale = Math.min(1, pixelScale, dimensionScale);
+    return {
+      width: Math.max(MIN_DIMENSION, Math.round(width * scale)),
+      height: Math.max(MIN_DIMENSION, Math.round(height * scale))
+    };
+  }
+
+  private async runCoreVisionEnhancement(source: image.ImageSource, sourceWidth: number, sourceHeight: number,
+    plan: ReaderSuperResolutionPlan, entry: ReaderSuperResolutionEntry): Promise<image.PixelMap | undefined> {
+    const aspectRatio = Math.max(sourceWidth / Math.max(1, sourceHeight),
+      sourceHeight / Math.max(1, sourceWidth));
+    if (aspectRatio > CORE_VISION_MAX_ASPECT_RATIO || !await this.ensureCoreVisionAnalyzer() ||
+      !this.isEntryActive(entry)) {
+      return undefined;
+    }
+    const analyzer = this.coreVisionAnalyzer;
+    if (analyzer === undefined) {
+      return undefined;
+    }
+    const inputSize = this.coreVisionInputSize(sourceWidth, sourceHeight);
+    let inputPixelMap: image.PixelMap | undefined = undefined;
+    let outputPixelMap: image.PixelMap | undefined = undefined;
+    try {
+      if (inputSize.width !== sourceWidth || inputSize.height !== sourceHeight) {
+        inputPixelMap = await source.createPixelMap({
+          editable: false,
+          index: 0,
+          desiredSize: inputSize,
+          desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
+          desiredDynamicRange: image.DecodingDynamicRange.SDR
+        });
+      } else {
+        inputPixelMap = await source.createPixelMap({
+          editable: false,
+          index: 0,
+          desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
+          desiredDynamicRange: image.DecodingDynamicRange.SDR
+        });
+      }
+      if (!this.isEntryActive(entry)) {
+        return undefined;
+      }
+      const imageData: visionBase.ImageData = { pixelMap: inputPixelMap };
+      const request: visionBase.Request = { inputData: imageData };
+      const response = await analyzer.process(request);
+      outputPixelMap = response.pixelMap;
+      if (!this.isEntryActive(entry)) {
+        return undefined;
+      }
+      const outputInfo = outputPixelMap.getImageInfoSync();
+      if (outputInfo.size.width <= 0 || outputInfo.size.height <= 0) {
+        return undefined;
+      }
+      if (outputInfo.size.width !== plan.width || outputInfo.size.height !== plan.height) {
+        await outputPixelMap.scale(plan.width / outputInfo.size.width,
+          plan.height / outputInfo.size.height, image.AntiAliasingLevel.HIGH);
+      }
+      const result = outputPixelMap;
+      outputPixelMap = undefined;
+      hilog.info(DOMAIN, TAG,
+        `Core Vision AI super-resolution succeeded: input=${inputSize.width}x${inputSize.height}, ` +
+        `output=${plan.width}x${plan.height}`);
+      return result;
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, `Core Vision AI super-resolution failed: ${String(error)}`);
+      return undefined;
+    } finally {
+      if (outputPixelMap !== undefined) {
+        await this.releasePixelMap(outputPixelMap);
+      }
+      if (inputPixelMap !== undefined) {
+        await this.releasePixelMap(inputPixelMap);
+      }
+    }
+  }
+
   private enhancementPlan(width: number, height: number,
-    targetWidth: number, targetHeight: number): ReaderSuperResolutionPlan | null {
+    targetWidth: number, targetHeight: number, engine: string): ReaderSuperResolutionPlan | null {
     if (width < MIN_DIMENSION || height < MIN_DIMENSION || width > MEDIUM_MAX_DIMENSION) {
       return null;
     }
@@ -246,6 +371,13 @@ class ReaderSuperResolutionService {
     scale = Math.min(scale, MEDIUM_MAX_DIMENSION / width);
     const outputWidth = Math.max(MIN_DIMENSION, Math.round(width * scale));
     const outputHeight = Math.max(MIN_DIMENSION, Math.round(height * scale));
+    if (engine === READER_SUPER_RESOLUTION_ENGINE_CORE_VISION) {
+      const coreVisionPlan = new ReaderSuperResolutionPlan();
+      coreVisionPlan.width = outputWidth;
+      coreVisionPlan.height = outputHeight;
+      coreVisionPlan.scale = scale;
+      return coreVisionPlan;
+    }
     const highMinimumRegion = Math.max(HIGH_MIN_INPUT_DIMENSION,
       Math.ceil(HIGH_MIN_OUTPUT_DIMENSION / scale));
     const highMaximumRegion = Math.min(HIGH_MAX_DIMENSION, Math.floor(HIGH_MAX_DIMENSION / scale));
@@ -423,8 +555,8 @@ class ReaderSuperResolutionService {
       if (frameCount !== 1 || sourceInfo.isHdr || mimeType.indexOf('svg') >= 0) {
         return undefined;
       }
-      const plan = this.enhancementPlan(sourceInfo.size.width, sourceInfo.size.height,
-        entry.targetWidth, entry.targetHeight);
+      let plan = this.enhancementPlan(sourceInfo.size.width, sourceInfo.size.height,
+        entry.targetWidth, entry.targetHeight, entry.engine);
       if (plan === null) {
         hilog.info(DOMAIN, TAG, `Image super-resolution skipped: source=${sourceInfo.size.width}x${sourceInfo.size.height}, ` +
           `target=${entry.targetWidth}x${entry.targetHeight}`);
@@ -432,7 +564,23 @@ class ReaderSuperResolutionService {
       }
       hilog.info(DOMAIN, TAG, `Image super-resolution started: source=${sourceInfo.size.width}x${sourceInfo.size.height}, ` +
         `target=${entry.targetWidth}x${entry.targetHeight}, output=${plan.width}x${plan.height}, ` +
-        `scale=${plan.scale.toFixed(3)}, quality=${plan.level}, segmented=${plan.segmented}`);
+        `scale=${plan.scale.toFixed(3)}, engine=${entry.engine}, quality=${plan.level}, segmented=${plan.segmented}`);
+      if (entry.engine === READER_SUPER_RESOLUTION_ENGINE_CORE_VISION) {
+        const coreVisionResult = await this.runCoreVisionEnhancement(source, sourceInfo.size.width,
+          sourceInfo.size.height, plan, entry);
+        if (coreVisionResult !== undefined) {
+          return coreVisionResult;
+        }
+        if (!this.isEntryActive(entry)) {
+          return undefined;
+        }
+        hilog.warn(DOMAIN, TAG, 'Core Vision AI failed; falling back to the detail enhancer');
+        plan = this.enhancementPlan(sourceInfo.size.width, sourceInfo.size.height,
+          entry.targetWidth, entry.targetHeight, READER_SUPER_RESOLUTION_ENGINE_DETAIL);
+        if (plan === null) {
+          return undefined;
+        }
+      }
       if (!this.isEntryActive(entry) || !await this.ensureProcessor() ||
         this.processor === undefined) {
         return undefined;
