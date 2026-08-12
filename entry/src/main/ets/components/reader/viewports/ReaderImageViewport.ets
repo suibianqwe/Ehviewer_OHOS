@@ -87,6 +87,7 @@ export struct ReaderImageViewport {
   private sourceSizeRequestId: number = 0;
   private downloadProgressRequestId: number = 0;
   private retainedImageUrl: string = '';
+  private retainedSourceIdentity: string = '';
   private retainedHdrKey: string = '';
   private hdrRequestId: number = 0;
   private retainedSuperResolutionKey: string = '';
@@ -187,6 +188,11 @@ export struct ReaderImageViewport {
 
   private onImageSourceChange(): void {
     const url = this.imageUrl();
+    const sourceIdentity = this.imageSourceIdentity();
+    if (sourceIdentity === this.retainedSourceIdentity) {
+      return;
+    }
+    this.retainedSourceIdentity = sourceIdentity;
     this.releaseHdrPixelMap();
     this.releaseSuperResolutionPixelMap();
     this.cropRect = new ReaderCropRect();
@@ -223,6 +229,7 @@ export struct ReaderImageViewport {
     this.downloadProgressRequestId++;
     forgetReaderImageRuntimeState(this.retainedImageUrl);
     this.retainedImageUrl = '';
+    this.retainedSourceIdentity = '';
     this.releaseHdrPixelMap();
     this.releaseSuperResolutionPixelMap();
     this.cropRequestId++;
@@ -453,6 +460,10 @@ export struct ReaderImageViewport {
 
   private sourceImageCacheKey(): string {
     return readerPageImageCacheKey(this.page, this.preferOriginal && this.page.originImageUrl.length > 0);
+  }
+
+  private imageSourceIdentity(): string {
+    return this.imageUrl() + '|' + this.sourceImageCacheKey() + '|' + (this.preferOriginal ? '1' : '0');
   }
 
   private startDownloadProgressMonitor(): void {
