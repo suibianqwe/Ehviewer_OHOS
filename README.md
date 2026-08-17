@@ -10,8 +10,8 @@
 
 请在 [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases) 下载最新的未签名 HAP，可使用 [小白调试助手](https://github.com/likuai2010/auto-installer) 安装。
 
-- 当前版本：`0.6.0`
-- 安装包：[`EhViewer_OHOS_0.6.0.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.6.0/EhViewer_OHOS_0.6.0.hap)
+- 当前版本：`0.6.1`
+- 安装包：[`EhViewer_OHOS_0.6.1.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.6.1/EhViewer_OHOS_0.6.1.hap)
 - 目标 API：`26.0.0`
 - 兼容 API：`6.0.0(20)`
 
@@ -30,7 +30,8 @@ API 20 起可安装；低于 API 23 的设备会自动跳过不兼容的 SNI 域
 - 浏览：支持 E-Hentai/ExHentai、主页、订阅、热门、排行、云端收藏、本地收藏、历史和下载列表。
 - 搜索：支持关键词、多标签、上传者、高级筛选、搜索书签、搜索历史、相似图片和封面搜索。
 - 详情：支持收藏、评分、系统分享、Torrent 磁力链接、存档、H@H、评论、预览图、相似画廊、标签编辑和投票。
-- 阅读：支持左右/连续阅读、缩放、方向适配、自适应一屏双页、预加载、本地优先和独立全屏阅读器。
+- 阅读：支持左右/连续阅读、阅读预设、双击与手势缩放、方向适配、自适应一屏双页、白边裁切、预加载和独立全屏阅读器。
+- 图像增强：支持系统超分、API 26 Core Vision AI 超分及 SDR 转 HDR，可在预渲染阶段按“超分 → HDR”顺序组合处理。
 - 翻译：支持列表标题、详情标题、评论及漫画 OCR 翻译，可选网页翻译、DeepSeek、OpenAI、Gemini 和自定义兼容 API。
 - 下载：支持统一优先级并行调度、通知进度与速度、隐私通知、状态筛选、多选管理、恢复下载项和 ZIP 导入/导出。
 - 宽屏：支持可拖动分割线的左右分栏，列表、详情和设置页面保持独立路由与焦点返回逻辑。

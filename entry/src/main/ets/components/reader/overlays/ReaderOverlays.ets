@@ -718,6 +718,12 @@ export struct ReaderSettingsMenuOverlay {
         })
         ReaderMenuDivider()
         ReaderMenuToggle({
+          label: uiText('Keep screen on'),
+          value: this.menuKeepScreenOn,
+          onChange: this.onKeepScreenOnChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuToggle({
           label: uiText('Custom brightness'),
           value: this.customBrightnessVisible,
           onChange: (value: boolean) => {
@@ -780,12 +786,6 @@ export struct ReaderSettingsMenuOverlay {
   private ControlSettingsTab() {
     Scroll() {
       Column({ space: 0 }) {
-        ReaderMenuToggle({
-          label: uiText('Keep screen on'),
-          value: this.menuKeepScreenOn,
-          onChange: this.onKeepScreenOnChange
-        })
-        ReaderMenuDivider()
         ReaderMenuSlider({
           label: uiText('Auto transfer time'),
           value: readerAutoTransferSliderValue(this.menuAutoTransferTime),
