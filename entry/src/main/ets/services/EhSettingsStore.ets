@@ -172,6 +172,7 @@ export class EhSettingsStore {
     this.enforceAdaptiveDualPageConstraints();
     if (key === 'translation_buttons_enabled') {
       this.syncTranslationButtonVisibility();
+      this.syncReaderTranslationButtonVisibility();
     }
     if (key === 'reader_translation_enabled') {
       this.syncReaderTranslationButtonVisibility();
@@ -218,6 +219,7 @@ export class EhSettingsStore {
 
   syncReaderTranslationButtonVisibility(): void {
     AppStorage.setOrCreate<boolean>(READER_TRANSLATION_BUTTON_VISIBLE_KEY,
+      this.getValue('translation_buttons_enabled', 'On') === 'On' &&
       this.getValue('reader_translation_enabled', 'Off') === 'On');
   }
 
