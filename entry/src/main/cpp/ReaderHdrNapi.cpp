@@ -19,6 +19,7 @@
 namespace {
 
 std::mutex g_conversionMutex;
+std::mutex g_adjustmentMutex;
 constexpr int32_t CONVERSION_SUCCESS = 0;
 constexpr int32_t CONVERSION_FAILED = 29200005;
 constexpr size_t SDR_LUT_SIZE = 256;
@@ -37,6 +38,152 @@ struct ConversionWork {
     OH_PixelmapNative *destination = nullptr;
     int32_t result = CONVERSION_FAILED;
 };
+
+struct AdjustmentWork {
+    napi_env env = nullptr;
+    napi_async_work work = nullptr;
+    napi_deferred deferred = nullptr;
+    napi_ref pixelMapRef = nullptr;
+    NativePixelMap *pixelMap = nullptr;
+    float contrast = 0.0f;
+    float clarity = 0.0f;
+    float sharpening = 0.0f;
+    float exposure = 0.0f;
+    float hue = 0.0f;
+    float saturation = 0.0f;
+    float temperature = 0.0f;
+    int32_t result = CONVERSION_FAILED;
+};
+
+float ClampByte(float value)
+{
+    return std::max(0.0f, std::min(255.0f, value));
+}
+
+float PixelLuminance(const std::vector<uint8_t> &pixels, size_t offset)
+{
+    return 0.2126f * pixels[offset] + 0.7152f * pixels[offset + 1] + 0.0722f * pixels[offset + 2];
+}
+
+class PixelMapAccessGuard {
+public:
+    explicit PixelMapAccessGuard(NativePixelMap *pixelMap) : pixelMap_(pixelMap) {}
+    ~PixelMapAccessGuard()
+    {
+        if (pixelMap_ != nullptr) {
+            OH_PixelMap_UnAccessPixels(pixelMap_);
+        }
+    }
+
+private:
+    NativePixelMap *pixelMap_;
+};
+
+bool AdjustRgba8888PixelMap(AdjustmentWork *adjustment)
+{
+    if (adjustment == nullptr || adjustment->pixelMap == nullptr) {
+        return false;
+    }
+    PixelMapAccessGuard accessGuard(adjustment->pixelMap);
+    OhosPixelMapInfos info {};
+    void *address = nullptr;
+    if (OH_PixelMap_GetImageInfo(adjustment->pixelMap, &info) != IMAGE_RESULT_SUCCESS ||
+        info.pixelFormat != PIXEL_FORMAT_RGBA_8888 || info.width <= 0 || info.height <= 0 ||
+        info.rowSize < info.width * 4 || OH_PixelMap_AccessPixels(adjustment->pixelMap, &address) !=
+        IMAGE_RESULT_SUCCESS || address == nullptr) {
+        return false;
+    }
+
+    auto *pixels = static_cast<uint8_t *>(address);
+    const float contrastValue = std::max(-100.0f, std::min(100.0f, adjustment->contrast));
+    const float contrastFactor = (259.0f * (contrastValue * 1.27f + 255.0f)) /
+        (255.0f * (259.0f - contrastValue * 1.27f));
+    const float exposureFactor = std::pow(2.0f, std::max(-100.0f,
+        std::min(100.0f, adjustment->exposure)) / 50.0f);
+    const float saturationFactor = 1.0f + std::max(-100.0f,
+        std::min(100.0f, adjustment->saturation)) / 100.0f;
+    const float hueRadians = std::max(-180.0f, std::min(180.0f, adjustment->hue)) *
+        3.14159265358979323846f / 180.0f;
+    const float hueCos = std::cos(hueRadians);
+    const float hueSin = std::sin(hueRadians);
+    const float temperature = std::max(-100.0f, std::min(100.0f, adjustment->temperature));
+    const float temperatureRed = temperature * 0.28f;
+    const float temperatureGreen = temperature * 0.04f;
+    const float temperatureBlue = -temperature * 0.28f;
+
+    for (uint32_t y = 0; y < info.height; ++y) {
+        auto *row = pixels + static_cast<size_t>(y) * info.rowSize;
+        for (uint32_t x = 0; x < info.width; ++x) {
+            auto *pixel = row + static_cast<size_t>(x) * 4;
+            float r = pixel[0] * exposureFactor;
+            float g = pixel[1] * exposureFactor;
+            float b = pixel[2] * exposureFactor;
+            const float hueR = (0.213f + hueCos * 0.787f - hueSin * 0.213f) * r +
+                (0.715f - hueCos * 0.715f - hueSin * 0.715f) * g +
+                (0.072f - hueCos * 0.072f + hueSin * 0.928f) * b;
+            const float hueG = (0.213f - hueCos * 0.213f + hueSin * 0.143f) * r +
+                (0.715f + hueCos * 0.285f + hueSin * 0.140f) * g +
+                (0.072f - hueCos * 0.072f - hueSin * 0.283f) * b;
+            const float hueB = (0.213f - hueCos * 0.213f - hueSin * 0.787f) * r +
+                (0.715f - hueCos * 0.715f + hueSin * 0.715f) * g +
+                (0.072f + hueCos * 0.928f + hueSin * 0.072f) * b;
+            const float luminance = 0.2126f * hueR + 0.7152f * hueG + 0.0722f * hueB;
+            r = luminance + (hueR - luminance) * saturationFactor;
+            g = luminance + (hueG - luminance) * saturationFactor;
+            b = luminance + (hueB - luminance) * saturationFactor;
+            pixel[0] = static_cast<uint8_t>(ClampByte(contrastFactor * (r - 128.0f) + 128.0f +
+                temperatureRed) + 0.5f);
+            pixel[1] = static_cast<uint8_t>(ClampByte(contrastFactor * (g - 128.0f) + 128.0f +
+                temperatureGreen) + 0.5f);
+            pixel[2] = static_cast<uint8_t>(ClampByte(contrastFactor * (b - 128.0f) + 128.0f +
+                temperatureBlue) + 0.5f);
+        }
+    }
+
+    const float sharpeningAmount = std::max(0.0f, std::min(100.0f, adjustment->sharpening)) / 100.0f;
+    const float clarityAmount = std::max(0.0f, std::min(100.0f, adjustment->clarity)) / 100.0f;
+    if (sharpeningAmount > 0.0f || clarityAmount > 0.0f) {
+        std::vector<uint8_t> source(static_cast<size_t>(info.rowSize) * info.height);
+        std::copy(pixels, pixels + source.size(), source.begin());
+        const int32_t clarityRadius = std::max(2, static_cast<int32_t>(std::min(info.width, info.height) / 320));
+        for (uint32_t y = 0; y < info.height; ++y) {
+            auto *row = pixels + static_cast<size_t>(y) * info.rowSize;
+            for (uint32_t x = 0; x < info.width; ++x) {
+                const size_t offset = static_cast<size_t>(y) * info.rowSize + static_cast<size_t>(x) * 4;
+                const float center = PixelLuminance(source, offset);
+                float sharpAverage = 0.0f;
+                float clarityAverage = 0.0f;
+                const int32_t sx[4] = { -1, 1, 0, 0 };
+                const int32_t sy[4] = { 0, 0, -1, 1 };
+                for (int i = 0; i < 4; ++i) {
+                    const uint32_t px = static_cast<uint32_t>(std::max(0, std::min(static_cast<int32_t>(info.width) - 1,
+                        static_cast<int32_t>(x) + sx[i])));
+                    const uint32_t py = static_cast<uint32_t>(std::max(0, std::min(static_cast<int32_t>(info.height) - 1,
+                        static_cast<int32_t>(y) + sy[i])));
+                    sharpAverage += PixelLuminance(source, static_cast<size_t>(py) * info.rowSize +
+                        static_cast<size_t>(px) * 4);
+                }
+                const int32_t cx[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
+                const int32_t cy[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
+                for (int i = 0; i < 8; ++i) {
+                    const uint32_t px = static_cast<uint32_t>(std::max(0, std::min(static_cast<int32_t>(info.width) - 1,
+                        static_cast<int32_t>(x) + cx[i] * clarityRadius)));
+                    const uint32_t py = static_cast<uint32_t>(std::max(0, std::min(static_cast<int32_t>(info.height) - 1,
+                        static_cast<int32_t>(y) + cy[i] * clarityRadius)));
+                    clarityAverage += PixelLuminance(source, static_cast<size_t>(py) * info.rowSize +
+                        static_cast<size_t>(px) * 4);
+                }
+                const float delta = sharpeningAmount * 0.72f * (center - sharpAverage * 0.25f) +
+                    clarityAmount * 0.42f * (center - clarityAverage * 0.125f);
+                auto *pixel = row + static_cast<size_t>(x) * 4;
+                pixel[0] = static_cast<uint8_t>(ClampByte(source[offset] + delta) + 0.5f);
+                pixel[1] = static_cast<uint8_t>(ClampByte(source[offset + 1] + delta) + 0.5f);
+                pixel[2] = static_cast<uint8_t>(ClampByte(source[offset + 2] + delta) + 0.5f);
+            }
+        }
+    }
+    return true;
+}
 
 void InitializeTransferLuts()
 {
@@ -229,6 +376,84 @@ void CompleteConversion(napi_env env, napi_status status, void *data)
     delete conversion;
 }
 
+void ExecuteAdjustment(napi_env env, void *data)
+{
+    (void)env;
+    auto *adjustment = static_cast<AdjustmentWork *>(data);
+    try {
+        std::lock_guard<std::mutex> guard(g_adjustmentMutex);
+        adjustment->result = AdjustRgba8888PixelMap(adjustment) ? CONVERSION_SUCCESS : CONVERSION_FAILED;
+    } catch (...) {
+        adjustment->result = CONVERSION_FAILED;
+    }
+}
+
+void CompleteAdjustment(napi_env env, napi_status status, void *data)
+{
+    auto *adjustment = static_cast<AdjustmentWork *>(data);
+    if (adjustment == nullptr) {
+        return;
+    }
+    napi_value value = nullptr;
+    napi_create_int32(env, status == napi_ok ? adjustment->result : CONVERSION_FAILED, &value);
+    napi_resolve_deferred(env, adjustment->deferred, value);
+    if (adjustment->pixelMapRef != nullptr) {
+        napi_delete_reference(env, adjustment->pixelMapRef);
+    }
+    napi_delete_async_work(env, adjustment->work);
+    delete adjustment;
+}
+
+napi_value AdjustPixelMap(napi_env env, napi_callback_info info)
+{
+    size_t argc = 8;
+    napi_value argv[8] = { nullptr };
+    if (napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) != napi_ok || argc < 8 || argv[0] == nullptr) {
+        napi_throw_type_error(env, nullptr, "PixelMap and seven adjustment values are required");
+        return nullptr;
+    }
+    auto *adjustment = new AdjustmentWork();
+    adjustment->env = env;
+    adjustment->pixelMap = OH_PixelMap_InitNativePixelMap(env, argv[0]);
+    double values[7] = {};
+    bool valid = adjustment->pixelMap != nullptr;
+    for (size_t i = 0; i < 7 && valid; ++i) {
+        valid = napi_get_value_double(env, argv[i + 1], &values[i]) == napi_ok;
+    }
+    if (!valid) {
+        delete adjustment;
+        napi_throw_type_error(env, nullptr, "Invalid image adjustment parameters");
+        return nullptr;
+    }
+    adjustment->contrast = static_cast<float>(values[0]);
+    adjustment->clarity = static_cast<float>(values[1]);
+    adjustment->sharpening = static_cast<float>(values[2]);
+    adjustment->exposure = static_cast<float>(values[3]);
+    adjustment->hue = static_cast<float>(values[4]);
+    adjustment->saturation = static_cast<float>(values[5]);
+    adjustment->temperature = static_cast<float>(values[6]);
+
+    napi_value promise = nullptr;
+    napi_value resourceName = nullptr;
+    napi_create_promise(env, &adjustment->deferred, &promise);
+    napi_create_reference(env, argv[0], 1, &adjustment->pixelMapRef);
+    napi_create_string_utf8(env, "EhViewerImageAdjustment", NAPI_AUTO_LENGTH, &resourceName);
+    const napi_status workStatus = napi_create_async_work(env, nullptr, resourceName, ExecuteAdjustment,
+        CompleteAdjustment, adjustment, &adjustment->work);
+    if (workStatus != napi_ok || napi_queue_async_work(env, adjustment->work) != napi_ok) {
+        if (adjustment->pixelMapRef != nullptr) {
+            napi_delete_reference(env, adjustment->pixelMapRef);
+        }
+        if (adjustment->work != nullptr) {
+            napi_delete_async_work(env, adjustment->work);
+        }
+        delete adjustment;
+        napi_throw_error(env, nullptr, "Failed to queue image adjustment");
+        return nullptr;
+    }
+    return promise;
+}
+
 napi_value IsSupported(napi_env env, napi_callback_info info)
 {
     (void)info;
@@ -382,7 +607,8 @@ napi_value Init(napi_env env, napi_value exports)
         { "createCompatibleSdrPixelMap", nullptr, CreateCompatibleSdrPixelMap, nullptr, nullptr, nullptr,
             napi_default, nullptr },
         { "createDmaHdrPixelMap", nullptr, CreateDmaHdrPixelMap, nullptr, nullptr, nullptr, napi_default, nullptr },
-        { "convertSdrToHdr", nullptr, ConvertSdrToHdr, nullptr, nullptr, nullptr, napi_default, nullptr }
+        { "convertSdrToHdr", nullptr, ConvertSdrToHdr, nullptr, nullptr, nullptr, napi_default, nullptr },
+        { "adjustPixelMap", nullptr, AdjustPixelMap, nullptr, nullptr, nullptr, napi_default, nullptr }
     };
     napi_define_properties(env, exports, sizeof(descriptors) / sizeof(descriptors[0]), descriptors);
     return exports;

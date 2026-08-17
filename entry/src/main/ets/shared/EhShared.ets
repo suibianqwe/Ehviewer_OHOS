@@ -1559,6 +1559,15 @@ export function zhText(text: string): string {
     case 'Crop white and black borders': return '自动裁切白边/黑边';
     case 'Automatically trim uniform light or dark margins while reading': return '阅读时自动裁去图片四周均匀的浅色或深色空白';
     case 'Image super resolution': return '图片超分';
+    case 'Image adjustment': return '图片调节';
+    case 'Contrast': return '对比度';
+    case 'Clarity': return '清晰度';
+    case 'Sharpening': return '锐化';
+    case 'Exposure': return '曝光';
+    case 'Hue': return '色调';
+    case 'Saturation': return '饱和度';
+    case 'Color temperature': return '色温';
+    case 'Reset image adjustments': return '重置图片调节';
     case 'Use the system image engine to enhance low-resolution reader pages':
       return '使用系统图片引擎增强低分辨率阅读页面';
     case 'Super-resolution engine': return '超分引擎';

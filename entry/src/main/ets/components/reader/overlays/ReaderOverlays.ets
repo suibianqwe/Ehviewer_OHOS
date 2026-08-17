@@ -19,6 +19,20 @@ import {
   readerUltraDarkValue
 } from '../menu/ReaderMenuControls';
 
+function adjustmentValueText(value: number): string {
+  const rounded = Math.round(value);
+  return (rounded > 0 ? '+' : '') + rounded.toString();
+}
+
+function exposureValueText(value: number): string {
+  const ev = Math.round(value) / 50;
+  return (ev > 0 ? '+' : '') + ev.toFixed(2) + ' EV';
+}
+
+function degreeValueText(value: number): string {
+  return Math.round(value).toString() + '°';
+}
+
 @Component
 export struct ReaderInfoOverlay {
   @Prop showProgress: boolean = true;
@@ -360,6 +374,14 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuImageSuperResolution: boolean = false;
   @Prop menuImageSuperResolutionEngine: string = 'Detail enhancer';
   @Prop menuSdrToHdrEnabled: boolean = false;
+  @Prop menuImageAdjustmentEnabled: boolean = false;
+  @Prop menuImageContrast: number = 0;
+  @Prop menuImageClarity: number = 0;
+  @Prop menuImageSharpening: number = 0;
+  @Prop menuImageExposure: number = 0;
+  @Prop menuImageHue: number = 0;
+  @Prop menuImageSaturation: number = 0;
+  @Prop menuImageTemperature: number = 0;
   @Prop menuStartPosition: string = 'Top right';
   @Prop menuAutoTransferTime: string = '5s';
   @Prop menuKeepScreenOn: boolean = false;
@@ -398,6 +420,15 @@ export struct ReaderSettingsMenuOverlay {
   onImageSuperResolutionChange: (value: boolean) => void = (_value: boolean) => {};
   onImageSuperResolutionEngineChange: (value: string) => void = (_value: string) => {};
   onSdrToHdrChange: (value: boolean) => void = (_value: boolean) => {};
+  onImageAdjustmentEnabledChange: (value: boolean) => void = (_value: boolean) => {};
+  onImageContrastChange: (value: number) => void = (_value: number) => {};
+  onImageClarityChange: (value: number) => void = (_value: number) => {};
+  onImageSharpeningChange: (value: number) => void = (_value: number) => {};
+  onImageExposureChange: (value: number) => void = (_value: number) => {};
+  onImageHueChange: (value: number) => void = (_value: number) => {};
+  onImageSaturationChange: (value: number) => void = (_value: number) => {};
+  onImageTemperatureChange: (value: number) => void = (_value: number) => {};
+  onResetImageAdjustments: () => void = () => {};
   onStartPositionChange: (value: string) => void = (_value: string) => {};
   onAutoTransferTimeChange: (value: string) => void = (_value: string) => {};
   onKeepScreenOnChange: (value: boolean) => void = (_value: boolean) => {};
@@ -853,6 +884,70 @@ export struct ReaderSettingsMenuOverlay {
     .height('100%')
   }
 
+  @Builder
+  private ImageAdjustmentSettingsTab() {
+    Scroll() {
+      Column({ space: 0 }) {
+        ReaderMenuToggle({
+          label: uiText('Image adjustment'),
+          value: this.menuImageAdjustmentEnabled,
+          onChange: this.onImageAdjustmentEnabledChange
+        })
+        if (this.menuImageAdjustmentEnabled) {
+          ReaderMenuDivider()
+          ReaderMenuSlider({
+            label: uiText('Contrast'), value: this.menuImageContrast, min: -100, max: 100, step: 1,
+            valueText: adjustmentValueText, onChange: this.onImageContrastChange
+          })
+          ReaderMenuDivider()
+          ReaderMenuSlider({
+            label: uiText('Clarity'), value: this.menuImageClarity, min: 0, max: 100, step: 1,
+            valueText: adjustmentValueText, onChange: this.onImageClarityChange
+          })
+          ReaderMenuDivider()
+          ReaderMenuSlider({
+            label: uiText('Sharpening'), value: this.menuImageSharpening, min: 0, max: 100, step: 1,
+            valueText: adjustmentValueText, onChange: this.onImageSharpeningChange
+          })
+          ReaderMenuDivider()
+          ReaderMenuSlider({
+            label: uiText('Exposure'), value: this.menuImageExposure, min: -100, max: 100, step: 1,
+            valueText: exposureValueText, onChange: this.onImageExposureChange
+          })
+          ReaderMenuDivider()
+          ReaderMenuSlider({
+            label: uiText('Hue'), value: this.menuImageHue, min: -180, max: 180, step: 1,
+            valueText: degreeValueText, onChange: this.onImageHueChange
+          })
+          ReaderMenuDivider()
+          ReaderMenuSlider({
+            label: uiText('Saturation'), value: this.menuImageSaturation, min: -100, max: 100, step: 1,
+            valueText: adjustmentValueText, onChange: this.onImageSaturationChange
+          })
+          ReaderMenuDivider()
+          ReaderMenuSlider({
+            label: uiText('Color temperature'), value: this.menuImageTemperature, min: -100, max: 100, step: 1,
+            valueText: adjustmentValueText, onChange: this.onImageTemperatureChange
+          })
+          ReaderMenuDivider()
+          Button(uiText('Reset image adjustments'))
+            .width('100%')
+            .height(44)
+            .fontSize(14)
+            .fontColor('#7DD3FC')
+            .backgroundColor(Color.Transparent)
+            .onClick(this.onResetImageAdjustments)
+        }
+      }
+      .width('100%')
+      .padding({ bottom: 8 })
+    }
+    .scrollable(ScrollDirection.Vertical)
+    .scrollBar(BarState.Off)
+    .width('100%')
+    .height('100%')
+  }
+
   build() {
     Stack({ alignContent: Alignment.Center }) {
       ReaderPopupBackdrop({
@@ -913,6 +1008,11 @@ export struct ReaderSettingsMenuOverlay {
             this.ControlSettingsTab()
           }
           .tabBar(this.ReaderSettingsTabBar(uiText('Reading aids'), 2))
+
+          TabContent() {
+            this.ImageAdjustmentSettingsTab()
+          }
+          .tabBar(this.ReaderSettingsTabBar(uiText('Image adjustment'), 3))
         }
         .barMode(BarMode.Fixed)
         .barHeight(40)

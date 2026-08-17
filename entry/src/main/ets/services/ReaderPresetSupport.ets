@@ -3,6 +3,12 @@ import {
   normalizeReaderSuperResolutionEngine,
   READER_SUPER_RESOLUTION_ENGINE_DETAIL
 } from './ReaderSuperResolutionSupport';
+import {
+  cloneReaderImageAdjustmentSettings,
+  ReaderImageAdjustmentSettings,
+  readerImageAdjustmentSettingsFromStore,
+  saveReaderImageAdjustmentSettings
+} from './ReaderImageAdjustmentSupport';
 
 export const READER_CUSTOM_PRESETS_SETTING_KEY: string = 'reader_custom_presets';
 
@@ -16,6 +22,7 @@ export interface ReaderPresetValues {
   superResolutionEngine: string;
   sdrToHdr: boolean;
   startPosition: string;
+  imageAdjustment: ReaderImageAdjustmentSettings;
 }
 
 export interface ReaderPresetProfile {
@@ -42,6 +49,7 @@ interface StoredReaderPresetValues {
   superResolutionEngine?: string;
   sdrToHdr?: boolean;
   startPosition?: string;
+  imageAdjustment?: ReaderImageAdjustmentSettings;
 }
 
 interface StoredReaderPresetProfile {
@@ -189,7 +197,8 @@ export function readerPresetValuesFromSettings(): ReaderPresetValues {
     ehSettingsStore.getValue('reader_image_super_resolution', 'Off') === 'On',
     ehSettingsStore.getValue('reader_super_resolution_engine', READER_SUPER_RESOLUTION_ENGINE_DETAIL),
     ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On',
-    ehSettingsStore.getValue('start_position', 'Top right')
+    ehSettingsStore.getValue('start_position', 'Top right'),
+    readerImageAdjustmentSettingsFromStore()
   );
 }
 
@@ -204,6 +213,7 @@ export function applyReaderPresetValues(values: ReaderPresetValues): void {
   ehSettingsStore.setValue('reader_super_resolution_engine', values.superResolutionEngine);
   ehSettingsStore.setValue('reader_sdr_to_hdr', values.sdrToHdr ? 'On' : 'Off');
   ehSettingsStore.setValue('start_position', values.startPosition);
+  saveReaderImageAdjustmentSettings(values.imageAdjustment);
   ehSettingsStore.setValue('adaptive_dual_page', values.adaptiveDualPage ? 'On' : 'Off');
 }
 
@@ -313,12 +323,13 @@ export function cloneReaderPresetValues(values: ReaderPresetValues): ReaderPrese
   return createReaderPresetValues(values.screenRotation, values.readingDirection, values.pageScaling,
     values.adaptiveDualPage, values.cropWhiteBorders, values.imageSuperResolution, values.superResolutionEngine,
     values.sdrToHdr,
-    values.startPosition);
+    values.startPosition, values.imageAdjustment);
 }
 
 export function createReaderPresetValues(screenRotation: string, readingDirection: string, pageScaling: string,
   adaptiveDualPage: boolean, cropWhiteBorders: boolean, imageSuperResolution: boolean,
-  superResolutionEngine: string, sdrToHdr: boolean, startPosition: string): ReaderPresetValues {
+  superResolutionEngine: string, sdrToHdr: boolean, startPosition: string,
+  imageAdjustment: ReaderImageAdjustmentSettings = new ReaderImageAdjustmentSettings()): ReaderPresetValues {
   return {
     screenRotation: normalizeOption(screenRotation, ['Default', 'Portrait', 'Landscape', 'Auto rotate', 'Match image'], 'Default'),
     readingDirection: normalizeOption(readingDirection, ['Left to right', 'Right to left', 'Top to bottom'], 'Right to left'),
@@ -328,7 +339,8 @@ export function createReaderPresetValues(screenRotation: string, readingDirectio
     imageSuperResolution: imageSuperResolution,
     superResolutionEngine: normalizeReaderSuperResolutionEngine(superResolutionEngine),
     sdrToHdr: sdrToHdr,
-    startPosition: normalizeOption(startPosition, ['Top left', 'Top right', 'Bottom left', 'Bottom right', 'Center'], 'Top right')
+    startPosition: normalizeOption(startPosition, ['Top left', 'Top right', 'Bottom left', 'Bottom right', 'Center'], 'Top right'),
+    imageAdjustment: cloneReaderImageAdjustmentSettings(imageAdjustment)
   };
 }
 
@@ -346,7 +358,8 @@ function parseStoredReaderPresetValues(value: StoredReaderPresetValues | undefin
     typeof value.superResolutionEngine === 'string' ? value.superResolutionEngine :
       READER_SUPER_RESOLUTION_ENGINE_DETAIL,
     value.sdrToHdr === true,
-    typeof value.startPosition === 'string' ? value.startPosition : 'Top right'
+    typeof value.startPosition === 'string' ? value.startPosition : 'Top right',
+    parseStoredImageAdjustment(value.imageAdjustment)
   );
 }
 
@@ -356,7 +369,8 @@ function readerPresetValuesEqual(left: ReaderPresetValues, right: ReaderPresetVa
     left.cropWhiteBorders === right.cropWhiteBorders &&
     left.imageSuperResolution === right.imageSuperResolution &&
     left.superResolutionEngine === right.superResolutionEngine && left.sdrToHdr === right.sdrToHdr &&
-    left.startPosition === right.startPosition;
+    left.startPosition === right.startPosition &&
+    left.imageAdjustment.cacheKey() === right.imageAdjustment.cacheKey();
 }
 
 function readerPresetNameExists(profiles: ReaderPresetProfile[], name: string): boolean {
@@ -410,8 +424,29 @@ function storedReaderPresetValues(values: ReaderPresetValues): StoredReaderPrese
     imageSuperResolution: values.imageSuperResolution,
     superResolutionEngine: values.superResolutionEngine,
     sdrToHdr: values.sdrToHdr,
-    startPosition: values.startPosition
+    startPosition: values.startPosition,
+    imageAdjustment: cloneReaderImageAdjustmentSettings(values.imageAdjustment)
   };
+}
+
+function parseStoredImageAdjustment(value: ReaderImageAdjustmentSettings | undefined): ReaderImageAdjustmentSettings {
+  if (value === undefined || typeof value !== 'object') {
+    return new ReaderImageAdjustmentSettings();
+  }
+  const result = new ReaderImageAdjustmentSettings();
+  result.enabled = value.enabled === true;
+  result.contrast = storedNumber(value.contrast, -100, 100);
+  result.clarity = storedNumber(value.clarity, 0, 100);
+  result.sharpening = storedNumber(value.sharpening, 0, 100);
+  result.exposure = storedNumber(value.exposure, -100, 100);
+  result.hue = storedNumber(value.hue, -180, 180);
+  result.saturation = storedNumber(value.saturation, -100, 100);
+  result.temperature = storedNumber(value.temperature, -100, 100);
+  return result;
+}
+
+function storedNumber(value: number, min: number, max: number): number {
+  return typeof value === 'number' && !Number.isNaN(value) ? Math.max(min, Math.min(max, Math.round(value))) : 0;
 }
 
 function isBuiltInReaderPresetId(id: string): boolean {

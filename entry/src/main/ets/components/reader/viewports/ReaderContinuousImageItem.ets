@@ -7,6 +7,8 @@ import {
   readerImageCache
 } from '../../../services/ReaderImageCache';
 import { readerHdrService } from '../../../services/ReaderHdrService';
+import { readerImageAdjustmentService } from '../../../services/ReaderImageAdjustmentService';
+import { ReaderImageAdjustmentSettings } from '../../../services/ReaderImageAdjustmentSupport';
 import { readerSuperResolutionService } from '../../../services/ReaderSuperResolutionService';
 import {
   readerSuperResolutionEngineCacheKey,
@@ -49,6 +51,8 @@ export struct ReaderContinuousImageItem {
   @Prop sharedOffsetX: number = 0;
   @Prop @Watch('onActiveChange') isActive: boolean = false;
   @Prop @Watch('onHdrEnabledChange') hdrEnabled: boolean = false;
+  @Prop @Watch('onImageAdjustmentChange') imageAdjustmentSettings: ReaderImageAdjustmentSettings =
+    new ReaderImageAdjustmentSettings();
   @Prop @Watch('onSuperResolutionEnabledChange') superResolutionEnabled: boolean = false;
   @Prop @Watch('onSuperResolutionEnabledChange') superResolutionEngine: string =
     READER_SUPER_RESOLUTION_ENGINE_DETAIL;
@@ -81,6 +85,7 @@ export struct ReaderContinuousImageItem {
   @State hdrPixelMap: image.PixelMap | undefined = undefined;
   @State hdrFromSuperResolution: boolean = false;
   @State superResolutionPixelMap: image.PixelMap | undefined = undefined;
+  @State adjustedPixelMap: image.PixelMap | undefined = undefined;
   @State cropRect: ReaderCropRect = new ReaderCropRect();
   private isPinching: boolean = false;
   private pinchStartScale: number = READER_BASE_SCALE;
@@ -93,6 +98,9 @@ export struct ReaderContinuousImageItem {
   private retainedSuperResolutionKey: string = '';
   private superResolutionRequestId: number = 0;
   private superResolutionCompleted: boolean = false;
+  private retainedAdjustmentKey: string = '';
+  private adjustmentRequestId: number = 0;
+  private adjustmentCompleted: boolean = false;
   private cropRequestId: number = 0;
 
   aboutToAppear(): void {
@@ -117,13 +125,15 @@ export struct ReaderContinuousImageItem {
   private imageNodeId(): string {
     const sourceKey = this.sourceImageCacheKey().length > 0 ? this.sourceImageCacheKey() : this.imageUrl();
     const processingMode = this.hdrPixelMap !== undefined ? 'hdr-' :
-      (this.superResolutionPixelMap !== undefined ? 'sr-' : 'sdr-');
+      (this.adjustedPixelMap !== undefined ? 'adjusted-' :
+        (this.superResolutionPixelMap !== undefined ? 'sr-' : 'sdr-'));
     return 'reader-continuous-image-' + this.imageRetryVersion.toString() + '-' +
       processingMode + sourceKey;
   }
 
   private displayPixelMap(): image.PixelMap | undefined {
-    return this.hdrPixelMap !== undefined ? this.hdrPixelMap : this.superResolutionPixelMap;
+    return this.hdrPixelMap !== undefined ? this.hdrPixelMap :
+      (this.adjustedPixelMap !== undefined ? this.adjustedPixelMap : this.superResolutionPixelMap);
   }
 
   private displayImageSource(): string | image.PixelMap {
@@ -147,6 +157,7 @@ export struct ReaderContinuousImageItem {
     }
     this.retainedSourceIdentity = sourceIdentity;
     this.releaseHdrPixelMap();
+    this.releaseAdjustedPixelMap();
     this.releaseSuperResolutionPixelMap();
     this.cropRect = new ReaderCropRect();
     if (this.retainedImageUrl.length > 0 && this.retainedImageUrl !== url) {
@@ -167,6 +178,7 @@ export struct ReaderContinuousImageItem {
     this.updateDisplayImageSize();
     this.loadCachedSourceImageSize(requestId, url).catch(() => {});
     this.loadSuperResolutionPixelMap();
+    this.loadAdjustedPixelMap();
     this.loadHdrPixelMap();
     this.loadCropRect();
     this.startDownloadProgressMonitor();
@@ -179,6 +191,7 @@ export struct ReaderContinuousImageItem {
     this.retainedImageUrl = '';
     this.retainedSourceIdentity = '';
     this.releaseHdrPixelMap();
+    this.releaseAdjustedPixelMap();
     this.releaseSuperResolutionPixelMap();
     this.cropRequestId++;
   }
@@ -196,8 +209,16 @@ export struct ReaderContinuousImageItem {
     this.loadHdrPixelMap();
   }
 
+  onImageAdjustmentChange(): void {
+    this.releaseHdrPixelMap();
+    this.releaseAdjustedPixelMap();
+    this.loadAdjustedPixelMap();
+    this.loadHdrPixelMap();
+  }
+
   onSuperResolutionEnabledChange(): void {
     this.releaseHdrPixelMap();
+    this.releaseAdjustedPixelMap();
     this.releaseSuperResolutionPixelMap();
     this.startDownloadProgressMonitor();
     this.loadSuperResolutionPixelMap();
@@ -209,6 +230,7 @@ export struct ReaderContinuousImageItem {
       return;
     }
     this.releaseHdrPixelMap();
+    this.releaseAdjustedPixelMap();
     this.releaseSuperResolutionPixelMap();
     this.loadSuperResolutionPixelMap();
     this.loadHdrPixelMap();
@@ -228,12 +250,38 @@ export struct ReaderContinuousImageItem {
     if (this.retainedSuperResolutionKey.length > 0) {
       readerSuperResolutionService.updatePriority(this.retainedSuperResolutionKey, this.hdrPriority);
     }
+    if (this.retainedAdjustmentKey.length > 0) {
+      readerImageAdjustmentService.updatePriority(this.retainedAdjustmentKey, this.hdrPriority);
+    }
   }
 
   private loadHdrPixelMap(): void {
     const sourcePath = this.localSourceImagePath();
     if (!this.hdrEnabled || sourcePath.length === 0 || this.imageUrl().length === 0) {
       this.releaseHdrPixelMap();
+      return;
+    }
+    if (this.imageAdjustmentSettings.enabled && !this.adjustmentCompleted) {
+      this.releaseHdrPixelMap();
+      this.loadAdjustedPixelMap();
+      return;
+    }
+    if (this.imageAdjustmentSettings.enabled && this.adjustedPixelMap !== undefined &&
+      this.retainedAdjustmentKey.length > 0) {
+      const key = this.retainedAdjustmentKey + '|hdr';
+      if (this.retainedHdrKey === key) {
+        return;
+      }
+      this.releaseHdrPixelMap();
+      const requestId = ++this.hdrRequestId;
+      this.retainedHdrKey = key;
+      readerHdrService.acquirePixelMap(key, this.adjustedPixelMap, this.hdrPriority)
+        .then((pixelMap: image.PixelMap | undefined) => {
+          if (requestId === this.hdrRequestId && key === this.retainedHdrKey && this.hdrEnabled) {
+            this.hdrFromSuperResolution = this.superResolutionEnabled && pixelMap !== undefined;
+            this.hdrPixelMap = pixelMap;
+          }
+        }).catch(() => {});
       return;
     }
     if (this.superResolutionEnabled && !this.superResolutionCompleted) {
@@ -327,11 +375,13 @@ export struct ReaderContinuousImageItem {
         }
         this.superResolutionCompleted = true;
         this.superResolutionPixelMap = pixelMap;
+        this.loadAdjustedPixelMap();
         this.loadHdrPixelMap();
       }).catch(() => {
         if (requestId === this.superResolutionRequestId && key === this.retainedSuperResolutionKey &&
           this.superResolutionEnabled) {
           this.superResolutionCompleted = true;
+          this.loadAdjustedPixelMap();
           this.loadHdrPixelMap();
         }
       });
@@ -344,6 +394,57 @@ export struct ReaderContinuousImageItem {
     if (this.retainedSuperResolutionKey.length > 0) {
       readerSuperResolutionService.release(this.retainedSuperResolutionKey);
       this.retainedSuperResolutionKey = '';
+    }
+  }
+
+  private loadAdjustedPixelMap(): void {
+    const sourcePath = this.localSourceImagePath();
+    if (!this.imageAdjustmentSettings.enabled || sourcePath.length === 0 || this.imageUrl().length === 0) {
+      this.releaseAdjustedPixelMap();
+      return;
+    }
+    if (this.superResolutionEnabled && !this.superResolutionCompleted) {
+      this.releaseAdjustedPixelMap();
+      this.loadSuperResolutionPixelMap();
+      return;
+    }
+    const inputKey = this.superResolutionEnabled && this.superResolutionPixelMap !== undefined ?
+      this.retainedSuperResolutionKey : this.sourceImageCacheKey() + '|' + sourcePath;
+    const key = inputKey + '|adjust|' + this.imageAdjustmentSettings.cacheKey();
+    if (this.retainedAdjustmentKey === key) {
+      return;
+    }
+    this.releaseAdjustedPixelMap();
+    this.adjustmentCompleted = false;
+    const requestId = ++this.adjustmentRequestId;
+    this.retainedAdjustmentKey = key;
+    const pending = this.superResolutionEnabled && this.superResolutionPixelMap !== undefined ?
+      readerImageAdjustmentService.acquirePixelMap(key, this.superResolutionPixelMap,
+        this.imageAdjustmentSettings, this.hdrPriority) :
+      readerImageAdjustmentService.acquire(key, sourcePath, this.imageAdjustmentSettings, this.hdrPriority);
+    pending.then((pixelMap: image.PixelMap | undefined) => {
+      if (requestId !== this.adjustmentRequestId || key !== this.retainedAdjustmentKey ||
+        !this.imageAdjustmentSettings.enabled) {
+        return;
+      }
+      this.adjustmentCompleted = true;
+      this.adjustedPixelMap = pixelMap;
+      this.loadHdrPixelMap();
+    }).catch(() => {
+      if (requestId === this.adjustmentRequestId && key === this.retainedAdjustmentKey) {
+        this.adjustmentCompleted = true;
+        this.loadHdrPixelMap();
+      }
+    });
+  }
+
+  private releaseAdjustedPixelMap(): void {
+    this.adjustmentRequestId++;
+    this.adjustmentCompleted = false;
+    this.adjustedPixelMap = undefined;
+    if (this.retainedAdjustmentKey.length > 0) {
+      readerImageAdjustmentService.release(this.retainedAdjustmentKey);
+      this.retainedAdjustmentKey = '';
     }
   }
 
@@ -609,6 +710,7 @@ export struct ReaderContinuousImageItem {
               this.completedImageUrl = this.imageUrl();
               this.failedImageUrl = '';
               this.loadSuperResolutionPixelMap();
+              this.loadAdjustedPixelMap();
               this.loadCropRect();
             })
             .onError(() => {

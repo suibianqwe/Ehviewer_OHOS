@@ -48,6 +48,14 @@ import {
 } from '../services/ReaderImageProcessingPrefetchService';
 import { IMAGE_DOWNLOAD_PRIORITY_READER, readerImageCache } from '../services/ReaderImageCache';
 import { readerHdrService } from '../services/ReaderHdrService';
+import { readerImageAdjustmentService } from '../services/ReaderImageAdjustmentService';
+import {
+  cloneReaderImageAdjustmentSettings,
+  ReaderImageAdjustmentSettings,
+  readerImageAdjustmentSettingsFromStore,
+  resetReaderImageAdjustmentSettings,
+  saveReaderImageAdjustmentSettings
+} from '../services/ReaderImageAdjustmentSupport';
 import { readerSuperResolutionService } from '../services/ReaderSuperResolutionService';
 import {
   effectiveReaderSuperResolutionEngine,
@@ -148,11 +156,16 @@ class ReaderProcessedImageLease {
   pixelMap: image.PixelMap | undefined = undefined;
   superResolutionKey: string = '';
   hdrKey: string = '';
+  adjustmentKey: string = '';
 
   release(): void {
     if (this.hdrKey.length > 0) {
       readerHdrService.release(this.hdrKey);
       this.hdrKey = '';
+    }
+    if (this.adjustmentKey.length > 0) {
+      readerImageAdjustmentService.release(this.adjustmentKey);
+      this.adjustmentKey = '';
     }
     if (this.superResolutionKey.length > 0) {
       readerSuperResolutionService.release(this.superResolutionKey);
@@ -196,6 +209,7 @@ export struct ReaderScene {
   @State imageSuperResolutionEnabled: boolean = false;
   @State imageSuperResolutionEngine: string = READER_SUPER_RESOLUTION_ENGINE_DETAIL;
   @State sdrToHdrEnabled: boolean = false;
+  @State imageAdjustmentSettings: ReaderImageAdjustmentSettings = new ReaderImageAdjustmentSettings();
   @State startPosition: string = 'Top right';
   @State showInfo: boolean = false;
   @State preferOriginal: boolean = false;
@@ -286,6 +300,7 @@ export struct ReaderScene {
   @State menuImageSuperResolutionEnabled: boolean = false;
   @State menuImageSuperResolutionEngine: string = READER_SUPER_RESOLUTION_ENGINE_DETAIL;
   @State menuSdrToHdrEnabled: boolean = false;
+  @State menuImageAdjustmentSettings: ReaderImageAdjustmentSettings = new ReaderImageAdjustmentSettings();
   @State menuStartPosition: string = 'Top right';
   @State menuKeepScreenOn: boolean = false;
   @State menuShowClock: boolean = true;
@@ -344,6 +359,7 @@ export struct ReaderScene {
     this.imageSuperResolutionEngine = effectiveReaderSuperResolutionEngine(
       ehSettingsStore.getValue('reader_super_resolution_engine', READER_SUPER_RESOLUTION_ENGINE_DETAIL));
     this.sdrToHdrEnabled = ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
+    this.imageAdjustmentSettings = readerImageAdjustmentSettingsFromStore();
     this.resetReaderImageSizesForGallery();
     if (!this.cropWhiteBorders) {
       this.syncReaderPreviewImageSizes();
@@ -1037,7 +1053,8 @@ export struct ReaderScene {
   }
 
   private syncImageProcessingPrefetch(): void {
-    if (!this.readerWindowActive || (!this.imageSuperResolutionEnabled && !this.sdrToHdrEnabled)) {
+    if (!this.readerWindowActive || (!this.imageSuperResolutionEnabled && !this.sdrToHdrEnabled &&
+      !this.imageAdjustmentSettings.enabled)) {
       this.imageProcessingPrefetchScope.clear();
       return;
     }
@@ -1056,23 +1073,32 @@ export struct ReaderScene {
       const targetKey = this.superResolutionTargetKey(target);
       const engineKey = readerSuperResolutionEngineCacheKey(this.imageSuperResolutionEngine);
       const superResolutionKey = sourceKey + '|' + sourcePath + '|sr|' + engineKey + '|' + targetKey;
-      const hdrKey = this.imageSuperResolutionEnabled ? superResolutionKey + '|hdr' :
-        sourceKey + '|' + sourcePath + '|hdr';
+      const adjustmentInputKey = this.imageSuperResolutionEnabled ? superResolutionKey : sourceKey + '|' + sourcePath;
+      const adjustmentKey = adjustmentInputKey + '|adjust|' + this.imageAdjustmentSettings.cacheKey();
+      const fallbackAdjustmentKey = sourceKey + '|' + sourcePath + '|adjust|' +
+        this.imageAdjustmentSettings.cacheKey();
+      const hdrInputKey = this.imageAdjustmentSettings.enabled ? adjustmentKey : adjustmentInputKey;
+      const hdrKey = hdrInputKey + '|hdr';
       const fallbackHdrKey = sourceKey + '|' + sourcePath + '|hdr';
       const priority = this.isContinuousVerticalMode() ? Math.abs(pageIndex - this.currentIndex) :
         Math.abs(this.visualIndexForPageIndex(pageIndex) - this.visualIndexForPageIndex(this.currentIndex));
       plans.push({
         id: pageIndex.toString() + '|' + superResolutionKey + '|' + hdrKey + '|' +
-          (this.imageSuperResolutionEnabled ? '1' : '0') + (this.sdrToHdrEnabled ? '1' : '0'),
+          adjustmentKey + '|' + (this.imageSuperResolutionEnabled ? '1' : '0') +
+          (this.sdrToHdrEnabled ? '1' : '0') + (this.imageAdjustmentSettings.enabled ? '1' : '0'),
         sourcePath: sourcePath,
         superResolutionKey: superResolutionKey,
         hdrKey: hdrKey,
         fallbackHdrKey: fallbackHdrKey,
+        adjustmentKey: adjustmentKey,
+        fallbackAdjustmentKey: fallbackAdjustmentKey,
+        adjustmentSettings: this.imageAdjustmentSettings,
         targetWidth: target.width,
         targetHeight: target.height,
         superResolutionEngine: this.imageSuperResolutionEngine,
         superResolution: this.imageSuperResolutionEnabled,
         hdr: this.sdrToHdrEnabled,
+        adjustment: this.imageAdjustmentSettings.enabled,
         priority: priority
       });
     }
@@ -1185,6 +1211,7 @@ export struct ReaderScene {
     this.menuImageSuperResolutionEngine = effectiveReaderSuperResolutionEngine(
       ehSettingsStore.getValue('reader_super_resolution_engine', READER_SUPER_RESOLUTION_ENGINE_DETAIL));
     this.menuSdrToHdrEnabled = ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
+    this.menuImageAdjustmentSettings = readerImageAdjustmentSettingsFromStore();
     this.menuStartPosition = normalizeStartPositionOption(ehSettingsStore.getValue('start_position', 'Top right'));
     this.menuKeepScreenOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
     this.menuShowClock = ehSettingsStore.getValue('gallery_show_clock', 'On') === 'On';
@@ -1215,6 +1242,7 @@ export struct ReaderScene {
       this.menuImageSuperResolutionEnabled ? 'On' : 'Off');
     ehSettingsStore.setValue('reader_super_resolution_engine', this.menuImageSuperResolutionEngine);
     ehSettingsStore.setValue('reader_sdr_to_hdr', this.menuSdrToHdrEnabled ? 'On' : 'Off');
+    saveReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
     ehSettingsStore.setValue('screen_rotation', this.menuScreenRotation);
     ehSettingsStore.setValue('reading_direction', this.menuReadingDirection);
     ehSettingsStore.setValue('page_scaling', this.menuPageScaling);
@@ -1244,6 +1272,7 @@ export struct ReaderScene {
     this.imageSuperResolutionEnabled = this.menuImageSuperResolutionEnabled;
     this.imageSuperResolutionEngine = effectiveReaderSuperResolutionEngine(this.menuImageSuperResolutionEngine);
     this.sdrToHdrEnabled = this.menuSdrToHdrEnabled;
+    this.imageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
     if (previousAdaptiveDualPage !== this.adaptiveDualPage) {
       this.onAdaptiveDualPageChange(this.adaptiveDualPage);
     }
@@ -1301,7 +1330,8 @@ export struct ReaderScene {
   private currentMenuReaderPresetValues(): ReaderPresetValues {
     return createReaderPresetValues(this.menuScreenRotation, this.menuReadingDirection, this.menuPageScaling,
       this.menuAdaptiveDualPage, this.menuCropWhiteBorders, this.menuImageSuperResolutionEnabled,
-      this.menuImageSuperResolutionEngine, this.menuSdrToHdrEnabled, this.menuStartPosition);
+      this.menuImageSuperResolutionEngine, this.menuSdrToHdrEnabled, this.menuStartPosition,
+      this.menuImageAdjustmentSettings);
   }
 
   private syncMenuReaderPreset(): void {
@@ -1352,6 +1382,7 @@ export struct ReaderScene {
     this.menuImageSuperResolutionEnabled = profile.values.imageSuperResolution;
     this.menuImageSuperResolutionEngine = effectiveReaderSuperResolutionEngine(profile.values.superResolutionEngine);
     this.menuSdrToHdrEnabled = profile.values.sdrToHdr;
+    this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(profile.values.imageAdjustment);
     this.menuStartPosition = profile.values.startPosition;
     this.applyAdaptiveDualPageMenuConstraints();
     this.menuReaderPreset = profile.name;
@@ -2039,7 +2070,8 @@ export struct ReaderScene {
   private async acquireProcessedImageForSave(page: GalleryPage, index: number,
     sourcePath: string): Promise<ReaderProcessedImageLease> {
     const lease = new ReaderProcessedImageLease();
-    if ((!this.imageSuperResolutionEnabled && !this.sdrToHdrEnabled) || sourcePath.length === 0) {
+    if ((!this.imageSuperResolutionEnabled && !this.sdrToHdrEnabled && !this.imageAdjustmentSettings.enabled) ||
+      sourcePath.length === 0) {
       return lease;
     }
     const original = this.preferOriginal && page.originImageUrl.length > 0;
@@ -2057,11 +2089,27 @@ export struct ReaderScene {
         superResolutionPixelMap = undefined;
       }
     }
+    let adjustedPixelMap: image.PixelMap | undefined = undefined;
+    if (this.imageAdjustmentSettings.enabled) {
+      const adjustmentInputKey = superResolutionPixelMap !== undefined && lease.superResolutionKey.length > 0 ?
+        lease.superResolutionKey : sourceKey + '|' + sourcePath;
+      lease.adjustmentKey = adjustmentInputKey + '|adjust|' + this.imageAdjustmentSettings.cacheKey();
+      try {
+        adjustedPixelMap = superResolutionPixelMap !== undefined ?
+          await readerImageAdjustmentService.acquirePixelMap(lease.adjustmentKey, superResolutionPixelMap,
+            this.imageAdjustmentSettings, 0) :
+          await readerImageAdjustmentService.acquire(lease.adjustmentKey, sourcePath,
+            this.imageAdjustmentSettings, 0);
+      } catch (_error) {
+        adjustedPixelMap = undefined;
+      }
+    }
     if (this.sdrToHdrEnabled) {
       try {
-        if (superResolutionPixelMap !== undefined && lease.superResolutionKey.length > 0) {
-          lease.hdrKey = lease.superResolutionKey + '|hdr';
-          lease.pixelMap = await readerHdrService.acquirePixelMap(lease.hdrKey, superResolutionPixelMap, 0);
+        const hdrInput = adjustedPixelMap !== undefined ? adjustedPixelMap : superResolutionPixelMap;
+        if (hdrInput !== undefined) {
+          lease.hdrKey = (adjustedPixelMap !== undefined ? lease.adjustmentKey : lease.superResolutionKey) + '|hdr';
+          lease.pixelMap = await readerHdrService.acquirePixelMap(lease.hdrKey, hdrInput, 0);
         } else {
           lease.hdrKey = sourceKey + '|' + sourcePath + '|hdr';
           lease.pixelMap = await readerHdrService.acquire(lease.hdrKey, sourcePath, 0);
@@ -2071,7 +2119,7 @@ export struct ReaderScene {
       }
     }
     if (lease.pixelMap === undefined) {
-      lease.pixelMap = superResolutionPixelMap;
+      lease.pixelMap = adjustedPixelMap !== undefined ? adjustedPixelMap : superResolutionPixelMap;
     }
     return lease;
   }
@@ -2549,6 +2597,7 @@ export struct ReaderScene {
       startPosition: this.startPosition,
       isActive: this.pageGroupAnchorForPageIndex(index) === this.currentIndex,
       hdrEnabled: this.sdrToHdrEnabled,
+      imageAdjustmentSettings: this.imageAdjustmentSettings,
       superResolutionEnabled: this.imageSuperResolutionEnabled,
       superResolutionEngine: this.imageSuperResolutionEngine,
       superResolutionTargetWidth: this.superResolutionDisplayTarget(index).width,
@@ -2653,6 +2702,7 @@ export struct ReaderScene {
                 isActive: item.index === this.currentIndex,
                 hdrEnabled: this.sdrToHdrEnabled &&
                   Math.abs(item.index - this.currentIndex) <= this.readerContinuousCacheCount(),
+                imageAdjustmentSettings: this.imageAdjustmentSettings,
                 superResolutionEnabled: this.imageSuperResolutionEnabled &&
                   Math.abs(item.index - this.currentIndex) <= this.readerContinuousCacheCount(),
                 superResolutionEngine: this.imageSuperResolutionEngine,
@@ -2876,6 +2926,14 @@ export struct ReaderScene {
           menuImageSuperResolution: this.menuImageSuperResolutionEnabled,
           menuImageSuperResolutionEngine: this.menuImageSuperResolutionEngine,
           menuSdrToHdrEnabled: this.menuSdrToHdrEnabled,
+          menuImageAdjustmentEnabled: this.menuImageAdjustmentSettings.enabled,
+          menuImageContrast: this.menuImageAdjustmentSettings.contrast,
+          menuImageClarity: this.menuImageAdjustmentSettings.clarity,
+          menuImageSharpening: this.menuImageAdjustmentSettings.sharpening,
+          menuImageExposure: this.menuImageAdjustmentSettings.exposure,
+          menuImageHue: this.menuImageAdjustmentSettings.hue,
+          menuImageSaturation: this.menuImageAdjustmentSettings.saturation,
+          menuImageTemperature: this.menuImageAdjustmentSettings.temperature,
           menuStartPosition: this.menuStartPosition,
           menuAutoTransferTime: this.menuAutoTransferTime,
           menuKeepScreenOn: this.menuKeepScreenOn,
@@ -2941,6 +2999,51 @@ export struct ReaderScene {
           },
           onSdrToHdrChange: (value: boolean) => {
             this.onMenuSdrToHdrChange(value);
+          },
+          onImageAdjustmentEnabledChange: (value: boolean) => {
+            this.menuImageAdjustmentSettings.enabled = value;
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
+          },
+          onImageContrastChange: (value: number) => {
+            this.menuImageAdjustmentSettings.contrast = Math.round(value);
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
+          },
+          onImageClarityChange: (value: number) => {
+            this.menuImageAdjustmentSettings.clarity = Math.round(value);
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
+          },
+          onImageSharpeningChange: (value: number) => {
+            this.menuImageAdjustmentSettings.sharpening = Math.round(value);
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
+          },
+          onImageExposureChange: (value: number) => {
+            this.menuImageAdjustmentSettings.exposure = Math.round(value);
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
+          },
+          onImageHueChange: (value: number) => {
+            this.menuImageAdjustmentSettings.hue = Math.round(value);
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
+          },
+          onImageSaturationChange: (value: number) => {
+            this.menuImageAdjustmentSettings.saturation = Math.round(value);
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
+          },
+          onImageTemperatureChange: (value: number) => {
+            this.menuImageAdjustmentSettings.temperature = Math.round(value);
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
+          },
+          onResetImageAdjustments: () => {
+            resetReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
           },
           onStartPositionChange: (value: string) => {
             this.menuStartPosition = value;
