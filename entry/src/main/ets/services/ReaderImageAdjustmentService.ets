@@ -12,6 +12,8 @@ interface AdjustmentEntry {
   sourcePixelMap: image.PixelMap | undefined;
   settings: ReaderImageAdjustmentSettings;
   bakeColorAdjustments: boolean;
+  targetWidth: number;
+  targetHeight: number;
   references: number;
   cancelled: boolean;
   pixelMap: image.PixelMap | undefined;
@@ -33,20 +35,26 @@ class ReaderImageAdjustmentService {
   private sequence: number = 0;
 
   acquire(key: string, sourcePath: string, settings: ReaderImageAdjustmentSettings,
-    priority: number = 0, bakeColorAdjustments: boolean = false): Promise<image.PixelMap | undefined> {
-    if ((!settings.requiresOfflineProcessing() && !bakeColorAdjustments) || !settings.enabled ||
+    priority: number = 0, bakeColorAdjustments: boolean = false,
+    targetWidth: number = 0, targetHeight: number = 0): Promise<image.PixelMap | undefined> {
+    if ((!settings.requiresOfflineProcessing() && !bakeColorAdjustments) ||
+      (!settings.enabled && !settings.hasMoireReduction()) ||
       key.length === 0 || sourcePath.length === 0) {
       return Promise.resolve(undefined);
     }
-    return this.acquireEntry(key, sourcePath, undefined, settings, priority, bakeColorAdjustments);
+    return this.acquireEntry(key, sourcePath, undefined, settings, priority, bakeColorAdjustments,
+      targetWidth, targetHeight);
   }
 
   acquirePixelMap(key: string, sourcePixelMap: image.PixelMap, settings: ReaderImageAdjustmentSettings,
-    priority: number = 0, bakeColorAdjustments: boolean = false): Promise<image.PixelMap | undefined> {
-    if ((!settings.requiresOfflineProcessing() && !bakeColorAdjustments) || !settings.enabled || key.length === 0) {
+    priority: number = 0, bakeColorAdjustments: boolean = false,
+    targetWidth: number = 0, targetHeight: number = 0): Promise<image.PixelMap | undefined> {
+    if ((!settings.requiresOfflineProcessing() && !bakeColorAdjustments) ||
+      (!settings.enabled && !settings.hasMoireReduction()) || key.length === 0) {
       return Promise.resolve(undefined);
     }
-    return this.acquireEntry(key, '', sourcePixelMap, settings, priority, bakeColorAdjustments);
+    return this.acquireEntry(key, '', sourcePixelMap, settings, priority, bakeColorAdjustments,
+      targetWidth, targetHeight);
   }
 
   updatePriority(key: string, priority: number): void {
@@ -77,10 +85,11 @@ class ReaderImageAdjustmentService {
 
   private acquireEntry(key: string, sourcePath: string, sourcePixelMap: image.PixelMap | undefined,
     settings: ReaderImageAdjustmentSettings, priority: number,
-    bakeColorAdjustments: boolean): Promise<image.PixelMap | undefined> {
+    bakeColorAdjustments: boolean, targetWidth: number, targetHeight: number): Promise<image.PixelMap | undefined> {
     let entry = this.entries.get(key);
     if (entry === undefined || entry.sourcePath !== sourcePath ||
-      entry.bakeColorAdjustments !== bakeColorAdjustments) {
+      entry.bakeColorAdjustments !== bakeColorAdjustments || entry.targetWidth !== targetWidth ||
+      entry.targetHeight !== targetHeight) {
       if (entry !== undefined) {
         this.disposeEntry(entry);
       }
@@ -90,6 +99,8 @@ class ReaderImageAdjustmentService {
         sourcePixelMap: sourcePixelMap,
         settings: settings,
         bakeColorAdjustments: bakeColorAdjustments,
+        targetWidth: Math.max(0, Math.round(targetWidth)),
+        targetHeight: Math.max(0, Math.round(targetHeight)),
         references: 0,
         cancelled: false,
         pixelMap: undefined,
@@ -189,16 +200,19 @@ class ReaderImageAdjustmentService {
         return undefined;
       }
       const value = entry.settings;
+      const adjustmentEnabled = value.enabled;
       const result = await readerHdr.adjustPixelMap(pixelMap,
-        entry.bakeColorAdjustments ? value.contrast : 0, value.clarity, value.sharpening,
-        entry.bakeColorAdjustments ? value.exposure : 0,
-        entry.bakeColorAdjustments ? value.brightness : 0,
-        value.highlights, value.shadows,
-        entry.bakeColorAdjustments ? value.hue : 0,
-        entry.bakeColorAdjustments ? value.saturation : 0,
-        value.vibrance,
-        entry.bakeColorAdjustments ? value.temperature : 0,
-        entry.bakeColorAdjustments ? value.grayscale : 0);
+        entry.bakeColorAdjustments && adjustmentEnabled ? value.contrast : 0,
+        adjustmentEnabled ? value.clarity : 0, adjustmentEnabled ? value.sharpening : 0,
+        entry.bakeColorAdjustments && adjustmentEnabled ? value.exposure : 0,
+        entry.bakeColorAdjustments && adjustmentEnabled ? value.brightness : 0,
+        adjustmentEnabled ? value.highlights : 0, adjustmentEnabled ? value.shadows : 0,
+        entry.bakeColorAdjustments && adjustmentEnabled ? value.hue : 0,
+        entry.bakeColorAdjustments && adjustmentEnabled ? value.saturation : 0,
+        adjustmentEnabled ? value.vibrance : 0,
+        entry.bakeColorAdjustments && adjustmentEnabled ? value.temperature : 0,
+        entry.bakeColorAdjustments && adjustmentEnabled ? value.grayscale : 0,
+        moireReductionMode(value.moireReduction), entry.targetWidth, entry.targetHeight);
       if (result !== 0 || !this.isActive(entry)) {
         return undefined;
       }
@@ -248,6 +262,16 @@ class ReaderImageAdjustmentService {
       await pixelMap.release();
     } catch (_error) {
     }
+  }
+}
+
+function moireReductionMode(value: string): number {
+  switch (value) {
+    case 'Auto': return 1;
+    case 'Low': return 2;
+    case 'Medium': return 3;
+    case 'High': return 4;
+    default: return 0;
   }
 }
 

@@ -6,4 +6,5 @@ export const createDmaHdrPixelMap: (width: number, height: number) => image.Pixe
 export const convertSdrToHdr: (source: image.PixelMap, destination: image.PixelMap) => Promise<number>;
 export const adjustPixelMap: (source: image.PixelMap, contrast: number, clarity: number, sharpening: number,
   exposure: number, brightness: number, highlights: number, shadows: number, hue: number, saturation: number,
-  vibrance: number, temperature: number, grayscale: number) => Promise<number>;
+  vibrance: number, temperature: number, grayscale: number, moireReduction: number,
+  targetWidth: number, targetHeight: number) => Promise<number>;

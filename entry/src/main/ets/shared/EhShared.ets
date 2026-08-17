@@ -1432,6 +1432,10 @@ export function zhText(text: string): string {
     case 'Thumb': return '缩略图';
     case 'Extended': return '扩展';
     case 'Auto': return '自动';
+    case 'Low': return '弱';
+    case 'High': return '强';
+    case 'Moiré reduction': return '去除摩尔纹';
+    case 'Reduce screentone interference patterns while scaling reader pages': return '缩放阅读页时减轻网点产生的干涉条纹';
     case 'HTTP': return 'HTTP';
     case 'SOCKS': return 'SOCKS';
     case 'Read cache size': return '阅读缓存大小';
@@ -3158,6 +3162,9 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
         'Show two wide or narrow pages together when both fit on screen', entries, ON_OFF_OPTIONS),
       optionSettingsRow('reader_crop_white_borders', 'Crop white and black borders',
         'Automatically trim uniform light or dark margins while reading', entries, ON_OFF_OPTIONS),
+      optionSettingsRow('reader_moire_reduction', 'Moiré reduction',
+        'Reduce screentone interference patterns while scaling reader pages', entries,
+        ['Off', 'Auto', 'Low', 'Medium', 'High']),
       optionSettingsRow('reader_image_super_resolution', 'Image super resolution',
         'Use the system image engine to enhance low-resolution reader pages', entries, ON_OFF_OPTIONS)
     ];

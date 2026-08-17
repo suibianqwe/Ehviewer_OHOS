@@ -2,6 +2,7 @@ import { ehSettingsStore } from './EhSettingsStore';
 
 export class ReaderImageAdjustmentSettings {
   enabled: boolean = false;
+  moireReduction: string = 'Off';
   contrast: number = 0;
   clarity: number = 0;
   sharpening: number = 0;
@@ -18,17 +19,22 @@ export class ReaderImageAdjustmentSettings {
   cacheKey(): string {
     return (this.enabled ? '1' : '0') + ':' + this.contrast + ':' + this.clarity + ':' + this.sharpening + ':' +
       this.exposure + ':' + this.brightness + ':' + this.highlights + ':' + this.shadows + ':' + this.hue + ':' +
-      this.saturation + ':' + this.vibrance + ':' + this.temperature + ':' + this.grayscale;
+      this.saturation + ':' + this.vibrance + ':' + this.temperature + ':' + this.grayscale + ':' +
+      normalizeReaderMoireReduction(this.moireReduction);
   }
 
   detailCacheKey(): string {
     return (this.enabled ? '1' : '0') + ':' + this.clarity + ':' + this.sharpening + ':' + this.highlights + ':' +
-      this.shadows + ':' + this.vibrance;
+      this.shadows + ':' + this.vibrance + ':' + normalizeReaderMoireReduction(this.moireReduction);
   }
 
   requiresOfflineProcessing(): boolean {
-    return this.enabled && (this.clarity > 0 || this.sharpening > 0 || this.highlights !== 0 ||
-      this.shadows !== 0 || this.vibrance !== 0);
+    return this.hasMoireReduction() || (this.enabled && (this.clarity > 0 || this.sharpening > 0 ||
+      this.highlights !== 0 || this.shadows !== 0 || this.vibrance !== 0));
+  }
+
+  hasMoireReduction(): boolean {
+    return normalizeReaderMoireReduction(this.moireReduction) !== 'Off';
   }
 
   hasColorAdjustments(): boolean {
@@ -147,6 +153,8 @@ function clamp(value: number, min: number, max: number): number {
 export function readerImageAdjustmentSettingsFromStore(): ReaderImageAdjustmentSettings {
   const value = new ReaderImageAdjustmentSettings();
   value.enabled = ehSettingsStore.getValue('reader_image_adjustment', 'Off') === 'On';
+  value.moireReduction = normalizeReaderMoireReduction(
+    ehSettingsStore.getValue('reader_moire_reduction', 'Off'));
   value.contrast = parseAdjustmentValue('reader_image_contrast', -100, 100);
   value.clarity = parseAdjustmentValue('reader_image_clarity', 0, 100);
   value.sharpening = parseAdjustmentValue('reader_image_sharpening', 0, 100);
@@ -166,6 +174,7 @@ export function cloneReaderImageAdjustmentSettings(
   source: ReaderImageAdjustmentSettings): ReaderImageAdjustmentSettings {
   const value = new ReaderImageAdjustmentSettings();
   value.enabled = source.enabled;
+  value.moireReduction = normalizeReaderMoireReduction(source.moireReduction);
   value.contrast = source.contrast;
   value.clarity = source.clarity;
   value.sharpening = source.sharpening;
@@ -183,6 +192,7 @@ export function cloneReaderImageAdjustmentSettings(
 
 export function saveReaderImageAdjustmentSettings(value: ReaderImageAdjustmentSettings): void {
   ehSettingsStore.setValue('reader_image_adjustment', value.enabled ? 'On' : 'Off');
+  ehSettingsStore.setValue('reader_moire_reduction', normalizeReaderMoireReduction(value.moireReduction));
   ehSettingsStore.setValue('reader_image_contrast', clampRound(value.contrast, -100, 100).toString());
   ehSettingsStore.setValue('reader_image_clarity', clampRound(value.clarity, 0, 100).toString());
   ehSettingsStore.setValue('reader_image_sharpening', clampRound(value.sharpening, 0, 100).toString());
@@ -219,4 +229,8 @@ function parseAdjustmentValue(key: string, min: number, max: number): number {
 
 function clampRound(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+export function normalizeReaderMoireReduction(value: string): string {
+  return ['Off', 'Auto', 'Low', 'Medium', 'High'].indexOf(value) >= 0 ? value : 'Off';
 }

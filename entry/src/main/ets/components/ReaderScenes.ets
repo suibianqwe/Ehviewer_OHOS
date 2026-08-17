@@ -1074,7 +1074,8 @@ export struct ReaderScene {
       const targetKey = this.superResolutionTargetKey(target);
       const engineKey = readerSuperResolutionEngineCacheKey(this.imageSuperResolutionEngine);
       const sourceInputKey = sourceKey + '|' + sourcePath;
-      const adjustmentKey = sourceInputKey + '|adjust|' + this.imageAdjustmentSettings.detailCacheKey();
+      const adjustmentKey = sourceInputKey + '|adjust|' + this.imageAdjustmentSettings.detailCacheKey() +
+        '|target|' + targetKey;
       const offlineAdjustment = this.imageAdjustmentSettings.requiresOfflineProcessing();
       const superResolutionInputKey = offlineAdjustment ? adjustmentKey : sourceInputKey;
       const superResolutionKey = superResolutionInputKey + '|sr|' + engineKey + '|' + targetKey;
@@ -2079,26 +2080,28 @@ export struct ReaderScene {
   private async acquireProcessedImageForSave(page: GalleryPage, index: number,
     sourcePath: string): Promise<ReaderProcessedImageLease> {
     const lease = new ReaderProcessedImageLease();
-    if ((!this.imageSuperResolutionEnabled && !this.sdrToHdrEnabled && !this.imageAdjustmentSettings.enabled) ||
+    if ((!this.imageSuperResolutionEnabled && !this.sdrToHdrEnabled && !this.imageAdjustmentSettings.enabled &&
+      !this.imageAdjustmentSettings.hasMoireReduction()) ||
       sourcePath.length === 0) {
       return lease;
     }
     const original = this.preferOriginal && page.originImageUrl.length > 0;
     const sourceKey = readerPageImageCacheKey(page, original);
+    const target = this.superResolutionDisplayTarget(index);
+    const targetKey = this.superResolutionTargetKey(target);
     let adjustedPixelMap: image.PixelMap | undefined = undefined;
-    if (this.imageAdjustmentSettings.enabled) {
+    if (this.imageAdjustmentSettings.enabled || this.imageAdjustmentSettings.hasMoireReduction()) {
       lease.adjustmentKey = sourceKey + '|' + sourcePath + '|adjust-baked|' +
-        this.imageAdjustmentSettings.cacheKey();
+        this.imageAdjustmentSettings.cacheKey() + '|target|' + targetKey;
       try {
         adjustedPixelMap = await readerImageAdjustmentService.acquire(lease.adjustmentKey, sourcePath,
-          this.imageAdjustmentSettings, 0, true);
+          this.imageAdjustmentSettings, 0, true, target.width, target.height);
       } catch (_error) {
         adjustedPixelMap = undefined;
       }
     }
     let superResolutionPixelMap: image.PixelMap | undefined = undefined;
     if (this.imageSuperResolutionEnabled) {
-      const target = this.superResolutionDisplayTarget(index);
       const superResolutionInputKey = adjustedPixelMap !== undefined ? lease.adjustmentKey :
         sourceKey + '|' + sourcePath;
       lease.superResolutionKey = superResolutionInputKey + '|sr|' +
@@ -2941,6 +2944,7 @@ export struct ReaderScene {
           menuImageSuperResolution: this.menuImageSuperResolutionEnabled,
           menuImageSuperResolutionEngine: this.menuImageSuperResolutionEngine,
           menuSdrToHdrEnabled: this.menuSdrToHdrEnabled,
+          menuMoireReduction: this.menuImageAdjustmentSettings.moireReduction,
           menuImageAdjustmentEnabled: this.menuImageAdjustmentSettings.enabled,
           menuImageContrast: this.menuImageAdjustmentSettings.contrast,
           menuImageClarity: this.menuImageAdjustmentSettings.clarity,
@@ -3023,6 +3027,11 @@ export struct ReaderScene {
           },
           onSdrToHdrChange: (value: boolean) => {
             this.onMenuSdrToHdrChange(value);
+          },
+          onMoireReductionChange: (value: string) => {
+            this.menuImageAdjustmentSettings.moireReduction = value;
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
           },
           onImageAdjustmentEnabledChange: (value: boolean) => {
             this.menuImageAdjustmentSettings.enabled = value;

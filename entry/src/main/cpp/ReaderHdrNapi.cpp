@@ -57,6 +57,9 @@ struct AdjustmentWork {
     float vibrance = 0.0f;
     float temperature = 0.0f;
     float grayscale = 0.0f;
+    int32_t moireReduction = 0;
+    int32_t targetWidth = 0;
+    int32_t targetHeight = 0;
     int32_t result = CONVERSION_FAILED;
 };
 
@@ -79,6 +82,129 @@ private:
     NativePixelMap *pixelMap_;
 };
 
+void ReduceMoire(uint8_t *pixels, const OhosPixelMapInfos &info, const AdjustmentWork *adjustment)
+{
+    if (pixels == nullptr || adjustment == nullptr || adjustment->moireReduction <= 0 ||
+        info.width < 8 || info.height < 8) {
+        return;
+    }
+    float displayScale = 1.0f;
+    if (adjustment->targetWidth > 0) {
+        displayScale = static_cast<float>(adjustment->targetWidth) / static_cast<float>(info.width);
+    } else if (adjustment->targetHeight > 0) {
+        displayScale = static_cast<float>(adjustment->targetHeight) / static_cast<float>(info.height);
+    }
+    displayScale = std::max(0.05f, std::min(4.0f, displayScale));
+    if (adjustment->moireReduction == 1 && displayScale >= 0.92f) {
+        return;
+    }
+
+    const float downsample = std::max(1.0f, 1.0f / displayScale);
+    int32_t radius = std::max(1, std::min(4, static_cast<int32_t>(
+        std::ceil((downsample - 1.0f) * 0.65f))));
+    if (adjustment->moireReduction == 3) {
+        radius = std::min(4, radius + 1);
+    } else if (adjustment->moireReduction >= 4) {
+        radius = std::min(5, radius + 2);
+    }
+    const float baseBlend = adjustment->moireReduction == 2 ? 0.38f :
+        (adjustment->moireReduction == 3 ? 0.56f : (adjustment->moireReduction >= 4 ? 0.74f : 0.50f));
+    const float deltaLimit = adjustment->moireReduction == 2 ? 14.0f :
+        (adjustment->moireReduction == 3 ? 22.0f : (adjustment->moireReduction >= 4 ? 32.0f : 19.0f));
+    const size_t width = info.width;
+    const size_t height = info.height;
+    const size_t pixelCount = width * height;
+    std::vector<uint8_t> luminance(pixelCount);
+    for (uint32_t y = 0; y < info.height; ++y) {
+        const auto *row = pixels + static_cast<size_t>(y) * info.rowSize;
+        for (uint32_t x = 0; x < info.width; ++x) {
+            const auto *pixel = row + static_cast<size_t>(x) * 4;
+            luminance[static_cast<size_t>(y) * width + x] = static_cast<uint8_t>(
+                (54U * pixel[0] + 183U * pixel[1] + 19U * pixel[2] + 128U) >> 8U);
+        }
+    }
+
+    const uint32_t window = static_cast<uint32_t>(radius * 2 + 1);
+    std::vector<uint8_t> horizontal(pixelCount);
+    std::vector<uint8_t> blurred(pixelCount);
+    for (uint32_t y = 0; y < info.height; ++y) {
+        const size_t rowOffset = static_cast<size_t>(y) * width;
+        uint32_t sum = 0;
+        for (int32_t offset = -radius; offset <= radius; ++offset) {
+            const uint32_t sampleX = static_cast<uint32_t>(std::max(0,
+                std::min(static_cast<int32_t>(info.width) - 1, offset)));
+            sum += luminance[rowOffset + sampleX];
+        }
+        for (uint32_t x = 0; x < info.width; ++x) {
+            horizontal[rowOffset + x] = static_cast<uint8_t>((sum + window / 2) / window);
+            const uint32_t removeX = x > static_cast<uint32_t>(radius) ? x - radius : 0;
+            const uint32_t addX = std::min(info.width - 1, x + static_cast<uint32_t>(radius) + 1);
+            sum += luminance[rowOffset + addX];
+            sum -= luminance[rowOffset + removeX];
+        }
+    }
+    std::vector<uint32_t> verticalSums(width, 0);
+    for (int32_t offset = -radius; offset <= radius; ++offset) {
+        const uint32_t sampleY = static_cast<uint32_t>(std::max(0,
+            std::min(static_cast<int32_t>(info.height) - 1, offset)));
+        const size_t rowOffset = static_cast<size_t>(sampleY) * width;
+        for (uint32_t x = 0; x < info.width; ++x) {
+            verticalSums[x] += horizontal[rowOffset + x];
+        }
+    }
+    for (uint32_t y = 0; y < info.height; ++y) {
+        const size_t rowOffset = static_cast<size_t>(y) * width;
+        for (uint32_t x = 0; x < info.width; ++x) {
+            blurred[rowOffset + x] = static_cast<uint8_t>((verticalSums[x] + window / 2) / window);
+        }
+        const uint32_t removeY = y > static_cast<uint32_t>(radius) ? y - radius : 0;
+        const uint32_t addY = std::min(info.height - 1, y + static_cast<uint32_t>(radius) + 1);
+        const size_t removeOffset = static_cast<size_t>(removeY) * width;
+        const size_t addOffset = static_cast<size_t>(addY) * width;
+        for (uint32_t x = 0; x < info.width; ++x) {
+            verticalSums[x] += horizontal[addOffset + x];
+            verticalSums[x] -= horizontal[removeOffset + x];
+        }
+    }
+
+    for (uint32_t y = 2; y + 2 < info.height; ++y) {
+        auto *row = pixels + static_cast<size_t>(y) * info.rowSize;
+        for (uint32_t x = 2; x + 2 < info.width; ++x) {
+            const size_t centerIndex = static_cast<size_t>(y) * width + x;
+            const int32_t center = luminance[centerIndex];
+            const int32_t left = luminance[centerIndex - 1];
+            const int32_t right = luminance[centerIndex + 1];
+            const int32_t up = luminance[centerIndex - width];
+            const int32_t down = luminance[centerIndex + width];
+            const int32_t horizontalResponse = std::abs(2 * center - left - right);
+            const int32_t verticalResponse = std::abs(2 * center - up - down);
+            const int32_t gradient = std::abs(left - right) + std::abs(up - down);
+            int32_t periodicAxes = 0;
+            if ((center - left) * (center - right) > 0 &&
+                std::abs(2 * center - luminance[centerIndex - 2] - luminance[centerIndex + 2]) < 56) {
+                periodicAxes++;
+            }
+            if ((center - up) * (center - down) > 0 &&
+                std::abs(2 * center - luminance[centerIndex - 2 * width] -
+                luminance[centerIndex + 2 * width]) < 56) {
+                periodicAxes++;
+            }
+            const int32_t response = horizontalResponse + verticalResponse;
+            if (periodicAxes < 2 && (response < 42 || gradient * 5 > response * 6)) {
+                continue;
+            }
+            const float responseWeight = std::max(0.15f, std::min(1.0f,
+                static_cast<float>(response - 12) / 72.0f));
+            const float delta = std::max(-deltaLimit, std::min(deltaLimit,
+                (static_cast<float>(blurred[centerIndex]) - center) * baseBlend * responseWeight));
+            auto *pixel = row + static_cast<size_t>(x) * 4;
+            pixel[0] = static_cast<uint8_t>(ClampByte(pixel[0] + delta) + 0.5f);
+            pixel[1] = static_cast<uint8_t>(ClampByte(pixel[1] + delta) + 0.5f);
+            pixel[2] = static_cast<uint8_t>(ClampByte(pixel[2] + delta) + 0.5f);
+        }
+    }
+}
+
 bool AdjustRgba8888PixelMap(AdjustmentWork *adjustment)
 {
     if (adjustment == nullptr || adjustment->pixelMap == nullptr) {
@@ -95,6 +221,7 @@ bool AdjustRgba8888PixelMap(AdjustmentWork *adjustment)
     PixelMapAccessGuard accessGuard(adjustment->pixelMap);
 
     auto *pixels = static_cast<uint8_t *>(address);
+    ReduceMoire(pixels, info, adjustment);
     const float contrastValue = std::max(-100.0f, std::min(100.0f, adjustment->contrast));
     const float contrastFactor = (259.0f * (contrastValue * 1.27f + 255.0f)) /
         (255.0f * (259.0f - contrastValue * 1.27f));
@@ -491,10 +618,10 @@ void CompleteAdjustment(napi_env env, napi_status status, void *data)
 
 napi_value AdjustPixelMap(napi_env env, napi_callback_info info)
 {
-    size_t argc = 13;
-    napi_value argv[13] = { nullptr };
-    if (napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) != napi_ok || argc < 13 || argv[0] == nullptr) {
-        napi_throw_type_error(env, nullptr, "PixelMap and twelve adjustment values are required");
+    size_t argc = 16;
+    napi_value argv[16] = { nullptr };
+    if (napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) != napi_ok || argc < 16 || argv[0] == nullptr) {
+        napi_throw_type_error(env, nullptr, "PixelMap and fifteen adjustment values are required");
         return nullptr;
     }
     auto *adjustment = new AdjustmentWork();
@@ -522,6 +649,19 @@ napi_value AdjustPixelMap(napi_env env, napi_callback_info info)
     adjustment->vibrance = static_cast<float>(values[9]);
     adjustment->temperature = static_cast<float>(values[10]);
     adjustment->grayscale = static_cast<float>(values[11]);
+    int32_t moireReduction = 0;
+    int32_t targetWidth = 0;
+    int32_t targetHeight = 0;
+    if (napi_get_value_int32(env, argv[13], &moireReduction) != napi_ok ||
+        napi_get_value_int32(env, argv[14], &targetWidth) != napi_ok ||
+        napi_get_value_int32(env, argv[15], &targetHeight) != napi_ok) {
+        delete adjustment;
+        napi_throw_type_error(env, nullptr, "Invalid moire reduction parameters");
+        return nullptr;
+    }
+    adjustment->moireReduction = std::max(0, std::min(4, moireReduction));
+    adjustment->targetWidth = std::max(0, targetWidth);
+    adjustment->targetHeight = std::max(0, targetHeight);
 
     napi_value promise = nullptr;
     napi_value resourceName = nullptr;

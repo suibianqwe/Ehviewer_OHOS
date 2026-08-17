@@ -247,11 +247,15 @@ export struct ReaderContinuousImageItem {
   }
 
   onSuperResolutionTargetChange(): void {
-    if (!this.superResolutionEnabled) {
+    if (!this.superResolutionEnabled && !this.imageAdjustmentSettings.hasMoireReduction()) {
       return;
     }
     this.releaseHdrPixelMap();
     this.releaseSuperResolutionPixelMap();
+    if (this.imageAdjustmentSettings.hasMoireReduction()) {
+      this.releaseAdjustedPixelMap();
+      this.loadAdjustedPixelMap();
+    }
     this.loadSuperResolutionPixelMap();
     this.loadHdrPixelMap();
   }
@@ -418,7 +422,8 @@ export struct ReaderContinuousImageItem {
       return;
     }
     const key = this.sourceImageCacheKey() + '|' + sourcePath + '|adjust|' +
-      this.imageAdjustmentSettings.detailCacheKey();
+      this.imageAdjustmentSettings.detailCacheKey() + '|target|' +
+      this.superResolutionTargetWidth.toString() + 'x' + this.superResolutionTargetHeight.toString();
     if (this.retainedAdjustmentKey === key) {
       return;
     }
@@ -427,7 +432,8 @@ export struct ReaderContinuousImageItem {
     const requestId = ++this.adjustmentRequestId;
     this.retainedAdjustmentKey = key;
     const pending = readerImageAdjustmentService.acquire(key, sourcePath,
-      this.imageAdjustmentSettings, this.hdrPriority);
+      this.imageAdjustmentSettings, this.hdrPriority, false,
+      this.superResolutionTargetWidth, this.superResolutionTargetHeight);
     pending.then((pixelMap: image.PixelMap | undefined) => {
       if (requestId !== this.adjustmentRequestId || key !== this.retainedAdjustmentKey ||
         !this.imageAdjustmentSettings.requiresOfflineProcessing()) {
@@ -699,8 +705,7 @@ export struct ReaderContinuousImageItem {
             .height(this.uncroppedDisplayHeight())
             .objectFit(this.imageObjectFit())
             .colorFilter(readerImageColorFilter(this.imageAdjustmentSettings))
-            .interpolation(this.displayPixelMap() !== undefined && this.isActive ?
-              ImageInterpolation.High : ImageInterpolation.Low)
+            .interpolation(this.isActive ? ImageInterpolation.High : ImageInterpolation.Low)
             .dynamicRangeMode(this.hdrPixelMap === undefined ? DynamicRangeMode.STANDARD : DynamicRangeMode.HIGH)
             .hdrBrightness(this.hdrPixelMap === undefined ? 0 : 1)
             .syncLoad(this.shouldSyncLoadImage())

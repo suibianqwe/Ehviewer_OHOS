@@ -375,6 +375,7 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuImageSuperResolution: boolean = false;
   @Prop menuImageSuperResolutionEngine: string = 'Detail enhancer';
   @Prop menuSdrToHdrEnabled: boolean = false;
+  @Prop menuMoireReduction: string = 'Off';
   @Prop menuImageAdjustmentEnabled: boolean = false;
   @Prop menuImageContrast: number = 0;
   @Prop menuImageClarity: number = 0;
@@ -426,6 +427,7 @@ export struct ReaderSettingsMenuOverlay {
   onImageSuperResolutionChange: (value: boolean) => void = (_value: boolean) => {};
   onImageSuperResolutionEngineChange: (value: string) => void = (_value: string) => {};
   onSdrToHdrChange: (value: boolean) => void = (_value: boolean) => {};
+  onMoireReductionChange: (value: string) => void = (_value: string) => {};
   onImageAdjustmentEnabledChange: (value: boolean) => void = (_value: boolean) => {};
   onImageContrastChange: (value: number) => void = (_value: number) => {};
   onImageClarityChange: (value: number) => void = (_value: number) => {};
@@ -899,6 +901,13 @@ export struct ReaderSettingsMenuOverlay {
   private ImageAdjustmentSettingsTab() {
     Scroll() {
       Column({ space: 0 }) {
+        ReaderMenuSelect({
+          label: uiText('Moiré reduction'),
+          options: ['Off', 'Auto', 'Low', 'Medium', 'High'],
+          value: this.menuMoireReduction,
+          onChange: this.onMoireReductionChange
+        })
+        ReaderMenuDivider()
         ReaderMenuToggle({
           label: uiText('Image adjustment'),
           value: this.menuImageAdjustmentEnabled,

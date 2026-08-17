@@ -89,6 +89,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'reader_super_resolution_engine', value: 'Detail enhancer' },
     { key: 'reader_sdr_to_hdr', value: 'Off' },
     { key: 'reader_image_adjustment', value: 'Off' },
+    { key: 'reader_moire_reduction', value: 'Off' },
     { key: 'reader_image_contrast', value: '0' },
     { key: 'reader_image_clarity', value: '0' },
     { key: 'reader_image_sharpening', value: '0' },

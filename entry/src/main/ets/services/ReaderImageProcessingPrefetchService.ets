@@ -111,7 +111,8 @@ export class ReaderImageProcessingPrefetchScope {
       reservation.retainedAdjustmentKey = reservation.adjustmentKey;
       try {
         const adjusted = await readerImageAdjustmentService.acquire(reservation.adjustmentKey,
-          reservation.sourcePath, reservation.adjustmentSettings, reservation.priority);
+          reservation.sourcePath, reservation.adjustmentSettings, reservation.priority, false,
+          reservation.targetWidth, reservation.targetHeight);
         if (adjusted !== undefined) {
           pixelMap = adjusted;
           pixelMapKey = reservation.adjustmentKey;
