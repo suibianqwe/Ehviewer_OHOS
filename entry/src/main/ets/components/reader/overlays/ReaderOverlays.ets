@@ -380,9 +380,14 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuImageClarity: number = 0;
   @Prop menuImageSharpening: number = 0;
   @Prop menuImageExposure: number = 0;
+  @Prop menuImageBrightness: number = 0;
+  @Prop menuImageHighlights: number = 0;
+  @Prop menuImageShadows: number = 0;
   @Prop menuImageHue: number = 0;
   @Prop menuImageSaturation: number = 0;
+  @Prop menuImageVibrance: number = 0;
   @Prop menuImageTemperature: number = 0;
+  @Prop menuImageGrayscale: number = 0;
   @Prop menuStartPosition: string = 'Top right';
   @Prop menuAutoTransferTime: string = '5s';
   @Prop menuKeepScreenOn: boolean = false;
@@ -426,9 +431,14 @@ export struct ReaderSettingsMenuOverlay {
   onImageClarityChange: (value: number) => void = (_value: number) => {};
   onImageSharpeningChange: (value: number) => void = (_value: number) => {};
   onImageExposureChange: (value: number) => void = (_value: number) => {};
+  onImageBrightnessChange: (value: number) => void = (_value: number) => {};
+  onImageHighlightsChange: (value: number) => void = (_value: number) => {};
+  onImageShadowsChange: (value: number) => void = (_value: number) => {};
   onImageHueChange: (value: number) => void = (_value: number) => {};
   onImageSaturationChange: (value: number) => void = (_value: number) => {};
+  onImageVibranceChange: (value: number) => void = (_value: number) => {};
   onImageTemperatureChange: (value: number) => void = (_value: number) => {};
+  onImageGrayscaleChange: (value: number) => void = (_value: number) => {};
   onResetImageAdjustments: () => void = () => {};
   onStartPositionChange: (value: string) => void = (_value: string) => {};
   onAutoTransferTimeChange: (value: string) => void = (_value: string) => {};
@@ -897,8 +907,28 @@ export struct ReaderSettingsMenuOverlay {
         if (this.menuImageAdjustmentEnabled) {
           ReaderMenuDivider()
           ReaderMenuSlider({
+            label: uiText('Exposure'), value: this.menuImageExposure, min: -100, max: 100, step: 1,
+            valueText: exposureValueText, onChange: this.onImageExposureChange
+          })
+          ReaderMenuDivider()
+          ReaderMenuSlider({
+            label: uiText('Brightness'), value: this.menuImageBrightness, min: -100, max: 100, step: 1,
+            valueText: adjustmentValueText, onChange: this.onImageBrightnessChange
+          })
+          ReaderMenuDivider()
+          ReaderMenuSlider({
             label: uiText('Contrast'), value: this.menuImageContrast, min: -100, max: 100, step: 1,
             valueText: adjustmentValueText, onChange: this.onImageContrastChange
+          })
+          ReaderMenuDivider()
+          ReaderMenuSlider({
+            label: uiText('Highlights'), value: this.menuImageHighlights, min: -100, max: 100, step: 1,
+            valueText: adjustmentValueText, onChange: this.onImageHighlightsChange
+          })
+          ReaderMenuDivider()
+          ReaderMenuSlider({
+            label: uiText('Shadows'), value: this.menuImageShadows, min: -100, max: 100, step: 1,
+            valueText: adjustmentValueText, onChange: this.onImageShadowsChange
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
@@ -912,8 +942,13 @@ export struct ReaderSettingsMenuOverlay {
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
-            label: uiText('Exposure'), value: this.menuImageExposure, min: -100, max: 100, step: 1,
-            valueText: exposureValueText, onChange: this.onImageExposureChange
+            label: uiText('Saturation'), value: this.menuImageSaturation, min: -100, max: 100, step: 1,
+            valueText: adjustmentValueText, onChange: this.onImageSaturationChange
+          })
+          ReaderMenuDivider()
+          ReaderMenuSlider({
+            label: uiText('Vibrance'), value: this.menuImageVibrance, min: -100, max: 100, step: 1,
+            valueText: adjustmentValueText, onChange: this.onImageVibranceChange
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
@@ -922,13 +957,13 @@ export struct ReaderSettingsMenuOverlay {
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
-            label: uiText('Saturation'), value: this.menuImageSaturation, min: -100, max: 100, step: 1,
-            valueText: adjustmentValueText, onChange: this.onImageSaturationChange
+            label: uiText('Color temperature'), value: this.menuImageTemperature, min: -100, max: 100, step: 1,
+            valueText: adjustmentValueText, onChange: this.onImageTemperatureChange
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
-            label: uiText('Color temperature'), value: this.menuImageTemperature, min: -100, max: 100, step: 1,
-            valueText: adjustmentValueText, onChange: this.onImageTemperatureChange
+            label: uiText('Grayscale'), value: this.menuImageGrayscale, min: 0, max: 100, step: 1,
+            valueText: adjustmentValueText, onChange: this.onImageGrayscaleChange
           })
           ReaderMenuDivider()
           Button(uiText('Reset image adjustments'))

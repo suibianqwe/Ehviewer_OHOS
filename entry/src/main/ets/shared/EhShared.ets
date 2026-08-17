@@ -1564,9 +1564,14 @@ export function zhText(text: string): string {
     case 'Clarity': return '清晰度';
     case 'Sharpening': return '锐化';
     case 'Exposure': return '曝光';
+    case 'Brightness': return '亮度';
+    case 'Highlights': return '亮部';
+    case 'Shadows': return '暗部';
     case 'Hue': return '色调';
     case 'Saturation': return '饱和度';
+    case 'Vibrance': return '自然饱和度';
     case 'Color temperature': return '色温';
+    case 'Grayscale': return '灰度';
     case 'Reset image adjustments': return '重置图片调节';
     case 'Use the system image engine to enhance low-resolution reader pages':
       return '使用系统图片引擎增强低分辨率阅读页面';

@@ -49,9 +49,14 @@ struct AdjustmentWork {
     float clarity = 0.0f;
     float sharpening = 0.0f;
     float exposure = 0.0f;
+    float brightness = 0.0f;
+    float highlights = 0.0f;
+    float shadows = 0.0f;
     float hue = 0.0f;
     float saturation = 0.0f;
+    float vibrance = 0.0f;
     float temperature = 0.0f;
+    float grayscale = 0.0f;
     int32_t result = CONVERSION_FAILED;
 };
 
@@ -95,8 +100,13 @@ bool AdjustRgba8888PixelMap(AdjustmentWork *adjustment)
         (255.0f * (259.0f - contrastValue * 1.27f));
     const float exposureFactor = std::pow(2.0f, std::max(-100.0f,
         std::min(100.0f, adjustment->exposure)) / 50.0f);
+    const float brightnessOffset = std::max(-100.0f, std::min(100.0f, adjustment->brightness)) *
+        0.0035f * 255.0f;
+    const float highlightsAmount = std::max(-100.0f, std::min(100.0f, adjustment->highlights)) / 100.0f;
+    const float shadowsAmount = std::max(-100.0f, std::min(100.0f, adjustment->shadows)) / 100.0f;
     const float saturationFactor = 1.0f + std::max(-100.0f,
         std::min(100.0f, adjustment->saturation)) / 100.0f;
+    const float vibranceAmount = std::max(-100.0f, std::min(100.0f, adjustment->vibrance)) / 100.0f;
     const float hueRadians = std::max(-180.0f, std::min(180.0f, adjustment->hue)) *
         3.14159265358979323846f / 180.0f;
     const float hueCos = std::cos(hueRadians);
@@ -105,10 +115,23 @@ bool AdjustRgba8888PixelMap(AdjustmentWork *adjustment)
     const float temperatureRed = temperature * 0.28f;
     const float temperatureGreen = temperature * 0.04f;
     const float temperatureBlue = -temperature * 0.28f;
+    const float grayscaleAmount = std::max(0.0f, std::min(100.0f, adjustment->grayscale)) / 100.0f;
+    std::array<float, 256> toneOffsets {};
+    if (std::abs(highlightsAmount) > 0.001f || std::abs(shadowsAmount) > 0.001f) {
+        for (size_t value = 0; value < toneOffsets.size(); ++value) {
+            const float luminance = static_cast<float>(value) / 255.0f;
+            const float shadowWeight = (1.0f - luminance) * (1.0f - luminance);
+            const float highlightWeight = luminance * luminance;
+            toneOffsets[value] = 89.25f * (shadowsAmount * shadowWeight +
+                highlightsAmount * highlightWeight);
+        }
+    }
 
     const bool hasColorAdjustment = std::abs(contrastValue) > 0.001f ||
-        std::abs(adjustment->exposure) > 0.001f || std::abs(adjustment->hue) > 0.001f ||
-        std::abs(adjustment->saturation) > 0.001f || std::abs(temperature) > 0.001f;
+        std::abs(adjustment->exposure) > 0.001f || std::abs(brightnessOffset) > 0.001f ||
+        std::abs(highlightsAmount) > 0.001f || std::abs(shadowsAmount) > 0.001f ||
+        std::abs(adjustment->hue) > 0.001f || std::abs(adjustment->saturation) > 0.001f ||
+        std::abs(vibranceAmount) > 0.001f || std::abs(temperature) > 0.001f || grayscaleAmount > 0.001f;
     if (hasColorAdjustment) {
         for (uint32_t y = 0; y < info.height; ++y) {
             auto *row = pixels + static_cast<size_t>(y) * info.rowSize;
@@ -130,12 +153,30 @@ bool AdjustRgba8888PixelMap(AdjustmentWork *adjustment)
                 r = luminance + (hueR - luminance) * saturationFactor;
                 g = luminance + (hueG - luminance) * saturationFactor;
                 b = luminance + (hueB - luminance) * saturationFactor;
-                pixel[0] = static_cast<uint8_t>(ClampByte(contrastFactor * (r - 128.0f) + 128.0f +
-                    temperatureRed) + 0.5f);
-                pixel[1] = static_cast<uint8_t>(ClampByte(contrastFactor * (g - 128.0f) + 128.0f +
-                    temperatureGreen) + 0.5f);
-                pixel[2] = static_cast<uint8_t>(ClampByte(contrastFactor * (b - 128.0f) + 128.0f +
-                    temperatureBlue) + 0.5f);
+                if (std::abs(vibranceAmount) > 0.001f) {
+                    const float maximum = std::max(r, std::max(g, b));
+                    const float minimum = std::min(r, std::min(g, b));
+                    const float colorfulness = maximum > 0.001f ? (maximum - minimum) / maximum : 0.0f;
+                    const float vibranceFactor = vibranceAmount >= 0.0f ?
+                        1.0f + vibranceAmount * (1.0f - colorfulness) : 1.0f + vibranceAmount;
+                    r = luminance + (r - luminance) * vibranceFactor;
+                    g = luminance + (g - luminance) * vibranceFactor;
+                    b = luminance + (b - luminance) * vibranceFactor;
+                }
+                const size_t luminanceIndex = static_cast<size_t>(ClampByte(luminance) + 0.5f);
+                const float toneOffset = toneOffsets[luminanceIndex];
+                r = contrastFactor * (r - 128.0f) + 128.0f + brightnessOffset + temperatureRed + toneOffset;
+                g = contrastFactor * (g - 128.0f) + 128.0f + brightnessOffset + temperatureGreen + toneOffset;
+                b = contrastFactor * (b - 128.0f) + 128.0f + brightnessOffset + temperatureBlue + toneOffset;
+                if (grayscaleAmount > 0.0f) {
+                    const float gray = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                    r += (gray - r) * grayscaleAmount;
+                    g += (gray - g) * grayscaleAmount;
+                    b += (gray - b) * grayscaleAmount;
+                }
+                pixel[0] = static_cast<uint8_t>(ClampByte(r) + 0.5f);
+                pixel[1] = static_cast<uint8_t>(ClampByte(g) + 0.5f);
+                pixel[2] = static_cast<uint8_t>(ClampByte(b) + 0.5f);
             }
         }
     }
@@ -450,18 +491,18 @@ void CompleteAdjustment(napi_env env, napi_status status, void *data)
 
 napi_value AdjustPixelMap(napi_env env, napi_callback_info info)
 {
-    size_t argc = 8;
-    napi_value argv[8] = { nullptr };
-    if (napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) != napi_ok || argc < 8 || argv[0] == nullptr) {
-        napi_throw_type_error(env, nullptr, "PixelMap and seven adjustment values are required");
+    size_t argc = 13;
+    napi_value argv[13] = { nullptr };
+    if (napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) != napi_ok || argc < 13 || argv[0] == nullptr) {
+        napi_throw_type_error(env, nullptr, "PixelMap and twelve adjustment values are required");
         return nullptr;
     }
     auto *adjustment = new AdjustmentWork();
     adjustment->env = env;
     adjustment->pixelMap = OH_PixelMap_InitNativePixelMap(env, argv[0]);
-    double values[7] = {};
+    double values[12] = {};
     bool valid = adjustment->pixelMap != nullptr;
-    for (size_t i = 0; i < 7 && valid; ++i) {
+    for (size_t i = 0; i < 12 && valid; ++i) {
         valid = napi_get_value_double(env, argv[i + 1], &values[i]) == napi_ok;
     }
     if (!valid) {
@@ -473,9 +514,14 @@ napi_value AdjustPixelMap(napi_env env, napi_callback_info info)
     adjustment->clarity = static_cast<float>(values[1]);
     adjustment->sharpening = static_cast<float>(values[2]);
     adjustment->exposure = static_cast<float>(values[3]);
-    adjustment->hue = static_cast<float>(values[4]);
-    adjustment->saturation = static_cast<float>(values[5]);
-    adjustment->temperature = static_cast<float>(values[6]);
+    adjustment->brightness = static_cast<float>(values[4]);
+    adjustment->highlights = static_cast<float>(values[5]);
+    adjustment->shadows = static_cast<float>(values[6]);
+    adjustment->hue = static_cast<float>(values[7]);
+    adjustment->saturation = static_cast<float>(values[8]);
+    adjustment->vibrance = static_cast<float>(values[9]);
+    adjustment->temperature = static_cast<float>(values[10]);
+    adjustment->grayscale = static_cast<float>(values[11]);
 
     napi_value promise = nullptr;
     napi_value resourceName = nullptr;

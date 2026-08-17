@@ -439,9 +439,14 @@ function parseStoredImageAdjustment(value: ReaderImageAdjustmentSettings | undef
   result.clarity = storedNumber(value.clarity, 0, 100);
   result.sharpening = storedNumber(value.sharpening, 0, 100);
   result.exposure = storedNumber(value.exposure, -100, 100);
+  result.brightness = storedNumber(value.brightness, -100, 100);
+  result.highlights = storedNumber(value.highlights, -100, 100);
+  result.shadows = storedNumber(value.shadows, -100, 100);
   result.hue = storedNumber(value.hue, -180, 180);
   result.saturation = storedNumber(value.saturation, -100, 100);
+  result.vibrance = storedNumber(value.vibrance, -100, 100);
   result.temperature = storedNumber(value.temperature, -100, 100);
+  result.grayscale = storedNumber(value.grayscale, 0, 100);
   return result;
 }
 

@@ -2946,9 +2946,14 @@ export struct ReaderScene {
           menuImageClarity: this.menuImageAdjustmentSettings.clarity,
           menuImageSharpening: this.menuImageAdjustmentSettings.sharpening,
           menuImageExposure: this.menuImageAdjustmentSettings.exposure,
+          menuImageBrightness: this.menuImageAdjustmentSettings.brightness,
+          menuImageHighlights: this.menuImageAdjustmentSettings.highlights,
+          menuImageShadows: this.menuImageAdjustmentSettings.shadows,
           menuImageHue: this.menuImageAdjustmentSettings.hue,
           menuImageSaturation: this.menuImageAdjustmentSettings.saturation,
+          menuImageVibrance: this.menuImageAdjustmentSettings.vibrance,
           menuImageTemperature: this.menuImageAdjustmentSettings.temperature,
+          menuImageGrayscale: this.menuImageAdjustmentSettings.grayscale,
           menuStartPosition: this.menuStartPosition,
           menuAutoTransferTime: this.menuAutoTransferTime,
           menuKeepScreenOn: this.menuKeepScreenOn,
@@ -3044,6 +3049,21 @@ export struct ReaderScene {
             this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
             this.markMenuReaderPresetCustom();
           },
+          onImageBrightnessChange: (value: number) => {
+            this.menuImageAdjustmentSettings.brightness = Math.round(value);
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
+          },
+          onImageHighlightsChange: (value: number) => {
+            this.menuImageAdjustmentSettings.highlights = Math.round(value);
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
+          },
+          onImageShadowsChange: (value: number) => {
+            this.menuImageAdjustmentSettings.shadows = Math.round(value);
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
+          },
           onImageHueChange: (value: number) => {
             this.menuImageAdjustmentSettings.hue = Math.round(value);
             this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
@@ -3054,8 +3074,18 @@ export struct ReaderScene {
             this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
             this.markMenuReaderPresetCustom();
           },
+          onImageVibranceChange: (value: number) => {
+            this.menuImageAdjustmentSettings.vibrance = Math.round(value);
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
+          },
           onImageTemperatureChange: (value: number) => {
             this.menuImageAdjustmentSettings.temperature = Math.round(value);
+            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
+            this.markMenuReaderPresetCustom();
+          },
+          onImageGrayscaleChange: (value: number) => {
+            this.menuImageAdjustmentSettings.grayscale = Math.round(value);
             this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
             this.markMenuReaderPresetCustom();
           },

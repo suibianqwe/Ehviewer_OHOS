@@ -192,9 +192,13 @@ class ReaderImageAdjustmentService {
       const result = await readerHdr.adjustPixelMap(pixelMap,
         entry.bakeColorAdjustments ? value.contrast : 0, value.clarity, value.sharpening,
         entry.bakeColorAdjustments ? value.exposure : 0,
+        entry.bakeColorAdjustments ? value.brightness : 0,
+        value.highlights, value.shadows,
         entry.bakeColorAdjustments ? value.hue : 0,
         entry.bakeColorAdjustments ? value.saturation : 0,
-        entry.bakeColorAdjustments ? value.temperature : 0);
+        value.vibrance,
+        entry.bakeColorAdjustments ? value.temperature : 0,
+        entry.bakeColorAdjustments ? value.grayscale : 0);
       if (result !== 0 || !this.isActive(entry)) {
         return undefined;
       }
