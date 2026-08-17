@@ -294,7 +294,7 @@ export struct ReaderScene {
   @State menuReadingFullscreen: boolean = true;
   @State menuVolumePage: boolean = false;
   @State menuReverseVolumePage: boolean = false;
-  @State menuTranslationFeature: boolean = true;
+  @State menuComicTranslation: boolean = false;
   @State menuAiTranslation: boolean = false;
   @State menuAutoTransferTime: string = '5s';
   @State menuCustomBrightness: boolean = false;
@@ -1193,7 +1193,7 @@ export struct ReaderScene {
     this.menuReadingFullscreen = ehSettingsStore.getValue('reading_fullscreen', 'On') === 'On';
     this.menuVolumePage = ehSettingsStore.getValue('volume_page', 'Off') === 'On';
     this.menuReverseVolumePage = ehSettingsStore.getValue('reverse_volume_page', 'Off') === 'On';
-    this.menuTranslationFeature = ehSettingsStore.getValue('translation_buttons_enabled', 'On') === 'On';
+    this.menuComicTranslation = ehSettingsStore.getValue('reader_translation_enabled', 'Off') === 'On';
     this.menuAiTranslation = ehSettingsStore.getValue('translation_ai_enabled', 'Off') === 'On';
     this.menuAutoTransferTime = normalizeAutoTransferTimeOption(ehSettingsStore.getValue('start_transfer_time', '5s'));
     this.menuCustomBrightness = ehSettingsStore.getValue('custom_screen_lightness', 'Off') === 'On';
@@ -1226,7 +1226,7 @@ export struct ReaderScene {
     ehSettingsStore.setValue('reading_fullscreen', this.menuReadingFullscreen ? 'On' : 'Off');
     ehSettingsStore.setValue('volume_page', this.menuVolumePage ? 'On' : 'Off');
     ehSettingsStore.setValue('reverse_volume_page', this.menuReverseVolumePage ? 'On' : 'Off');
-    ehSettingsStore.setValue('translation_buttons_enabled', this.menuTranslationFeature ? 'On' : 'Off');
+    ehSettingsStore.setValue('reader_translation_enabled', this.menuComicTranslation ? 'On' : 'Off');
     ehSettingsStore.setValue('translation_ai_enabled', this.menuAiTranslation ? 'On' : 'Off');
     ehSettingsStore.setValue('start_transfer_time', normalizeAutoTransferTimeOption(this.menuAutoTransferTime));
     ehSettingsStore.setValue('custom_screen_lightness', this.menuCustomBrightness ? 'On' : 'Off');
@@ -2884,7 +2884,7 @@ export struct ReaderScene {
           menuReadingFullscreen: this.menuReadingFullscreen,
           menuVolumePage: this.menuVolumePage,
           menuReverseVolumePage: this.menuReverseVolumePage,
-          menuTranslationFeature: this.menuTranslationFeature,
+          menuComicTranslation: this.menuComicTranslation,
           menuAiTranslation: this.menuAiTranslation,
           menuCustomBrightness: this.menuCustomBrightness,
           menuBrightnessLevel: this.menuBrightnessLevel,
@@ -2970,8 +2970,8 @@ export struct ReaderScene {
           onReverseVolumePageChange: (value: boolean) => {
             this.menuReverseVolumePage = value;
           },
-          onTranslationFeatureChange: (value: boolean) => {
-            this.menuTranslationFeature = value;
+          onComicTranslationChange: (value: boolean) => {
+            this.menuComicTranslation = value;
           },
           onAiTranslationChange: (value: boolean) => {
             this.menuAiTranslation = value;
