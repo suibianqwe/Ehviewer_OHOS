@@ -8,10 +8,10 @@ export interface ReaderImageProcessingPrefetchPlan {
   id: string;
   sourcePath: string;
   superResolutionKey: string;
+  fallbackSuperResolutionKey: string;
   hdrKey: string;
   fallbackHdrKey: string;
   adjustmentKey: string;
-  fallbackAdjustmentKey: string;
   adjustmentSettings: ReaderImageAdjustmentSettings;
   targetWidth: number;
   targetHeight: number;
@@ -26,15 +26,16 @@ class ReaderImageProcessingReservation {
   id: string;
   sourcePath: string;
   superResolutionKey: string;
+  fallbackSuperResolutionKey: string;
   hdrKey: string;
   fallbackHdrKey: string;
   adjustmentKey: string;
-  fallbackAdjustmentKey: string;
   adjustmentSettings: ReaderImageAdjustmentSettings;
   targetWidth: number;
   targetHeight: number;
   superResolutionEngine: string;
   retainedHdrKey: string = '';
+  retainedSuperResolutionKey: string = '';
   retainedAdjustmentKey: string = '';
   superResolution: boolean;
   hdr: boolean;
@@ -49,10 +50,10 @@ class ReaderImageProcessingReservation {
     this.id = plan.id;
     this.sourcePath = plan.sourcePath;
     this.superResolutionKey = plan.superResolutionKey;
+    this.fallbackSuperResolutionKey = plan.fallbackSuperResolutionKey;
     this.hdrKey = plan.hdrKey;
     this.fallbackHdrKey = plan.fallbackHdrKey;
     this.adjustmentKey = plan.adjustmentKey;
-    this.fallbackAdjustmentKey = plan.fallbackAdjustmentKey;
     this.adjustmentSettings = plan.adjustmentSettings;
     this.targetWidth = plan.targetWidth;
     this.targetHeight = plan.targetHeight;
@@ -105,35 +106,38 @@ export class ReaderImageProcessingPrefetchScope {
   private async startPipeline(reservation: ReaderImageProcessingReservation): Promise<void> {
     let pixelMap: image.PixelMap | undefined = undefined;
     let pixelMapKey: string = '';
-    if (reservation.superResolution) {
-      reservation.superResolutionRetained = true;
+    if (reservation.adjustment) {
+      reservation.adjustmentRetained = true;
+      reservation.retainedAdjustmentKey = reservation.adjustmentKey;
       try {
-        pixelMap = await readerSuperResolutionService.acquire(reservation.superResolutionKey, reservation.sourcePath,
-          reservation.priority, reservation.targetWidth, reservation.targetHeight, reservation.superResolutionEngine);
-        if (pixelMap !== undefined) {
-          pixelMapKey = reservation.superResolutionKey;
+        const adjusted = await readerImageAdjustmentService.acquire(reservation.adjustmentKey,
+          reservation.sourcePath, reservation.adjustmentSettings, reservation.priority);
+        if (adjusted !== undefined) {
+          pixelMap = adjusted;
+          pixelMapKey = reservation.adjustmentKey;
         }
       } catch (_error) {
-        pixelMap = undefined;
       }
     }
     if (!reservation.active) {
       return;
     }
-    if (reservation.adjustment) {
-      reservation.adjustmentRetained = true;
-      const activeAdjustmentKey = pixelMap !== undefined ? reservation.adjustmentKey :
-        reservation.fallbackAdjustmentKey;
-      reservation.retainedAdjustmentKey = activeAdjustmentKey;
+    if (reservation.superResolution) {
+      const activeSuperResolutionKey = pixelMap !== undefined ? reservation.superResolutionKey :
+        reservation.fallbackSuperResolutionKey;
+      reservation.superResolutionRetained = true;
+      reservation.retainedSuperResolutionKey = activeSuperResolutionKey;
       try {
-        const adjusted = pixelMap !== undefined ?
-          await readerImageAdjustmentService.acquirePixelMap(activeAdjustmentKey, pixelMap,
-            reservation.adjustmentSettings, reservation.priority) :
-          await readerImageAdjustmentService.acquire(activeAdjustmentKey, reservation.sourcePath,
-            reservation.adjustmentSettings, reservation.priority);
-        if (adjusted !== undefined) {
-          pixelMap = adjusted;
-          pixelMapKey = activeAdjustmentKey;
+        const enhanced = pixelMap !== undefined ?
+          await readerSuperResolutionService.acquirePixelMap(activeSuperResolutionKey, pixelMap,
+            reservation.priority, reservation.targetWidth, reservation.targetHeight,
+            reservation.superResolutionEngine) :
+          await readerSuperResolutionService.acquire(activeSuperResolutionKey, reservation.sourcePath,
+            reservation.priority, reservation.targetWidth, reservation.targetHeight,
+            reservation.superResolutionEngine);
+        if (enhanced !== undefined) {
+          pixelMap = enhanced;
+          pixelMapKey = activeSuperResolutionKey;
         }
       } catch (_error) {
       }
@@ -157,7 +161,7 @@ export class ReaderImageProcessingPrefetchScope {
     }
     reservation.priority = priority;
     if (reservation.superResolutionRetained) {
-      readerSuperResolutionService.updatePriority(reservation.superResolutionKey, priority);
+      readerSuperResolutionService.updatePriority(reservation.retainedSuperResolutionKey, priority);
     }
     if (reservation.hdrRetained) {
       readerHdrService.updatePriority(reservation.retainedHdrKey, priority);
@@ -177,14 +181,15 @@ export class ReaderImageProcessingPrefetchScope {
       reservation.hdrRetained = false;
       reservation.retainedHdrKey = '';
     }
+    if (reservation.superResolutionRetained) {
+      readerSuperResolutionService.release(reservation.retainedSuperResolutionKey);
+      reservation.superResolutionRetained = false;
+      reservation.retainedSuperResolutionKey = '';
+    }
     if (reservation.adjustmentRetained) {
       readerImageAdjustmentService.release(reservation.retainedAdjustmentKey);
       reservation.adjustmentRetained = false;
       reservation.retainedAdjustmentKey = '';
-    }
-    if (reservation.superResolutionRetained) {
-      readerSuperResolutionService.release(reservation.superResolutionKey);
-      reservation.superResolutionRetained = false;
     }
   }
 
