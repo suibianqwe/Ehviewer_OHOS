@@ -96,6 +96,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'reader_image_hue', value: '0' },
     { key: 'reader_image_saturation', value: '0' },
     { key: 'reader_image_temperature', value: '0' },
+    { key: 'reader_settings_tab', value: '0' },
     { key: 'reader_custom_presets', value: '[]' },
     { key: 'start_position', value: 'Top right' },
     { key: 'start_transfer_time', value: '5s' },

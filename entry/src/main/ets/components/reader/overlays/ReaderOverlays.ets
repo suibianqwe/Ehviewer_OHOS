@@ -366,6 +366,7 @@ export struct ReaderSettingsMenuOverlay {
   @Link menuReaderPresetSelected: boolean;
   @Link menuReaderPresetCustom: boolean;
   @Link menuReaderPresetEditName: string;
+  @Link selectedTab: number;
   @Prop menuScreenRotation: string = 'Default';
   @Prop menuReadingDirection: string = 'Right to left';
   @Prop menuPageScaling: string = 'Fit screen';
@@ -396,7 +397,6 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuUltraDarkBrightness: string = '50%';
   @State customBrightnessVisible: boolean = false;
   @State ultraDarkVisible: boolean = false;
-  @State selectedTab: number = 0;
   @State presetDialogMode: string = '';
   @State presetEditorName: string = '';
   @State presetNameError: boolean = false;
@@ -412,6 +412,7 @@ export struct ReaderSettingsMenuOverlay {
   onSaveReaderPreset: () => void = () => {};
   onRenameReaderPreset: (name: string) => void = (_name: string) => {};
   onDeleteReaderPreset: () => void = () => {};
+  onSelectedTabChange: (value: number) => void = (_value: number) => {};
   onScreenRotationChange: (value: string) => void = (_value: string) => {};
   onReadingDirectionChange: (value: string) => void = (_value: string) => {};
   onPageScalingChange: (value: string) => void = (_value: string) => {};
@@ -1020,6 +1021,7 @@ export struct ReaderSettingsMenuOverlay {
         .divider({ strokeWidth: 1, color: '#334155' })
         .onChange((index: number) => {
           this.selectedTab = index;
+          this.onSelectedTabChange(index);
         })
         .width('100%')
         .layoutWeight(1)

@@ -293,6 +293,7 @@ export struct ReaderScene {
   @State menuReaderPresetSelected: boolean = false;
   @State menuReaderPresetCustom: boolean = false;
   @State menuReaderPresetEditName: string = '';
+  @State menuSettingsTab: number = 0;
   @State menuReadingDirection: string = 'Right to left';
   @State menuPageScaling: string = 'Fit screen';
   @State menuAdaptiveDualPage: boolean = false;
@@ -1212,6 +1213,7 @@ export struct ReaderScene {
       ehSettingsStore.getValue('reader_super_resolution_engine', READER_SUPER_RESOLUTION_ENGINE_DETAIL));
     this.menuSdrToHdrEnabled = ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
     this.menuImageAdjustmentSettings = readerImageAdjustmentSettingsFromStore();
+    this.menuSettingsTab = this.readerSettingsTabFromStore();
     this.menuStartPosition = normalizeStartPositionOption(ehSettingsStore.getValue('start_position', 'Top right'));
     this.menuKeepScreenOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
     this.menuShowClock = ehSettingsStore.getValue('gallery_show_clock', 'On') === 'On';
@@ -1230,6 +1232,11 @@ export struct ReaderScene {
     this.syncReaderTransientStatusBar();
     this.clearAutoTransferTimer();
     this.autoTransferPlaying = false;
+  }
+
+  private readerSettingsTabFromStore(): number {
+    const parsed = Number.parseInt(ehSettingsStore.getValue('reader_settings_tab', '0'));
+    return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(3, parsed));
   }
 
   private applyMenuSettings(): void {
@@ -2917,6 +2924,7 @@ export struct ReaderScene {
           menuReaderPresetSelected: $menuReaderPresetSelected,
           menuReaderPresetCustom: $menuReaderPresetCustom,
           menuReaderPresetEditName: $menuReaderPresetEditName,
+          selectedTab: $menuSettingsTab,
           readerPresetOptions: $menuReaderPresetOptions,
           menuScreenRotation: this.menuScreenRotation,
           menuReadingDirection: this.menuReadingDirection,
@@ -2972,6 +2980,10 @@ export struct ReaderScene {
           },
           onDeleteReaderPreset: () => {
             this.deleteMenuReaderPreset();
+          },
+          onSelectedTabChange: (value: number) => {
+            this.menuSettingsTab = Math.max(0, Math.min(3, Math.round(value)));
+            ehSettingsStore.setValue('reader_settings_tab', this.menuSettingsTab.toString());
           },
           onScreenRotationChange: (value: string) => {
             this.menuScreenRotation = value;
