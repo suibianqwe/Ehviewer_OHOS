@@ -366,6 +366,8 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuReadingFullscreen: boolean = true;
   @Prop menuVolumePage: boolean = false;
   @Prop menuReverseVolumePage: boolean = false;
+  @Prop menuTranslationFeature: boolean = true;
+  @Prop menuAiTranslation: boolean = false;
   @Prop @Watch('onMenuCustomBrightnessChange') menuCustomBrightness: boolean = false;
   @Prop menuBrightnessLevel: string = '50%';
   @Prop @Watch('onMenuUltraDarkModeChange') menuUltraDarkMode: boolean = false;
@@ -405,6 +407,8 @@ export struct ReaderSettingsMenuOverlay {
   onReadingFullscreenChange: (value: boolean) => void = (_value: boolean) => {};
   onVolumePageChange: (value: boolean) => void = (_value: boolean) => {};
   onReverseVolumePageChange: (value: boolean) => void = (_value: boolean) => {};
+  onTranslationFeatureChange: (value: boolean) => void = (_value: boolean) => {};
+  onAiTranslationChange: (value: boolean) => void = (_value: boolean) => {};
   onCustomBrightnessChange: (value: boolean) => void = (_value: boolean) => {};
   onBrightnessLevelChange: (value: string) => void = (_value: string) => {};
   onUltraDarkModeChange: (value: boolean) => void = (_value: boolean) => {};
@@ -809,6 +813,18 @@ export struct ReaderSettingsMenuOverlay {
             onChange: this.onReverseVolumePageChange
           })
         }
+        ReaderMenuDivider()
+        ReaderMenuToggle({
+          label: uiText('Translation feature'),
+          value: this.menuTranslationFeature,
+          onChange: this.onTranslationFeatureChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuToggle({
+          label: uiText('AI translation'),
+          value: this.menuAiTranslation,
+          onChange: this.onAiTranslationChange
+        })
         ReaderMenuDivider()
         ReaderMenuToggle({
           label: uiText('Show clock'),
