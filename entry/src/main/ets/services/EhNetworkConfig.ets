@@ -15,7 +15,7 @@ const FRONTING_IP_CACHE_VERSION: number = 1;
 const FRONTING_PROBE_CONNECT_TIMEOUT_MS: number = 3000;
 const FRONTING_PROBE_READ_TIMEOUT_MS: number = 3000;
 const FRONTING_PROBE_DEADLINE_MS: number = 4500;
-const FRONTING_PROBE_CONCURRENCY: number = 3;
+const FRONTING_PROBE_CONCURRENCY: number = 1;
 const FRONTING_PREFERRED_IP_LIMIT: number = 3;
 const FRONTING_TAIL_SAMPLE_RATE: number = 0.08;
 const FRONTING_WEIGHT_SCORE_BASE: number = 500;
@@ -34,6 +34,18 @@ const NETWORK_RECOVERY_SETTLE_MS: number = 2000;
 const NETWORK_RECOVERY_IDLE_RETRY_MS: number = 1000;
 const NETWORK_ENVIRONMENT_FALLBACK_INTERVAL_MS: number = 5000;
 const FRESH_CONNECTION_WINDOW_MS: number = 5000;
+const FRONTING_INITIAL_CONCURRENCY: number = 3;
+const FRONTING_HEALTHY_CONCURRENCY: number = 6;
+const FRONTING_DEGRADED_CONCURRENCY: number = 2;
+const FRONTING_ROUTE_INITIAL_CONCURRENCY: number = 2;
+const FRONTING_ROUTE_HEALTHY_CONCURRENCY: number = 4;
+const FRONTING_ROUTE_DEGRADED_CONCURRENCY: number = 1;
+const FRONTING_HEALTHY_SUCCESS_THRESHOLD: number = 6;
+const FRONTING_ROUTE_HEALTHY_SUCCESS_THRESHOLD: number = 3;
+const FRONTING_RESTRICTED_MS: number = 45000;
+const FRONTING_INITIAL_START_SPACING_MS: number = 48;
+const FRONTING_HEALTHY_START_SPACING_MS: number = 12;
+const PROBE_FOREGROUND_IDLE_POLL_MS: number = 100;
 const FRONTING_PROBE_USER_AGENT: string =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36';
 const BUILT_IN_RULES: HostRule[] = [
@@ -80,6 +92,16 @@ let forceFreshConnectionsUntilMs: number = 0;
 let lastIpQualitySaveAt: number = 0;
 let previousFrontedHost: string = '';
 const DIRECT_HOST_FAILURES: DirectHostFailure[] = [];
+const FRONTING_ROUTE_RUNTIMES: FrontingRouteRuntime[] = [];
+const WAITING_FRONTING_ADMISSIONS: FrontingAdmissionWaiter[] = [];
+let activeForegroundEhRequests: number = 0;
+let activeFrontingRequests: number = 0;
+let frontingHealthySuccesses: number = 0;
+let frontingRestrictedUntil: number = 0;
+let frontingAdmissionSequence: number = 0;
+let frontingNextStartAt: number = 0;
+let frontingDispatchTimer: number = -1;
+let activeFrontingProbeRequests: number = 0;
 
 interface HostRule {
   host: string;
@@ -108,6 +130,27 @@ interface DirectHostFailure {
   blockedUntil: number;
 }
 
+interface FrontingRouteRuntime {
+  key: string;
+  active: number;
+  successes: number;
+  failures: number;
+  restrictedUntil: number;
+}
+
+interface FrontingAdmissionWaiter {
+  key: string;
+  priority: number;
+  sequence: number;
+  resolve: (admission: EhRequestAdmission) => void;
+}
+
+export interface EhRequestAdmission {
+  fronted: boolean;
+  key: string;
+  released: boolean;
+}
+
 interface FrontingIpQualityCache {
   version?: number;
   key?: string;
@@ -120,6 +163,58 @@ export interface EhRequestPlan {
   url: string;
   host: string;
   fronted: boolean;
+}
+
+/**
+ * Coordinates only EH foreground traffic which can enter the same native curl multi loop.
+ * Direct requests are admitted immediately. SNI/fronted requests use a short slow-start window and
+ * automatically recover their full throughput after successful responses.
+ */
+export function acquireEhRequestAdmission(plan: EhRequestPlan, priority: number = 50): Promise<EhRequestAdmission> {
+  if (!plan.fronted) {
+    activeForegroundEhRequests++;
+    const admission: EhRequestAdmission = { fronted: false, key: '', released: false };
+    return Promise.resolve(admission);
+  }
+  const key = frontingRouteKey(plan);
+  frontingRouteRuntime(key);
+  return new Promise<EhRequestAdmission>((resolve: (value: EhRequestAdmission | PromiseLike<EhRequestAdmission>) =>
+    void) => {
+    WAITING_FRONTING_ADMISSIONS.push({
+      key: key,
+      priority: priority,
+      sequence: frontingAdmissionSequence++,
+      resolve: resolve
+    });
+    dispatchFrontingAdmissions();
+  });
+}
+
+export function releaseEhRequestAdmission(admission: EhRequestAdmission | null): void {
+  if (admission === null || admission.released) {
+    return;
+  }
+  admission.released = true;
+  activeForegroundEhRequests = Math.max(0, activeForegroundEhRequests - 1);
+  if (admission.fronted) {
+    activeFrontingRequests = Math.max(0, activeFrontingRequests - 1);
+    const runtime = findFrontingRouteRuntime(admission.key);
+    if (runtime !== null) {
+      runtime.active = Math.max(0, runtime.active - 1);
+    }
+    dispatchFrontingAdmissions();
+  }
+}
+
+export async function acquireEhProbeAdmission(): Promise<void> {
+  while (activeFrontingProbeRequests > 0 || hasForegroundEhRequestPressure() || hasActiveHttpRequests()) {
+    await waitNetworkAdmission(PROBE_FOREGROUND_IDLE_POLL_MS);
+  }
+  activeFrontingProbeRequests++;
+}
+
+export function releaseEhProbeAdmission(): void {
+  activeFrontingProbeRequests = Math.max(0, activeFrontingProbeRequests - 1);
 }
 
 export function createEhRequestPlan(url: string): EhRequestPlan {
@@ -197,7 +292,7 @@ export function applyEhNetworkOptions(options: http.HttpRequestOptions, plan: Eh
     options.remoteValidation = 'skip';
     if (deviceInfo.apiAvailable('26.0.0')) {
       const currentHost = requestHost(plan.url);
-      if (currentHost !== previousFrontedHost) {
+      if (currentHost !== previousFrontedHost || shouldUseFreshFrontingConnection(plan)) {
         options.reuseConnections = false;
         previousFrontedHost = currentHost;
       }
@@ -325,6 +420,7 @@ export function recordEhRequestOutcome(plan: EhRequestPlan, ok: boolean, elapsed
     recordDirectRequestOutcome(plan, ok);
     return;
   }
+  recordFrontingAdmissionOutcome(plan, ok);
   const ip = requestHost(plan.url);
   if (!isIpv4(ip)) {
     return;
@@ -340,6 +436,23 @@ export function recordEhRequestOutcome(plan: EhRequestPlan, ok: boolean, elapsed
   } else {
     saveCachedIpQualities(frontingBenchmarkKey());
   }
+}
+
+function recordFrontingAdmissionOutcome(plan: EhRequestPlan, ok: boolean): void {
+  const runtime = frontingRouteRuntime(frontingRouteKey(plan));
+  const now = Date.now();
+  if (ok) {
+    runtime.successes++;
+    runtime.failures = Math.max(0, runtime.failures - 1);
+    frontingHealthySuccesses++;
+  } else {
+    runtime.successes = 0;
+    runtime.failures++;
+    runtime.restrictedUntil = Math.max(runtime.restrictedUntil, now + FRONTING_RESTRICTED_MS);
+    frontingHealthySuccesses = 0;
+    frontingRestrictedUntil = Math.max(frontingRestrictedUntil, now + FRONTING_RESTRICTED_MS);
+  }
+  dispatchFrontingAdmissions();
 }
 
 export function isEhRouteReachableStatus(statusCode: number): boolean {
@@ -714,6 +827,7 @@ export function unregisterEhNetworkChangeListener(): void {
 }
 
 async function probeFrontingIp(target: HostIpProbeTarget): Promise<HostIpQuality> {
+  await acquireEhProbeAdmission();
   const request = acquireHttpRequest();
   markHttpRequestVolatile(request);
   const startedAt = Date.now();
@@ -760,6 +874,7 @@ async function probeFrontingIp(target: HostIpProbeTarget): Promise<HostIpQuality
     };
   } finally {
     retireHttpRequest(request);
+    releaseEhProbeAdmission();
   }
 }
 
@@ -1121,6 +1236,7 @@ function selectedGalleryHost(): string {
 }
 
 async function probeDirectSelectedSite(): Promise<boolean> {
+  await acquireEhProbeAdmission();
   const request = acquireHttpRequest();
   markHttpRequestVolatile(request);
   try {
@@ -1152,6 +1268,7 @@ async function probeDirectSelectedSite(): Promise<boolean> {
     return false;
   } finally {
     retireHttpRequest(request);
+    releaseEhProbeAdmission();
   }
 }
 
@@ -1265,6 +1382,7 @@ function readCurrentNetworkEnvironmentKey(): string {
 function markFreshEhConnectionsRequired(): void {
   forceFreshConnectionsUntilMs = Date.now() + FRESH_CONNECTION_WINDOW_MS;
   previousFrontedHost = '';
+  resetFrontingAdmissionHealth();
 }
 
 function scheduleNetworkRuntimeRefresh(): void {
@@ -1327,6 +1445,139 @@ function runNetworkRuntimeRecoveryWhenIdle(environmentKey: string): void {
     startEhFrontingBenchmark(networkRuntimeContext, true);
   }).catch(() => {
   });
+}
+
+function dispatchFrontingAdmissions(): void {
+  if (frontingDispatchTimer >= 0) {
+    return;
+  }
+  const now = Date.now();
+  if (now < frontingNextStartAt) {
+    frontingDispatchTimer = setTimeout(() => {
+      frontingDispatchTimer = -1;
+      dispatchFrontingAdmissions();
+    }, Math.max(1, frontingNextStartAt - now));
+    return;
+  }
+  const totalLimit = currentFrontingConcurrencyLimit(now);
+  if (activeFrontingRequests >= totalLimit || WAITING_FRONTING_ADMISSIONS.length === 0) {
+    return;
+  }
+  let bestIndex = -1;
+  for (let i = 0; i < WAITING_FRONTING_ADMISSIONS.length; i++) {
+    const candidate = WAITING_FRONTING_ADMISSIONS[i];
+    const runtime = frontingRouteRuntime(candidate.key);
+    if (runtime.active >= currentFrontingRouteConcurrencyLimit(runtime, now)) {
+      continue;
+    }
+    if (bestIndex < 0) {
+      bestIndex = i;
+      continue;
+    }
+    const best = WAITING_FRONTING_ADMISSIONS[bestIndex];
+    if (candidate.priority > best.priority ||
+      (candidate.priority === best.priority && candidate.sequence < best.sequence)) {
+      bestIndex = i;
+    }
+  }
+  if (bestIndex < 0) {
+    return;
+  }
+  const next = WAITING_FRONTING_ADMISSIONS.splice(bestIndex, 1)[0];
+  const runtime = frontingRouteRuntime(next.key);
+  runtime.active++;
+  activeFrontingRequests++;
+  activeForegroundEhRequests++;
+  frontingNextStartAt = now + currentFrontingStartSpacing(now);
+  next.resolve({ fronted: true, key: next.key, released: false });
+  if (activeFrontingRequests < totalLimit && WAITING_FRONTING_ADMISSIONS.length > 0) {
+    dispatchFrontingAdmissions();
+  }
+}
+
+function currentFrontingConcurrencyLimit(now: number): number {
+  if (now < frontingRestrictedUntil) {
+    return FRONTING_DEGRADED_CONCURRENCY;
+  }
+  return frontingHealthySuccesses >= FRONTING_HEALTHY_SUCCESS_THRESHOLD ?
+    FRONTING_HEALTHY_CONCURRENCY : FRONTING_INITIAL_CONCURRENCY;
+}
+
+function currentFrontingRouteConcurrencyLimit(runtime: FrontingRouteRuntime, now: number): number {
+  if (now < runtime.restrictedUntil) {
+    return FRONTING_ROUTE_DEGRADED_CONCURRENCY;
+  }
+  return runtime.successes >= FRONTING_ROUTE_HEALTHY_SUCCESS_THRESHOLD ?
+    FRONTING_ROUTE_HEALTHY_CONCURRENCY : FRONTING_ROUTE_INITIAL_CONCURRENCY;
+}
+
+function currentFrontingStartSpacing(now: number): number {
+  if (now < frontingRestrictedUntil || frontingHealthySuccesses < FRONTING_HEALTHY_SUCCESS_THRESHOLD) {
+    return FRONTING_INITIAL_START_SPACING_MS;
+  }
+  return FRONTING_HEALTHY_START_SPACING_MS;
+}
+
+function shouldUseFreshFrontingConnection(plan: EhRequestPlan): boolean {
+  const now = Date.now();
+  if (now < frontingRestrictedUntil || frontingHealthySuccesses < FRONTING_HEALTHY_SUCCESS_THRESHOLD) {
+    return true;
+  }
+  const runtime = frontingRouteRuntime(frontingRouteKey(plan));
+  return now < runtime.restrictedUntil || runtime.successes < FRONTING_ROUTE_HEALTHY_SUCCESS_THRESHOLD;
+}
+
+function frontingRouteRuntime(key: string): FrontingRouteRuntime {
+  const existing = findFrontingRouteRuntime(key);
+  if (existing !== null) {
+    return existing;
+  }
+  const runtime: FrontingRouteRuntime = {
+    key: key,
+    active: 0,
+    successes: 0,
+    failures: 0,
+    restrictedUntil: 0
+  };
+  FRONTING_ROUTE_RUNTIMES.push(runtime);
+  return runtime;
+}
+
+function findFrontingRouteRuntime(key: string): FrontingRouteRuntime | null {
+  for (let i = 0; i < FRONTING_ROUTE_RUNTIMES.length; i++) {
+    if (FRONTING_ROUTE_RUNTIMES[i].key === key) {
+      return FRONTING_ROUTE_RUNTIMES[i];
+    }
+  }
+  return null;
+}
+
+function frontingRouteKey(plan: EhRequestPlan): string {
+  return plan.host.toLowerCase() + '|' + requestHost(plan.url).toLowerCase();
+}
+
+function hasForegroundEhRequestPressure(): boolean {
+  return activeForegroundEhRequests > 0 || WAITING_FRONTING_ADMISSIONS.length > 0;
+}
+
+function waitNetworkAdmission(delayMs: number): Promise<void> {
+  return new Promise<void>((resolve: (value: void | PromiseLike<void>) => void) => {
+    setTimeout(() => {
+      resolve();
+    }, delayMs);
+  });
+}
+
+function resetFrontingAdmissionHealth(): void {
+  frontingHealthySuccesses = 0;
+  frontingRestrictedUntil = 0;
+  frontingNextStartAt = 0;
+  for (let i = 0; i < FRONTING_ROUTE_RUNTIMES.length; i++) {
+    FRONTING_ROUTE_RUNTIMES[i].successes = 0;
+    FRONTING_ROUTE_RUNTIMES[i].failures = 0;
+    FRONTING_ROUTE_RUNTIMES[i].restrictedUntil = 0;
+  }
+  dispatchFrontingAdmissions();
 }
 
 function requestHost(url: string): string {

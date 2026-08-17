@@ -4,13 +4,16 @@ import { http } from '@kit.NetworkKit';
 import { ehCookieStore } from './EhCookieStore';
 import { ehAppLog } from './EhAppLog';
 import {
+  acquireEhRequestAdmission,
   applyEhNetworkOptions,
   createEhRequestPlan,
   currentDnsOverHttpsUrl,
+  EhRequestAdmission,
   EhRequestPlan,
   ensureEhHostRules,
   isEhRouteReachableStatus,
-  recordEhRequestOutcome
+  recordEhRequestOutcome,
+  releaseEhRequestAdmission
 } from './EhNetworkConfig';
 import { ehSettingsStore } from './EhSettingsStore';
 import { hathQualityStore } from './HathQualityStore';
@@ -69,6 +72,7 @@ let backgroundImageDispatchPaused: boolean = false;
 let backgroundImageResumeTimer: number = -1;
 let backgroundImageSettleUntil: number = 0;
 let backgroundImageSettleTimer: number = -1;
+let imageRetryJitterSequence: number = 0;
 
 export const IMAGE_DOWNLOAD_PRIORITY_BACKGROUND: number = 0;
 export const IMAGE_DOWNLOAD_PRIORITY_DOWNLOAD: number = 10;
@@ -287,24 +291,30 @@ export class ReaderImageCache {
   private async downloadOnce(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
     attempt: number, priority: number, onProgress?: ImageDownloadProgressCallback,
     useDnsOverHttps: boolean = true): Promise<string> {
-    const request = acquireHttpRequest();
+    let request: http.HttpRequest | null = null;
     let plan: EhRequestPlan | null = null;
+    let admission: EhRequestAdmission | null = null;
     let activeRequest: ActiveImageRequest | null = null;
     let tempPath = '';
-    const startedAt = Date.now();
+    let startedAt = Date.now();
     let outcomeRecorded = false;
     try {
       plan = createEhRequestPlan(imageUrl);
       const header = buildImageRequestHeader(plan, referer, ehCookieStore.getCookieHeaderForUrl(imageUrl));
       const timeout = imageRequestTimeoutMs();
       await ensureEhHostRules();
+      admission = await acquireEhRequestAdmission(plan, priority);
+      request = acquireHttpRequest();
+      startedAt = Date.now();
       const options: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: header,
         expectDataType: http.HttpDataType.ARRAY_BUFFER,
         maxLimit: IMAGE_RESPONSE_MAX_BYTES,
-        connectTimeout: imageConnectTimeoutMs(plan, imageUrl, timeout),
-        readTimeout: imageRequestDeadlineMs(plan, attempt)
+        connectTimeout: frontingImageTimeout(plan, imageConnectTimeoutMs(plan, imageUrl, timeout),
+          imageUrl + '|connect|' + attempt.toString(), 350),
+        readTimeout: frontingImageTimeout(plan, imageRequestDeadlineMs(plan, attempt),
+          imageUrl + '|read|' + attempt.toString(), 1400)
       };
       applyEhNetworkOptions(options, plan, useDnsOverHttps);
       if (plan.fronted) {
@@ -367,13 +377,19 @@ export class ReaderImageCache {
       throw new Error(imageNetworkErrorMessage(error));
     } finally {
       try {
-        request.off('dataReceiveProgress');
+        const completedRequest = request;
+        if (completedRequest !== null) {
+          completedRequest.off('dataReceiveProgress');
+        }
       } catch (_error) {
       }
       if (activeRequest !== null) {
         unregisterActiveImageRequest(activeRequest);
       }
-      retireHttpRequest(request);
+      if (request !== null) {
+        retireHttpRequest(request);
+      }
+      releaseEhRequestAdmission(admission);
       if (tempPath.length > 0) {
         removeFileQuietly(tempPath);
         unmarkImageTempPathActive(tempPath);
@@ -588,12 +604,25 @@ function responseImagePath(path: string, responseExtension: string): string {
 
 function sleepImageRetry(attempt: number): Promise<void> {
   const index = Math.min(attempt, IMAGE_RETRY_DELAYS_MS.length - 1);
-  const delay = IMAGE_RETRY_DELAYS_MS[index];
+  const delay = IMAGE_RETRY_DELAYS_MS[index] + ((imageRetryJitterSequence++ * 97 + attempt * 53) % 260);
   return new Promise<void>((resolve: (value: void | PromiseLike<void>) => void) => {
     setTimeout(() => {
       resolve();
     }, delay);
   });
+}
+
+function frontingImageTimeout(plan: EhRequestPlan, baseTimeoutMs: number, seed: string,
+  maxJitterMs: number): number {
+  if (!plan.fronted || maxJitterMs <= 0) {
+    return baseTimeoutMs;
+  }
+  let hash = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return baseTimeoutMs + ((hash >>> 0) % (maxJitterMs + 1));
 }
 
 function normalizedRetryLimit(options?: ImageDownloadOptions): number {

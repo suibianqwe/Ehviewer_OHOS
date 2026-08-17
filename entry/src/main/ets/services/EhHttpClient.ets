@@ -29,12 +29,15 @@ import { ehSpiderInfoStore } from './EhSpiderInfoStore';
 import { ehSettingsStore } from './EhSettingsStore';
 import { ehParseErrorBodyStore } from './EhParseErrorBodyStore';
 import {
+  acquireEhRequestAdmission,
   applyEhNetworkOptions,
   createEhRequestPlan,
+  EhRequestAdmission,
   EhRequestPlan,
   ensureEhHostRules,
   isEhRouteReachableStatus,
-  recordEhRequestOutcome
+  recordEhRequestOutcome,
+  releaseEhRequestAdmission
 } from './EhNetworkConfig';
 import { TopListParseResult, parseTopList } from './TopListParser';
 import { parseTorrentList } from './TorrentParser';
@@ -91,6 +94,7 @@ const CHROME_USER_AGENT: string = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) App
 const CHROME_ACCEPT: string = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8';
 const CHROME_ACCEPT_LANGUAGE: string = 'zh-CN,zh;q=0.9,en;q=0.8';
 let activeTextRequests: number = 0;
+let textRetryJitterSequence: number = 0;
 
 interface ShowKeyEntry {
   key: string;
@@ -278,21 +282,27 @@ export class EhHttpClient {
 
   private async getTextOnce(url: string, referer: string, cookieHeader: string,
     cacheTtlMs: number, requestOptions?: EhTextRequestOptions): Promise<EhHttpResponse> {
-    const request = acquireHttpRequest();
+    let request: http.HttpRequest | null = null;
     let plan: EhRequestPlan | null = null;
-    const startedAt = Date.now();
+    let admission: EhRequestAdmission | null = null;
+    let startedAt = Date.now();
     let outcomeRecorded = false;
     await acquireTextSlot();
     try {
       plan = createEhRequestPlan(url);
       const header = buildRequestHeader(plan, referer, cookieHeader, cacheTtlMs);
       await ensureEhHostRules();
+      admission = await acquireEhRequestAdmission(plan, 50);
+      request = acquireHttpRequest();
+      startedAt = Date.now();
       const options: http.HttpRequestOptions = {
         method: http.RequestMethod.GET,
         header: header,
         expectDataType: http.HttpDataType.STRING,
-        connectTimeout: requestOptions?.connectTimeoutMs ?? TEXT_CONNECT_TIMEOUT_MS,
-        readTimeout: requestOptions?.readTimeoutMs ?? TEXT_READ_TIMEOUT_MS
+        connectTimeout: frontingTimeout(plan, requestOptions?.connectTimeoutMs ?? TEXT_CONNECT_TIMEOUT_MS,
+          url + '|connect', 350),
+        readTimeout: frontingTimeout(plan, requestOptions?.readTimeoutMs ?? TEXT_READ_TIMEOUT_MS,
+          url + '|read', 1200)
       };
       applyEhNetworkOptions(options, plan);
       if (plan.fronted) {
@@ -315,7 +325,10 @@ export class EhHttpClient {
       }
       throw new Error(networkErrorMessage(error));
     } finally {
-      retireHttpRequest(request);
+      if (request !== null) {
+        retireHttpRequest(request);
+      }
+      releaseEhRequestAdmission(admission);
       releaseTextSlot();
     }
   }
@@ -385,22 +398,26 @@ export class EhHttpClient {
 
   private async postFormOnce(url: string, body: string, referer: string, origin: string,
     cookieHeader: string): Promise<EhHttpResponse> {
-    const request = acquireHttpRequest();
+    let request: http.HttpRequest | null = null;
     let plan: EhRequestPlan | null = null;
-    const startedAt = Date.now();
+    let admission: EhRequestAdmission | null = null;
+    let startedAt = Date.now();
     let outcomeRecorded = false;
     await acquireTextSlot();
     try {
       plan = createEhRequestPlan(url);
       const header = buildPostRequestHeader(plan, referer, origin, cookieHeader);
       await ensureEhHostRules();
+      admission = await acquireEhRequestAdmission(plan, 60);
+      request = acquireHttpRequest();
+      startedAt = Date.now();
       const options: http.HttpRequestOptions = {
         method: http.RequestMethod.POST,
         header: header,
         extraData: body,
         expectDataType: http.HttpDataType.STRING,
-        connectTimeout: TEXT_CONNECT_TIMEOUT_MS,
-        readTimeout: TEXT_READ_TIMEOUT_MS
+        connectTimeout: frontingTimeout(plan, TEXT_CONNECT_TIMEOUT_MS, url + '|post-connect', 350),
+        readTimeout: frontingTimeout(plan, TEXT_READ_TIMEOUT_MS, url + '|post-read', 1200)
       };
       applyEhNetworkOptions(options, plan);
       if (plan.fronted) {
@@ -423,7 +440,10 @@ export class EhHttpClient {
       }
       throw new Error(networkErrorMessage(error));
     } finally {
-      retireHttpRequest(request);
+      if (request !== null) {
+        retireHttpRequest(request);
+      }
+      releaseEhRequestAdmission(admission);
       releaseTextSlot();
     }
   }
@@ -437,9 +457,10 @@ export class EhHttpClient {
 
   private async postJsonOnce(url: string, body: string, referer: string = '',
     origin: string = '', requestOptions?: EhTextRequestOptions): Promise<EhHttpResponse> {
-    const request = acquireHttpRequest();
+    let request: http.HttpRequest | null = null;
     let plan: EhRequestPlan | null = null;
-    const startedAt = Date.now();
+    let admission: EhRequestAdmission | null = null;
+    let startedAt = Date.now();
     let outcomeRecorded = false;
     await acquireTextSlot();
     try {
@@ -451,13 +472,16 @@ export class EhHttpClient {
       plan = createEhRequestPlan(url);
       const header = buildJsonRequestHeader(plan, referer, origin, cookieHeader);
       await ensureEhHostRules();
+      admission = await acquireEhRequestAdmission(plan, 60);
+      request = acquireHttpRequest();
+      startedAt = Date.now();
       const options: http.HttpRequestOptions = {
         method: http.RequestMethod.POST,
         header: header,
         extraData: body,
         expectDataType: http.HttpDataType.STRING,
-        connectTimeout: API_TIMEOUT_MS,
-        readTimeout: API_TIMEOUT_MS
+        connectTimeout: frontingTimeout(plan, API_TIMEOUT_MS, url + '|api-connect', 300),
+        readTimeout: frontingTimeout(plan, API_TIMEOUT_MS, url + '|api-read', 900)
       };
       applyEhNetworkOptions(options, plan);
       if (plan.fronted) {
@@ -480,7 +504,10 @@ export class EhHttpClient {
       }
       throw new Error(networkErrorMessage(error));
     } finally {
-      retireHttpRequest(request);
+      if (request !== null) {
+        retireHttpRequest(request);
+      }
+      releaseEhRequestAdmission(admission);
       releaseTextSlot();
     }
   }
@@ -1331,9 +1358,10 @@ export class EhHttpClient {
 
   private async postMultipartOnce(url: string, body: ArrayBuffer, contentType: string, referer: string,
     origin: string, timeoutMs: number): Promise<EhHttpResponse> {
-    const request = acquireHttpRequest();
+    let request: http.HttpRequest | null = null;
     let plan: EhRequestPlan | null = null;
-    const startedAt = Date.now();
+    let admission: EhRequestAdmission | null = null;
+    let startedAt = Date.now();
     let outcomeRecorded = false;
     let responseHeaders: Record<string, Object> = {};
     await acquireTextSlot();
@@ -1342,13 +1370,16 @@ export class EhHttpClient {
       const header = buildMultipartRequestHeader(plan, referer, origin, ehCookieStore.getCookieHeaderForUrl(url),
         contentType);
       await ensureEhHostRules();
+      admission = await acquireEhRequestAdmission(plan, 60);
+      request = acquireHttpRequest();
+      startedAt = Date.now();
       const options: http.HttpRequestOptions = {
         method: http.RequestMethod.POST,
         header: header,
         extraData: body,
         expectDataType: http.HttpDataType.STRING,
-        connectTimeout: timeoutMs,
-        readTimeout: timeoutMs,
+        connectTimeout: frontingTimeout(plan, timeoutMs, url + '|multipart-connect', 350),
+        readTimeout: frontingTimeout(plan, timeoutMs, url + '|multipart-read', 1200),
         maxRedirects: 0
       };
       applyEhNetworkOptions(options, plan);
@@ -1390,10 +1421,15 @@ export class EhHttpClient {
       throw new Error(networkErrorMessage(error));
     } finally {
       try {
-        request.off('headersReceive');
+        if (request !== null) {
+          request.off('headersReceive');
+        }
       } catch (error) {
       }
-      retireHttpRequest(request);
+      if (request !== null) {
+        retireHttpRequest(request);
+      }
+      releaseEhRequestAdmission(admission);
       releaseTextSlot();
     }
   }
@@ -1477,7 +1513,7 @@ function releaseTextSlot(): void {
 
 function sleepRetry(attempt: number): Promise<void> {
   const index = Math.min(attempt, TEXT_RETRY_DELAYS_MS.length - 1);
-  const delay = TEXT_RETRY_DELAYS_MS[index];
+  const delay = TEXT_RETRY_DELAYS_MS[index] + ((textRetryJitterSequence++ * 73 + attempt * 41) % 180);
   return new Promise<void>((resolve: (value: void | PromiseLike<void>) => void) => {
     setTimeout(() => {
       resolve();
@@ -1737,6 +1773,18 @@ function buildMultipartRequestHeader(plan: EhRequestPlan, referer: string, origi
 
 function requestConnectionHeader(plan: EhRequestPlan): string {
   return plan.fronted ? 'close' : 'keep-alive';
+}
+
+function frontingTimeout(plan: EhRequestPlan, baseTimeoutMs: number, seed: string, maxJitterMs: number): number {
+  if (!plan.fronted || maxJitterMs <= 0) {
+    return baseTimeoutMs;
+  }
+  let hash = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return baseTimeoutMs + ((hash >>> 0) % (maxJitterMs + 1));
 }
 
 function buildFormBody(fields: FormField[]): string {
