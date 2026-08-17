@@ -445,8 +445,7 @@ function buildRequestHeaders(plan: EhRequestPlan, accept: string): Record<string
     'User-Agent': 'EhViewerHarmony/' + EH_APP_VERSION_NAME,
     'Accept': accept,
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    'Cache-Control': 'no-cache',
-    'Connection': plan.fronted ? 'close' : 'keep-alive'
+    'Cache-Control': 'no-cache'
   };
 }
 

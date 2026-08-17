@@ -5,7 +5,12 @@ import { http } from '@kit.NetworkKit';
 import { connection } from '@kit.NetworkKit';
 import { ehAppLog } from './EhAppLog';
 import { ehSettingsStore } from './EhSettingsStore';
-import { acquireHttpRequest, hasActiveHttpRequests, markHttpRequestVolatile, retireHttpRequest } from './HttpRequestLifecycle';
+import {
+  acquireHttpRequest,
+  hasActiveHttpRequests,
+  markHttpRequestVolatile,
+  retireHttpRequest
+} from './HttpRequestLifecycle';
 
 const YANDEX_DOH_URL: string = 'https://common.dot.dns.yandex.net/dns-query';
 const CLOUDFLARE_DOH_URL: string = 'https://cloudflare-dns.com/dns-query';
@@ -284,9 +289,7 @@ function ensureFrontingQualityCacheLoaded(): void {
 export function applyEhNetworkOptions(options: http.HttpRequestOptions, plan: EhRequestPlan,
   useDnsOverHttps: boolean = true): void {
   options.usingCache = false;
-  // 部分 6.1 设备在 HTTP/3 请求超时后移除 curl handle 时会触发系统网络栈崩溃。
-  // EH 站点完整支持 HTTP/1.1，固定协议可以避开该原生路径，同时保留连接复用。
-  options.usingProtocol = http.HttpProtocol.HTTP1_1;
+  // 不指定 usingProtocol，由系统按目标站点能力自动协商协议并在需要时回退。
   applyConfiguredNetworkOptions(options, useDnsOverHttps);
   if (plan.fronted) {
     options.remoteValidation = 'skip';
@@ -839,12 +842,10 @@ async function probeFrontingIp(target: HostIpProbeTarget): Promise<HostIpQuality
         'User-Agent': FRONTING_PROBE_USER_AGENT,
         'Accept': '*/*',
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        'Cache-Control': 'no-cache',
-        'Connection': 'close'
+        'Cache-Control': 'no-cache'
       },
       expectDataType: http.HttpDataType.STRING,
       usingCache: false,
-      usingProtocol: http.HttpProtocol.HTTP1_1,
       remoteValidation: 'skip',
       maxRedirects: 0,
       connectTimeout: FRONTING_PROBE_CONNECT_TIMEOUT_MS,
@@ -1247,12 +1248,10 @@ async function probeDirectSelectedSite(): Promise<boolean> {
         'User-Agent': FRONTING_PROBE_USER_AGENT,
         'Accept': '*/*',
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-        'Cache-Control': 'no-cache',
-        'Connection': 'close'
+        'Cache-Control': 'no-cache'
       },
       expectDataType: http.HttpDataType.STRING,
       usingCache: false,
-      usingProtocol: http.HttpProtocol.HTTP1_1,
       maxRedirects: 0,
       connectTimeout: DIRECT_PROBE_TIMEOUT_MS,
       readTimeout: DIRECT_PROBE_TIMEOUT_MS

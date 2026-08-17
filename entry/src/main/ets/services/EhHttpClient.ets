@@ -1444,7 +1444,6 @@ interface RequestHeader {
   'Referer': string;
   'Cache-Control'?: string;
   'Pragma'?: string;
-  'Connection': string;
   'Content-Type'?: string;
   'Origin'?: string;
   'Cookie'?: string;
@@ -1702,8 +1701,7 @@ function buildRequestHeader(plan: EhRequestPlan, referer: string, cookieHeader: 
     'Accept': CHROME_ACCEPT,
     'Accept-Language': CHROME_ACCEPT_LANGUAGE,
     'Referer': referer,
-    'Cache-Control': maxAge > 0 ? 'max-age=' + maxAge.toString() : 'no-cache',
-    'Connection': requestConnectionHeader(plan)
+    'Cache-Control': maxAge > 0 ? 'max-age=' + maxAge.toString() : 'no-cache'
   };
   if (cookieHeader.length > 0) {
     header.Cookie = cookieHeader;
@@ -1721,7 +1719,6 @@ function buildPostRequestHeader(plan: EhRequestPlan, referer: string, origin: st
     'Referer': referer,
     'Cache-Control': 'no-cache',
     'Pragma': 'no-cache',
-    'Connection': requestConnectionHeader(plan),
     'Content-Type': 'application/x-www-form-urlencoded',
     'Origin': origin
   };
@@ -1741,7 +1738,6 @@ function buildJsonRequestHeader(plan: EhRequestPlan, referer: string, origin: st
     'Referer': referer,
     'Cache-Control': 'no-cache',
     'Pragma': 'no-cache',
-    'Connection': requestConnectionHeader(plan),
     'Content-Type': 'application/json',
     'Origin': origin
   };
@@ -1761,7 +1757,6 @@ function buildMultipartRequestHeader(plan: EhRequestPlan, referer: string, origi
     'Referer': referer,
     'Cache-Control': 'no-cache',
     'Pragma': 'no-cache',
-    'Connection': requestConnectionHeader(plan),
     'Content-Type': contentType,
     'Origin': origin
   };
@@ -1769,10 +1764,6 @@ function buildMultipartRequestHeader(plan: EhRequestPlan, referer: string, origi
     header.Cookie = cookieHeader;
   }
   return header;
-}
-
-function requestConnectionHeader(plan: EhRequestPlan): string {
-  return plan.fronted ? 'close' : 'keep-alive';
 }
 
 function frontingTimeout(plan: EhRequestPlan, baseTimeoutMs: number, seed: string, maxJitterMs: number): number {

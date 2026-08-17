@@ -118,7 +118,6 @@ interface ImageRequestHeader {
   'Accept': string;
   'Accept-Language': string;
   'Referer': string;
-  'Connection': string;
   'Cookie'?: string;
 }
 
@@ -450,8 +449,7 @@ function buildImageRequestHeader(plan: EhRequestPlan, referer: string, cookieHea
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36 EhViewerHarmony/0.1',
     'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    'Referer': referer,
-    'Connection': plan.fronted ? 'close' : 'keep-alive'
+    'Referer': referer
   };
   if (cookieHeader.length > 0) {
     header.Cookie = cookieHeader;

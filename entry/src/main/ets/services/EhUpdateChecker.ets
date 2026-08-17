@@ -59,7 +59,6 @@ interface GitHubReleaseRequestHeader {
   'Accept': string;
   'Accept-Language': string;
   'Cache-Control': string;
-  'Connection': string;
 }
 
 const LATEST_RELEASE_API: string = 'https://api.github.com/repos/' + EH_REPOSITORY_NAME + '/releases/latest';
@@ -172,8 +171,7 @@ function buildGitHubReleaseHeader(plan: EhRequestPlan): GitHubReleaseRequestHead
     'User-Agent': 'EhViewerHarmony/' + EH_APP_VERSION_NAME,
     'Accept': 'application/vnd.github+json',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    'Cache-Control': 'no-cache',
-    'Connection': plan.fronted ? 'close' : 'keep-alive'
+    'Cache-Control': 'no-cache'
   };
 }
 
