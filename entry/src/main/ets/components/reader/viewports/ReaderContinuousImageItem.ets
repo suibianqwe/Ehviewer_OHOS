@@ -51,6 +51,8 @@ export struct ReaderContinuousImageItem {
   @Prop @Watch('onImageSourceChange') preferOriginal: boolean = false;
   @Prop @Watch('onFitModeChange') fitMode: string = 'Fixed scale';
   @Prop @Watch('onZoomScaleChange') zoomScale: number = READER_BASE_SCALE;
+  @Prop command: string = '';
+  @Prop @Watch('onCommandChange') commandVersion: number = 0;
   @Prop sharedOffsetX: number = 0;
   @Prop @Watch('onActiveChange') isActive: boolean = false;
   @Prop @Watch('onHdrEnabledChange') hdrEnabled: boolean = false;
@@ -92,6 +94,7 @@ export struct ReaderContinuousImageItem {
   @State cropRect: ReaderCropRect = new ReaderCropRect();
   private isPinching: boolean = false;
   private pinchStartScale: number = READER_BASE_SCALE;
+  private lastCommandVersion: number = -1;
   private sourceSizeRequestId: number = 0;
   private downloadProgressRequestId: number = 0;
   private retainedImageUrl: string = '';
@@ -119,6 +122,20 @@ export struct ReaderContinuousImageItem {
     if (this.isActive) {
       this.startDownloadProgressMonitor();
     }
+  }
+
+  onCommandChange(): void {
+    if (!this.isActive || this.commandVersion === this.lastCommandVersion) {
+      return;
+    }
+    this.lastCommandVersion = this.commandVersion;
+    if (this.command !== 'double_zoom') {
+      return;
+    }
+    this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseOut }, () => {
+      this.imageModel.toggleDoubleTap(this.componentWidth / 2, this.itemHeight() / 2);
+    });
+    this.reportState();
   }
 
   private imageUrl(): string {

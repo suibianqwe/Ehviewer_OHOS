@@ -113,7 +113,7 @@ export { ReaderNavButton, ReaderToolButton } from './reader/controls/ReaderButto
 export { CommentsScene, PlaceholderScene } from './reader/scenes/ReaderAuxScenes';
 
 const SLIDER_AUTO_HIDE_DELAY: number = 3000;
-const READER_SCREEN_TAP_DELAY: number = 220;
+const READER_SCREEN_TAP_DELAY: number = 300;
 const READER_DUAL_PAGE_OVERFLOW_RATIO: number = 1.15;
 const READER_PAGE_GROUP_REFRESH_DELAY: number = 220;
 const READER_TRANSLATION_BUTTON_SIZE: number = 52;
@@ -2546,6 +2546,7 @@ export struct ReaderScene {
   private onReaderScreenTap(event: GestureEvent): void {
     if (this.screenTapTimer !== -1) {
       this.clearScreenTapTimer();
+      this.issueViewportCommand('double_zoom');
       return;
     }
     const tapX = this.tapLocalX(event);
@@ -2706,6 +2707,8 @@ export struct ReaderScene {
                 preferOriginal: this.preferOriginal,
                 fitMode: this.fitMode,
                 zoomScale: this.fixedScale,
+                command: this.viewportCommand,
+                commandVersion: this.viewportCommandVersion,
                 sharedOffsetX: this.continuousOffsetX,
                 isActive: item.index === this.currentIndex,
                 hdrEnabled: this.sdrToHdrEnabled &&

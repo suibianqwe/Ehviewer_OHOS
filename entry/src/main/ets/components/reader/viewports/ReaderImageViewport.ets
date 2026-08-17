@@ -129,8 +129,10 @@ export struct ReaderImageViewport {
     } else if (this.command === 'zoom_out') {
       this.imageModel.zoomBy(0.8);
     } else if (this.command === 'double_zoom') {
-      this.imageModel.toggleDoubleTap(this.imageModel.componentWidth / 2,
-        this.imageModel.componentHeight / 2);
+      this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseOut }, () => {
+        this.imageModel.toggleDoubleTap(this.imageModel.componentWidth / 2,
+          this.imageModel.componentHeight / 2);
+      });
     } else if (this.command === 'reset') {
       this.imageModel.reset();
     } else if (this.command === 'fixed_scale') {
