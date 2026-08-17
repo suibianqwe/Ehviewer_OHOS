@@ -1055,7 +1055,7 @@ export struct ReaderScene {
 
   private syncImageProcessingPrefetch(): void {
     if (!this.readerWindowActive || (!this.imageSuperResolutionEnabled && !this.sdrToHdrEnabled &&
-      !this.imageAdjustmentSettings.enabled)) {
+      !this.imageAdjustmentSettings.requiresOfflineProcessing())) {
       this.imageProcessingPrefetchScope.clear();
       return;
     }
@@ -1075,10 +1075,11 @@ export struct ReaderScene {
       const engineKey = readerSuperResolutionEngineCacheKey(this.imageSuperResolutionEngine);
       const superResolutionKey = sourceKey + '|' + sourcePath + '|sr|' + engineKey + '|' + targetKey;
       const adjustmentInputKey = this.imageSuperResolutionEnabled ? superResolutionKey : sourceKey + '|' + sourcePath;
-      const adjustmentKey = adjustmentInputKey + '|adjust|' + this.imageAdjustmentSettings.cacheKey();
+      const adjustmentKey = adjustmentInputKey + '|adjust|' + this.imageAdjustmentSettings.detailCacheKey();
       const fallbackAdjustmentKey = sourceKey + '|' + sourcePath + '|adjust|' +
-        this.imageAdjustmentSettings.cacheKey();
-      const hdrInputKey = this.imageAdjustmentSettings.enabled ? adjustmentKey : adjustmentInputKey;
+        this.imageAdjustmentSettings.detailCacheKey();
+      const offlineAdjustment = this.imageAdjustmentSettings.requiresOfflineProcessing();
+      const hdrInputKey = offlineAdjustment ? adjustmentKey : adjustmentInputKey;
       const hdrKey = hdrInputKey + '|hdr';
       const fallbackHdrKey = sourceKey + '|' + sourcePath + '|hdr';
       const priority = this.isContinuousVerticalMode() ? Math.abs(pageIndex - this.currentIndex) :
@@ -1086,7 +1087,7 @@ export struct ReaderScene {
       plans.push({
         id: pageIndex.toString() + '|' + superResolutionKey + '|' + hdrKey + '|' +
           adjustmentKey + '|' + (this.imageSuperResolutionEnabled ? '1' : '0') +
-          (this.sdrToHdrEnabled ? '1' : '0') + (this.imageAdjustmentSettings.enabled ? '1' : '0'),
+          (this.sdrToHdrEnabled ? '1' : '0') + (offlineAdjustment ? '1' : '0'),
         sourcePath: sourcePath,
         superResolutionKey: superResolutionKey,
         hdrKey: hdrKey,
@@ -1099,7 +1100,7 @@ export struct ReaderScene {
         superResolutionEngine: this.imageSuperResolutionEngine,
         superResolution: this.imageSuperResolutionEnabled,
         hdr: this.sdrToHdrEnabled,
-        adjustment: this.imageAdjustmentSettings.enabled,
+        adjustment: offlineAdjustment,
         priority: priority
       });
     }
@@ -2100,13 +2101,13 @@ export struct ReaderScene {
     if (this.imageAdjustmentSettings.enabled) {
       const adjustmentInputKey = superResolutionPixelMap !== undefined && lease.superResolutionKey.length > 0 ?
         lease.superResolutionKey : sourceKey + '|' + sourcePath;
-      lease.adjustmentKey = adjustmentInputKey + '|adjust|' + this.imageAdjustmentSettings.cacheKey();
+      lease.adjustmentKey = adjustmentInputKey + '|adjust-baked|' + this.imageAdjustmentSettings.cacheKey();
       try {
         adjustedPixelMap = superResolutionPixelMap !== undefined ?
           await readerImageAdjustmentService.acquirePixelMap(lease.adjustmentKey, superResolutionPixelMap,
-            this.imageAdjustmentSettings, 0) :
+            this.imageAdjustmentSettings, 0, true) :
           await readerImageAdjustmentService.acquire(lease.adjustmentKey, sourcePath,
-            this.imageAdjustmentSettings, 0);
+            this.imageAdjustmentSettings, 0, true);
       } catch (_error) {
         adjustedPixelMap = undefined;
       }

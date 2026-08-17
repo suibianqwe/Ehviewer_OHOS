@@ -11,6 +11,7 @@ interface AdjustmentEntry {
   sourcePath: string;
   sourcePixelMap: image.PixelMap | undefined;
   settings: ReaderImageAdjustmentSettings;
+  bakeColorAdjustments: boolean;
   references: number;
   cancelled: boolean;
   pixelMap: image.PixelMap | undefined;
@@ -32,19 +33,20 @@ class ReaderImageAdjustmentService {
   private sequence: number = 0;
 
   acquire(key: string, sourcePath: string, settings: ReaderImageAdjustmentSettings,
-    priority: number = 0): Promise<image.PixelMap | undefined> {
-    if (!settings.enabled || key.length === 0 || sourcePath.length === 0) {
+    priority: number = 0, bakeColorAdjustments: boolean = false): Promise<image.PixelMap | undefined> {
+    if ((!settings.requiresOfflineProcessing() && !bakeColorAdjustments) || !settings.enabled ||
+      key.length === 0 || sourcePath.length === 0) {
       return Promise.resolve(undefined);
     }
-    return this.acquireEntry(key, sourcePath, undefined, settings, priority);
+    return this.acquireEntry(key, sourcePath, undefined, settings, priority, bakeColorAdjustments);
   }
 
   acquirePixelMap(key: string, sourcePixelMap: image.PixelMap, settings: ReaderImageAdjustmentSettings,
-    priority: number = 0): Promise<image.PixelMap | undefined> {
-    if (!settings.enabled || key.length === 0) {
+    priority: number = 0, bakeColorAdjustments: boolean = false): Promise<image.PixelMap | undefined> {
+    if ((!settings.requiresOfflineProcessing() && !bakeColorAdjustments) || !settings.enabled || key.length === 0) {
       return Promise.resolve(undefined);
     }
-    return this.acquireEntry(key, '', sourcePixelMap, settings, priority);
+    return this.acquireEntry(key, '', sourcePixelMap, settings, priority, bakeColorAdjustments);
   }
 
   updatePriority(key: string, priority: number): void {
@@ -74,9 +76,11 @@ class ReaderImageAdjustmentService {
   }
 
   private acquireEntry(key: string, sourcePath: string, sourcePixelMap: image.PixelMap | undefined,
-    settings: ReaderImageAdjustmentSettings, priority: number): Promise<image.PixelMap | undefined> {
+    settings: ReaderImageAdjustmentSettings, priority: number,
+    bakeColorAdjustments: boolean): Promise<image.PixelMap | undefined> {
     let entry = this.entries.get(key);
-    if (entry === undefined || entry.sourcePath !== sourcePath) {
+    if (entry === undefined || entry.sourcePath !== sourcePath ||
+      entry.bakeColorAdjustments !== bakeColorAdjustments) {
       if (entry !== undefined) {
         this.disposeEntry(entry);
       }
@@ -85,6 +89,7 @@ class ReaderImageAdjustmentService {
         sourcePath: sourcePath,
         sourcePixelMap: sourcePixelMap,
         settings: settings,
+        bakeColorAdjustments: bakeColorAdjustments,
         references: 0,
         cancelled: false,
         pixelMap: undefined,
@@ -184,8 +189,12 @@ class ReaderImageAdjustmentService {
         return undefined;
       }
       const value = entry.settings;
-      const result = await readerHdr.adjustPixelMap(pixelMap, value.contrast, value.clarity, value.sharpening,
-        value.exposure, value.hue, value.saturation, value.temperature);
+      const result = await readerHdr.adjustPixelMap(pixelMap,
+        entry.bakeColorAdjustments ? value.contrast : 0, value.clarity, value.sharpening,
+        entry.bakeColorAdjustments ? value.exposure : 0,
+        entry.bakeColorAdjustments ? value.hue : 0,
+        entry.bakeColorAdjustments ? value.saturation : 0,
+        entry.bakeColorAdjustments ? value.temperature : 0);
       if (result !== 0 || !this.isActive(entry)) {
         return undefined;
       }

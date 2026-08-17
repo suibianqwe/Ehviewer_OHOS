@@ -60,11 +60,6 @@ float ClampByte(float value)
     return std::max(0.0f, std::min(255.0f, value));
 }
 
-float PixelLuminance(const std::vector<uint8_t> &pixels, size_t offset)
-{
-    return 0.2126f * pixels[offset] + 0.7152f * pixels[offset + 1] + 0.0722f * pixels[offset + 2];
-}
-
 class PixelMapAccessGuard {
 public:
     explicit PixelMapAccessGuard(NativePixelMap *pixelMap) : pixelMap_(pixelMap) {}
@@ -84,7 +79,6 @@ bool AdjustRgba8888PixelMap(AdjustmentWork *adjustment)
     if (adjustment == nullptr || adjustment->pixelMap == nullptr) {
         return false;
     }
-    PixelMapAccessGuard accessGuard(adjustment->pixelMap);
     OhosPixelMapInfos info {};
     void *address = nullptr;
     if (OH_PixelMap_GetImageInfo(adjustment->pixelMap, &info) != IMAGE_RESULT_SUCCESS ||
@@ -93,6 +87,7 @@ bool AdjustRgba8888PixelMap(AdjustmentWork *adjustment)
         IMAGE_RESULT_SUCCESS || address == nullptr) {
         return false;
     }
+    PixelMapAccessGuard accessGuard(adjustment->pixelMap);
 
     auto *pixels = static_cast<uint8_t *>(address);
     const float contrastValue = std::max(-100.0f, std::min(100.0f, adjustment->contrast));
@@ -111,74 +106,123 @@ bool AdjustRgba8888PixelMap(AdjustmentWork *adjustment)
     const float temperatureGreen = temperature * 0.04f;
     const float temperatureBlue = -temperature * 0.28f;
 
-    for (uint32_t y = 0; y < info.height; ++y) {
-        auto *row = pixels + static_cast<size_t>(y) * info.rowSize;
-        for (uint32_t x = 0; x < info.width; ++x) {
-            auto *pixel = row + static_cast<size_t>(x) * 4;
-            float r = pixel[0] * exposureFactor;
-            float g = pixel[1] * exposureFactor;
-            float b = pixel[2] * exposureFactor;
-            const float hueR = (0.213f + hueCos * 0.787f - hueSin * 0.213f) * r +
-                (0.715f - hueCos * 0.715f - hueSin * 0.715f) * g +
-                (0.072f - hueCos * 0.072f + hueSin * 0.928f) * b;
-            const float hueG = (0.213f - hueCos * 0.213f + hueSin * 0.143f) * r +
-                (0.715f + hueCos * 0.285f + hueSin * 0.140f) * g +
-                (0.072f - hueCos * 0.072f - hueSin * 0.283f) * b;
-            const float hueB = (0.213f - hueCos * 0.213f - hueSin * 0.787f) * r +
-                (0.715f - hueCos * 0.715f + hueSin * 0.715f) * g +
-                (0.072f + hueCos * 0.928f + hueSin * 0.072f) * b;
-            const float luminance = 0.2126f * hueR + 0.7152f * hueG + 0.0722f * hueB;
-            r = luminance + (hueR - luminance) * saturationFactor;
-            g = luminance + (hueG - luminance) * saturationFactor;
-            b = luminance + (hueB - luminance) * saturationFactor;
-            pixel[0] = static_cast<uint8_t>(ClampByte(contrastFactor * (r - 128.0f) + 128.0f +
-                temperatureRed) + 0.5f);
-            pixel[1] = static_cast<uint8_t>(ClampByte(contrastFactor * (g - 128.0f) + 128.0f +
-                temperatureGreen) + 0.5f);
-            pixel[2] = static_cast<uint8_t>(ClampByte(contrastFactor * (b - 128.0f) + 128.0f +
-                temperatureBlue) + 0.5f);
+    const bool hasColorAdjustment = std::abs(contrastValue) > 0.001f ||
+        std::abs(adjustment->exposure) > 0.001f || std::abs(adjustment->hue) > 0.001f ||
+        std::abs(adjustment->saturation) > 0.001f || std::abs(temperature) > 0.001f;
+    if (hasColorAdjustment) {
+        for (uint32_t y = 0; y < info.height; ++y) {
+            auto *row = pixels + static_cast<size_t>(y) * info.rowSize;
+            for (uint32_t x = 0; x < info.width; ++x) {
+                auto *pixel = row + static_cast<size_t>(x) * 4;
+                float r = pixel[0] * exposureFactor;
+                float g = pixel[1] * exposureFactor;
+                float b = pixel[2] * exposureFactor;
+                const float hueR = (0.213f + hueCos * 0.787f - hueSin * 0.213f) * r +
+                    (0.715f - hueCos * 0.715f - hueSin * 0.715f) * g +
+                    (0.072f - hueCos * 0.072f + hueSin * 0.928f) * b;
+                const float hueG = (0.213f - hueCos * 0.213f + hueSin * 0.143f) * r +
+                    (0.715f + hueCos * 0.285f + hueSin * 0.140f) * g +
+                    (0.072f - hueCos * 0.072f - hueSin * 0.283f) * b;
+                const float hueB = (0.213f - hueCos * 0.213f - hueSin * 0.787f) * r +
+                    (0.715f - hueCos * 0.715f + hueSin * 0.715f) * g +
+                    (0.072f + hueCos * 0.928f + hueSin * 0.072f) * b;
+                const float luminance = 0.2126f * hueR + 0.7152f * hueG + 0.0722f * hueB;
+                r = luminance + (hueR - luminance) * saturationFactor;
+                g = luminance + (hueG - luminance) * saturationFactor;
+                b = luminance + (hueB - luminance) * saturationFactor;
+                pixel[0] = static_cast<uint8_t>(ClampByte(contrastFactor * (r - 128.0f) + 128.0f +
+                    temperatureRed) + 0.5f);
+                pixel[1] = static_cast<uint8_t>(ClampByte(contrastFactor * (g - 128.0f) + 128.0f +
+                    temperatureGreen) + 0.5f);
+                pixel[2] = static_cast<uint8_t>(ClampByte(contrastFactor * (b - 128.0f) + 128.0f +
+                    temperatureBlue) + 0.5f);
+            }
         }
     }
 
     const float sharpeningAmount = std::max(0.0f, std::min(100.0f, adjustment->sharpening)) / 100.0f;
     const float clarityAmount = std::max(0.0f, std::min(100.0f, adjustment->clarity)) / 100.0f;
     if (sharpeningAmount > 0.0f || clarityAmount > 0.0f) {
-        std::vector<uint8_t> source(static_cast<size_t>(info.rowSize) * info.height);
-        std::copy(pixels, pixels + source.size(), source.begin());
-        const int32_t clarityRadius = std::max(2, static_cast<int32_t>(std::min(info.width, info.height) / 320));
+        const size_t width = info.width;
+        const size_t height = info.height;
+        const size_t pixelCount = width * height;
+        std::vector<uint8_t> luminance(pixelCount);
+        for (uint32_t y = 0; y < info.height; ++y) {
+            const auto *row = pixels + static_cast<size_t>(y) * info.rowSize;
+            for (uint32_t x = 0; x < info.width; ++x) {
+                const auto *pixel = row + static_cast<size_t>(x) * 4;
+                luminance[static_cast<size_t>(y) * width + x] = static_cast<uint8_t>(
+                    (54U * pixel[0] + 183U * pixel[1] + 19U * pixel[2] + 128U) >> 8U);
+            }
+        }
+
+        const uint32_t radius = static_cast<uint32_t>(std::max(2, std::min(24,
+            static_cast<int32_t>(std::min(info.width, info.height) / 320))));
+        const uint32_t windowSize = radius * 2 + 1;
+        std::vector<uint8_t> horizontalBlur;
+        std::vector<uint32_t> verticalSums;
+        if (clarityAmount > 0.0f) {
+            horizontalBlur.resize(pixelCount);
+            for (uint32_t y = 0; y < info.height; ++y) {
+                const size_t rowOffset = static_cast<size_t>(y) * width;
+                uint32_t sum = 0;
+                for (int32_t offset = -static_cast<int32_t>(radius);
+                    offset <= static_cast<int32_t>(radius); ++offset) {
+                    const uint32_t sampleX = static_cast<uint32_t>(std::max(0,
+                        std::min(static_cast<int32_t>(info.width) - 1, offset)));
+                    sum += luminance[rowOffset + sampleX];
+                }
+                for (uint32_t x = 0; x < info.width; ++x) {
+                    horizontalBlur[rowOffset + x] = static_cast<uint8_t>((sum + windowSize / 2) / windowSize);
+                    const uint32_t removeX = x > radius ? x - radius : 0;
+                    const uint32_t addX = std::min(info.width - 1, x + radius + 1);
+                    sum += luminance[rowOffset + addX];
+                    sum -= luminance[rowOffset + removeX];
+                }
+            }
+            verticalSums.resize(width, 0);
+            for (int32_t offset = -static_cast<int32_t>(radius);
+                offset <= static_cast<int32_t>(radius); ++offset) {
+                const uint32_t sampleY = static_cast<uint32_t>(std::max(0,
+                    std::min(static_cast<int32_t>(info.height) - 1, offset)));
+                const size_t rowOffset = static_cast<size_t>(sampleY) * width;
+                for (uint32_t x = 0; x < info.width; ++x) {
+                    verticalSums[x] += horizontalBlur[rowOffset + x];
+                }
+            }
+        }
+
         for (uint32_t y = 0; y < info.height; ++y) {
             auto *row = pixels + static_cast<size_t>(y) * info.rowSize;
+            const uint32_t previousY = y > 0 ? y - 1 : 0;
+            const uint32_t nextY = std::min(info.height - 1, y + 1);
+            const size_t rowOffset = static_cast<size_t>(y) * width;
             for (uint32_t x = 0; x < info.width; ++x) {
-                const size_t offset = static_cast<size_t>(y) * info.rowSize + static_cast<size_t>(x) * 4;
-                const float center = PixelLuminance(source, offset);
-                float sharpAverage = 0.0f;
-                float clarityAverage = 0.0f;
-                const int32_t sx[4] = { -1, 1, 0, 0 };
-                const int32_t sy[4] = { 0, 0, -1, 1 };
-                for (int i = 0; i < 4; ++i) {
-                    const uint32_t px = static_cast<uint32_t>(std::max(0, std::min(static_cast<int32_t>(info.width) - 1,
-                        static_cast<int32_t>(x) + sx[i])));
-                    const uint32_t py = static_cast<uint32_t>(std::max(0, std::min(static_cast<int32_t>(info.height) - 1,
-                        static_cast<int32_t>(y) + sy[i])));
-                    sharpAverage += PixelLuminance(source, static_cast<size_t>(py) * info.rowSize +
-                        static_cast<size_t>(px) * 4);
-                }
-                const int32_t cx[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
-                const int32_t cy[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
-                for (int i = 0; i < 8; ++i) {
-                    const uint32_t px = static_cast<uint32_t>(std::max(0, std::min(static_cast<int32_t>(info.width) - 1,
-                        static_cast<int32_t>(x) + cx[i] * clarityRadius)));
-                    const uint32_t py = static_cast<uint32_t>(std::max(0, std::min(static_cast<int32_t>(info.height) - 1,
-                        static_cast<int32_t>(y) + cy[i] * clarityRadius)));
-                    clarityAverage += PixelLuminance(source, static_cast<size_t>(py) * info.rowSize +
-                        static_cast<size_t>(px) * 4);
-                }
-                const float delta = sharpeningAmount * 0.72f * (center - sharpAverage * 0.25f) +
-                    clarityAmount * 0.42f * (center - clarityAverage * 0.125f);
+                const uint32_t previousX = x > 0 ? x - 1 : 0;
+                const uint32_t nextX = std::min(info.width - 1, x + 1);
+                const float center = luminance[rowOffset + x];
+                const float sharpAverage = sharpeningAmount > 0.0f ? 0.25f *
+                    (luminance[rowOffset + previousX] + luminance[rowOffset + nextX] +
+                    luminance[static_cast<size_t>(previousY) * width + x] +
+                    luminance[static_cast<size_t>(nextY) * width + x]) : center;
+                const float clarityAverage = clarityAmount > 0.0f ?
+                    static_cast<float>(verticalSums[x]) / windowSize : center;
+                const float delta = sharpeningAmount * 0.72f * (center - sharpAverage) +
+                    clarityAmount * 0.42f * (center - clarityAverage);
                 auto *pixel = row + static_cast<size_t>(x) * 4;
-                pixel[0] = static_cast<uint8_t>(ClampByte(source[offset] + delta) + 0.5f);
-                pixel[1] = static_cast<uint8_t>(ClampByte(source[offset + 1] + delta) + 0.5f);
-                pixel[2] = static_cast<uint8_t>(ClampByte(source[offset + 2] + delta) + 0.5f);
+                pixel[0] = static_cast<uint8_t>(ClampByte(pixel[0] + delta) + 0.5f);
+                pixel[1] = static_cast<uint8_t>(ClampByte(pixel[1] + delta) + 0.5f);
+                pixel[2] = static_cast<uint8_t>(ClampByte(pixel[2] + delta) + 0.5f);
+            }
+            if (clarityAmount > 0.0f) {
+                const uint32_t removeY = y > radius ? y - radius : 0;
+                const uint32_t addY = std::min(info.height - 1, y + radius + 1);
+                const size_t removeOffset = static_cast<size_t>(removeY) * width;
+                const size_t addOffset = static_cast<size_t>(addY) * width;
+                for (uint32_t x = 0; x < info.width; ++x) {
+                    verticalSums[x] += horizontalBlur[addOffset + x];
+                    verticalSums[x] -= horizontalBlur[removeOffset + x];
+                }
             }
         }
     }

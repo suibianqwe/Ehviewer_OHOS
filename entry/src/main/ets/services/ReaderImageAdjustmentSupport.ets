@@ -14,6 +14,108 @@ export class ReaderImageAdjustmentSettings {
     return (this.enabled ? '1' : '0') + ':' + this.contrast + ':' + this.clarity + ':' + this.sharpening + ':' +
       this.exposure + ':' + this.hue + ':' + this.saturation + ':' + this.temperature;
   }
+
+  detailCacheKey(): string {
+    return (this.enabled ? '1' : '0') + ':' + this.clarity + ':' + this.sharpening;
+  }
+
+  requiresOfflineProcessing(): boolean {
+    return this.enabled && (this.clarity > 0 || this.sharpening > 0);
+  }
+
+  hasColorAdjustments(): boolean {
+    return this.enabled && (this.contrast !== 0 || this.exposure !== 0 || this.hue !== 0 ||
+      this.saturation !== 0 || this.temperature !== 0);
+  }
+}
+
+const IDENTITY_COLOR_MATRIX: number[] = [
+  1, 0, 0, 0, 0,
+  0, 1, 0, 0, 0,
+  0, 0, 1, 0, 0,
+  0, 0, 0, 1, 0
+];
+const COLOR_FILTER_CACHE: Map<string, ColorFilter> = new Map<string, ColorFilter>();
+
+export function readerImageColorFilter(settings: ReaderImageAdjustmentSettings): ColorFilter {
+  const key = settings.hasColorAdjustments() ? settings.cacheKey() : 'identity';
+  const cached = COLOR_FILTER_CACHE.get(key);
+  if (cached !== undefined) {
+    return cached;
+  }
+  if (!settings.hasColorAdjustments()) {
+    const identity = new ColorFilter(IDENTITY_COLOR_MATRIX);
+    COLOR_FILTER_CACHE.set(key, identity);
+    return identity;
+  }
+  const exposure = Math.pow(2, clamp(settings.exposure, -100, 100) / 50);
+  const contrastValue = clamp(settings.contrast, -100, 100) * 1.27;
+  const contrast = (259 * (contrastValue + 255)) / (255 * (259 - contrastValue));
+  const saturation = 1 + clamp(settings.saturation, -100, 100) / 100;
+  const hue = clamp(settings.hue, -180, 180) * Math.PI / 180;
+  const hueCos = Math.cos(hue);
+  const hueSin = Math.sin(hue);
+  const temperature = clamp(settings.temperature, -100, 100);
+  let matrix = multiplyColorMatrices([
+    exposure, 0, 0, 0, 0,
+    0, exposure, 0, 0, 0,
+    0, 0, exposure, 0, 0,
+    0, 0, 0, 1, 0
+  ], IDENTITY_COLOR_MATRIX);
+  matrix = multiplyColorMatrices([
+    0.213 + hueCos * 0.787 - hueSin * 0.213,
+    0.715 - hueCos * 0.715 - hueSin * 0.715,
+    0.072 - hueCos * 0.072 + hueSin * 0.928, 0, 0,
+    0.213 - hueCos * 0.213 + hueSin * 0.143,
+    0.715 + hueCos * 0.285 + hueSin * 0.140,
+    0.072 - hueCos * 0.072 - hueSin * 0.283, 0, 0,
+    0.213 - hueCos * 0.213 - hueSin * 0.787,
+    0.715 - hueCos * 0.715 + hueSin * 0.715,
+    0.072 + hueCos * 0.928 + hueSin * 0.072, 0, 0,
+    0, 0, 0, 1, 0
+  ], matrix);
+  const inverseSaturation = 1 - saturation;
+  matrix = multiplyColorMatrices([
+    0.2126 * inverseSaturation + saturation, 0.7152 * inverseSaturation,
+    0.0722 * inverseSaturation, 0, 0,
+    0.2126 * inverseSaturation, 0.7152 * inverseSaturation + saturation,
+    0.0722 * inverseSaturation, 0, 0,
+    0.2126 * inverseSaturation, 0.7152 * inverseSaturation,
+    0.0722 * inverseSaturation + saturation, 0, 0,
+    0, 0, 0, 1, 0
+  ], matrix);
+  const contrastOffset = 0.5 * (1 - contrast);
+  const filter = new ColorFilter(multiplyColorMatrices([
+    contrast, 0, 0, 0, contrastOffset + temperature * 0.28 / 255,
+    0, contrast, 0, 0, contrastOffset + temperature * 0.04 / 255,
+    0, 0, contrast, 0, contrastOffset - temperature * 0.28 / 255,
+    0, 0, 0, 1, 0
+  ], matrix));
+  COLOR_FILTER_CACHE.set(key, filter);
+  return filter;
+}
+
+function multiplyColorMatrices(left: number[], right: number[]): number[] {
+  const result: number[] = new Array<number>(20).fill(0);
+  for (let row = 0; row < 4; row++) {
+    for (let column = 0; column < 4; column++) {
+      let value = 0;
+      for (let index = 0; index < 4; index++) {
+        value += left[row * 5 + index] * right[index * 5 + column];
+      }
+      result[row * 5 + column] = value;
+    }
+    let offset = left[row * 5 + 4];
+    for (let index = 0; index < 4; index++) {
+      offset += left[row * 5 + index] * right[index * 5 + 4];
+    }
+    result[row * 5 + 4] = offset;
+  }
+  return result;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
 export function readerImageAdjustmentSettingsFromStore(): ReaderImageAdjustmentSettings {

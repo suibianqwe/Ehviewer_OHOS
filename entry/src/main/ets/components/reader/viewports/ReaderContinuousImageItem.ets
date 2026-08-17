@@ -8,7 +8,10 @@ import {
 } from '../../../services/ReaderImageCache';
 import { readerHdrService } from '../../../services/ReaderHdrService';
 import { readerImageAdjustmentService } from '../../../services/ReaderImageAdjustmentService';
-import { ReaderImageAdjustmentSettings } from '../../../services/ReaderImageAdjustmentSupport';
+import {
+  readerImageColorFilter,
+  ReaderImageAdjustmentSettings
+} from '../../../services/ReaderImageAdjustmentSupport';
 import { readerSuperResolutionService } from '../../../services/ReaderSuperResolutionService';
 import {
   readerSuperResolutionEngineCacheKey,
@@ -261,12 +264,12 @@ export struct ReaderContinuousImageItem {
       this.releaseHdrPixelMap();
       return;
     }
-    if (this.imageAdjustmentSettings.enabled && !this.adjustmentCompleted) {
+    if (this.imageAdjustmentSettings.requiresOfflineProcessing() && !this.adjustmentCompleted) {
       this.releaseHdrPixelMap();
       this.loadAdjustedPixelMap();
       return;
     }
-    if (this.imageAdjustmentSettings.enabled && this.adjustedPixelMap !== undefined &&
+    if (this.imageAdjustmentSettings.requiresOfflineProcessing() && this.adjustedPixelMap !== undefined &&
       this.retainedAdjustmentKey.length > 0) {
       const key = this.retainedAdjustmentKey + '|hdr';
       if (this.retainedHdrKey === key) {
@@ -399,7 +402,8 @@ export struct ReaderContinuousImageItem {
 
   private loadAdjustedPixelMap(): void {
     const sourcePath = this.localSourceImagePath();
-    if (!this.imageAdjustmentSettings.enabled || sourcePath.length === 0 || this.imageUrl().length === 0) {
+    if (!this.imageAdjustmentSettings.requiresOfflineProcessing() || sourcePath.length === 0 ||
+      this.imageUrl().length === 0) {
       this.releaseAdjustedPixelMap();
       return;
     }
@@ -410,7 +414,7 @@ export struct ReaderContinuousImageItem {
     }
     const inputKey = this.superResolutionEnabled && this.superResolutionPixelMap !== undefined ?
       this.retainedSuperResolutionKey : this.sourceImageCacheKey() + '|' + sourcePath;
-    const key = inputKey + '|adjust|' + this.imageAdjustmentSettings.cacheKey();
+    const key = inputKey + '|adjust|' + this.imageAdjustmentSettings.detailCacheKey();
     if (this.retainedAdjustmentKey === key) {
       return;
     }
@@ -424,7 +428,7 @@ export struct ReaderContinuousImageItem {
       readerImageAdjustmentService.acquire(key, sourcePath, this.imageAdjustmentSettings, this.hdrPriority);
     pending.then((pixelMap: image.PixelMap | undefined) => {
       if (requestId !== this.adjustmentRequestId || key !== this.retainedAdjustmentKey ||
-        !this.imageAdjustmentSettings.enabled) {
+        !this.imageAdjustmentSettings.requiresOfflineProcessing()) {
         return;
       }
       this.adjustmentCompleted = true;
@@ -689,6 +693,7 @@ export struct ReaderContinuousImageItem {
             .width(this.uncroppedDisplayWidth())
             .height(this.uncroppedDisplayHeight())
             .objectFit(this.imageObjectFit())
+            .colorFilter(readerImageColorFilter(this.imageAdjustmentSettings))
             .interpolation(this.displayPixelMap() !== undefined && this.isActive ?
               ImageInterpolation.High : ImageInterpolation.Low)
             .dynamicRangeMode(this.hdrPixelMap === undefined ? DynamicRangeMode.STANDARD : DynamicRangeMode.HIGH)
