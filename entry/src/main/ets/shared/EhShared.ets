@@ -1705,8 +1705,8 @@ export function zhText(text: string): string {
     case 'Restore settings and local data from a supported backup file': return '从支持的备份文件恢复设置和本地数据';
     case 'Wi-Fi server/client': return 'Wi-Fi 服务器/客户端';
     case 'Wi-Fi Direct transfer': return 'Wi-Fi 直连传输';
-    case 'Transfer reading progress, bookmarks, local favorites, comment blacklist, downloads and image files directly between nearby devices':
-      return '在附近设备间同步阅读进度，并直连传输搜索书签、本地收藏、评论黑名单、下载记录和图片文件';
+    case 'Transfer application settings, reading progress, bookmarks, local favorites, comment blacklist, downloads and image files directly between nearby devices':
+      return '在附近设备间直连传输应用设置、阅读进度、搜索书签、本地收藏、评论黑名单、下载记录和图片文件';
     case 'Send data': return '发送数据';
     case 'Create a Wi-Fi Direct group': return '创建 Wi-Fi 直连群组';
     case 'Act as the migration server': return '作为迁移发送端';
@@ -1723,6 +1723,9 @@ export function zhText(text: string): string {
     case 'Data to send': return '要发送的数据';
     case 'Reading progress': return '阅读进度';
     case 'Merge the latest reading position on both devices': return '双向合并两台设备的最新阅读位置';
+    case 'Application settings': return '应用设置';
+    case 'All app preferences, reader presets, and service configurations':
+      return '全部应用偏好、阅读预设和服务配置';
     case 'Search bookmarks': return '搜索书签';
     case 'Saved quick searches and their search options': return '已保存的快捷搜索及搜索条件';
     case 'Local favorites': return '本地收藏';
@@ -1766,6 +1769,7 @@ export function zhText(text: string): string {
     case 'Wi-Fi transfer is idle': return 'Wi-Fi 传输空闲';
     case 'Wi-Fi transfer needs app context': return 'Wi-Fi 传输需要应用上下文';
     case 'Wi-Fi transfer stopped': return 'Wi-Fi 传输已停止';
+    case 'Select at least one data type to send': return '请至少选择一种要发送的数据';
     case 'No data is available for this transfer': return '没有可传输的数据';
     case 'Turn on Wi-Fi before using Wi-Fi Direct': return '使用 Wi-Fi 直连前请先打开 WLAN';
     case 'Preparing transfer data': return '正在准备传输数据';
@@ -3369,7 +3373,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       'Save settings, history, downloads, filters and comment blacklist to a JSON file', 'Export', 'action'));
     rows.push(staticSettingsRow('import_data', 'Import data', 'Restore settings and local data from a supported backup file', 'Import', 'action'));
     rows.push(staticSettingsRow('wifi_transfer', 'Wi-Fi Direct transfer',
-      'Transfer reading progress, bookmarks, local favorites, comment blacklist, downloads and image files directly between nearby devices', '',
+      'Transfer application settings, reading progress, bookmarks, local favorites, comment blacklist, downloads and image files directly between nearby devices', '',
       'navigation'));
     return rows;
   }

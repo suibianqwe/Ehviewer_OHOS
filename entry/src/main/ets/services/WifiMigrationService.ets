@@ -10,11 +10,15 @@ import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from './E
 import { LocalFavoriteBackupInfo, ehLocalFavoritesStore } from './EhLocalFavoritesStore';
 import { CommentBlacklistBackupEntry, ehCommentBlacklistStore } from './EhCommentBlacklistStore';
 import { ReadingProgressBackupInfo, ehHistoryStore } from './EhHistoryStore';
+import { ehSettingsStore, SettingEntry, SettingImportResult } from './EhSettingsStore';
+import { applyAppChromeImmersiveMode } from './EhWindowImmersive';
+import { readerImageCache } from './ReaderImageCache';
+import { notifyGalleryTitleChanged, notifyLanguageChanged, notifyThemeChanged } from '../shared/EhShared';
 
 export const WIFI_MIGRATION_PORT: number = 54321;
 
 const TRANSFER_PROTOCOL: string = 'ehviewer-ohos-wifi-direct';
-const TRANSFER_VERSION: number = 3;
+const TRANSFER_VERSION: number = 4;
 const PACKET_METADATA: string = 'metadata';
 const PACKET_FILE: string = 'file';
 const PACKET_COMPLETE: string = 'complete';
@@ -34,6 +38,7 @@ export enum WifiMigrationRole {
 
 export enum WifiMigrationDataKind {
   Progress = 'progress',
+  Settings = 'settings',
   Bookmarks = 'bookmarks',
   Favorites = 'favorites',
   Blacklist = 'blacklist',
@@ -78,7 +83,9 @@ type WifiMigrationObserver = (snapshot: WifiMigrationSnapshot) => void;
 
 interface WifiTransferMetadata {
   version: number;
-  kind: WifiMigrationDataKind;
+  kinds?: WifiMigrationDataKind[];
+  kind?: WifiMigrationDataKind;
+  settings?: SettingEntry[];
   readingProgress?: ReadingProgressBackupInfo[];
   bookmarks?: SearchBookmarkBackupInfo[];
   favorites?: LocalFavoriteBackupInfo[];
@@ -97,6 +104,7 @@ interface WifiTransferPacketHeader {
   totalBytes: number;
   totalFiles: number;
   kind?: WifiMigrationDataKind;
+  includesProgress?: boolean;
   fileGid?: number;
   fileName?: string;
   fileOffset?: number;
@@ -112,6 +120,7 @@ interface OutgoingTransferPacket {
 interface TransferPlan {
   packets: OutgoingTransferPacket[];
   itemCount: number;
+  progressCount: number;
   fileCount: number;
   totalBytes: number;
 }
@@ -157,6 +166,7 @@ export class WifiMigrationSession {
   private incomingMetadata: WifiTransferMetadata | null = null;
   private incomingDirectories: Map<number, string> = new Map<number, string>();
   private senderItemCount: number = 0;
+  private senderProgressCount: number = 0;
   private clientDataChannelVersion: number = -1;
 
   private peerChangeCallback = (devices: wifiManager.WifiP2pDevice[]): void => {
@@ -228,7 +238,7 @@ export class WifiMigrationSession {
     };
   }
 
-  async startServer(kind: WifiMigrationDataKind): Promise<void> {
+  async startServer(selectedKinds: WifiMigrationDataKind[]): Promise<void> {
     await this.resetForStart(WifiMigrationRole.Server);
     if (!isWifiReady()) {
       this.fail('Turn on Wi-Fi before using Wi-Fi Direct');
@@ -236,13 +246,19 @@ export class WifiMigrationSession {
     }
     this.setState(WifiMigrationPhase.Starting, 'Preparing transfer data');
     await this.prepareStores();
-    const plan = createTransferPlan(this.context, kind, this.encoder);
-    if (kind !== WifiMigrationDataKind.Progress && plan.itemCount <= 0 && plan.fileCount <= 0) {
+    const kinds = normalizeDataKinds(selectedKinds);
+    if (kinds.length === 0) {
+      this.setState(WifiMigrationPhase.Idle, 'Select at least one data type to send');
+      return;
+    }
+    const plan = createTransferPlan(this.context, kinds, this.encoder);
+    if (!containsDataKind(kinds, WifiMigrationDataKind.Progress) && plan.itemCount <= 0 && plan.fileCount <= 0) {
       this.setState(WifiMigrationPhase.Idle, 'No data is available for this transfer');
       return;
     }
     this.outgoingPackets = plan.packets;
     this.senderItemCount = plan.itemCount;
+    this.senderProgressCount = plan.progressCount;
     this.totalPages = plan.packets.length;
     this.totalFiles = plan.fileCount;
     this.totalBytes = plan.totalBytes;
@@ -368,7 +384,8 @@ export class WifiMigrationSession {
       ehBookmarkStore.ensureLoaded(this.context),
       ehLocalFavoritesStore.ensureLoaded(this.context),
       ehCommentBlacklistStore.ensureLoaded(this.context),
-      ehHistoryStore.ensureLoaded(this.context)
+      ehHistoryStore.ensureLoaded(this.context),
+      ehSettingsStore.ensureLoaded(this.context)
     ]);
   }
 
@@ -664,10 +681,11 @@ export class WifiMigrationSession {
       this.awaitingAck = false;
       this.clearAckTimer();
       const sent = this.outgoingPackets[this.outgoingIndex];
-      if (sent.header.type === PACKET_COMPLETE && sent.header.kind === WifiMigrationDataKind.Progress &&
+      if (sent.header.type === PACKET_COMPLETE && sent.header.includesProgress === true &&
         payload.length > 0) {
         const merged = await this.importReadingProgressMetadata(payload);
-        this.transferredItems = Math.max(this.senderItemCount, merged);
+        const nonProgressItems = Math.max(0, this.senderItemCount - this.senderProgressCount);
+        this.transferredItems = Math.max(this.senderItemCount, nonProgressItems + merged);
       }
       this.transferredBytes += sent.header.payloadLength;
       if (sent.header.type === PACKET_FILE && isLastFileChunk(sent.header)) {
@@ -708,7 +726,7 @@ export class WifiMigrationSession {
     }
     this.transferredBytes += payload.length;
     let ackPayload = new Uint8Array(0);
-    if (header.type === PACKET_COMPLETE && header.kind === WifiMigrationDataKind.Progress) {
+    if (header.type === PACKET_COMPLETE && header.includesProgress === true) {
       ackPayload = createReadingProgressMetadataBytes(this.encoder);
     }
     await this.sendAck(header.sequence, ackPayload);
@@ -728,57 +746,69 @@ export class WifiMigrationSession {
     if (metadata.version !== TRANSFER_VERSION) {
       throw new Error('Unsupported transfer version');
     }
+    const kinds = metadataDataKinds(metadata);
+    if (kinds.length === 0) {
+      throw new Error('Transferred data types are missing');
+    }
+    metadata.kinds = kinds;
     this.incomingMetadata = metadata;
-    if (metadata.kind === WifiMigrationDataKind.Bookmarks) {
-      const items = metadata.bookmarks === undefined ? [] : metadata.bookmarks;
-      const count = ehBookmarkStore.importBackupItems(items);
-      await ehBookmarkStore.save(this.context);
-      return count;
-    }
-    if (metadata.kind === WifiMigrationDataKind.Favorites) {
-      const items = metadata.favorites === undefined ? [] : metadata.favorites;
-      const count = ehLocalFavoritesStore.importBackupItems(items);
-      await ehLocalFavoritesStore.save(this.context);
-      return count;
-    }
-    if (metadata.kind === WifiMigrationDataKind.Blacklist) {
-      const items = metadata.blacklist === undefined ? [] : metadata.blacklist;
-      const count = ehCommentBlacklistStore.importBackupItems(items);
-      await ehCommentBlacklistStore.save(this.context);
-      return count;
-    }
-    if (metadata.kind === WifiMigrationDataKind.Progress) {
-      return await this.importReadingProgress(metadata);
-    }
-    const labels = metadata.downloadLabels === undefined ? [] : metadata.downloadLabels;
-    const downloads = metadata.downloads === undefined ? [] : metadata.downloads;
     let count = 0;
-    for (let i = 0; i < labels.length; i++) {
-      if (ehDownloadStore.addLabel(labels[i].label)) {
-        count++;
-      }
+    if (containsDataKind(kinds, WifiMigrationDataKind.Settings)) {
+      const settings = metadata.settings === undefined ? [] : metadata.settings;
+      const result = ehSettingsStore.importEntries(settings);
+      await ehSettingsStore.save(this.context);
+      applyImportedSettingEffects(this.context, result);
+      count += result.imported;
     }
-    const normalizedDownloads: DownloadInfo[] = [];
-    for (let i = 0; i < downloads.length; i++) {
-      const item = normalizeIncomingDownload(downloads[i]);
-      if (item === null) {
-        continue;
-      }
-      normalizedDownloads.push(item);
-      if (ehDownloadStore.importDownload(item)) {
-        count++;
-      }
-      const directory = ehDownloadFileStore.prepareTransferredGallery(this.context, item);
-      this.incomingDirectories.set(item.gid, directory);
+    if (containsDataKind(kinds, WifiMigrationDataKind.Bookmarks)) {
+      const items = metadata.bookmarks === undefined ? [] : metadata.bookmarks;
+      count += ehBookmarkStore.importBackupItems(items);
+      await ehBookmarkStore.save(this.context);
     }
-    metadata.downloads = normalizedDownloads;
-    await ehDownloadStore.save(this.context);
+    if (containsDataKind(kinds, WifiMigrationDataKind.Favorites)) {
+      const items = metadata.favorites === undefined ? [] : metadata.favorites;
+      count += ehLocalFavoritesStore.importBackupItems(items);
+      await ehLocalFavoritesStore.save(this.context);
+    }
+    if (containsDataKind(kinds, WifiMigrationDataKind.Blacklist)) {
+      const items = metadata.blacklist === undefined ? [] : metadata.blacklist;
+      count += ehCommentBlacklistStore.importBackupItems(items);
+      await ehCommentBlacklistStore.save(this.context);
+    }
+    if (containsDataKind(kinds, WifiMigrationDataKind.Progress)) {
+      count += await this.importReadingProgress(metadata);
+    }
+    if (containsDataKind(kinds, WifiMigrationDataKind.Downloads)) {
+      const labels = metadata.downloadLabels === undefined ? [] : metadata.downloadLabels;
+      const downloads = metadata.downloads === undefined ? [] : metadata.downloads;
+      for (let i = 0; i < labels.length; i++) {
+        if (ehDownloadStore.addLabel(labels[i].label)) {
+          count++;
+        }
+      }
+      const normalizedDownloads: DownloadInfo[] = [];
+      for (let i = 0; i < downloads.length; i++) {
+        const item = normalizeIncomingDownload(downloads[i]);
+        if (item === null) {
+          continue;
+        }
+        normalizedDownloads.push(item);
+        if (ehDownloadStore.importDownload(item)) {
+          count++;
+        }
+        const directory = ehDownloadFileStore.prepareTransferredGallery(this.context, item);
+        this.incomingDirectories.set(item.gid, directory);
+      }
+      metadata.downloads = normalizedDownloads;
+      await ehDownloadStore.save(this.context);
+    }
     return count;
   }
 
   private async importReadingProgressMetadata(payload: Uint8Array): Promise<number> {
     const metadata = JSON.parse(this.decoder.decodeToString(payload)) as WifiTransferMetadata;
-    if (metadata.version !== TRANSFER_VERSION || metadata.kind !== WifiMigrationDataKind.Progress) {
+    if (metadata.version !== TRANSFER_VERSION ||
+      !containsDataKind(metadataDataKinds(metadata), WifiMigrationDataKind.Progress)) {
       throw new Error('Unsupported reading progress data');
     }
     return await this.importReadingProgress(metadata);
@@ -812,7 +842,8 @@ export class WifiMigrationSession {
   }
 
   private async finishIncomingDownloads(): Promise<void> {
-    if (this.incomingMetadata === null || this.incomingMetadata.kind !== WifiMigrationDataKind.Downloads) {
+    if (this.incomingMetadata === null ||
+      !containsDataKind(metadataDataKinds(this.incomingMetadata), WifiMigrationDataKind.Downloads)) {
       return;
     }
     const downloads = this.incomingMetadata.downloads === undefined ? [] : this.incomingMetadata.downloads;
@@ -929,6 +960,7 @@ export class WifiMigrationSession {
     this.transferredBytes = 0;
     this.totalBytes = 0;
     this.senderItemCount = 0;
+    this.senderProgressCount = 0;
   }
 
   private clearAckTimer(): void {
@@ -982,27 +1014,92 @@ export class WifiMigrationSession {
   }
 }
 
-function createTransferPlan(context: common.UIAbilityContext, kind: WifiMigrationDataKind,
+function containsDataKind(kinds: WifiMigrationDataKind[], kind: WifiMigrationDataKind): boolean {
+  for (let i = 0; i < kinds.length; i++) {
+    if (kinds[i] === kind) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function normalizeDataKinds(kinds: WifiMigrationDataKind[]): WifiMigrationDataKind[] {
+  const ordered: WifiMigrationDataKind[] = [
+    WifiMigrationDataKind.Progress,
+    WifiMigrationDataKind.Settings,
+    WifiMigrationDataKind.Bookmarks,
+    WifiMigrationDataKind.Favorites,
+    WifiMigrationDataKind.Blacklist,
+    WifiMigrationDataKind.Downloads
+  ];
+  const normalized: WifiMigrationDataKind[] = [];
+  for (let i = 0; i < ordered.length; i++) {
+    if (containsDataKind(kinds, ordered[i])) {
+      normalized.push(ordered[i]);
+    }
+  }
+  return normalized;
+}
+
+function metadataDataKinds(metadata: WifiTransferMetadata): WifiMigrationDataKind[] {
+  if (metadata.kinds !== undefined) {
+    return normalizeDataKinds(metadata.kinds);
+  }
+  if (metadata.kind !== undefined) {
+    return normalizeDataKinds([metadata.kind]);
+  }
+  return [];
+}
+
+function applyImportedSettingEffects(context: common.UIAbilityContext, result: SettingImportResult): void {
+  if (result.languageChanged) {
+    notifyLanguageChanged();
+  }
+  if (result.themeChanged) {
+    notifyThemeChanged();
+    applyAppChromeImmersiveMode();
+  }
+  if (result.titleChanged) {
+    notifyGalleryTitleChanged();
+  }
+  readerImageCache.prune(context);
+}
+
+function createTransferPlan(context: common.UIAbilityContext, selectedKinds: WifiMigrationDataKind[],
   encoder: util.TextEncoder): TransferPlan {
-  const metadata: WifiTransferMetadata = { version: TRANSFER_VERSION, kind: kind };
+  const kinds = normalizeDataKinds(selectedKinds);
+  const metadata: WifiTransferMetadata = { version: TRANSFER_VERSION, kinds: kinds };
+  if (kinds.length === 1) {
+    metadata.kind = kinds[0];
+  }
   let itemCount = 0;
+  let progressCount = 0;
   const files: TransferImageFile[] = [];
-  if (kind === WifiMigrationDataKind.Progress) {
+  if (containsDataKind(kinds, WifiMigrationDataKind.Settings)) {
+    metadata.settings = ehSettingsStore.getEntries();
+    itemCount += metadata.settings.length;
+  }
+  if (containsDataKind(kinds, WifiMigrationDataKind.Progress)) {
     metadata.readingProgress = ehHistoryStore.getReadingProgressBackupItems();
-    itemCount = metadata.readingProgress.length;
-  } else if (kind === WifiMigrationDataKind.Bookmarks) {
+    progressCount = metadata.readingProgress.length;
+    itemCount += progressCount;
+  }
+  if (containsDataKind(kinds, WifiMigrationDataKind.Bookmarks)) {
     metadata.bookmarks = ehBookmarkStore.getBackupItems();
-    itemCount = metadata.bookmarks.length;
-  } else if (kind === WifiMigrationDataKind.Favorites) {
+    itemCount += metadata.bookmarks.length;
+  }
+  if (containsDataKind(kinds, WifiMigrationDataKind.Favorites)) {
     metadata.favorites = ehLocalFavoritesStore.getBackupItems();
-    itemCount = metadata.favorites.length;
-  } else if (kind === WifiMigrationDataKind.Blacklist) {
+    itemCount += metadata.favorites.length;
+  }
+  if (containsDataKind(kinds, WifiMigrationDataKind.Blacklist)) {
     metadata.blacklist = ehCommentBlacklistStore.getBackupItems();
-    itemCount = metadata.blacklist.length;
-  } else {
+    itemCount += metadata.blacklist.length;
+  }
+  if (containsDataKind(kinds, WifiMigrationDataKind.Downloads)) {
     metadata.downloadLabels = ehDownloadStore.getLabels();
     metadata.downloads = ehDownloadStore.getItems();
-    itemCount = metadata.downloadLabels.length + metadata.downloads.length;
+    itemCount += metadata.downloadLabels.length + metadata.downloads.length;
     for (let i = 0; i < metadata.downloads.length; i++) {
       const gallery = metadata.downloads[i];
       const images = ehDownloadFileStore.listPageImages(context, gallery);
@@ -1045,14 +1142,24 @@ function createTransferPlan(context: common.UIAbilityContext, kind: WifiMigratio
     packets[i].header.totalPackets = packets.length;
     packets[i].header.totalBytes = totalBytes;
     packets[i].header.totalFiles = files.length;
-    packets[i].header.kind = kind;
+    if (kinds.length === 1) {
+      packets[i].header.kind = kinds[0];
+    }
+    packets[i].header.includesProgress = containsDataKind(kinds, WifiMigrationDataKind.Progress);
   }
-  return { packets: packets, itemCount: itemCount, fileCount: files.length, totalBytes: totalBytes };
+  return {
+    packets: packets,
+    itemCount: itemCount,
+    progressCount: progressCount,
+    fileCount: files.length,
+    totalBytes: totalBytes
+  };
 }
 
 function createReadingProgressMetadataBytes(encoder: util.TextEncoder): Uint8Array {
   const metadata: WifiTransferMetadata = {
     version: TRANSFER_VERSION,
+    kinds: [WifiMigrationDataKind.Progress],
     kind: WifiMigrationDataKind.Progress,
     readingProgress: ehHistoryStore.getReadingProgressBackupItems()
   };

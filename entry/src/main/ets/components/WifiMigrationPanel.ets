@@ -3,6 +3,7 @@ import { ehDownloadStore } from '../services/EhDownloadStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
 import { ehCommentBlacklistStore } from '../services/EhCommentBlacklistStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
+import { ehSettingsStore } from '../services/EhSettingsStore';
 import {
   WifiMigrationDataKind,
   WifiMigrationPeer,
@@ -32,7 +33,7 @@ import { AppSubToolbar } from './NavigationComponents';
 export struct WifiMigrationPanel {
   onBack: () => void = () => {};
   @State role: WifiMigrationRole = WifiMigrationRole.Server;
-  @State dataKind: WifiMigrationDataKind = WifiMigrationDataKind.Progress;
+  @State dataKinds: WifiMigrationDataKind[] = [WifiMigrationDataKind.Progress];
   @State phase: WifiMigrationPhase = WifiMigrationPhase.Idle;
   @State status: string = 'Wi-Fi transfer is idle';
   @State peerAddress: string = '';
@@ -51,6 +52,7 @@ export struct WifiMigrationPanel {
   @State favoriteCount: number = 0;
   @State downloadCount: number = 0;
   @State blacklistCount: number = 0;
+  @State settingsCount: number = 0;
   private session: WifiMigrationSession | null = null;
 
   aboutToAppear(): void {
@@ -67,7 +69,8 @@ export struct WifiMigrationPanel {
       ehBookmarkStore.ensureLoaded(context),
       ehLocalFavoritesStore.ensureLoaded(context),
       ehCommentBlacklistStore.ensureLoaded(context),
-      ehHistoryStore.ensureLoaded(context)
+      ehHistoryStore.ensureLoaded(context),
+      ehSettingsStore.ensureLoaded(context)
     ]).then(() => {
       this.refreshCounts();
     }).catch(() => {
@@ -108,6 +111,7 @@ export struct WifiMigrationPanel {
     this.favoriteCount = ehLocalFavoritesStore.count();
     this.downloadCount = ehDownloadStore.getItems().length;
     this.blacklistCount = ehCommentBlacklistStore.count();
+    this.settingsCount = ehSettingsStore.getEntries().length;
   }
 
   private active(): boolean {
@@ -164,7 +168,7 @@ export struct WifiMigrationPanel {
       return;
     }
     if (this.role === WifiMigrationRole.Server) {
-      this.session.startServer(this.dataKind).catch((error: Error) => {
+      this.session.startServer(this.dataKinds).catch((error: Error) => {
         this.status = error.message;
         this.phase = WifiMigrationPhase.Error;
       });
@@ -191,11 +195,37 @@ export struct WifiMigrationPanel {
   }
 
   private selectedCount(): number {
-    if (this.dataKind === WifiMigrationDataKind.Progress) return this.progressCount;
-    if (this.dataKind === WifiMigrationDataKind.Bookmarks) return this.bookmarkCount;
-    if (this.dataKind === WifiMigrationDataKind.Favorites) return this.favoriteCount;
-    if (this.dataKind === WifiMigrationDataKind.Blacklist) return this.blacklistCount;
-    return this.downloadCount;
+    let count = 0;
+    if (this.isDataKindSelected(WifiMigrationDataKind.Progress)) count += this.progressCount;
+    if (this.isDataKindSelected(WifiMigrationDataKind.Settings)) count += this.settingsCount;
+    if (this.isDataKindSelected(WifiMigrationDataKind.Bookmarks)) count += this.bookmarkCount;
+    if (this.isDataKindSelected(WifiMigrationDataKind.Favorites)) count += this.favoriteCount;
+    if (this.isDataKindSelected(WifiMigrationDataKind.Blacklist)) count += this.blacklistCount;
+    if (this.isDataKindSelected(WifiMigrationDataKind.Downloads)) count += this.downloadCount;
+    return count;
+  }
+
+  private isDataKindSelected(kind: WifiMigrationDataKind): boolean {
+    for (let i = 0; i < this.dataKinds.length; i++) {
+      if (this.dataKinds[i] === kind) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private toggleDataKind(kind: WifiMigrationDataKind): void {
+    const selected = this.isDataKindSelected(kind);
+    const next: WifiMigrationDataKind[] = [];
+    for (let i = 0; i < this.dataKinds.length; i++) {
+      if (this.dataKinds[i] !== kind) {
+        next.push(this.dataKinds[i]);
+      }
+    }
+    if (!selected) {
+      next.push(kind);
+    }
+    this.dataKinds = next;
   }
 
   @Builder
@@ -239,11 +269,11 @@ export struct WifiMigrationPanel {
           Row()
             .width(42)
             .height(42)
-            .backgroundColor(this.dataKind === kind ? themePrimaryColor() : themeFieldBackground())
+            .backgroundColor(this.isDataKindSelected(kind) ? themePrimaryColor() : themeFieldBackground())
             .borderRadius(21)
           SymbolGlyph(symbol)
             .fontSize(21)
-            .fontColor([this.dataKind === kind ? themeOnPrimaryText() : themePrimaryColor()])
+            .fontColor([this.isDataKindSelected(kind) ? themeOnPrimaryText() : themePrimaryColor()])
         }
         Column({ space: 3 }) {
           Text(uiText(title))
@@ -260,9 +290,9 @@ export struct WifiMigrationPanel {
         Text(count.toString())
           .fontSize(13)
           .fontWeight(FontWeight.Medium)
-          .fontColor(this.dataKind === kind ? themeOnPrimaryText() : themePrimaryColor())
+          .fontColor(this.isDataKindSelected(kind) ? themeOnPrimaryText() : themePrimaryColor())
           .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-          .backgroundColor(this.dataKind === kind ? themePrimaryColor() : themeSelectedBackground())
+          .backgroundColor(this.isDataKindSelected(kind) ? themePrimaryColor() : themeSelectedBackground())
           .borderRadius(14)
       }
       .width('100%')
@@ -270,11 +300,11 @@ export struct WifiMigrationPanel {
     .width('100%')
     .height(72)
     .padding({ left: 12, right: 12 })
-    .backgroundColor(this.dataKind === kind ? themeSelectedBackground() : themeSurface())
+    .backgroundColor(this.isDataKindSelected(kind) ? themeSelectedBackground() : themeSurface())
     .borderRadius(8)
     .onClick(() => {
       if (!this.active()) {
-        this.dataKind = kind;
+        this.toggleDataKind(kind);
       }
     })
   }
@@ -455,6 +485,9 @@ export struct WifiMigrationPanel {
               .width('100%')
               this.dataCard(WifiMigrationDataKind.Progress, 'Reading progress',
                 'Merge the latest reading position on both devices', this.progressCount, $r('sys.symbol.book'))
+              this.dataCard(WifiMigrationDataKind.Settings, 'Application settings',
+                'All app preferences, reader presets, and service configurations', this.settingsCount,
+                $r('sys.symbol.gearshape'))
               this.dataCard(WifiMigrationDataKind.Bookmarks, 'Search bookmarks',
                 'Saved quick searches and their search options', this.bookmarkCount, $r('sys.symbol.bookmark'))
               this.dataCard(WifiMigrationDataKind.Favorites, 'Local favorites',

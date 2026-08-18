@@ -29,6 +29,7 @@ import {
   ehSettingsStore,
   historyInfoSizeLimitFromValue,
   normalizeHistoryInfoSizeOption,
+  SettingImportResult,
   SettingEntry,
   defaultSettingEntries
 } from '../services/EhSettingsStore';
@@ -1488,38 +1489,19 @@ export struct SettingsScene {
           this.signedIn = ehCookieStore.hasCookies();
         }
 
-        let languageChanged = false;
-        let themeChanged = false;
-        let titleChanged = false;
         if (Array.isArray(bundle.settings)) {
-          for (let i = 0; i < bundle.settings.length; i++) {
-            const e = bundle.settings[i] as SettingEntry;
-            if (typeof e.key === 'string' && typeof e.value === 'string') {
-              const importedValue = this.normalizedImportedSettingValue(e.key, e.value);
-              if (e.key === 'app_language' && ehSettingsStore.getValue('app_language', 'System') !== e.value) {
-                languageChanged = true;
-              }
-              if ((e.key === 'theme' || e.key === 'theme_color' || e.key === 'follow_system_dark_mode') &&
-                ehSettingsStore.getValue(e.key, '') !== importedValue) {
-                themeChanged = true;
-              }
-              if (e.key === 'show_jpn_title' && ehSettingsStore.getValue(e.key, '') !== importedValue) {
-                titleChanged = true;
-              }
-              ehSettingsStore.setValue(e.key, importedValue);
-            }
-          }
+          const settingResult: SettingImportResult = ehSettingsStore.importEntries(bundle.settings);
           saves.push(ehSettingsStore.save(context));
           this.settingEntries = ehSettingsStore.getEntries();
           this.themeName = currentThemeName();
-          if (languageChanged) {
+          if (settingResult.languageChanged) {
             notifyLanguageChanged();
           }
-          if (themeChanged) {
+          if (settingResult.themeChanged) {
             notifyThemeChanged();
             applyAppChromeImmersiveMode();
           }
-          if (titleChanged) {
+          if (settingResult.titleChanged) {
             notifyGalleryTitleChanged();
           }
           readerImageCache.prune(context);
@@ -1629,19 +1611,6 @@ export struct SettingsScene {
     }).catch((error: Error) => {
       this.showFloatingStatus('Import picker failed: ' + error.message);
     });
-  }
-
-  private normalizedImportedSettingValue(key: string, value: string): string {
-    if (key === 'read_cache_size') {
-      return normalizeReaderCacheSizeOption(value);
-    }
-    if (key === HISTORY_INFO_SIZE_KEY) {
-      return normalizeHistoryInfoSizeOption(value);
-    }
-    if (key === 'pattern_protection') {
-      return normalizeIdentityAuthenticationOption(value);
-    }
-    return value;
   }
 
   private restoreDownloadItems(): void {

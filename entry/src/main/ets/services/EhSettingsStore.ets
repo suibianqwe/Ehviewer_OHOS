@@ -24,6 +24,13 @@ export interface SettingEntry {
   value: string;
 }
 
+export interface SettingImportResult {
+  imported: number;
+  languageChanged: boolean;
+  themeChanged: boolean;
+  titleChanged: boolean;
+}
+
 interface StoredSettingEntry {
   key?: string;
   value?: string;
@@ -120,6 +127,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'ultra_dark_mode', value: 'Off' },
     { key: 'ultra_dark_lightness', value: '50%' },
     { key: 'download_location', value: 'App files' },
+    { key: 'download_public_root_path', value: '' },
     { key: 'download_thread', value: '3' },
     { key: 'preload_image', value: '5' },
     { key: 'download_list_pagination', value: 'On' },
@@ -173,6 +181,36 @@ export class EhSettingsStore {
   getValue(key: string, fallback: string = ''): string {
     const value = this.valueByKey.get(key);
     return value === undefined ? fallback : value;
+  }
+
+  importEntries(entries: SettingEntry[]): SettingImportResult {
+    const result: SettingImportResult = {
+      imported: 0,
+      languageChanged: false,
+      themeChanged: false,
+      titleChanged: false
+    };
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      if (typeof entry.key !== 'string' || typeof entry.value !== 'string') {
+        continue;
+      }
+      const value = normalizeImportedSettingValue(entry.key, entry.value);
+      const previous = this.getValue(entry.key, '');
+      if ((entry.key === 'app_language' || entry.key === 'show_tag_translations') && previous !== value) {
+        result.languageChanged = true;
+      }
+      if ((entry.key === 'theme' || entry.key === 'theme_color' || entry.key === 'follow_system_dark_mode') &&
+        previous !== value) {
+        result.themeChanged = true;
+      }
+      if (entry.key === 'show_jpn_title' && previous !== value) {
+        result.titleChanged = true;
+      }
+      this.setValue(entry.key, value);
+      result.imported++;
+    }
+    return result;
   }
 
   setValue(key: string, value: string): void {
@@ -443,6 +481,31 @@ export function normalizeHistoryInfoSizeOption(value: string): string {
     return '10000';
   }
   return '20000';
+}
+
+export function normalizeImportedSettingValue(key: string, value: string): string {
+  if (key === 'read_cache_size') {
+    if (value === '40 MB' || value === '80 MB') {
+      return '160 MB';
+    }
+    if (value === '160 MB' || value === '320 MB' || value === '640 MB' || value === '1 GB' || value === '2 GB') {
+      return value;
+    }
+    return '160 MB';
+  }
+  if (key === HISTORY_INFO_SIZE_KEY) {
+    return normalizeHistoryInfoSizeOption(value);
+  }
+  if (key === 'pattern_protection') {
+    if (value === 'On' || value === 'Fingerprint first') {
+      return 'Fingerprint first';
+    }
+    if (value === 'Face first' || value === 'Password first') {
+      return value;
+    }
+    return 'Off';
+  }
+  return value;
 }
 
 export function historyInfoSizeLimitFromValue(value: string): number {
