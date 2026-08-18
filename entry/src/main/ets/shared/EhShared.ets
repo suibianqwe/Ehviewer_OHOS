@@ -295,6 +295,12 @@ function simplifiedUiStatusText(text: string): string {
   if (text.indexOf('Unable to connect with Wi-Fi Direct: ') === 0) {
     return '无法通过 Wi-Fi 直连连接：' + text.substring('Unable to connect with Wi-Fi Direct: '.length);
   }
+  if (text.indexOf('Unable to advertise with Wi-Fi Direct: ') === 0) {
+    return '无法通过 Wi-Fi 直连发布发送设备：' + text.substring('Unable to advertise with Wi-Fi Direct: '.length);
+  }
+  if (text.indexOf('Unable to discover Wi-Fi Direct devices: ') === 0) {
+    return '无法发现 Wi-Fi 直连设备：' + text.substring('Unable to discover Wi-Fi Direct devices: '.length);
+  }
   if (text.indexOf('Send failed: ') === 0) {
     return '发送失败：' + text.substring('Send failed: '.length);
   }
@@ -1712,6 +1718,7 @@ export function zhText(text: string): string {
       return '在附近设备间直连传输应用设置、阅读进度、搜索书签、本地收藏、评论黑名单、下载记录和图片文件';
     case 'Send data': return '发送数据';
     case 'Create a Wi-Fi Direct group': return '创建 Wi-Fi 直连群组';
+    case 'Advertise the sending device': return '发布并等待接收设备连接';
     case 'Act as the migration server': return '作为迁移发送端';
     case 'Receive data': return '接收数据';
     case 'Discover the sending device': return '发现并连接发送设备';

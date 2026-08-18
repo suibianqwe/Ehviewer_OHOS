@@ -4,6 +4,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { wifiManager } from '@kit.ConnectivityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { socket } from '@kit.NetworkKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { SearchBookmarkBackupInfo, ehBookmarkStore } from './EhBookmarkStore';
 import { ehDownloadFileStore } from './EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from './EhDownloadStore';
@@ -30,6 +31,8 @@ const ACK_TIMEOUT_MS: number = 60000;
 const P2P_READY_TIMEOUT_MS: number = 30000;
 const P2P_READY_POLL_INTERVAL_MS: number = 500;
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
+const LOG_DOMAIN: number = 0x3214;
+const LOG_TAG: string = 'WifiMigration';
 
 export enum WifiMigrationRole {
   Server = 'server',
@@ -167,7 +170,7 @@ export class WifiMigrationSession {
   private incomingDirectories: Map<number, string> = new Map<number, string>();
   private senderItemCount: number = 0;
   private senderProgressCount: number = 0;
-  private clientDataChannelVersion: number = -1;
+  private dataChannelVersion: number = -1;
 
   private peerChangeCallback = (devices: wifiManager.WifiP2pDevice[]): void => {
     const peers: WifiMigrationPeer[] = [];
@@ -194,6 +197,7 @@ export class WifiMigrationSession {
 
   private connectionChangeCallback = (info: wifiManager.WifiP2pLinkedInfo): void => {
     const version = this.sessionVersion;
+    this.logLinkedInfo('event', info);
     if (info.connectState !== wifiManager.P2pConnectState.CONNECTED) {
       if (!this.stopped && (this.phase === WifiMigrationPhase.Connected ||
         this.phase === WifiMigrationPhase.Transferring)) {
@@ -201,15 +205,7 @@ export class WifiMigrationSession {
       }
       return;
     }
-    if (this.role === WifiMigrationRole.Client) {
-      this.startClientDataChannel(version);
-      return;
-    }
-    this.handleP2pConnected(info, version).catch((error: Error) => {
-      if (version === this.sessionVersion && !this.stopped) {
-        this.fail('Wi-Fi Direct connection failed: ' + error.message);
-      }
-    });
+    this.startDataChannel(version);
   };
 
   constructor(context: common.UIAbilityContext, observer: WifiMigrationObserver) {
@@ -263,29 +259,14 @@ export class WifiMigrationSession {
     this.totalFiles = plan.fileCount;
     this.totalBytes = plan.totalBytes;
     this.emit();
-    await this.startTcpServer();
     this.ensureP2pListeners();
-    let local: wifiManager.WifiP2pDevice;
+    await this.refreshLocalDevice();
     try {
-      local = await wifiManager.getP2pLocalDevice();
+      wifiManager.startDiscoverDevices();
     } catch (error) {
-      throw new Error('Unable to read the local Wi-Fi Direct device: ' + cleanError(error));
+      throw new Error('Unable to advertise with Wi-Fi Direct: ' + cleanError(error));
     }
-    this.localDeviceName = local.deviceName;
-    const config: wifiManager.WifiP2PConfig = {
-      deviceAddress: local.deviceAddress,
-      deviceAddressType: local.deviceAddressType === undefined ?
-        wifiManager.DeviceAddressType.RANDOM_DEVICE_ADDRESS : local.deviceAddressType,
-      netId: -1,
-      passphrase: 'ehviewer1',
-      groupName: 'EhViewer Transfer',
-      goBand: wifiManager.GroupOwnerBand.GO_BAND_AUTO
-    };
-    try {
-      wifiManager.createGroup(config);
-    } catch (error) {
-      throw new Error('Unable to create the Wi-Fi Direct group: ' + cleanError(error));
-    }
+    hilog.info(LOG_DOMAIN, LOG_TAG, `Sender is discoverable, session=%{public}d`, this.sessionVersion);
     this.setState(WifiMigrationPhase.Waiting, 'Waiting for a receiving device with Wi-Fi Direct');
   }
 
@@ -328,10 +309,6 @@ export class WifiMigrationSession {
     this.peerName = selected.name;
     this.peerAddress = selected.address;
     this.setState(WifiMigrationPhase.Starting, 'Connecting with Wi-Fi Direct');
-    try {
-      wifiManager.stopDiscoverDevices();
-    } catch (error) {
-    }
     const config: wifiManager.WifiP2PConfig = {
       deviceAddress: selected.address,
       deviceAddressType: selected.addressType,
@@ -341,8 +318,11 @@ export class WifiMigrationSession {
       goBand: wifiManager.GroupOwnerBand.GO_BAND_AUTO
     };
     try {
+      hilog.info(LOG_DOMAIN, LOG_TAG,
+        `Connect requested, peer=%{public}s, addressType=%{public}d, status=%{public}d`,
+        selected.name, selected.addressType, selected.status);
       wifiManager.p2pConnect(config);
-      this.startClientDataChannel(this.sessionVersion);
+      this.startDataChannel(this.sessionVersion);
     } catch (error) {
       this.fail('Unable to connect with Wi-Fi Direct: ' + cleanError(error));
     }
@@ -374,7 +354,7 @@ export class WifiMigrationSession {
     this.peerAddress = '';
     this.peerName = '';
     this.peers = [];
-    this.clientDataChannelVersion = -1;
+    this.dataChannelVersion = -1;
     this.stopped = false;
     this.emit();
   }
@@ -454,19 +434,19 @@ export class WifiMigrationSession {
     }
   }
 
-  private startClientDataChannel(version: number): void {
-    if (this.role !== WifiMigrationRole.Client || version !== this.sessionVersion || this.stopped ||
-      this.client !== null || this.clientDataChannelVersion === version) {
+  private startDataChannel(version: number): void {
+    if (version !== this.sessionVersion || this.stopped || this.server !== null || this.serverConnection !== null ||
+      this.client !== null || this.dataChannelVersion === version) {
       return;
     }
-    this.clientDataChannelVersion = version;
-    this.waitForClientDataChannel(version).then(() => {
-      if (this.clientDataChannelVersion === version) {
-        this.clientDataChannelVersion = -1;
+    this.dataChannelVersion = version;
+    this.waitForDataChannel(version).then(() => {
+      if (this.dataChannelVersion === version) {
+        this.dataChannelVersion = -1;
       }
     }).catch((error: Error) => {
-      if (this.clientDataChannelVersion === version) {
-        this.clientDataChannelVersion = -1;
+      if (this.dataChannelVersion === version) {
+        this.dataChannelVersion = -1;
       }
       if (version === this.sessionVersion && !this.stopped) {
         this.fail('Wi-Fi Direct connection failed: ' + error.message);
@@ -474,15 +454,20 @@ export class WifiMigrationSession {
     });
   }
 
-  private async waitForClientDataChannel(version: number): Promise<void> {
+  private async waitForDataChannel(version: number): Promise<void> {
     const deadline = Date.now() + P2P_READY_TIMEOUT_MS;
     let lastError = '';
+    let lastState = -1;
     while (Date.now() < deadline) {
-      if (version !== this.sessionVersion || this.stopped || this.role !== WifiMigrationRole.Client) {
+      if (version !== this.sessionVersion || this.stopped) {
         return;
       }
       try {
         const info = await wifiManager.getP2pLinkedInfo();
+        if (info.connectState !== lastState) {
+          this.logLinkedInfo('poll', info);
+          lastState = info.connectState;
+        }
         if (info.connectState === wifiManager.P2pConnectState.CONNECTED) {
           try {
             await this.handleP2pConnected(info, version);
@@ -496,6 +481,8 @@ export class WifiMigrationSession {
       }
       await delay(P2P_READY_POLL_INTERVAL_MS);
     }
+    hilog.error(LOG_DOMAIN, LOG_TAG, `P2P connection timed out, role=%{public}s, lastError=%{public}s`,
+      this.role, lastError);
     throw new Error(lastError.length > 0 ? lastError : 'Wi-Fi Direct connection timed out');
   }
 
@@ -504,20 +491,27 @@ export class WifiMigrationSession {
       return;
     }
     let ownerAddress = info.groupOwnerAddr;
+    let isGroupOwner = info.isGroupOwner;
     try {
       const group = await wifiManager.getCurrentGroup();
       if (group.goIpAddress.length > 0) {
         ownerAddress = group.goIpAddress;
       }
-      if (this.role === WifiMigrationRole.Server && group.clientDevices.length > 0) {
+      isGroupOwner = group.isP2pGo;
+      if (isGroupOwner && group.clientDevices.length > 0) {
         this.peerName = group.clientDevices[0].deviceName;
-      } else if (this.role === WifiMigrationRole.Client) {
+      } else if (!isGroupOwner) {
         this.peerName = group.ownerInfo.deviceName;
       }
+      hilog.info(LOG_DOMAIN, LOG_TAG,
+        `Group ready, isOwner=%{public}s, ownerAddress=%{public}s, clients=%{public}d, interface=%{public}s`,
+        String(isGroupOwner), ownerAddress, group.clientDevices.length, group.interface);
     } catch (error) {
+      hilog.warn(LOG_DOMAIN, LOG_TAG, `Unable to query current group: %{public}s`, cleanError(error));
     }
     this.peerAddress = ownerAddress;
-    if (this.role === WifiMigrationRole.Server) {
+    if (isGroupOwner) {
+      await this.startTcpServer();
       this.setState(WifiMigrationPhase.Connected, 'Wi-Fi Direct connected; waiting for data channel');
       return;
     }
@@ -528,22 +522,28 @@ export class WifiMigrationSession {
   }
 
   private async startTcpServer(): Promise<void> {
+    if (this.server !== null) {
+      return;
+    }
     const server = socket.constructTCPSocketServerInstance();
     this.server = server;
+    server.on('connect', (client: socket.TCPSocketConnection) => {
+      this.acceptServerConnection(client);
+    });
+    server.on('error', (error: BusinessError) => {
+      if (!this.stopped && this.server === server) {
+        this.fail('Wi-Fi server error: ' + cleanError(error));
+      }
+    });
     try {
       await server.listen({ address: '0.0.0.0', port: WIFI_MIGRATION_PORT, family: 1 });
       if (this.stopped || this.server !== server) {
         return;
       }
-      server.on('connect', (client: socket.TCPSocketConnection) => {
-        this.acceptServerConnection(client);
-      });
-      server.on('error', (error: BusinessError) => {
-        if (!this.stopped && this.server === server) {
-          this.fail('Wi-Fi server error: ' + cleanError(error));
-        }
-      });
+      hilog.info(LOG_DOMAIN, LOG_TAG, `TCP server listening, port=%{public}d`, WIFI_MIGRATION_PORT);
     } catch (error) {
+      server.off('connect');
+      server.off('error');
       this.server = null;
       throw new Error('Unable to start Wi-Fi server: ' + cleanError(error));
     }
@@ -574,13 +574,11 @@ export class WifiMigrationSession {
     client.getRemoteAddress().then((address: socket.NetAddress) => {
       if (this.serverConnection === client) {
         this.peerAddress = address.address;
+        hilog.info(LOG_DOMAIN, LOG_TAG, `TCP connection accepted, remote=%{public}s`, address.address);
         this.emit();
       }
     }).catch(() => {});
-    this.setState(WifiMigrationPhase.Transferring, 'Sending data and downloaded images');
-    this.sendCurrentPacket().catch((error: Error) => {
-      this.fail('Send failed: ' + error.message);
-    });
+    this.onTcpConnected();
   }
 
   private async connectTcpClient(address: string, version: number): Promise<void> {
@@ -615,10 +613,13 @@ export class WifiMigrationSession {
           return;
         }
         this.peerAddress = address;
-        this.setState(WifiMigrationPhase.Connected, 'Connected and ready to receive');
+        hilog.info(LOG_DOMAIN, LOG_TAG, `TCP client connected, remote=%{public}s, attempt=%{public}d`,
+          address, attempt + 1);
+        this.onTcpConnected();
         return;
       } catch (error) {
         lastError = cleanError(error);
+        hilog.warn(LOG_DOMAIN, LOG_TAG, `TCP client attempt %{public}d failed: %{public}s`, attempt + 1, lastError);
         await this.closeClient(client);
         if (this.client === client) {
           this.client = null;
@@ -627,6 +628,23 @@ export class WifiMigrationSession {
       }
     }
     throw new Error(lastError.length > 0 ? lastError : 'TCP data channel is unavailable');
+  }
+
+  private onTcpConnected(): void {
+    if (this.role === WifiMigrationRole.Server) {
+      this.setState(WifiMigrationPhase.Transferring, 'Sending data and downloaded images');
+      this.sendCurrentPacket().catch((error: Error) => {
+        this.fail('Send failed: ' + error.message);
+      });
+      return;
+    }
+    this.setState(WifiMigrationPhase.Connected, 'Connected and ready to receive');
+  }
+
+  private logLinkedInfo(source: string, info: wifiManager.WifiP2pLinkedInfo): void {
+    hilog.info(LOG_DOMAIN, LOG_TAG,
+      `P2P %{public}s, state=%{public}d, isOwner=%{public}s, ownerAddress=%{public}s, role=%{public}s`,
+      source, info.connectState, String(info.isGroupOwner), info.groupOwnerAddr, this.role);
   }
 
   private consumeBytes(buffer: ArrayBuffer): void {

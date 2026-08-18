@@ -1312,7 +1312,7 @@ export struct SettingsScene {
         version: 1,
         exportedAt: now.toISOString(),
         cookies: ehCookieStore.getCookieHeader(),
-        settings: ehSettingsStore.getEntries(),
+        settings: ehSettingsStore.getTransferEntries(),
         history: ehHistoryStore.getItems(),
         downloadItems: ehDownloadStore.getItems(),
         downloadLabels: ehDownloadStore.getLabels(),

@@ -206,6 +206,9 @@ export class EhSettingsStore {
       if (typeof entry.key !== 'string' || typeof entry.value !== 'string') {
         continue;
       }
+      if (containsString(DEVICE_LOCAL_SETTING_KEYS, entry.key)) {
+        continue;
+      }
       const value = normalizeImportedSettingValue(entry.key, entry.value);
       const previous = this.getValue(entry.key, '');
       if ((entry.key === 'app_language' || entry.key === 'show_tag_translations') && previous !== value) {

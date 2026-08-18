@@ -366,7 +366,7 @@ export struct WifiMigrationPanel {
       Scroll() {
         Column({ space: 12 }) {
           Row({ space: 10 }) {
-            this.roleButton(WifiMigrationRole.Server, 'Send data', 'Create a Wi-Fi Direct group',
+            this.roleButton(WifiMigrationRole.Server, 'Send data', 'Advertise the sending device',
               $r('sys.symbol.arrow_up_circle'))
             this.roleButton(WifiMigrationRole.Client, 'Receive data', 'Discover the sending device',
               $r('sys.symbol.arrow_down_circle'))
