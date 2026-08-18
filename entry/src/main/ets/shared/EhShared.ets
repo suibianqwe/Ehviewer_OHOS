@@ -1724,8 +1724,8 @@ export function zhText(text: string): string {
     case 'Reading progress': return '阅读进度';
     case 'Merge the latest reading position on both devices': return '双向合并两台设备的最新阅读位置';
     case 'Application settings': return '应用设置';
-    case 'All app preferences, reader presets, and service configurations':
-      return '全部应用偏好、阅读预设和服务配置';
+    case 'Portable app preferences, reader presets, and service configurations':
+      return '可迁移的应用偏好、阅读预设和服务配置';
     case 'Search bookmarks': return '搜索书签';
     case 'Saved quick searches and their search options': return '已保存的快捷搜索及搜索条件';
     case 'Local favorites': return '本地收藏';

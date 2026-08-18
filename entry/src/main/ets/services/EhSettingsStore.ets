@@ -18,6 +18,7 @@ export const DEFAULT_FAVORITE_SLOT_ASK: string = 'Ask';
 export const DEFAULT_DOWNLOAD_LABEL_SETTING_KEY: string = 'default_download_label';
 export const DEFAULT_DOWNLOAD_LABEL_ASK: string = '__ask__';
 const HISTORY_INFO_SIZE_OPTIONS: string[] = ['100', '500', '1000', '5000', '10000', '20000'];
+const DEVICE_LOCAL_SETTING_KEYS: string[] = ['download_location', 'download_public_root_path'];
 
 export interface SettingEntry {
   key: string;
@@ -176,6 +177,16 @@ export class EhSettingsStore {
 
   getEntries(): SettingEntry[] {
     return cloneEntries(this.entries);
+  }
+
+  getTransferEntries(): SettingEntry[] {
+    const entries: SettingEntry[] = [];
+    for (let i = 0; i < this.entries.length; i++) {
+      if (!containsString(DEVICE_LOCAL_SETTING_KEYS, this.entries[i].key)) {
+        entries.push({ key: this.entries[i].key, value: this.entries[i].value });
+      }
+    }
+    return entries;
   }
 
   getValue(key: string, fallback: string = ''): string {
@@ -536,6 +547,15 @@ function cloneEntries(entries: SettingEntry[]): SettingEntry[] {
     cloned.push({ key: entries[i].key, value: entries[i].value });
   }
   return cloned;
+}
+
+function containsString(values: string[], value: string): boolean {
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] === value) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export const ehSettingsStore: EhSettingsStore = new EhSettingsStore();

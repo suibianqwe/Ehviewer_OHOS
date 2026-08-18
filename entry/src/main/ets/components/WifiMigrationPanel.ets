@@ -111,7 +111,7 @@ export struct WifiMigrationPanel {
     this.favoriteCount = ehLocalFavoritesStore.count();
     this.downloadCount = ehDownloadStore.getItems().length;
     this.blacklistCount = ehCommentBlacklistStore.count();
-    this.settingsCount = ehSettingsStore.getEntries().length;
+    this.settingsCount = ehSettingsStore.getTransferEntries().length;
   }
 
   private active(): boolean {
@@ -486,7 +486,7 @@ export struct WifiMigrationPanel {
               this.dataCard(WifiMigrationDataKind.Progress, 'Reading progress',
                 'Merge the latest reading position on both devices', this.progressCount, $r('sys.symbol.book'))
               this.dataCard(WifiMigrationDataKind.Settings, 'Application settings',
-                'All app preferences, reader presets, and service configurations', this.settingsCount,
+                'Portable app preferences, reader presets, and service configurations', this.settingsCount,
                 $r('sys.symbol.gearshape'))
               this.dataCard(WifiMigrationDataKind.Bookmarks, 'Search bookmarks',
                 'Saved quick searches and their search options', this.bookmarkCount, $r('sys.symbol.bookmark'))

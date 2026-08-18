@@ -1076,7 +1076,7 @@ function createTransferPlan(context: common.UIAbilityContext, selectedKinds: Wif
   let progressCount = 0;
   const files: TransferImageFile[] = [];
   if (containsDataKind(kinds, WifiMigrationDataKind.Settings)) {
-    metadata.settings = ehSettingsStore.getEntries();
+    metadata.settings = ehSettingsStore.getTransferEntries();
     itemCount += metadata.settings.length;
   }
   if (containsDataKind(kinds, WifiMigrationDataKind.Progress)) {
