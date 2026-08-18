@@ -190,7 +190,8 @@ void ReduceMoire(uint8_t *pixels, const OhosPixelMapInfos &info, const Adjustmen
                 periodicAxes++;
             }
             const int32_t response = horizontalResponse + verticalResponse;
-            if (periodicAxes < 2 && (response < 42 || gradient * 5 > response * 6)) {
+            if (periodicAxes == 0 ||
+                (periodicAxes < 2 && (response < 42 || gradient * 5 > response * 6))) {
                 continue;
             }
             const float responseWeight = std::max(0.15f, std::min(1.0f,
