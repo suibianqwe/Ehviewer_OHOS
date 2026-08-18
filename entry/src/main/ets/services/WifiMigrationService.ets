@@ -23,6 +23,8 @@ const FILE_CHUNK_SIZE: number = 256 * 1024;
 const MAX_HEADER_BYTES: number = 64 * 1024;
 const MAX_PACKET_PAYLOAD_BYTES: number = 32 * 1024 * 1024;
 const ACK_TIMEOUT_MS: number = 60000;
+const P2P_READY_TIMEOUT_MS: number = 30000;
+const P2P_READY_POLL_INTERVAL_MS: number = 500;
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
 
 export enum WifiMigrationRole {
@@ -155,6 +157,7 @@ export class WifiMigrationSession {
   private incomingMetadata: WifiTransferMetadata | null = null;
   private incomingDirectories: Map<number, string> = new Map<number, string>();
   private senderItemCount: number = 0;
+  private clientDataChannelVersion: number = -1;
 
   private peerChangeCallback = (devices: wifiManager.WifiP2pDevice[]): void => {
     const peers: WifiMigrationPeer[] = [];
@@ -186,6 +189,10 @@ export class WifiMigrationSession {
         this.phase === WifiMigrationPhase.Transferring)) {
         this.fail('Wi-Fi Direct connection was disconnected');
       }
+      return;
+    }
+    if (this.role === WifiMigrationRole.Client) {
+      this.startClientDataChannel(version);
       return;
     }
     this.handleP2pConnected(info, version).catch((error: Error) => {
@@ -319,6 +326,7 @@ export class WifiMigrationSession {
     };
     try {
       wifiManager.p2pConnect(config);
+      this.startClientDataChannel(this.sessionVersion);
     } catch (error) {
       this.fail('Unable to connect with Wi-Fi Direct: ' + cleanError(error));
     }
@@ -350,6 +358,7 @@ export class WifiMigrationSession {
     this.peerAddress = '';
     this.peerName = '';
     this.peers = [];
+    this.clientDataChannelVersion = -1;
     this.stopped = false;
     this.emit();
   }
@@ -426,6 +435,51 @@ export class WifiMigrationSession {
       wifiManager.removeGroup();
     } catch (error) {
     }
+  }
+
+  private startClientDataChannel(version: number): void {
+    if (this.role !== WifiMigrationRole.Client || version !== this.sessionVersion || this.stopped ||
+      this.client !== null || this.clientDataChannelVersion === version) {
+      return;
+    }
+    this.clientDataChannelVersion = version;
+    this.waitForClientDataChannel(version).then(() => {
+      if (this.clientDataChannelVersion === version) {
+        this.clientDataChannelVersion = -1;
+      }
+    }).catch((error: Error) => {
+      if (this.clientDataChannelVersion === version) {
+        this.clientDataChannelVersion = -1;
+      }
+      if (version === this.sessionVersion && !this.stopped) {
+        this.fail('Wi-Fi Direct connection failed: ' + error.message);
+      }
+    });
+  }
+
+  private async waitForClientDataChannel(version: number): Promise<void> {
+    const deadline = Date.now() + P2P_READY_TIMEOUT_MS;
+    let lastError = '';
+    while (Date.now() < deadline) {
+      if (version !== this.sessionVersion || this.stopped || this.role !== WifiMigrationRole.Client) {
+        return;
+      }
+      try {
+        const info = await wifiManager.getP2pLinkedInfo();
+        if (info.connectState === wifiManager.P2pConnectState.CONNECTED) {
+          try {
+            await this.handleP2pConnected(info, version);
+            return;
+          } catch (error) {
+            lastError = cleanError(error);
+          }
+        }
+      } catch (error) {
+        lastError = cleanError(error);
+      }
+      await delay(P2P_READY_POLL_INTERVAL_MS);
+    }
+    throw new Error(lastError.length > 0 ? lastError : 'Wi-Fi Direct connection timed out');
   }
 
   private async handleP2pConnected(info: wifiManager.WifiP2pLinkedInfo, version: number): Promise<void> {
