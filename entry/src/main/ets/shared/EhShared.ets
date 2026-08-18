@@ -340,6 +340,9 @@ function simplifiedUiStatusText(text: string): string {
   if (text === 'Finish login in the web page; Cookie will be captured automatically') {
     return '在网页中完成登录，Cookie 会自动捕获';
   }
+  if (text === 'Direct sign in was blocked by site verification. Continue signing in on the web page.') {
+    return '直接登录被站点验证拦截，请继续在网页中完成登录。';
+  }
   if (text === 'No Cookie saved') {
     return '没有保存的 Cookie';
   }
@@ -1955,6 +1958,7 @@ export function zhText(text: string): string {
     case 'Network request failed': return '网络请求失败';
     case 'Cannot parse sign in response': return '无法解析登录响应';
     case 'Captcha required; use Cookie sign in or web login later': return '需要验证码，请使用 Cookie 登录或稍后通过网页登录';
+    case 'Site verification required; use web sign in': return '需要完成站点验证，请使用网页登录';
     case 'Tag is empty': return '标签为空';
     case 'Donation is not available in this version.': return '当前版本暂不支持捐赠。';
     case 'This setting is not available yet.': return '此设置暂不可用。';

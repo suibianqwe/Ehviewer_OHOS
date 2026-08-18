@@ -110,6 +110,11 @@ export struct SessionScene {
     this.client.signIn(this.username.trim(), this.password).then((result: SignInResult) => {
       this.signingIn = false;
       if (!result.ok) {
+        if (result.statusCode === 403 || result.message.indexOf('Captcha required') >= 0 ||
+          result.message.indexOf('Site verification required') >= 0) {
+          this.prepareWebSignIn('Direct sign in was blocked by site verification. Continue signing in on the web page.');
+          return;
+        }
         this.statusText = 'Sign in failed: ' + result.message;
         return;
       }
@@ -127,30 +132,31 @@ export struct SessionScene {
     });
   }
 
-  private prepareWebSignIn(): void {
+  private prepareWebSignIn(status: string = 'Finish login in the web page; Cookie will be captured automatically'): void {
     clearAllWebCookies();
     this.webCookieCaptured = false;
+    this.statusText = status;
     const context = getAbilityContext();
     if (context === undefined) {
       ehCookieStore.clear();
-      this.enterWebSignIn();
+      this.enterWebSignIn(status);
       return;
     }
     ehCookieStore.clearPersisted(context).then(() => {
-      this.enterWebSignIn();
+      this.enterWebSignIn(status);
     }).catch((error: Error) => {
       this.statusText = 'Cookie clear failed: ' + error.message;
     });
   }
 
-  private enterWebSignIn(): void {
+  private enterWebSignIn(status: string = 'Finish login in the web page; Cookie will be captured automatically'): void {
     try {
       webview.WebCookieManager.configCookieSync(EhUrl.HOST_E, 'nw=1; path=/', true);
       webview.WebCookieManager.configCookieSync(EhUrl.HOST_EX, 'nw=1; path=/', true);
     } catch (error) {
     }
     this.switchMode(SessionMode.Web);
-    this.statusText = 'Finish login in the web page; Cookie will be captured automatically';
+    this.statusText = status;
   }
 
   private checkWebCookie(url: string): void {

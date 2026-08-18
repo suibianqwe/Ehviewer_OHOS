@@ -1579,6 +1579,10 @@ function httpStatusMessage(statusCode: number, body: string): string {
     if (lower.indexOf('captcha') >= 0) {
       return 'Access denied: captcha is required';
     }
+    if (lower.indexOf('challenges.cloudflare.com') >= 0 || lower.indexOf('cf_chl_') >= 0 ||
+      lower.indexOf('cf-chl-') >= 0) {
+      return 'Site verification required; use web sign in';
+    }
     return 'Access denied: check login cookies or site permission';
   }
   if (statusCode === 404) {
