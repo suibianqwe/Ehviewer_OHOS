@@ -21,6 +21,7 @@ export interface CookieEntry {
 export interface CookieHeaderOptions {
   includeContentWarning?: boolean;
   includeUConfig?: boolean;
+  includeIgneous?: boolean;
   forceUConfig?: boolean;
   imagePreferenceUConfig?: boolean;
 }
@@ -118,7 +119,16 @@ export class EhCookieStore {
   }
 
   getStoredCookieHeader(): string {
-    return this.buildCookieHeader({ includeContentWarning: false, includeUConfig: true });
+    return this.buildCookieHeader({ includeContentWarning: false, includeUConfig: true, includeIgneous: false });
+  }
+
+  getTransferCookieHeader(): string {
+    return this.buildCookieHeader({ includeContentWarning: false, includeUConfig: true, includeIgneous: false });
+  }
+
+  setTransferCookieHeader(cookieHeader: string): void {
+    this.setCookieHeader(cookieHeader);
+    this.removeCookie(KEY_IGNEOUS);
   }
 
   getEditableCookieHeader(): string {
@@ -136,6 +146,7 @@ export class EhCookieStore {
   private buildCookieHeader(options: CookieHeaderOptions): string {
     const includeContentWarning = options.includeContentWarning !== false;
     const includeUConfig = options.includeUConfig !== false;
+    const includeIgneous = options.includeIgneous !== false;
     const pairs: string[] = [];
     let hasContentWarning = false;
     let existingUConfig = '';
@@ -147,6 +158,9 @@ export class EhCookieStore {
         existingUConfig = this.cookies[i].value;
       }
       if (!includeContentWarning && this.cookies[i].name === KEY_CONTENT_WARNING) {
+        continue;
+      }
+      if (!includeIgneous && this.cookies[i].name === KEY_IGNEOUS) {
         continue;
       }
       if (this.cookies[i].name === KEY_UCONFIG) {
@@ -207,6 +221,11 @@ export class EhCookieStore {
       const value = await prefs.get(COOKIE_KEY, '');
       if (typeof value === 'string' && value.length > 0) {
         this.setCookieHeader(value);
+        const persisted = this.getStoredCookieHeader();
+        if (persisted !== value) {
+          await prefs.put(COOKIE_KEY, persisted);
+          await prefs.flush();
+        }
       }
     } catch (error) {
       throw new Error(String(error));
@@ -266,6 +285,16 @@ export class EhCookieStore {
 
   private hasCookie(name: string): boolean {
     return this.cookieValue(name).length > 0;
+  }
+
+  private removeCookie(name: string): void {
+    const retained: CookieEntry[] = [];
+    for (let i = 0; i < this.cookies.length; i++) {
+      if (this.cookies[i].name !== name) {
+        retained.push(this.cookies[i]);
+      }
+    }
+    this.cookies = retained;
   }
 
   private cookieValue(name: string): string {

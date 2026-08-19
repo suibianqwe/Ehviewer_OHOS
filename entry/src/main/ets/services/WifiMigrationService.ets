@@ -10,6 +10,7 @@ import { ehDownloadFileStore } from './EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from './EhDownloadStore';
 import { LocalFavoriteBackupInfo, ehLocalFavoritesStore } from './EhLocalFavoritesStore';
 import { CommentBlacklistBackupEntry, ehCommentBlacklistStore } from './EhCommentBlacklistStore';
+import { ehCookieStore } from './EhCookieStore';
 import { ReadingProgressBackupInfo, ehHistoryStore } from './EhHistoryStore';
 import { ehSettingsStore, SettingEntry, SettingImportResult } from './EhSettingsStore';
 import { applyAppChromeImmersiveMode } from './EhWindowImmersive';
@@ -89,6 +90,7 @@ interface WifiTransferMetadata {
   kinds?: WifiMigrationDataKind[];
   kind?: WifiMigrationDataKind;
   settings?: SettingEntry[];
+  cookies?: string;
   readingProgress?: ReadingProgressBackupInfo[];
   bookmarks?: SearchBookmarkBackupInfo[];
   favorites?: LocalFavoriteBackupInfo[];
@@ -365,7 +367,8 @@ export class WifiMigrationSession {
       ehLocalFavoritesStore.ensureLoaded(this.context),
       ehCommentBlacklistStore.ensureLoaded(this.context),
       ehHistoryStore.ensureLoaded(this.context),
-      ehSettingsStore.ensureLoaded(this.context)
+      ehSettingsStore.ensureLoaded(this.context),
+      ehCookieStore.ensureLoaded(this.context)
     ]);
   }
 
@@ -777,6 +780,11 @@ export class WifiMigrationSession {
       await ehSettingsStore.save(this.context);
       applyImportedSettingEffects(this.context, result);
       count += result.imported;
+      if (typeof metadata.cookies === 'string' && metadata.cookies.length > 0) {
+        ehCookieStore.setTransferCookieHeader(metadata.cookies);
+        await ehCookieStore.save(this.context);
+        count++;
+      }
     }
     if (containsDataKind(kinds, WifiMigrationDataKind.Bookmarks)) {
       const items = metadata.bookmarks === undefined ? [] : metadata.bookmarks;
@@ -1096,6 +1104,11 @@ function createTransferPlan(context: common.UIAbilityContext, selectedKinds: Wif
   if (containsDataKind(kinds, WifiMigrationDataKind.Settings)) {
     metadata.settings = ehSettingsStore.getTransferEntries();
     itemCount += metadata.settings.length;
+    const cookies = ehCookieStore.getTransferCookieHeader();
+    if (cookies.length > 0) {
+      metadata.cookies = cookies;
+      itemCount++;
+    }
   }
   if (containsDataKind(kinds, WifiMigrationDataKind.Progress)) {
     metadata.readingProgress = ehHistoryStore.getReadingProgressBackupItems();

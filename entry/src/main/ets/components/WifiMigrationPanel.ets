@@ -2,6 +2,7 @@ import { ehBookmarkStore } from '../services/EhBookmarkStore';
 import { ehDownloadStore } from '../services/EhDownloadStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
 import { ehCommentBlacklistStore } from '../services/EhCommentBlacklistStore';
+import { ehCookieStore } from '../services/EhCookieStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import {
@@ -70,7 +71,8 @@ export struct WifiMigrationPanel {
       ehLocalFavoritesStore.ensureLoaded(context),
       ehCommentBlacklistStore.ensureLoaded(context),
       ehHistoryStore.ensureLoaded(context),
-      ehSettingsStore.ensureLoaded(context)
+      ehSettingsStore.ensureLoaded(context),
+      ehCookieStore.ensureLoaded(context)
     ]).then(() => {
       this.refreshCounts();
     }).catch(() => {
@@ -111,7 +113,8 @@ export struct WifiMigrationPanel {
     this.favoriteCount = ehLocalFavoritesStore.count();
     this.downloadCount = ehDownloadStore.getItems().length;
     this.blacklistCount = ehCommentBlacklistStore.count();
-    this.settingsCount = ehSettingsStore.getTransferEntries().length;
+    this.settingsCount = ehSettingsStore.getTransferEntries().length +
+      (ehCookieStore.getTransferCookieHeader().length > 0 ? 1 : 0);
   }
 
   private active(): boolean {
@@ -486,7 +489,8 @@ export struct WifiMigrationPanel {
               this.dataCard(WifiMigrationDataKind.Progress, 'Reading progress',
                 'Merge the latest reading position on both devices', this.progressCount, $r('sys.symbol.book'))
               this.dataCard(WifiMigrationDataKind.Settings, 'Application settings',
-                'Portable app preferences, reader presets, and service configurations', this.settingsCount,
+                'Portable preferences, reader presets, service configurations, and login cookies excluding igneous',
+                this.settingsCount,
                 $r('sys.symbol.gearshape'))
               this.dataCard(WifiMigrationDataKind.Bookmarks, 'Search bookmarks',
                 'Saved quick searches and their search options', this.bookmarkCount, $r('sys.symbol.bookmark'))

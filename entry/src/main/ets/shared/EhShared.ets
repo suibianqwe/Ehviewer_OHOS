@@ -1473,7 +1473,8 @@ export function zhText(text: string): string {
     case 'Clear the persisted identity cookies': return '清除已保存的身份 Cookie';
     case 'Choose Light, Dark or Black for the app interface': return '选择应用界面的亮色、暗色或黑色主题';
     case 'Identity cookies': return '身份 Cookie';
-    case 'View or import ipb_member_id, ipb_pass_hash and igneous': return '查看或导入 ipb_member_id、ipb_pass_hash 和 igneous';
+    case 'View or import ipb_member_id and ipb_pass_hash; igneous is session-only':
+      return '查看或导入 ipb_member_id 和 ipb_pass_hash；igneous 仅用于当前会话';
     case 'Gallery site': return '画廊站点';
     case 'Select E-Hentai or ExHentai for browsing and requests': return '选择用于浏览和请求的 E-Hentai 或 ExHentai 站点';
     case 'Account configuration page, requires sign in': return '账号配置页面，需要登录';
@@ -1708,8 +1709,8 @@ export function zhText(text: string): string {
     case 'Bypass SNI blocking using built-in host fronting': return '使用内置 hosts 绕过 SNI 封锁';
     case 'Use direct connection when the selected site responds within 5s': return '所选站点 5 秒内可直连时不使用 hosts 和域名前置';
     case 'Export data': return '导出数据';
-    case 'Save settings, history, downloads, filters and comment blacklist to a JSON file':
-      return '将设置、历史记录、下载、过滤规则和评论黑名单保存为 JSON 文件';
+    case 'Save settings, login cookies, history, downloads, filters and comment blacklist without igneous to a JSON file':
+      return '将设置、登录 Cookie、历史记录、下载、过滤规则和评论黑名单保存为 JSON 文件（不含 igneous）';
     case 'Import data': return '导入数据';
     case 'Restore settings and local data from a supported backup file': return '从支持的备份文件恢复设置和本地数据';
     case 'Wi-Fi server/client': return 'Wi-Fi 服务器/客户端';
@@ -1734,8 +1735,8 @@ export function zhText(text: string): string {
     case 'Reading progress': return '阅读进度';
     case 'Merge the latest reading position on both devices': return '双向合并两台设备的最新阅读位置';
     case 'Application settings': return '应用设置';
-    case 'Portable app preferences, reader presets, and service configurations':
-      return '可迁移的应用偏好、阅读预设和服务配置';
+    case 'Portable preferences, reader presets, service configurations, and login cookies excluding igneous':
+      return '可迁移的应用偏好、阅读预设、服务配置和登录 Cookie（不含 igneous）';
     case 'Search bookmarks': return '搜索书签';
     case 'Saved quick searches and their search options': return '已保存的快捷搜索及搜索条件';
     case 'Local favorites': return '本地收藏';
@@ -3114,7 +3115,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     const followSystemDarkMode = settingEntryValue(entries, 'follow_system_dark_mode', 'Off') === 'On';
     const listMode = settingEntryValue(entries, 'list_mode', 'Detail');
     const rows: SettingsRowItem[] = [
-      staticSettingsRow('identity_cookie', 'Identity cookies', 'View or import ipb_member_id, ipb_pass_hash and igneous', '', 'navigation'),
+      staticSettingsRow('identity_cookie', 'Identity cookies',
+        'View or import ipb_member_id and ipb_pass_hash; igneous is session-only', '', 'navigation'),
       optionSettingsRow('gallery_site', 'Gallery site', 'Select E-Hentai or ExHentai for browsing and requests', entries, ['E-Hentai', 'ExHentai']),
       staticSettingsRow('u_config', 'UConfig', 'Account configuration page, requires sign in', '', 'navigation'),
       optionSettingsRow('use_account_default_filter', 'Use account filters', 'Use filtering options captured from UConfig', entries, ON_OFF_OPTIONS),
@@ -3381,7 +3383,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     rows.push(optionSettingsRow('domain_fronting', 'Domain fronting', 'Bypass SNI blocking using built-in host fronting', entries, ON_OFF_OPTIONS));
     rows.push(optionSettingsRow('auto_direct_connection', 'Direct connection check', 'Use direct connection when the selected site responds within 5s', entries, ON_OFF_OPTIONS));
     rows.push(staticSettingsRow('export_data', 'Export data',
-      'Save settings, history, downloads, filters and comment blacklist to a JSON file', 'Export', 'action'));
+      'Save settings, login cookies, history, downloads, filters and comment blacklist without igneous to a JSON file',
+      'Export', 'action'));
     rows.push(staticSettingsRow('import_data', 'Import data', 'Restore settings and local data from a supported backup file', 'Import', 'action'));
     rows.push(staticSettingsRow('wifi_transfer', 'Wi-Fi Direct transfer',
       'Transfer application settings, reading progress, bookmarks, local favorites, comment blacklist, downloads and image files directly between nearby devices', '',

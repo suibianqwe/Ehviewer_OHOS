@@ -1300,6 +1300,7 @@ export struct SettingsScene {
     const fileName = 'ehviewer_backup_' + stamp + '.json';
 
     Promise.all([
+      ehCookieStore.ensureLoaded(context),
       ehSettingsStore.ensureLoaded(context),
       ehHistoryStore.load(context),
       ehDownloadStore.load(context),
@@ -1311,7 +1312,7 @@ export struct SettingsScene {
       const bundle: EhBackupBundle = {
         version: 1,
         exportedAt: now.toISOString(),
-        cookies: ehCookieStore.getCookieHeader(),
+        cookies: ehCookieStore.getTransferCookieHeader(),
         settings: ehSettingsStore.getTransferEntries(),
         history: ehHistoryStore.getItems(),
         downloadItems: ehDownloadStore.getItems(),
@@ -1484,7 +1485,7 @@ export struct SettingsScene {
         const saves: Promise<void>[] = [];
 
         if (typeof bundle.cookies === 'string') {
-          ehCookieStore.setCookieHeader(bundle.cookies);
+          ehCookieStore.setTransferCookieHeader(bundle.cookies);
           saves.push(ehCookieStore.save(context));
           this.signedIn = ehCookieStore.hasCookies();
         }
