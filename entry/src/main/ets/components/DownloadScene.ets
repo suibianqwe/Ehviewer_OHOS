@@ -2252,7 +2252,7 @@ export struct DownloadScene {
 
         if (this.statusFilterPanelVisible) {
           DownloadStatusFilterOverlay({
-            selectedStatuses: this.statusFilterDraft,
+            selectedStatuses: $statusFilterDraft,
             onToggleAll: () => {
               this.toggleAllDownloadStatuses();
             },
@@ -2520,7 +2520,7 @@ export struct DownloadScene {
 
 @Component
 struct DownloadStatusFilterOverlay {
-  @Prop selectedStatuses: string[] = [];
+  @Link selectedStatuses: string[];
   onToggleAll: () => void = () => {};
   onToggleStatus: (status: string) => void = (_status: string) => {};
   onCancel: () => void = () => {};
