@@ -67,16 +67,17 @@ export struct WifiMigrationPanel {
       this.applySnapshot(snapshot);
     });
     Promise.all([
-      ehBookmarkStore.ensureLoaded(context),
-      ehLocalFavoritesStore.ensureLoaded(context),
-      ehCommentBlacklistStore.ensureLoaded(context),
-      ehHistoryStore.ensureLoaded(context),
-      ehSettingsStore.ensureLoaded(context),
-      ehCookieStore.ensureLoaded(context)
+      waitForCountStore(ehBookmarkStore.ensureLoaded(context)),
+      waitForCountStore(ehLocalFavoritesStore.ensureLoaded(context)),
+      waitForCountStore(ehCommentBlacklistStore.ensureLoaded(context)),
+      waitForCountStore(ehHistoryStore.ensureLoaded(context)),
+      waitForCountStore(ehSettingsStore.ensureLoaded(context)),
+      waitForCountStore(ehCookieStore.ensureLoaded(context)),
+      waitForCountStore(ehDownloadStore.ensureLoaded(context))
     ]).then(() => {
-      this.refreshCounts();
-    }).catch(() => {
-      this.refreshCounts();
+      if (this.session !== null) {
+        this.refreshCounts();
+      }
     });
   }
 
@@ -602,4 +603,8 @@ function formatTransferBytes(bytes: number): string {
     return (safe / 1024).toFixed(1) + ' KiB';
   }
   return safe.toString() + ' B';
+}
+
+function waitForCountStore(promise: Promise<void>): Promise<void> {
+  return promise.catch(() => {});
 }

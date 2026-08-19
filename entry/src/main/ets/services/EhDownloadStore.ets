@@ -86,6 +86,8 @@ interface StoredDownloadLabel {
 export class EhDownloadStore {
   private items: DownloadInfo[] = [];
   private labels: DownloadLabel[] = [];
+  private loaded: boolean = false;
+  private loadPromise: Promise<void> | null = null;
   private listeners: DownloadStoreListener[] = [];
   private notifyTimer: number = -1;
   private saveRevision: number = 0;
@@ -435,6 +437,27 @@ export class EhDownloadStore {
   }
 
   async load(context: common.UIAbilityContext): Promise<void> {
+    if (this.loadPromise !== null) {
+      await this.loadPromise;
+      return;
+    }
+    this.loadPromise = this.loadNow(context);
+    try {
+      await this.loadPromise;
+      this.loaded = true;
+    } finally {
+      this.loadPromise = null;
+    }
+  }
+
+  async ensureLoaded(context: common.UIAbilityContext): Promise<void> {
+    if (this.loaded) {
+      return;
+    }
+    await this.load(context);
+  }
+
+  private async loadNow(context: common.UIAbilityContext): Promise<void> {
     try {
       const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
       const raw = await prefs.get(VALUES_KEY, '');

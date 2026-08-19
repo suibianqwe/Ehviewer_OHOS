@@ -368,7 +368,8 @@ export class WifiMigrationSession {
       ehCommentBlacklistStore.ensureLoaded(this.context),
       ehHistoryStore.ensureLoaded(this.context),
       ehSettingsStore.ensureLoaded(this.context),
-      ehCookieStore.ensureLoaded(this.context)
+      ehCookieStore.ensureLoaded(this.context),
+      ehDownloadStore.ensureLoaded(this.context)
     ]);
   }
 
