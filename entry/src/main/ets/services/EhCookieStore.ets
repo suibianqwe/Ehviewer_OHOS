@@ -119,7 +119,7 @@ export class EhCookieStore {
   }
 
   getStoredCookieHeader(): string {
-    return this.buildCookieHeader({ includeContentWarning: false, includeUConfig: true, includeIgneous: false });
+    return this.buildCookieHeader({ includeContentWarning: false, includeUConfig: true, includeIgneous: true });
   }
 
   getTransferCookieHeader(): string {
@@ -127,8 +127,12 @@ export class EhCookieStore {
   }
 
   setTransferCookieHeader(cookieHeader: string): void {
+    const localIgneous = this.cookieValue(KEY_IGNEOUS);
     this.setCookieHeader(cookieHeader);
     this.removeCookie(KEY_IGNEOUS);
+    if (localIgneous.length > 0) {
+      this.upsert(KEY_IGNEOUS, localIgneous);
+    }
   }
 
   getEditableCookieHeader(): string {
@@ -221,11 +225,6 @@ export class EhCookieStore {
       const value = await prefs.get(COOKIE_KEY, '');
       if (typeof value === 'string' && value.length > 0) {
         this.setCookieHeader(value);
-        const persisted = this.getStoredCookieHeader();
-        if (persisted !== value) {
-          await prefs.put(COOKIE_KEY, persisted);
-          await prefs.flush();
-        }
       }
     } catch (error) {
       throw new Error(String(error));

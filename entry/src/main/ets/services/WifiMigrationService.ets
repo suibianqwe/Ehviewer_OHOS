@@ -782,6 +782,7 @@ export class WifiMigrationSession {
       applyImportedSettingEffects(this.context, result);
       count += result.imported;
       if (typeof metadata.cookies === 'string' && metadata.cookies.length > 0) {
+        await ehCookieStore.ensureLoaded(this.context);
         ehCookieStore.setTransferCookieHeader(metadata.cookies);
         await ehCookieStore.save(this.context);
         count++;

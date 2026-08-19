@@ -1473,8 +1473,8 @@ export function zhText(text: string): string {
     case 'Clear the persisted identity cookies': return '清除已保存的身份 Cookie';
     case 'Choose Light, Dark or Black for the app interface': return '选择应用界面的亮色、暗色或黑色主题';
     case 'Identity cookies': return '身份 Cookie';
-    case 'View or import ipb_member_id and ipb_pass_hash; igneous is session-only':
-      return '查看或导入 ipb_member_id 和 ipb_pass_hash；igneous 仅用于当前会话';
+    case 'View or import identity cookies; local igneous is never exported or transferred':
+      return '查看或导入身份 Cookie；本机 igneous 不会导出或传输';
     case 'Gallery site': return '画廊站点';
     case 'Select E-Hentai or ExHentai for browsing and requests': return '选择用于浏览和请求的 E-Hentai 或 ExHentai 站点';
     case 'Account configuration page, requires sign in': return '账号配置页面，需要登录';
@@ -3116,7 +3116,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     const listMode = settingEntryValue(entries, 'list_mode', 'Detail');
     const rows: SettingsRowItem[] = [
       staticSettingsRow('identity_cookie', 'Identity cookies',
-        'View or import ipb_member_id and ipb_pass_hash; igneous is session-only', '', 'navigation'),
+        'View or import identity cookies; local igneous is never exported or transferred', '', 'navigation'),
       optionSettingsRow('gallery_site', 'Gallery site', 'Select E-Hentai or ExHentai for browsing and requests', entries, ['E-Hentai', 'ExHentai']),
       staticSettingsRow('u_config', 'UConfig', 'Account configuration page, requires sign in', '', 'navigation'),
       optionSettingsRow('use_account_default_filter', 'Use account filters', 'Use filtering options captured from UConfig', entries, ON_OFF_OPTIONS),

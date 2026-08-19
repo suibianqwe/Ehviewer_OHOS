@@ -1485,9 +1485,12 @@ export struct SettingsScene {
         const saves: Promise<void>[] = [];
 
         if (typeof bundle.cookies === 'string') {
-          ehCookieStore.setTransferCookieHeader(bundle.cookies);
-          saves.push(ehCookieStore.save(context));
-          this.signedIn = ehCookieStore.hasCookies();
+          const importedCookies = bundle.cookies;
+          saves.push(ehCookieStore.ensureLoaded(context).then(() => {
+            ehCookieStore.setTransferCookieHeader(importedCookies);
+            this.signedIn = ehCookieStore.hasCookies();
+            return ehCookieStore.save(context);
+          }));
         }
 
         if (Array.isArray(bundle.settings)) {
