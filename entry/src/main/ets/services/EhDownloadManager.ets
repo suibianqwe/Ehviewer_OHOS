@@ -68,6 +68,11 @@ interface DownloadProgressSnapshot {
   speed: number;
 }
 
+interface DownloadPagePermitWaiter {
+  gid: number;
+  resolve: (acquired: boolean) => void;
+}
+
 type DownloadStatusListener = (status: string) => void;
 
 class DownloadImageError extends Error {
@@ -110,6 +115,12 @@ export class EhDownloadManager {
   private isProcessing: boolean = false;
   private shouldStop: boolean = false;
   private stoppedGids: number[] = [];
+  private activeGalleryGids: number[] = [];
+  private preparingGalleryGid: number = -1;
+  private pageWorkerLimit: number = 1;
+  private activePageWorkers: number = 0;
+  private pagePermitWaiters: DownloadPagePermitWaiter[] = [];
+  private queueCompletionResolve: (() => void) | null = null;
   private listeners: DownloadStatusListener[] = [];
   private backgroundRunning: boolean = false;
   private backgroundSuspended: boolean = false;
@@ -203,12 +214,14 @@ export class EhDownloadManager {
   stopAll(): void {
     this.shouldStop = true;
     this.stoppedGids = [];
+    this.cancelPageWorkerWaiters();
     ehDownloadStore.stopAll();
     this.publishStatus('Stopped waiting downloads');
   }
 
   stopGallery(gid: number): void {
     this.addStoppedGid(gid);
+    this.cancelPageWorkerWaiters(gid);
     ehDownloadStore.stopGallery(gid);
   }
 
@@ -234,35 +247,104 @@ export class EhDownloadManager {
 
   private async runDownloadQueue(context: common.UIAbilityContext): Promise<void> {
     if (this.isProcessing) {
+      if (this.activeGalleryGids.length === 0) {
+        this.startNextQueuedGallery(context);
+      }
       return;
     }
 
     this.isProcessing = true;
     await this.startBackgroundTask(context);
     try {
-      const workerCount = downloadThreadLimitSafe();
-      this.publishStatus('Download workers: ' + workerCount.toString());
-      while (!this.shouldStop) {
-        const queue = ehDownloadStore.getItems();
-        let nextItem: DownloadInfo | null = null;
-        for (let i = 0; i < queue.length; i++) {
-          if (queue[i].state === DownloadState.Wait) {
-            nextItem = queue[i];
-            break;
-          }
+      this.pageWorkerLimit = downloadThreadLimitSafe();
+      this.publishStatus('Global download workers: ' + this.pageWorkerLimit.toString());
+      await new Promise<void>((resolve: () => void) => {
+        this.queueCompletionResolve = resolve;
+        if (!this.startNextQueuedGallery(context)) {
+          this.finishQueueIfIdle(context);
         }
-        if (nextItem === null) {
-          break;
-        }
-
-        await this.downloadOne(context, nextItem);
-      }
+      });
     } finally {
+      this.queueCompletionResolve = null;
+      this.cancelPageWorkerWaiters();
       this.isProcessing = false;
       if (!this.hasWaitingDownloads()) {
         await this.stopBackgroundTask(context);
       }
       this.saveDownloads(context);
+    }
+  }
+
+  private startNextQueuedGallery(context: common.UIAbilityContext): boolean {
+    if (this.shouldStop || this.preparingGalleryGid >= 0) {
+      return false;
+    }
+    if (this.activeGalleryGids.length > 0 &&
+      this.activePageWorkers + this.pagePermitWaiters.length >= this.pageWorkerLimit) {
+      return false;
+    }
+    const queue = ehDownloadStore.getItems();
+    let nextItem: DownloadInfo | null = null;
+    for (let i = 0; i < queue.length; i++) {
+      if (queue[i].state === DownloadState.Wait && this.activeGalleryGids.indexOf(queue[i].gid) < 0) {
+        nextItem = queue[i];
+        break;
+      }
+    }
+    if (nextItem === null) {
+      return false;
+    }
+
+    const nextGid = nextItem.gid;
+    this.activeGalleryGids.push(nextGid);
+    this.preparingGalleryGid = nextGid;
+    ehAppLog.info(context, 'DownloadManager', 'Start queued gallery gid=' + nextGid.toString() +
+      ', activeGalleries=' + this.activeGalleryGids.length.toString() +
+      ', activePageWorkers=' + this.activePageWorkers.toString() +
+      ', waitingPageWorkers=' + this.pagePermitWaiters.length.toString() +
+      ', globalWorkerLimit=' + this.pageWorkerLimit.toString());
+    this.downloadOne(context, nextItem).then(() => {
+      this.onGalleryDownloadSettled(context, nextGid);
+    }, () => {
+      this.onGalleryDownloadSettled(context, nextGid);
+    });
+    return true;
+  }
+
+  private markGalleryPrepared(gid: number): void {
+    if (this.preparingGalleryGid === gid) {
+      this.preparingGalleryGid = -1;
+    }
+  }
+
+  private onGalleryDownloadSettled(context: common.UIAbilityContext, gid: number): void {
+    if (this.preparingGalleryGid === gid) {
+      this.preparingGalleryGid = -1;
+    }
+    const nextActive: number[] = [];
+    for (let i = 0; i < this.activeGalleryGids.length; i++) {
+      if (this.activeGalleryGids[i] !== gid) {
+        nextActive.push(this.activeGalleryGids[i]);
+      }
+    }
+    this.activeGalleryGids = nextActive;
+    if (!this.shouldStop) {
+      this.startNextQueuedGallery(context);
+    }
+    this.finishQueueIfIdle(context);
+  }
+
+  private finishQueueIfIdle(context: common.UIAbilityContext): void {
+    if (this.activeGalleryGids.length > 0) {
+      return;
+    }
+    if (!this.shouldStop && this.hasWaitingDownloads() && this.startNextQueuedGallery(context)) {
+      return;
+    }
+    if (this.queueCompletionResolve !== null) {
+      const resolve = this.queueCompletionResolve;
+      this.queueCompletionResolve = null;
+      resolve();
     }
   }
 
@@ -318,13 +400,15 @@ export class EhDownloadManager {
         speedTimer: -1,
         failedMessage: ''
       };
-      const workerCount = Math.max(1, Math.min(downloadThreadLimitSafe(), Math.max(1, pageIndexes.length)));
+      const workerCount = this.pageWorkerLimit;
       const tasks: Promise<void>[] = [];
       workerState.speedTimer = setInterval(() => {
         this.recordDownloadSpeed(item, workerState, total, 0, true);
       }, 1000);
       ehAppLog.info(context, 'DownloadManager', 'Start gallery download gid=' + item.gid.toString() +
-        ', pages=' + total.toString() + ', workers=' + workerCount.toString());
+        ', pages=' + total.toString() + ', galleryWorkers=' + workerCount.toString() +
+        ', globalWorkerLimit=' + this.pageWorkerLimit.toString());
+      this.markGalleryPrepared(item.gid);
       for (let i = 0; i < workerCount; i++) {
         tasks.push(this.downloadPageWorker(context, item, detail, detailResult.url, pageIndexes, total,
           downloadDirectory, workerState));
@@ -354,7 +438,9 @@ export class EhDownloadManager {
       ehDownloadStore.setStorage(item.gid, downloadDirectory, workerState.fileSize);
       ehDownloadStore.setTransfer(item.gid, 0, 0);
       this.publishStatus('Download finished: ' + item.title);
-      await this.finishProgressNotificationUpdates();
+      if (this.activeGalleryGids.length <= 1) {
+        await this.finishProgressNotificationUpdates();
+      }
       await publishDownloadResultNotification(context, DOWNLOAD_RESULT_NOTIFICATION_ID, item.title,
         'Download completed');
       this.saveDownloads(context);
@@ -363,7 +449,9 @@ export class EhDownloadManager {
       ehDownloadStore.setTransfer(item.gid, 0, 0);
       this.publishStatus('Download failed: ' + String(error));
       ehAppLog.error(context, 'DownloadManager', 'Download failed: ' + String(error));
-      await this.finishProgressNotificationUpdates();
+      if (this.activeGalleryGids.length <= 1) {
+        await this.finishProgressNotificationUpdates();
+      }
       await publishDownloadResultNotification(context, DOWNLOAD_RESULT_NOTIFICATION_ID, item.title,
         'Download failed');
       this.saveDownloads(context);
@@ -377,6 +465,7 @@ export class EhDownloadManager {
       const orderIndex = state.cursor;
       state.cursor++;
       if (orderIndex >= pageIndexes.length) {
+        this.startNextQueuedGallery(context);
         return;
       }
       if (orderIndex > 0 && orderIndex < 4) {
@@ -390,7 +479,14 @@ export class EhDownloadManager {
         continue;
       }
 
+      const acquired = await this.acquirePageWorker(item.gid);
+      if (!acquired) {
+        return;
+      }
       try {
+        if (this.shouldStop || this.isStopped(item.gid) || state.failedMessage.length > 0) {
+          return;
+        }
         const downloaded = await this.downloadPageWithRetry(context, item, detail, detailUrl, pageIndex, total, state);
         const savedPath = ehDownloadFileStore.savePageImage(context, detail, downloaded.page, pageIndex,
           downloaded.cachedPath, downloadDirectory);
@@ -410,10 +506,64 @@ export class EhDownloadManager {
         this.saveDownloads(context);
       } catch (error) {
         state.failedMessage = String(error);
+        this.cancelPageWorkerWaiters(item.gid);
         ehAppLog.error(context, 'DownloadManager', 'Page worker failed gid=' + item.gid.toString() +
           ', page=' + (pageIndex + 1).toString() + '/' + total.toString() + ': ' + state.failedMessage);
+      } finally {
+        this.releasePageWorker();
       }
     }
+  }
+
+  private acquirePageWorker(gid: number): Promise<boolean> {
+    if (this.shouldStop || this.isStopped(gid)) {
+      return Promise.resolve(false);
+    }
+    if (this.pagePermitWaiters.length === 0 && this.activePageWorkers < this.pageWorkerLimit) {
+      this.activePageWorkers++;
+      return Promise.resolve(true);
+    }
+    return new Promise<boolean>((resolve: (acquired: boolean) => void) => {
+      this.pagePermitWaiters.push({
+        gid: gid,
+        resolve: resolve
+      });
+    });
+  }
+
+  private releasePageWorker(): void {
+    if (this.activePageWorkers > 0) {
+      this.activePageWorkers--;
+    }
+    this.grantPageWorkerPermits();
+  }
+
+  private grantPageWorkerPermits(): void {
+    while (this.activePageWorkers < this.pageWorkerLimit && this.pagePermitWaiters.length > 0) {
+      const waiter = this.pagePermitWaiters.shift();
+      if (waiter === undefined) {
+        return;
+      }
+      if (this.shouldStop || this.isStopped(waiter.gid)) {
+        waiter.resolve(false);
+        continue;
+      }
+      this.activePageWorkers++;
+      waiter.resolve(true);
+    }
+  }
+
+  private cancelPageWorkerWaiters(gid: number = -1): void {
+    const retained: DownloadPagePermitWaiter[] = [];
+    for (let i = 0; i < this.pagePermitWaiters.length; i++) {
+      const waiter = this.pagePermitWaiters[i];
+      if (gid < 0 || waiter.gid === gid) {
+        waiter.resolve(false);
+      } else {
+        retained.push(waiter);
+      }
+    }
+    this.pagePermitWaiters = retained;
   }
 
   private async downloadPageWithRetry(context: common.UIAbilityContext, item: DownloadInfo, detail: GalleryDetail,
