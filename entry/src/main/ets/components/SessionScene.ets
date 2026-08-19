@@ -133,16 +133,17 @@ export struct SessionScene {
   }
 
   private prepareWebSignIn(status: string = 'Finish login in the web page; Cookie will be captured automatically'): void {
-    clearWebCookies(true);
+    clearWebSessionCookies(false);
+    clearWebSessionCookies(true);
     this.webCookieCaptured = false;
     this.statusText = status;
     const context = getAbilityContext();
     if (context === undefined) {
-      ehCookieStore.clearSessionPreservingIgneous();
+      ehCookieStore.clearLoginPreservingBrowserState();
       this.enterWebSignIn(status);
       return;
     }
-    ehCookieStore.clearSessionPreservingIgneous();
+    ehCookieStore.clearLoginPreservingBrowserState();
     ehCookieStore.save(context).then(() => {
       this.enterWebSignIn(status);
     }).catch((error: Error) => {
@@ -152,9 +153,14 @@ export struct SessionScene {
 
   private enterWebSignIn(status: string = 'Finish login in the web page; Cookie will be captured automatically'): void {
     configureWebCookieAccess();
+    const cookieHeader = ehCookieStore.getStoredCookieHeader();
+    syncCookieHeaderToWebView(EhUrl.HOST_E, cookieHeader, false);
+    syncCookieHeaderToWebView(EhUrl.HOST_EX, cookieHeader, false);
+    syncCookieHeaderToWebView(EhUrl.FORUM_ORIGIN, cookieHeader, false);
     try {
-      webview.WebCookieManager.configCookieSync(EhUrl.HOST_E, 'nw=1; path=/', true);
-      webview.WebCookieManager.configCookieSync(EhUrl.HOST_EX, 'nw=1; path=/', true);
+      webview.WebCookieManager.configCookieSync(EhUrl.HOST_E, 'nw=1; path=/', false);
+      webview.WebCookieManager.configCookieSync(EhUrl.HOST_EX, 'nw=1; path=/', false);
+      webview.WebCookieManager.saveCookieSync();
     } catch (error) {
     }
     this.switchMode(SessionMode.Web);
@@ -166,7 +172,7 @@ export struct SessionScene {
       return;
     }
 
-    const cookieHeader = collectWebCookies(url, true);
+    const cookieHeader = collectWebCookies(url, false);
     if (cookieHeader.length > 0) {
       ehCookieStore.setCookieHeaderPreservingIgneous(cookieHeader);
       this.cookieInput = ehCookieStore.getEditableCookieHeader();
@@ -190,7 +196,6 @@ export struct SessionScene {
     ehCookieStore.save(context).then(() => {
       this.cookieInput = ehCookieStore.getEditableCookieHeader();
       this.statusText = 'Web Cookie captured';
-      clearWebCookies(true);
       this.onSignedIn();
     }).catch((error: Error) => {
       this.webCookieCaptured = false;
@@ -557,7 +562,7 @@ export struct SessionScene {
       .padding({ left: 12, right: 12, top: 8, bottom: 8 })
       .backgroundColor(themeSurface())
 
-      Web({ src: this.webUrl, controller: this.webController, incognitoMode: true })
+      Web({ src: this.webUrl, controller: this.webController, incognitoMode: false })
         .javaScriptAccess(true)
         .domStorageAccess(true)
         .backgroundColor(Color.Transparent)
@@ -649,6 +654,38 @@ export function clearWebCookies(incognito: boolean): void {
     webview.WebCookieManager.clearAllCookiesSync(incognito);
   } catch (error) {
   }
+}
+
+export function clearWebSessionCookies(incognito: boolean): void {
+  const urls: string[] = [EhUrl.HOST_E, EhUrl.HOST_EX, EhUrl.FORUM_ORIGIN, EhUrl.URL_SIGN_IN];
+  const cookieNames: string[] = ['ipb_member_id', 'ipb_pass_hash', 'igneous'];
+  for (let i = 0; i < urls.length; i++) {
+    const domain = webCookieDomain(urls[i]);
+    for (let j = 0; j < cookieNames.length; j++) {
+      expireWebCookie(urls[i], cookieNames[j] + '=; Max-Age=0; path=/', incognito);
+      if (domain.length > 0) {
+        expireWebCookie(urls[i], cookieNames[j] + '=; Max-Age=0; Domain=.' + domain + '; path=/', incognito);
+      }
+    }
+  }
+  if (!incognito) {
+    try {
+      webview.WebCookieManager.saveCookieSync();
+    } catch (error) {
+    }
+  }
+}
+
+function expireWebCookie(url: string, cookie: string, incognito: boolean): void {
+  try {
+    webview.WebCookieManager.configCookieSync(url, cookie, incognito, true);
+  } catch (error) {
+  }
+}
+
+function webCookieDomain(url: string): string {
+  return url.indexOf(EhUrl.DOMAIN_EX) >= 0 ? EhUrl.DOMAIN_EX :
+    (url.indexOf(EhUrl.DOMAIN_E) >= 0 ? EhUrl.DOMAIN_E : '');
 }
 
 export function clearAllWebCookies(): void {

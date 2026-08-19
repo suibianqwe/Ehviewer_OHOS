@@ -219,6 +219,17 @@ export class EhCookieStore {
     this.loaded = true;
   }
 
+  clearLoginPreservingBrowserState(): void {
+    const retained: CookieEntry[] = [];
+    for (let i = 0; i < this.cookies.length; i++) {
+      if (this.cookies[i].name !== KEY_IPB_MEMBER_ID && this.cookies[i].name !== KEY_IPB_PASS_HASH) {
+        retained.push(this.cookies[i]);
+      }
+    }
+    this.cookies = retained;
+    this.loaded = true;
+  }
+
   async ensureLoaded(context: common.UIAbilityContext): Promise<void> {
     if (this.loaded) {
       return;

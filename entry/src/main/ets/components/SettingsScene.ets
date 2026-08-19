@@ -146,8 +146,7 @@ import { MyTagsPanel } from './MyTagsPanel';
 import { ReaderPresetPanel } from './ReaderPresetPanel';
 import { AppSubToolbar, AppToolbar } from './NavigationComponents';
 import {
-  clearAllWebCookies,
-  clearWebCookies,
+  clearWebSessionCookies,
   collectWebCookies,
   configureWebCookieAccess,
   hasLoginCookie,
@@ -373,9 +372,6 @@ export struct SettingsScene {
   }
 
   private closePanel(): void {
-    if (this.panel === SettingsPanel.WebView || this.panel === SettingsPanel.Session) {
-      clearWebCookies(true);
-    }
     this.restorePanelWithFade = false;
     this.optionPickerOpen = false;
     if (this.panelStack.length <= 1) {
@@ -507,7 +503,8 @@ export struct SettingsScene {
 
   private signOut(): void {
     this.signOutConfirmationVisible = false;
-    clearAllWebCookies();
+    clearWebSessionCookies(false);
+    clearWebSessionCookies(true);
     const context = getAbilityContext();
     if (context === undefined) {
       ehCookieStore.clear();
@@ -884,25 +881,26 @@ export struct SettingsScene {
 
   private prepareAccountWebViewCookies(url: string): void {
     configureWebCookieAccess();
-    clearAllWebCookies();
+    clearWebSessionCookies(false);
     const cookieHeader = ehCookieStore.getCookieHeader();
     if (cookieHeader.length === 0) {
       return;
     }
 
-    syncCookieHeaderToWebView(url, cookieHeader, true);
-    syncCookieHeaderToWebView(EhUrl.HOST_E, cookieHeader, true);
-    syncCookieHeaderToWebView(EhUrl.HOST_EX, cookieHeader, true);
-    syncCookieHeaderToWebView(EhUrl.FORUM_ORIGIN, cookieHeader, true);
+    syncCookieHeaderToWebView(url, cookieHeader, false);
+    syncCookieHeaderToWebView(EhUrl.HOST_E, cookieHeader, false);
+    syncCookieHeaderToWebView(EhUrl.HOST_EX, cookieHeader, false);
+    syncCookieHeaderToWebView(EhUrl.FORUM_ORIGIN, cookieHeader, false);
     try {
-      webview.WebCookieManager.configCookieSync(EhUrl.HOST_E, 'nw=1; path=/', true);
-      webview.WebCookieManager.configCookieSync(EhUrl.HOST_EX, 'nw=1; path=/', true);
+      webview.WebCookieManager.configCookieSync(EhUrl.HOST_E, 'nw=1; path=/', false);
+      webview.WebCookieManager.configCookieSync(EhUrl.HOST_EX, 'nw=1; path=/', false);
+      webview.WebCookieManager.saveCookieSync();
     } catch (error) {
     }
   }
 
   private captureAccountWebCookies(url: string): void {
-    const cookieHeader = collectWebCookies(url, true);
+    const cookieHeader = collectWebCookies(url, false);
     if (!hasLoginCookie(cookieHeader)) {
       return;
     }
@@ -2840,7 +2838,7 @@ export struct SettingsAccountWebPanel {
         title: uiText(this.title),
         onBack: this.onBack
       })
-      Web({ src: this.url, controller: this.webViewController, incognitoMode: true })
+      Web({ src: this.url, controller: this.webViewController, incognitoMode: false })
         .javaScriptAccess(true)
         .domStorageAccess(true)
         .backgroundColor(Color.Transparent)
