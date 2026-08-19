@@ -149,6 +149,7 @@ import {
   clearAllWebCookies,
   clearWebCookies,
   collectWebCookies,
+  configureWebCookieAccess,
   hasLoginCookie,
   SessionScene,
   syncCookieHeaderToWebView
@@ -882,6 +883,7 @@ export struct SettingsScene {
   }
 
   private prepareAccountWebViewCookies(url: string): void {
+    configureWebCookieAccess();
     clearAllWebCookies();
     const cookieHeader = ehCookieStore.getCookieHeader();
     if (cookieHeader.length === 0) {
@@ -905,7 +907,7 @@ export struct SettingsScene {
       return;
     }
 
-    ehCookieStore.setCookieHeader(cookieHeader);
+    ehCookieStore.setCookieHeaderPreservingIgneous(cookieHeader);
     this.signedIn = ehCookieStore.hasCookies();
     const context = getAbilityContext();
     if (context === undefined) {

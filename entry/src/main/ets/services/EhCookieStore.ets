@@ -135,6 +135,14 @@ export class EhCookieStore {
     }
   }
 
+  setCookieHeaderPreservingIgneous(cookieHeader: string): void {
+    const localIgneous = this.cookieValue(KEY_IGNEOUS);
+    this.setCookieHeader(cookieHeader);
+    if (!this.hasCookie(KEY_IGNEOUS) && localIgneous.length > 0) {
+      this.upsert(KEY_IGNEOUS, localIgneous);
+    }
+  }
+
   getEditableCookieHeader(): string {
     const names = [KEY_IPB_MEMBER_ID, KEY_IPB_PASS_HASH, KEY_IGNEOUS];
     const pairs: string[] = [];
@@ -199,6 +207,15 @@ export class EhCookieStore {
 
   clear(): void {
     this.cookies = [];
+    this.loaded = true;
+  }
+
+  clearSessionPreservingIgneous(): void {
+    const localIgneous = this.cookieValue(KEY_IGNEOUS);
+    this.cookies = [];
+    if (localIgneous.length > 0) {
+      this.cookies.push({ name: KEY_IGNEOUS, value: localIgneous });
+    }
     this.loaded = true;
   }
 

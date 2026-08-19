@@ -133,16 +133,17 @@ export struct SessionScene {
   }
 
   private prepareWebSignIn(status: string = 'Finish login in the web page; Cookie will be captured automatically'): void {
-    clearAllWebCookies();
+    clearWebCookies(true);
     this.webCookieCaptured = false;
     this.statusText = status;
     const context = getAbilityContext();
     if (context === undefined) {
-      ehCookieStore.clear();
+      ehCookieStore.clearSessionPreservingIgneous();
       this.enterWebSignIn(status);
       return;
     }
-    ehCookieStore.clearPersisted(context).then(() => {
+    ehCookieStore.clearSessionPreservingIgneous();
+    ehCookieStore.save(context).then(() => {
       this.enterWebSignIn(status);
     }).catch((error: Error) => {
       this.statusText = 'Cookie clear failed: ' + error.message;
@@ -150,6 +151,7 @@ export struct SessionScene {
   }
 
   private enterWebSignIn(status: string = 'Finish login in the web page; Cookie will be captured automatically'): void {
+    configureWebCookieAccess();
     try {
       webview.WebCookieManager.configCookieSync(EhUrl.HOST_E, 'nw=1; path=/', true);
       webview.WebCookieManager.configCookieSync(EhUrl.HOST_EX, 'nw=1; path=/', true);
@@ -166,12 +168,14 @@ export struct SessionScene {
 
     const cookieHeader = collectWebCookies(url, true);
     if (cookieHeader.length > 0) {
-      ehCookieStore.setCookieHeader(cookieHeader);
+      ehCookieStore.setCookieHeaderPreservingIgneous(cookieHeader);
       this.cookieInput = ehCookieStore.getEditableCookieHeader();
     }
     if (!hasLoginCookie(cookieHeader)) {
-      this.statusText = cookieHeader.length > 0 ? 'Web verification Cookie captured; waiting for login...' :
-        'Waiting for web login...';
+      this.statusText = hasCookieName(cookieHeader, 'cf_clearance') ?
+        'Site verification complete; waiting for login...' :
+        (cookieHeader.length > 0 ? 'Web verification Cookie captured; waiting for login...' :
+          'Waiting for web login...');
       return;
     }
 
@@ -182,7 +186,7 @@ export struct SessionScene {
     }
 
     this.webCookieCaptured = true;
-    ehCookieStore.setCookieHeader(cookieHeader);
+    ehCookieStore.setCookieHeaderPreservingIgneous(cookieHeader);
     ehCookieStore.save(context).then(() => {
       this.cookieInput = ehCookieStore.getEditableCookieHeader();
       this.statusText = 'Web Cookie captured';
@@ -629,6 +633,17 @@ export function syncCookieHeaderToWebView(url: string, cookieHeader: string, inc
   }
 }
 
+export function configureWebCookieAccess(): void {
+  try {
+    webview.WebCookieManager.putAcceptCookieEnabled(true);
+  } catch (error) {
+  }
+  try {
+    webview.WebCookieManager.putAcceptThirdPartyCookieEnabled(true);
+  } catch (error) {
+  }
+}
+
 export function clearWebCookies(incognito: boolean): void {
   try {
     webview.WebCookieManager.clearAllCookiesSync(incognito);
@@ -750,6 +765,18 @@ function upsertCookiePair(name: string, value: string, names: string[], values: 
 
 export function hasLoginCookie(cookieHeader: string): boolean {
   return cookieHeader.indexOf('ipb_member_id=') >= 0 && cookieHeader.indexOf('ipb_pass_hash=') >= 0;
+}
+
+function hasCookieName(cookieHeader: string, name: string): boolean {
+  const pairs = cookieHeader.split(';');
+  for (let i = 0; i < pairs.length; i++) {
+    const pair = pairs[i].trim();
+    const index = pair.indexOf('=');
+    if (index > 0 && pair.substring(0, index).trim() === name) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function isKnownCookieName(name: string): boolean {

@@ -562,9 +562,9 @@ export class EhHttpClient {
     ]);
 
     try {
-      ehCookieStore.clear();
+      ehCookieStore.clearSessionPreservingIgneous();
       const response = await this.postFormOnce(EhUrl.API_SIGN_IN, form, EhUrl.SIGN_IN_REFERER, EhUrl.FORUM_ORIGIN,
-        ehCookieStore.getStoredCookieHeader());
+        ehCookieStore.getTransferCookieHeader());
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return {
           ok: false,

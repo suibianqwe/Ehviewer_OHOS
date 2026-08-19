@@ -379,6 +379,9 @@ function simplifiedUiStatusText(text: string): string {
   if (text === 'Web verification Cookie captured; waiting for login...') {
     return '已捕获网页验证 Cookie，等待登录完成...';
   }
+  if (text === 'Site verification complete; waiting for login...') {
+    return '站点验证已完成，等待登录...';
+  }
   if (text === 'Waiting for web login...') {
     return '等待网页登录...';
   }
