@@ -876,22 +876,6 @@ export struct DownloadScene {
     this.statusFilterPanelVisible = false;
   }
 
-  private toggleDownloadStatus(status: string): void {
-    const next = this.statusFilterDraft.slice();
-    const index = next.indexOf(status);
-    if (index >= 0) {
-      next.splice(index, 1);
-    } else {
-      next.push(status);
-    }
-    this.statusFilterDraft = next;
-  }
-
-  private toggleAllDownloadStatuses(): void {
-    this.statusFilterDraft = this.statusFilterDraft.length === DOWNLOAD_STATUS_FILTER_OPTIONS.length ? [] :
-      DOWNLOAD_STATUS_FILTER_OPTIONS.slice();
-  }
-
   private applyDownloadStatusFilter(): void {
     this.statusFilters = this.statusFilterDraft.slice();
     this.statusFilterPanelVisible = false;
@@ -1308,45 +1292,40 @@ export struct DownloadScene {
     return downloadSizeText(item.speed) + '/s';
   }
 
-  private startAll(): void {
-    ehDownloadStore.startAll();
-    this.statusText = 'Queued idle and failed downloads';
+  private startSelectedOrFiltered(): void {
+    const selected = this.selectedDownloadItems();
+    const targets = selected.length > 0 ? selected : this.visibleItems;
+    if (targets.length === 0) {
+      this.statusText = 'No filtered downloads';
+      return;
+    }
+    for (let i = 0; i < targets.length; i++) {
+      ehDownloadStore.startGallery(targets[i].gid);
+    }
+    this.statusText = 'Queued ' + targets.length.toString() +
+      (selected.length > 0 ? ' selected downloads' : ' filtered downloads');
+    if (selected.length > 0) {
+      this.clearDownloadSelection();
+    }
     this.persistDownloads();
     this.startGlobalDownloadQueue();
   }
 
-  private startSelectedOrAll(): void {
+  private stopSelectedOrFiltered(): void {
     const selected = this.selectedDownloadItems();
-    if (selected.length === 0) {
-      this.startAll();
+    const targets = selected.length > 0 ? selected : this.visibleItems;
+    if (targets.length === 0) {
+      this.statusText = 'No filtered downloads';
       return;
     }
-    for (let i = 0; i < selected.length; i++) {
-      ehDownloadStore.startGallery(selected[i].gid);
+    for (let i = 0; i < targets.length; i++) {
+      ehDownloadManager.stopGallery(targets[i].gid);
     }
-    this.statusText = 'Queued ' + selected.length.toString() + ' selected downloads';
-    this.clearDownloadSelection();
-    this.persistDownloads();
-    this.startGlobalDownloadQueue();
-  }
-
-  private stopAll(): void {
-    ehDownloadManager.stopAll();
-    this.statusText = 'Stopped waiting downloads';
-    this.persistDownloads();
-  }
-
-  private stopSelectedOrAll(): void {
-    const selected = this.selectedDownloadItems();
-    if (selected.length === 0) {
-      this.stopAll();
-      return;
+    this.statusText = 'Stopped ' + targets.length.toString() +
+      (selected.length > 0 ? ' selected downloads' : ' filtered downloads');
+    if (selected.length > 0) {
+      this.clearDownloadSelection();
     }
-    for (let i = 0; i < selected.length; i++) {
-      ehDownloadManager.stopGallery(selected[i].gid);
-    }
-    this.statusText = 'Stopped ' + selected.length.toString() + ' selected downloads';
-    this.clearDownloadSelection();
     this.persistDownloads();
   }
 
@@ -2111,7 +2090,7 @@ export struct DownloadScene {
             DownloadToolColumn({
               expanded: this.downloadActionsExpanded,
               hasSelection: this.downloadSelectionCount() > 0,
-              canOperate: this.items.length > 0,
+              canOperate: this.downloadSelectionCount() > 0 || this.visibleItems.length > 0,
               canJump: this.downloadJumpTotalPages() > 1,
               canRandom: this.visibleItems.length > 0,
               maxExpandedHeight: this.downloadToolActionsMaxHeight(),
@@ -2127,10 +2106,10 @@ export struct DownloadScene {
                 this.openDownloadJumpPanel();
               },
               onStart: () => {
-                this.startSelectedOrAll();
+                this.startSelectedOrFiltered();
               },
               onStop: () => {
-                this.stopSelectedOrAll();
+                this.stopSelectedOrFiltered();
               },
               onRestore: () => {
                 this.restoreDownloadedItems();
@@ -2253,12 +2232,6 @@ export struct DownloadScene {
         if (this.statusFilterPanelVisible) {
           DownloadStatusFilterOverlay({
             selectedStatuses: $statusFilterDraft,
-            onToggleAll: () => {
-              this.toggleAllDownloadStatuses();
-            },
-            onToggleStatus: (status: string) => {
-              this.toggleDownloadStatus(status);
-            },
             onCancel: () => {
               this.closeDownloadStatusPanel();
             },
@@ -2519,44 +2492,63 @@ export struct DownloadScene {
 }
 
 @Component
-struct DownloadStatusFilterOverlay {
+struct DownloadStatusFilterOptionRow {
   @Link selectedStatuses: string[];
-  onToggleAll: () => void = () => {};
-  onToggleStatus: (status: string) => void = (_status: string) => {};
-  onCancel: () => void = () => {};
-  onApply: () => void = () => {};
+  @Prop status: string = '';
+  @Prop allOption: boolean = false;
 
-  private isSelected(status: string): boolean {
-    return this.selectedStatuses.indexOf(status) >= 0;
+  private isSelected(): boolean {
+    return this.allOption ? this.selectedStatuses.length === DOWNLOAD_STATUS_FILTER_OPTIONS.length :
+      this.selectedStatuses.indexOf(this.status) >= 0;
   }
 
-  private allSelected(): boolean {
-    return this.selectedStatuses.length === DOWNLOAD_STATUS_FILTER_OPTIONS.length;
+  private toggle(): void {
+    if (this.allOption) {
+      this.selectedStatuses = this.selectedStatuses.length === DOWNLOAD_STATUS_FILTER_OPTIONS.length ? [] :
+        DOWNLOAD_STATUS_FILTER_OPTIONS.slice();
+      return;
+    }
+    const next = this.selectedStatuses.slice();
+    const index = next.indexOf(this.status);
+    if (index >= 0) {
+      next.splice(index, 1);
+    } else {
+      next.push(this.status);
+    }
+    this.selectedStatuses = next;
   }
 
-  @Builder
-  private optionRow(label: string, selected: boolean, onTap: () => void) {
+  build() {
     Button({ type: ButtonType.Normal, stateEffect: true }) {
       Row() {
-        Text(uiText(label))
+        Text(uiText(this.allOption ? 'All' : this.status))
           .fontSize(15)
-          .fontColor(selected ? themeSelectedText() : themePrimaryText())
+          .fontColor(this.isSelected() ? themeSelectedText() : themePrimaryText())
           .layoutWeight(1)
           .textAlign(TextAlign.Start)
 
-        SymbolGlyph(selected ? $r('sys.symbol.checkmark_circle_fill') : $r('sys.symbol.circle'))
+        SymbolGlyph(this.isSelected() ? $r('sys.symbol.checkmark_circle_fill') : $r('sys.symbol.circle'))
           .fontSize(21)
-          .fontColor([selected ? themeSelectedText() : themeTertiaryText()])
+          .fontColor([this.isSelected() ? themeSelectedText() : themeTertiaryText()])
       }
       .width('100%')
       .padding({ left: 14, right: 14 })
     }
     .width('100%')
     .height(46)
-    .backgroundColor(selected ? themeSelectedBackground() : Color.Transparent)
+    .backgroundColor(this.isSelected() ? themeSelectedBackground() : Color.Transparent)
     .borderRadius(8)
-    .onClick(onTap)
+    .onClick(() => {
+      this.toggle();
+    })
   }
+}
+
+@Component
+struct DownloadStatusFilterOverlay {
+  @Link selectedStatuses: string[];
+  onCancel: () => void = () => {};
+  onApply: () => void = () => {};
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
@@ -2582,15 +2574,17 @@ struct DownloadStatusFilterOverlay {
 
         List({ space: 6 }) {
           ListItem() {
-            this.optionRow('All', this.allSelected(), () => {
-              this.onToggleAll();
+            DownloadStatusFilterOptionRow({
+              selectedStatuses: $selectedStatuses,
+              allOption: true
             })
           }
 
           ForEach(DOWNLOAD_STATUS_FILTER_OPTIONS, (status: string) => {
             ListItem() {
-              this.optionRow(status, this.isSelected(status), () => {
-                this.onToggleStatus(status);
+              DownloadStatusFilterOptionRow({
+                selectedStatuses: $selectedStatuses,
+                status: status
               })
             }
           }, (status: string) => status)
@@ -2767,8 +2761,8 @@ struct DownloadToolColumn {
     if (kind === 'delete') return uiText('Delete');
     if (kind === 'status') return uiText('Status');
     if (kind === 'jump') return uiText('Jump');
-    if (kind === 'start') return uiText('Start all');
-    if (kind === 'stop') return uiText('Stop all');
+    if (kind === 'start') return this.hasSelection ? uiText('Start selected') : uiText('Start filtered');
+    if (kind === 'stop') return this.hasSelection ? uiText('Stop selected') : uiText('Stop filtered');
     if (kind === 'scan') return uiText('Scan');
     if (kind === 'translate') {
       return this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles');
@@ -2785,10 +2779,11 @@ struct DownloadToolColumn {
     if (kind === 'delete') return $r('sys.symbol.trash');
     if (kind === 'status') return $r('sys.symbol.funnel');
     if (kind === 'jump') return $r('sys.symbol.chevron_forward');
-    if (kind === 'start' || kind === 'random') return $r('sys.symbol.play_fill');
+    if (kind === 'start') return $r('sys.symbol.play_fill');
     if (kind === 'stop') return $r('sys.symbol.pause_fill');
     if (kind === 'scan') return $r('sys.symbol.play_arrow_triangle_2_circlepath');
     if (kind === 'translate') return $r('sys.symbol.translate');
+    if (kind === 'random') return $r('sys.symbol.shuffle');
     return $r('sys.symbol.more');
   }
 
@@ -2797,7 +2792,7 @@ struct DownloadToolColumn {
     if (kind === 'jump') {
       return this.canJump;
     }
-    if (kind === 'stop') {
+    if (kind === 'start' || kind === 'stop') {
       return this.canOperate;
     }
     if (kind === 'random') {
@@ -2890,7 +2885,7 @@ struct DownloadToolColumn {
       this.onStatus();
     } else if (kind === 'jump' && this.canJump) {
       this.onJump();
-    } else if (kind === 'start') {
+    } else if (kind === 'start' && this.canOperate) {
       this.onStart();
     } else if (kind === 'stop' && this.canOperate) {
       this.onStop();

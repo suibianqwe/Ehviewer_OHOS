@@ -352,6 +352,9 @@ function simplifiedUiStatusText(text: string): string {
   if (text === 'No Cookie saved') {
     return '没有保存的 Cookie';
   }
+  if (text === 'No filtered downloads') {
+    return '当前筛选没有下载项';
+  }
   if (text === 'Persisted Cookie loaded') {
     return '已加载保存的 Cookie';
   }
@@ -817,6 +820,7 @@ const UI_STATUS_PREFIX_TRANSLATIONS: UiStatusPrefixTranslation[] = [
 
 const UI_STATUS_FRAGMENT_TRANSLATIONS: UiStatusPrefixTranslation[] = [
   { source: ' downloaded galleries', target: ' 个已下载画廊' },
+  { source: ' filtered downloads', target: ' 个当前筛选下载项' },
   { source: ' selected downloads', target: ' 个选中的下载项' },
   { source: ' download items', target: ' 个下载项' },
   { source: ' history items', target: ' 条历史记录' },
@@ -1340,6 +1344,10 @@ export function zhText(text: string): string {
     case 'Remove': return '移除';
     case 'Start all': return '全部开始';
     case 'Stop all': return '全部停止';
+    case 'Start selected': return '开始选中项';
+    case 'Stop selected': return '暂停选中项';
+    case 'Start filtered': return '开始筛选项';
+    case 'Stop filtered': return '暂停筛选项';
     case 'Clear done': return '清除完成';
     case 'State': return '状态';
     case 'Label': return '标签';
