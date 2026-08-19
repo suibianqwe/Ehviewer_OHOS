@@ -153,6 +153,10 @@ import {
   SessionScene,
   syncCookieHeaderToWebView
 } from './SessionScene';
+import {
+  EH_WEB_COMPATIBILITY_SCRIPTS,
+  loadEhWebUrlWithAndroidCompatibility
+} from '../services/EhWebRuntime';
 import { UpdatePromptOverlay } from './UpdatePromptOverlay';
 import { WifiMigrationPanel } from './WifiMigrationPanel';
 import { CommentBlacklistPanel } from './CommentBlacklistPanel';
@@ -2838,10 +2842,14 @@ export struct SettingsAccountWebPanel {
         title: uiText(this.title),
         onBack: this.onBack
       })
-      Web({ src: this.url, controller: this.webViewController, incognitoMode: false })
+      Web({ src: '', controller: this.webViewController, incognitoMode: false })
         .javaScriptAccess(true)
         .domStorageAccess(true)
+        .javaScriptOnDocumentStart(EH_WEB_COMPATIBILITY_SCRIPTS)
         .backgroundColor(Color.Transparent)
+        .onControllerAttached(() => {
+          loadEhWebUrlWithAndroidCompatibility(this.webViewController, this.url);
+        })
         .onPageEnd((event: OnPageEndEvent) => {
           this.onPageEnd(event.url);
         })

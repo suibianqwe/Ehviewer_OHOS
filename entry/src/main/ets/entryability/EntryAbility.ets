@@ -3,6 +3,7 @@ import { window } from '@kit.ArkUI';
 import { preferences } from '@kit.ArkData';
 import { fileUri } from '@kit.CoreFileKit';
 import { userAuth } from '@kit.UserAuthenticationKit';
+import { configureEhWebDns } from '../services/EhWebRuntime';
 import {
   EMBEDDED_READER_ACTIVE_KEY,
   MAIN_WINDOW_KEY,
@@ -122,6 +123,7 @@ export default class EntryAbility extends UIAbility {
       ehSettingsStore.ensureLoaded(this.context),
       ehCommentBlacklistStore.ensureLoaded(this.context)
     ]).then(() => {
+      configureEhWebDns();
       this.setIdentityAuthLocked(this.identityAuthEnabledInMemory());
       registerEhNetworkChangeListener(this.context);
       this.initializeNetworkRuntime();

@@ -1,6 +1,11 @@
 import { webview } from '@kit.ArkWeb';
 import { ehCookieStore } from '../services/EhCookieStore';
 import { EhHttpClient, SignInResult } from '../services/EhHttpClient';
+import {
+  configureEhWebDns,
+  EH_WEB_COMPATIBILITY_SCRIPTS,
+  loadEhWebUrlWithAndroidCompatibility
+} from '../services/EhWebRuntime';
 import { EhUrl } from '../services/EhUrl';
 import { applyAppChromeImmersiveMode } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, setActiveBackHandler } from '../shared/EhShared';
@@ -562,10 +567,14 @@ export struct SessionScene {
       .padding({ left: 12, right: 12, top: 8, bottom: 8 })
       .backgroundColor(themeSurface())
 
-      Web({ src: this.webUrl, controller: this.webController, incognitoMode: false })
+      Web({ src: '', controller: this.webController, incognitoMode: false })
         .javaScriptAccess(true)
         .domStorageAccess(true)
+        .javaScriptOnDocumentStart(EH_WEB_COMPATIBILITY_SCRIPTS)
         .backgroundColor(Color.Transparent)
+        .onControllerAttached(() => {
+          loadEhWebUrlWithAndroidCompatibility(this.webController, this.webUrl);
+        })
         .onPageEnd((event: OnPageEndEvent) => {
           this.checkWebCookie(event.url);
         })
@@ -639,6 +648,7 @@ export function syncCookieHeaderToWebView(url: string, cookieHeader: string, inc
 }
 
 export function configureWebCookieAccess(): void {
+  configureEhWebDns();
   try {
     webview.WebCookieManager.putAcceptCookieEnabled(true);
   } catch (error) {
