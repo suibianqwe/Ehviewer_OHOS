@@ -1,10 +1,14 @@
 import { webview } from '@kit.ArkWeb';
 import { deviceInfo } from '@kit.BasicServicesKit';
+import {
+  androidChromeModel,
+  buildAndroidChromeUserAgent,
+  EH_ANDROID_PLATFORM_VERSION,
+  extractChromeVersion
+} from './EhBrowserCompatibility';
 import { currentDnsOverHttpsUrl } from './EhNetworkConfig';
 
 const LOG_TAG: string = 'EhWebRuntime';
-const ANDROID_PLATFORM_VERSION: string = '10.0.0';
-const ANDROID_MODEL: string = 'K';
 export const EH_WEB_COMPATIBILITY_SCRIPTS: ScriptItem[] = [{
   script: "(() => { const names = ['RTCPeerConnection', 'webkitRTCPeerConnection']; " +
     "for (const name of names) { try { Object.defineProperty(globalThis, name, " +
@@ -30,7 +34,7 @@ export function loadEhWebUrlWithAndroidCompatibility(controller: webview.Webview
   try {
     const defaultUserAgent = controller.getUserAgent();
     const chromeVersion = extractChromeVersion(defaultUserAgent);
-    const androidUserAgent = buildAndroidUserAgent(chromeVersion);
+    const androidUserAgent = buildAndroidChromeUserAgent(chromeVersion);
     configureAndroidUserAgentMetadata(controller, androidUserAgent, chromeVersion);
     controller.setCustomUserAgent(androidUserAgent);
     console.info(LOG_TAG + ': Android-compatible Web user agent configured');
@@ -46,22 +50,9 @@ export function loadEhWebUrlWithAndroidCompatibility(controller: webview.Webview
   }
 }
 
-function extractChromeVersion(userAgent: string): string {
-  const match = userAgent.match(/Chrome\/([0-9.]+)/);
-  if (match === null || match.length < 2 || match[1].length === 0) {
-    return '132.0.0.0';
-  }
-  return match[1];
-}
-
-function buildAndroidUserAgent(chromeVersion: string): string {
-  return 'Mozilla/5.0 (Linux; Android 10; ' + ANDROID_MODEL + ') AppleWebKit/537.36 ' +
-    '(KHTML, like Gecko) Chrome/' + chromeVersion + ' Mobile Safari/537.36';
-}
-
 function configureAndroidUserAgentMetadata(controller: webview.WebviewController, userAgent: string,
   chromeVersion: string): void {
-  if (!deviceInfo.apiAvailable('24.0.0')) {
+  if (!deviceInfo.apiAvailable(24)) {
     return;
   }
   const majorVersion = chromeVersion.split('.')[0];
@@ -71,9 +62,9 @@ function configureAndroidUserAgentMetadata(controller: webview.WebviewController
   metadata.setBrandVersionList([chromiumBrand, chromeBrand]);
   metadata.setFullVersion(chromeVersion);
   metadata.setPlatform('Android');
-  metadata.setPlatformVersion(ANDROID_PLATFORM_VERSION);
+  metadata.setPlatformVersion(EH_ANDROID_PLATFORM_VERSION);
   metadata.setMobile(true);
-  metadata.setModel(ANDROID_MODEL);
+  metadata.setModel(androidChromeModel());
   metadata.setFormFactors([webview.UserAgentFormFactor.MOBILE]);
   controller.setUserAgentMetadata(userAgent, metadata);
 }

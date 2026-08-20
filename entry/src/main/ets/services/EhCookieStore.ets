@@ -205,6 +205,10 @@ export class EhCookieStore {
     return this.hasCookie(KEY_IPB_MEMBER_ID) && this.hasCookie(KEY_IPB_PASS_HASH);
   }
 
+  hasAccountConfiguration(): boolean {
+    return this.hasCookie(KEY_UCONFIG);
+  }
+
   clear(): void {
     this.cookies = [];
     this.loaded = true;
@@ -222,7 +226,8 @@ export class EhCookieStore {
   clearLoginPreservingBrowserState(): void {
     const retained: CookieEntry[] = [];
     for (let i = 0; i < this.cookies.length; i++) {
-      if (this.cookies[i].name !== KEY_IPB_MEMBER_ID && this.cookies[i].name !== KEY_IPB_PASS_HASH) {
+      if (this.cookies[i].name !== KEY_IPB_MEMBER_ID && this.cookies[i].name !== KEY_IPB_PASS_HASH &&
+        this.cookies[i].name !== KEY_UCONFIG) {
         retained.push(this.cookies[i]);
       }
     }

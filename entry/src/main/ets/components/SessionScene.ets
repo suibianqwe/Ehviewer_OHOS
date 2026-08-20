@@ -1,3 +1,4 @@
+import { common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { ehCookieStore } from '../services/EhCookieStore';
 import { EhHttpClient, SignInResult } from '../services/EhHttpClient';
@@ -124,13 +125,7 @@ export struct SessionScene {
         return;
       }
 
-      ehCookieStore.save(context).then(() => {
-        this.cookieInput = ehCookieStore.getEditableCookieHeader();
-        this.statusText = result.message;
-        this.onSignedIn();
-      }).catch((error: Error) => {
-        this.statusText = 'Signed in but Cookie save failed: ' + error.message;
-      });
+      this.completeSignedIn(context, result.message);
     }).catch((error: Error) => {
       this.signingIn = false;
       this.statusText = 'Sign in failed: ' + error.message;
@@ -153,6 +148,22 @@ export struct SessionScene {
       this.enterWebSignIn(status);
     }).catch((error: Error) => {
       this.statusText = 'Cookie clear failed: ' + error.message;
+    });
+  }
+
+  private completeSignedIn(context: common.UIAbilityContext, successStatus: string): void {
+    this.statusText = 'Signed in; loading account configuration...';
+    this.client.refreshAccountConfiguration().catch((configurationError: Error) => {
+      console.warn('SessionScene: account configuration refresh failed: ' + configurationError.message);
+    }).then(() => {
+      return ehCookieStore.save(context);
+    }).then(() => {
+      this.cookieInput = ehCookieStore.getEditableCookieHeader();
+      this.statusText = successStatus;
+      this.onSignedIn();
+    }).catch((saveError: Error) => {
+      this.webCookieCaptured = false;
+      this.statusText = 'Signed in but Cookie save failed: ' + saveError.message;
     });
   }
 
@@ -198,14 +209,7 @@ export struct SessionScene {
 
     this.webCookieCaptured = true;
     ehCookieStore.setCookieHeaderPreservingIgneous(cookieHeader);
-    ehCookieStore.save(context).then(() => {
-      this.cookieInput = ehCookieStore.getEditableCookieHeader();
-      this.statusText = 'Web Cookie captured';
-      this.onSignedIn();
-    }).catch((error: Error) => {
-      this.webCookieCaptured = false;
-      this.statusText = 'Web Cookie save failed: ' + error.message;
-    });
+    this.completeSignedIn(context, 'Web Cookie captured');
   }
 
   private saveCookie(): void {
@@ -220,12 +224,13 @@ export struct SessionScene {
       return;
     }
     ehCookieStore.setCookieHeader(cookieHeader);
+    if (ehCookieStore.hasCookies()) {
+      this.completeSignedIn(context, 'Cookie saved');
+      return;
+    }
     ehCookieStore.save(context).then(() => {
       this.cookieInput = ehCookieStore.getEditableCookieHeader();
-      this.statusText = ehCookieStore.hasCookies() ? 'Cookie saved' : 'Empty Cookie saved';
-      if (ehCookieStore.hasCookies()) {
-        this.onSignedIn();
-      }
+      this.statusText = 'Empty Cookie saved';
     }).catch((error: Error) => {
       this.statusText = 'Cookie save failed: ' + error.message;
     });

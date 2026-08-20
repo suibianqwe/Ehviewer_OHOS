@@ -42,6 +42,11 @@ import {
 import { TopListParseResult, parseTopList } from './TopListParser';
 import { parseTorrentList } from './TorrentParser';
 import { acquireHttpRequest, retireHttpRequest, markHttpRequestVolatile } from './HttpRequestLifecycle';
+import {
+  buildAndroidChromeBrandHeader,
+  buildAndroidChromeUserAgent,
+  EH_ANDROID_CHROME_FALLBACK_VERSION
+} from './EhBrowserCompatibility';
 
 export interface EhHttpResponse {
   statusCode: number;
@@ -54,6 +59,7 @@ export interface EhTextRequestOptions {
   includeUConfig?: boolean;
   forceUConfig?: boolean;
   imagePreferenceUConfig?: boolean;
+  browserCompatibility?: boolean;
   connectTimeoutMs?: number;
   readTimeoutMs?: number;
 }
@@ -91,6 +97,8 @@ const IMAGE_SEARCH_TIMEOUT_MS: number = 100000;
 const API_TIMEOUT_MS: number = 10000;
 const TEXT_RETRY_DELAYS_MS: number[] = [250, 750];
 const CHROME_USER_AGENT: string = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36';
+const ANDROID_CHROME_USER_AGENT: string = buildAndroidChromeUserAgent(EH_ANDROID_CHROME_FALLBACK_VERSION);
+const ANDROID_CHROME_BRAND_HEADER: string = buildAndroidChromeBrandHeader(EH_ANDROID_CHROME_FALLBACK_VERSION);
 const CHROME_ACCEPT: string = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8';
 const CHROME_ACCEPT_LANGUAGE: string = 'zh-CN,zh;q=0.9,en;q=0.8';
 let activeTextRequests: number = 0;
@@ -199,6 +207,11 @@ export interface HathArchiveSubmitResult {
   message: string;
 }
 
+interface PostFormRequestOptions {
+  browserCompatibility?: boolean;
+  captureRedirect?: boolean;
+}
+
 export interface TorrentListLoadResult {
   ok: boolean;
   url: string;
@@ -290,7 +303,8 @@ export class EhHttpClient {
     await acquireTextSlot();
     try {
       plan = createEhRequestPlan(url);
-      const header = buildRequestHeader(plan, referer, cookieHeader, cacheTtlMs);
+      const header = buildRequestHeader(plan, referer, cookieHeader, cacheTtlMs,
+        requestOptions?.browserCompatibility === true);
       await ensureEhHostRules();
       admission = await acquireEhRequestAdmission(plan, 50);
       request = acquireHttpRequest();
@@ -397,16 +411,18 @@ export class EhHttpClient {
   }
 
   private async postFormOnce(url: string, body: string, referer: string, origin: string,
-    cookieHeader: string): Promise<EhHttpResponse> {
+    cookieHeader: string, requestOptions?: PostFormRequestOptions): Promise<EhHttpResponse> {
     let request: http.HttpRequest | null = null;
     let plan: EhRequestPlan | null = null;
     let admission: EhRequestAdmission | null = null;
     let startedAt = Date.now();
     let outcomeRecorded = false;
+    let responseHeaders: Record<string, Object> = {};
     await acquireTextSlot();
     try {
       plan = createEhRequestPlan(url);
-      const header = buildPostRequestHeader(plan, referer, origin, cookieHeader);
+      const header = buildPostRequestHeader(plan, referer, origin, cookieHeader,
+        requestOptions?.browserCompatibility === true);
       await ensureEhHostRules();
       admission = await acquireEhRequestAdmission(plan, 60);
       request = acquireHttpRequest();
@@ -419,9 +435,17 @@ export class EhHttpClient {
         connectTimeout: frontingTimeout(plan, TEXT_CONNECT_TIMEOUT_MS, url + '|post-connect', 350),
         readTimeout: frontingTimeout(plan, TEXT_READ_TIMEOUT_MS, url + '|post-read', 1200)
       };
+      if (requestOptions?.captureRedirect === true) {
+        options.maxRedirects = 0;
+      }
       applyEhNetworkOptions(options, plan);
       if (plan.fronted) {
         markHttpRequestVolatile(request);
+      }
+      if (requestOptions?.captureRedirect === true) {
+        request.on('headersReceive', (header: Object) => {
+          responseHeaders = header as Record<string, Object>;
+        });
       }
       const response = await requestToCompletion(request, plan.url, options);
       const statusCode = Number(response.responseCode);
@@ -432,14 +456,35 @@ export class EhHttpClient {
       return {
         statusCode: statusCode,
         body: response.result as string,
-        cookies: response.cookies
+        cookies: response.cookies,
+        headers: responseHeaders
       };
     } catch (error) {
+      const redirectLocation = responseHeaderValue(responseHeaders, 'location');
+      if (plan !== null && requestOptions?.captureRedirect === true && isRedirectLimitError(error) &&
+        redirectLocation.length > 0) {
+        recordEhRequestOutcome(plan, true, Date.now() - startedAt);
+        outcomeRecorded = true;
+        const cookies = responseHeaderValues(responseHeaders, 'set-cookie');
+        ehCookieStore.absorbSetCookieHeader(cookies);
+        return {
+          statusCode: 302,
+          body: '',
+          cookies: cookies,
+          headers: responseHeaders
+        };
+      }
       if (plan !== null && !outcomeRecorded) {
         recordEhRequestOutcome(plan, false, Date.now() - startedAt);
       }
       throw new Error(networkErrorMessage(error));
     } finally {
+      try {
+        if (request !== null && requestOptions?.captureRedirect === true) {
+          request.off('headersReceive');
+        }
+      } catch (error) {
+      }
       if (request !== null) {
         retireHttpRequest(request);
       }
@@ -563,8 +608,15 @@ export class EhHttpClient {
 
     try {
       ehCookieStore.clearLoginPreservingBrowserState();
-      const response = await this.postFormOnce(EhUrl.API_SIGN_IN, form, EhUrl.SIGN_IN_REFERER, EhUrl.FORUM_ORIGIN,
-        ehCookieStore.getTransferCookieHeader());
+      let response = await this.postFormOnce(EhUrl.API_SIGN_IN, form, EhUrl.SIGN_IN_REFERER, EhUrl.FORUM_ORIGIN,
+        ehCookieStore.getTransferCookieHeader(), { browserCompatibility: true, captureRedirect: true });
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers !== undefined) {
+        const location = responseHeaderValue(response.headers, 'location');
+        if (location.length > 0) {
+          const redirectUrl = absoluteUrl(location, EhUrl.API_SIGN_IN);
+          response = await this.getText(redirectUrl, EhUrl.SIGN_IN_REFERER, 0, { browserCompatibility: true });
+        }
+      }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return {
           ok: false,
@@ -856,6 +908,37 @@ export class EhHttpClient {
         torrents: []
       };
     }
+  }
+
+  async refreshAccountConfiguration(): Promise<void> {
+    const preferredSite = ehSettingsStore.getValue('gallery_site', 'E-Hentai') === 'ExHentai' ?
+      GallerySite.Ex : GallerySite.E;
+    const sites: GallerySite[] = [preferredSite];
+    if (preferredSite === GallerySite.Ex) {
+      sites.push(GallerySite.E);
+    }
+    let lastError = 'Account configuration Cookie was not returned';
+    for (let i = 0; i < sites.length; i++) {
+      const site = sites[i];
+      try {
+        const url = EhUrl.getUConfigUrl(site);
+        const response = await this.getText(url, EhUrl.getReferer(site), 0, {
+          includeUConfig: false,
+          browserCompatibility: true
+        });
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          if (ehCookieStore.hasAccountConfiguration()) {
+            return;
+          }
+          lastError = 'Account configuration Cookie was not returned';
+        } else {
+          lastError = httpStatusMessage(response.statusCode, response.body);
+        }
+      } catch (error) {
+        lastError = networkErrorMessage(error);
+      }
+    }
+    throw new Error(lastError);
   }
 
   async loadHathArchiveList(gid: number, token: string, archiveUrl: string,
@@ -1447,6 +1530,9 @@ interface RequestHeader {
   'Content-Type'?: string;
   'Origin'?: string;
   'Cookie'?: string;
+  'Sec-CH-UA'?: string;
+  'Sec-CH-UA-Mobile'?: string;
+  'Sec-CH-UA-Platform'?: string;
 }
 
 interface FormField {
@@ -1697,9 +1783,20 @@ function readableErrorMessage(error: Object): string {
   return String(error);
 }
 
-function buildRequestHeader(plan: EhRequestPlan, referer: string, cookieHeader: string, cacheTtlMs: number): RequestHeader {
+function buildRequestHeader(plan: EhRequestPlan, referer: string, cookieHeader: string, cacheTtlMs: number,
+  browserCompatibility: boolean = false): RequestHeader {
   const maxAge = Math.max(0, Math.floor(cacheTtlMs / 1000));
-  const header: RequestHeader = {
+  const header: RequestHeader = browserCompatibility ? {
+    'Host': plan.host,
+    'User-Agent': ANDROID_CHROME_USER_AGENT,
+    'Accept': CHROME_ACCEPT,
+    'Accept-Language': CHROME_ACCEPT_LANGUAGE,
+    'Referer': referer,
+    'Cache-Control': maxAge > 0 ? 'max-age=' + maxAge.toString() : 'no-cache',
+    'Sec-CH-UA': ANDROID_CHROME_BRAND_HEADER,
+    'Sec-CH-UA-Mobile': '?1',
+    'Sec-CH-UA-Platform': '"Android"'
+  } : {
     'Host': plan.host,
     'User-Agent': CHROME_USER_AGENT,
     'Accept': CHROME_ACCEPT,
@@ -1714,8 +1811,21 @@ function buildRequestHeader(plan: EhRequestPlan, referer: string, cookieHeader: 
 }
 
 function buildPostRequestHeader(plan: EhRequestPlan, referer: string, origin: string,
-  cookieHeader: string): RequestHeader {
-  const header: RequestHeader = {
+  cookieHeader: string, browserCompatibility: boolean = false): RequestHeader {
+  const header: RequestHeader = browserCompatibility ? {
+    'Host': plan.host,
+    'User-Agent': ANDROID_CHROME_USER_AGENT,
+    'Accept': CHROME_ACCEPT,
+    'Accept-Language': CHROME_ACCEPT_LANGUAGE,
+    'Referer': referer,
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'Origin': origin,
+    'Sec-CH-UA': ANDROID_CHROME_BRAND_HEADER,
+    'Sec-CH-UA-Mobile': '?1',
+    'Sec-CH-UA-Platform': '"Android"'
+  } : {
     'Host': plan.host,
     'User-Agent': CHROME_USER_AGENT,
     'Accept': CHROME_ACCEPT,
@@ -1927,6 +2037,31 @@ function responseHeaderValue(headers: Record<string, Object>, name: string): str
     }
     if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
       return value[0];
+    }
+    return String(value);
+  }
+  return '';
+}
+
+function responseHeaderValues(headers: Record<string, Object>, name: string): string {
+  const keys = Object.keys(headers);
+  const target = name.toLowerCase();
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i].toLowerCase() !== target) {
+      continue;
+    }
+    const value = headers[keys[i]];
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      const values: string[] = [];
+      for (let j = 0; j < value.length; j++) {
+        if (typeof value[j] === 'string') {
+          values.push(value[j]);
+        }
+      }
+      return values.join('\n');
     }
     return String(value);
   }
