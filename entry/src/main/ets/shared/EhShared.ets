@@ -376,6 +376,30 @@ function simplifiedUiStatusText(text: string): string {
   if (text === 'Password cannot be empty') {
     return '密码不能为空';
   }
+  if (text === 'Preparing secure sign in...') {
+    return '正在准备安全登录...';
+  }
+  if (text === 'Waiting for site verification...') {
+    return '正在等待站点验证...';
+  }
+  if (text === 'Signed in') {
+    return '登录成功';
+  }
+  if (text === 'Signed in; loading account configuration...') {
+    return '登录成功，正在获取账号配置...';
+  }
+  if (text === 'Direct sign in needs visible site verification. Continue signing in on the web page.') {
+    return '站点要求可见验证，请继续在网页中完成登录。';
+  }
+  if (text === 'Sign in timed out; continue in web sign in') {
+    return '登录验证超时，请继续在网页中完成登录。';
+  }
+  if (text === 'Site verification did not finish; continue in web sign in') {
+    return '站点验证未完成，请继续在网页中完成登录。';
+  }
+  if (text === 'Sign in cancelled') {
+    return '已取消登录';
+  }
   if (text === 'Web sign-in is ready; existing browser verification is kept') {
     return '网页登录已准备好，现有浏览器验证状态会保留';
   }

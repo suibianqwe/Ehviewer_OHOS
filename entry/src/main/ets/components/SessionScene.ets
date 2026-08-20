@@ -1,7 +1,9 @@
 import { common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
+import { GallerySite } from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
-import { EhHttpClient, SignInResult } from '../services/EhHttpClient';
+import { EhHttpClient } from '../services/EhHttpClient';
+import { ehSettingsStore } from '../services/EhSettingsStore';
 import {
   configureEhWebDns,
   EH_WEB_COMPATIBILITY_SCRIPTS,
@@ -19,6 +21,13 @@ import { ConfirmActionOverlay } from './ConfirmActionOverlay';
 export struct SessionScene {
   private client: EhHttpClient = new EhHttpClient();
   private webController: webview.WebviewController = new webview.WebviewController();
+  private passwordWebController: webview.WebviewController = new webview.WebviewController();
+  private passwordWebSubmitted: boolean = false;
+  private passwordWebCheckingForm: boolean = false;
+  private passwordWebLoadingAccountConfiguration: boolean = false;
+  private passwordWebSubmitAttempts: number = 0;
+  private passwordWebRetryTimer: number = -1;
+  private passwordWebDeadlineTimer: number = -1;
 
   @State mode: SessionMode = SessionMode.Password;
   @State username: string = '';
@@ -28,6 +37,8 @@ export struct SessionScene {
   @State passHash: string = '';
   @State igneous: string = '';
   @State signingIn: boolean = false;
+  @State passwordWebActive: boolean = false;
+  @State passwordWebVerificationVisible: boolean = false;
   @State webCookieCaptured: boolean = false;
   @State webUrl: string = EhUrl.URL_SIGN_IN;
   @State statusText: string = 'Sign in with an E-Hentai forum account';
@@ -66,6 +77,10 @@ export struct SessionScene {
     }
   }
 
+  aboutToDisappear(): void {
+    this.clearPasswordWebTimers();
+  }
+
   private modeTitle(): string {
     if (this.mode === SessionMode.Cookie) {
       return 'Cookie Sign In';
@@ -89,13 +104,16 @@ export struct SessionScene {
       this.clearCookieConfirmationVisible = false;
       return true;
     }
+    if (this.passwordWebVerificationVisible) {
+      this.failPasswordWebSignIn('Sign in cancelled');
+      return true;
+    }
     this.handleBack();
     return true;
   }
 
   private signInWithPassword(): void {
-    const context = getAbilityContext();
-    if (context === undefined) {
+    if (getAbilityContext() === undefined) {
       this.statusText = 'Ability context is not ready';
       return;
     }
@@ -112,24 +130,185 @@ export struct SessionScene {
     }
 
     this.signingIn = true;
-    this.statusText = 'Signing in...';
-    this.client.signIn(this.username.trim(), this.password).then((result: SignInResult) => {
-      this.signingIn = false;
-      if (!result.ok) {
-        if (result.statusCode === 403 || result.message.indexOf('Captcha required') >= 0 ||
-          result.message.indexOf('Site verification required') >= 0) {
-          this.prepareWebSignIn('Direct sign in was blocked by site verification. Continue signing in on the web page.');
-          return;
-        }
-        this.statusText = 'Sign in failed: ' + result.message;
+    this.statusText = 'Preparing secure sign in...';
+    this.passwordWebSubmitted = false;
+    this.passwordWebCheckingForm = false;
+    this.passwordWebLoadingAccountConfiguration = false;
+    this.passwordWebVerificationVisible = false;
+    this.passwordWebSubmitAttempts = 0;
+    this.clearPasswordWebTimers();
+    clearWebSessionCookies(false);
+    ehCookieStore.clearLoginPreservingBrowserState();
+    configureWebCookieAccess();
+    const cookieHeader = ehCookieStore.getStoredCookieHeader();
+    syncCookieHeaderToWebView(EhUrl.HOST_E, cookieHeader, false);
+    syncCookieHeaderToWebView(EhUrl.HOST_EX, cookieHeader, false);
+    syncCookieHeaderToWebView(EhUrl.FORUM_ORIGIN, cookieHeader, false);
+    this.passwordWebDeadlineTimer = setTimeout(() => {
+      if (this.signingIn) {
+        console.warn('SessionScene: password Web sign-in timed out');
+        this.failPasswordWebSignIn('Sign in timed out; continue in web sign in');
+        this.prepareWebSignIn('Direct sign in needs visible site verification. Continue signing in on the web page.');
+      }
+    }, 120000) as number;
+    if (this.passwordWebActive) {
+      loadEhWebUrlWithAndroidCompatibility(this.passwordWebController, EhUrl.SIGN_IN_REFERER);
+    } else {
+      this.passwordWebActive = true;
+    }
+  }
+
+  private handlePasswordWebPageEnd(url: string): void {
+    if (!this.signingIn) {
+      return;
+    }
+    console.info('SessionScene: password Web page finished: ' + sanitizeWebLogUrl(url));
+    if (this.passwordWebLoadingAccountConfiguration) {
+      captureEhAccountWebCookies(url);
+      if (ehCookieStore.hasAccountConfiguration()) {
+        console.info('SessionScene: account configuration Cookie captured');
+      } else {
+        console.warn('SessionScene: account configuration Cookie was not returned by Web');
+      }
+      this.finishPasswordWebSignIn();
+      return;
+    }
+    const cookieHeader = collectWebCookies(url, false);
+    if (hasLoginCookie(cookieHeader)) {
+      console.info('SessionScene: password Web sign-in Cookie captured');
+      ehCookieStore.setCookieHeaderPreservingIgneous(cookieHeader);
+      this.passwordWebLoadingAccountConfiguration = true;
+      this.statusText = 'Signed in; loading account configuration...';
+      const accountConfigurationUrl = this.accountConfigurationUrl();
+      prepareEhAccountWebViewCookies(accountConfigurationUrl);
+      try {
+        this.passwordWebController.loadUrl(accountConfigurationUrl);
+      } catch (error) {
+        this.finishPasswordWebSignIn();
+      }
+      return;
+    }
+    if (!this.passwordWebSubmitted) {
+      this.attemptPasswordWebSubmit();
+      return;
+    }
+    this.inspectPasswordWebResult();
+  }
+
+  private attemptPasswordWebSubmit(): void {
+    if (!this.signingIn || this.passwordWebSubmitted || this.passwordWebCheckingForm) {
+      return;
+    }
+    this.passwordWebCheckingForm = true;
+    this.passwordWebSubmitAttempts++;
+    const script = buildWebPasswordSubmitScript(this.username.trim(), this.password);
+    this.passwordWebController.runJavaScript(script).then((result: string) => {
+      this.passwordWebCheckingForm = false;
+      if (!this.signingIn) {
         return;
       }
-
-      this.completeSignedIn(context, result.message);
-    }).catch((error: Error) => {
-      this.signingIn = false;
-      this.statusText = 'Sign in failed: ' + error.message;
+      if (result.indexOf('submitted') >= 0) {
+        console.info('SessionScene: password Web form submitted');
+        this.passwordWebSubmitted = true;
+        this.passwordWebVerificationVisible = false;
+        this.statusText = 'Signing in...';
+        return;
+      }
+      if (result.indexOf('verification') >= 0) {
+        this.passwordWebVerificationVisible = true;
+        this.statusText = 'Waiting for site verification...';
+      }
+      this.retryPasswordWebSubmit();
+    }).catch(() => {
+      this.passwordWebCheckingForm = false;
+      this.retryPasswordWebSubmit();
     });
+  }
+
+  private retryPasswordWebSubmit(): void {
+    if (!this.signingIn) {
+      return;
+    }
+    if (this.passwordWebSubmitAttempts >= 220) {
+      console.warn('SessionScene: password Web form was not available after retries');
+      this.failPasswordWebSignIn('Site verification did not finish; continue in web sign in');
+      this.prepareWebSignIn('Direct sign in needs visible site verification. Continue signing in on the web page.');
+      return;
+    }
+    if (this.passwordWebRetryTimer !== -1) {
+      clearTimeout(this.passwordWebRetryTimer);
+    }
+    this.passwordWebRetryTimer = setTimeout(() => {
+      this.passwordWebRetryTimer = -1;
+      this.attemptPasswordWebSubmit();
+    }, 500) as number;
+  }
+
+  private inspectPasswordWebResult(): void {
+    this.passwordWebController.runJavaScript(
+      "document.body ? document.body.innerText : ''"
+    ).then((result: string) => {
+      if (!this.signingIn) {
+        return;
+      }
+      if (hasLoginCookie(collectWebCookies(EhUrl.FORUM_ORIGIN, false))) {
+        this.handlePasswordWebPageEnd(EhUrl.FORUM_ORIGIN);
+        return;
+      }
+      const message = webPasswordSignInError(result);
+      if (message.length > 0) {
+        this.failPasswordWebSignIn('Sign in failed: ' + message);
+        return;
+      }
+      this.passwordWebSubmitted = false;
+      this.retryPasswordWebSubmit();
+    }).catch(() => {
+      this.passwordWebSubmitted = false;
+      this.retryPasswordWebSubmit();
+    });
+  }
+
+  private finishPasswordWebSignIn(): void {
+    const context = getAbilityContext();
+    if (context === undefined) {
+      this.failPasswordWebSignIn('Web Cookie found, but context is not ready');
+      return;
+    }
+    this.clearPasswordWebTimers();
+    this.passwordWebActive = false;
+    this.passwordWebSubmitted = false;
+    this.passwordWebLoadingAccountConfiguration = false;
+    this.passwordWebVerificationVisible = false;
+    this.signingIn = false;
+    this.completeSignedIn(context, 'Signed in');
+  }
+
+  private failPasswordWebSignIn(status: string): void {
+    this.clearPasswordWebTimers();
+    this.passwordWebActive = false;
+    this.passwordWebSubmitted = false;
+    this.passwordWebCheckingForm = false;
+    this.passwordWebLoadingAccountConfiguration = false;
+    this.passwordWebVerificationVisible = false;
+    this.signingIn = false;
+    this.statusText = status;
+  }
+
+  private clearPasswordWebTimers(): void {
+    if (this.passwordWebRetryTimer !== -1) {
+      clearTimeout(this.passwordWebRetryTimer);
+      this.passwordWebRetryTimer = -1;
+    }
+    if (this.passwordWebDeadlineTimer !== -1) {
+      clearTimeout(this.passwordWebDeadlineTimer);
+      this.passwordWebDeadlineTimer = -1;
+    }
+  }
+
+  private accountConfigurationUrl(): string {
+    const site = ehSettingsStore.getValue('gallery_site', 'E-Hentai') === 'ExHentai' ?
+      GallerySite.Ex : GallerySite.E;
+    return EhUrl.getUConfigUrl(site);
   }
 
   private prepareWebSignIn(status: string = 'Finish login in the web page; Cookie will be captured automatically'): void {
@@ -153,9 +332,13 @@ export struct SessionScene {
 
   private completeSignedIn(context: common.UIAbilityContext, successStatus: string): void {
     this.statusText = 'Signed in; loading account configuration...';
-    this.client.refreshAccountConfiguration().catch((configurationError: Error) => {
-      console.warn('SessionScene: account configuration refresh failed: ' + configurationError.message);
-    }).then(() => {
+    let refresh: Promise<void> = new Promise<void>((resolve) => resolve());
+    if (!ehCookieStore.hasAccountConfiguration()) {
+      refresh = this.client.refreshAccountConfiguration().catch((configurationError: Error) => {
+        console.warn('SessionScene: account configuration refresh failed: ' + configurationError.message);
+      });
+    }
+    refresh.then(() => {
       return ehCookieStore.save(context);
     }).then(() => {
       this.cookieInput = ehCookieStore.getEditableCookieHeader();
@@ -337,6 +520,52 @@ export struct SessionScene {
       .width('100%')
       .height('100%')
       .backgroundColor(themePageBackground())
+
+      if (this.passwordWebActive) {
+        Column() {
+          Row() {
+            Text(uiStatusText(this.statusText))
+              .fontSize(13)
+              .fontColor(themeSecondaryText())
+              .layoutWeight(1)
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+            Button(uiText('Cancel'))
+              .type(ButtonType.Normal)
+              .fontColor(themePrimaryColor())
+              .backgroundColor(themeTransparentColor())
+              .onClick(() => {
+                this.failPasswordWebSignIn('Sign in cancelled');
+              })
+          }
+          .width('100%')
+          .height(this.passwordWebVerificationVisible ? 48 : 0)
+          .padding({ left: 12, right: 8 })
+          .opacity(this.passwordWebVerificationVisible ? 1 : 0)
+          .backgroundColor(themeSurface())
+
+          Web({ src: '', controller: this.passwordWebController, incognitoMode: false })
+            .javaScriptAccess(true)
+            .domStorageAccess(true)
+            .javaScriptOnDocumentStart(EH_WEB_COMPATIBILITY_SCRIPTS)
+            .width('100%')
+            .layoutWeight(1)
+            .opacity(this.passwordWebVerificationVisible ? 1 : 0.01)
+            .hitTestBehavior(this.passwordWebVerificationVisible ? HitTestMode.Default : HitTestMode.None)
+            .onControllerAttached(() => {
+              console.info('SessionScene: password Web controller attached');
+              loadEhWebUrlWithAndroidCompatibility(this.passwordWebController, EhUrl.SIGN_IN_REFERER);
+            })
+            .onPageEnd((event: OnPageEndEvent) => {
+              this.handlePasswordWebPageEnd(event.url);
+            })
+        }
+        .width(this.passwordWebVerificationVisible ? '100%' : 2)
+        .height(this.passwordWebVerificationVisible ? '100%' : 2)
+        .opacity(this.passwordWebVerificationVisible ? 1 : 0.01)
+        .backgroundColor(themePageBackground())
+        .zIndex(10)
+      }
 
       if (this.clearCookieConfirmationVisible) {
         ConfirmActionOverlay({
@@ -627,6 +856,17 @@ export function collectWebCookies(currentUrl: string, incognito: boolean = false
   return parts.join('; ');
 }
 
+export function captureEhAccountWebCookies(url: string): boolean {
+  const cookieHeader = collectWebCookies(url, false);
+  if (!hasLoginCookie(cookieHeader)) {
+    return false;
+  }
+  ehCookieStore.setCookieHeaderPreservingIgneous(cookieHeader);
+  console.info('EhAccountWeb: Cookie captured, has account configuration=' +
+    ehCookieStore.hasAccountConfiguration().toString());
+  return true;
+}
+
 export function syncCookieHeaderToWebView(url: string, cookieHeader: string, incognito: boolean = false): void {
   if (url.length === 0 || cookieHeader.trim().length === 0) {
     return;
@@ -649,6 +889,26 @@ export function syncCookieHeaderToWebView(url: string, cookieHeader: string, inc
       webview.WebCookieManager.saveCookieSync();
     } catch (error) {
     }
+  }
+}
+
+export function prepareEhAccountWebViewCookies(url: string): void {
+  configureWebCookieAccess();
+  clearWebSessionCookies(false);
+  const cookieHeader = ehCookieStore.getCookieHeader();
+  if (cookieHeader.length === 0) {
+    return;
+  }
+
+  syncCookieHeaderToWebView(url, cookieHeader, false);
+  syncCookieHeaderToWebView(EhUrl.HOST_E, cookieHeader, false);
+  syncCookieHeaderToWebView(EhUrl.HOST_EX, cookieHeader, false);
+  syncCookieHeaderToWebView(EhUrl.FORUM_ORIGIN, cookieHeader, false);
+  try {
+    webview.WebCookieManager.configCookieSync(EhUrl.HOST_E, 'nw=1; path=/', false);
+    webview.WebCookieManager.configCookieSync(EhUrl.HOST_EX, 'nw=1; path=/', false);
+    webview.WebCookieManager.saveCookieSync();
+  } catch (error) {
   }
 }
 
@@ -833,7 +1093,8 @@ function hasCookieName(cookieHeader: string, name: string): boolean {
 
 function isKnownCookieName(name: string): boolean {
   return name === 'ipb_member_id' || name === 'ipb_pass_hash' || name === 'igneous' ||
-    name === 'cf_clearance' || name === 'sk' || name === 'yay' || name === 'sl';
+    name === 'cf_clearance' || name === 'uconfig' || name === 'nw' ||
+    name === 'sk' || name === 'yay' || name === 'sl';
 }
 
 function isCookieAttribute(name: string): boolean {
@@ -868,4 +1129,55 @@ function checkIpbPassHash(hash: string): boolean {
     }
   }
   return true;
+}
+
+function buildWebPasswordSubmitScript(username: string, password: string): string {
+  const escapedUsername = JSON.stringify(username);
+  const escapedPassword = JSON.stringify(password);
+  return "(() => { const user = document.querySelector('input[name=\\\"UserName\\\"]'); " +
+    "const pass = document.querySelector('input[name=\\\"PassWord\\\"]'); " +
+    "if (!user || !pass) return 'missing'; user.value = " + escapedUsername + "; pass.value = " +
+    escapedPassword + "; const cookieDate = document.querySelector('input[name=\\\"CookieDate\\\"]'); " +
+    "if (cookieDate) cookieDate.value = '1'; const temporary = " +
+    "document.querySelector('input[name=\\\"temporary_https\\\"]'); if (temporary) temporary.value = 'off'; " +
+    "const verification = document.querySelector('input[name=\\\"cf-turnstile-response\\\"]'); " +
+    "const challenge = document.querySelector('.cf-turnstile, iframe[src*=\\\"challenges.cloudflare.com\\\"]'); " +
+    "if ((verification && !verification.value) || (challenge && !verification)) return 'verification'; " +
+    "const form = user.form || pass.form || document.querySelector('form'); if (!form) return 'missing'; " +
+    "setTimeout(() => HTMLFormElement.prototype.submit.call(form), 0); return 'submitted'; })();";
+}
+
+function sanitizeWebLogUrl(url: string): string {
+  const queryIndex = url.indexOf('?');
+  if (queryIndex >= 0) {
+    return url.substring(0, queryIndex);
+  }
+  return url;
+}
+
+function decodeWebJavaScriptString(raw: string): string {
+  let text = raw.trim();
+  if (!text.startsWith('"') || !text.endsWith('"')) {
+    return text;
+  }
+  return text.substring(1, text.length - 1)
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\n')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\');
+}
+
+function webPasswordSignInError(raw: string): string {
+  const text = decodeWebJavaScriptString(raw);
+  const normalized = text.replace(/\r/g, '\n');
+  const lines = normalized.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const lower = line.toLowerCase();
+    if (lower.indexOf('incorrect') >= 0 || lower.indexOf('password') >= 0 && lower.indexOf('error') >= 0 ||
+      lower.indexOf('not recognized') >= 0 || lower.indexOf('account has been locked') >= 0) {
+      return line.substring(0, Math.min(240, line.length));
+    }
+  }
+  return '';
 }

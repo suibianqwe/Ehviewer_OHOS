@@ -146,12 +146,10 @@ import { MyTagsPanel } from './MyTagsPanel';
 import { ReaderPresetPanel } from './ReaderPresetPanel';
 import { AppSubToolbar, AppToolbar } from './NavigationComponents';
 import {
+  captureEhAccountWebCookies,
   clearWebSessionCookies,
-  collectWebCookies,
-  configureWebCookieAccess,
-  hasLoginCookie,
-  SessionScene,
-  syncCookieHeaderToWebView
+  prepareEhAccountWebViewCookies,
+  SessionScene
 } from './SessionScene';
 import {
   EH_WEB_COMPATIBILITY_SCRIPTS,
@@ -884,32 +882,14 @@ export struct SettingsScene {
   }
 
   private prepareAccountWebViewCookies(url: string): void {
-    configureWebCookieAccess();
-    clearWebSessionCookies(false);
-    const cookieHeader = ehCookieStore.getCookieHeader();
-    if (cookieHeader.length === 0) {
-      return;
-    }
-
-    syncCookieHeaderToWebView(url, cookieHeader, false);
-    syncCookieHeaderToWebView(EhUrl.HOST_E, cookieHeader, false);
-    syncCookieHeaderToWebView(EhUrl.HOST_EX, cookieHeader, false);
-    syncCookieHeaderToWebView(EhUrl.FORUM_ORIGIN, cookieHeader, false);
-    try {
-      webview.WebCookieManager.configCookieSync(EhUrl.HOST_E, 'nw=1; path=/', false);
-      webview.WebCookieManager.configCookieSync(EhUrl.HOST_EX, 'nw=1; path=/', false);
-      webview.WebCookieManager.saveCookieSync();
-    } catch (error) {
-    }
+    prepareEhAccountWebViewCookies(url);
   }
 
   private captureAccountWebCookies(url: string): void {
-    const cookieHeader = collectWebCookies(url, false);
-    if (!hasLoginCookie(cookieHeader)) {
+    if (!captureEhAccountWebCookies(url)) {
       return;
     }
 
-    ehCookieStore.setCookieHeaderPreservingIgneous(cookieHeader);
     this.signedIn = ehCookieStore.hasCookies();
     const context = getAbilityContext();
     if (context === undefined) {
