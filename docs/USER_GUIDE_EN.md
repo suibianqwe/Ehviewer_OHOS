@@ -88,6 +88,11 @@ The main interface contains the title bar, gallery list, floating action button,
 
 The drawer opens Home, Subscriptions, Popular, Toplists, Favorites, History, Downloads, and Settings. The floating action menu changes by page and may expose layout, filters, refresh, translation, or status controls.
 
+<p align="center">
+  <img src="images/home-phone.jpg" width="360" alt="Home on a portrait phone" />
+  <img src="images/home-tablet.jpg" width="900" alt="Home on a landscape tablet" />
+</p>
+
 Subscriptions show galleries matched by followed tags and are the starting point for the reader walkthrough in this guide.
 
 <p align="center">
@@ -113,6 +118,25 @@ Open `Settings → EH → List mode` and choose:
 
 Detail and Extended use the detail-size setting; Thumbnail uses the thumbnail-size setting. `Show tag translations` controls translated tag, language, and category labels.
 
+<p align="center">
+  <img src="images/gallery-mode-selection-phone.jpg" width="360" alt="Selecting a gallery list mode" />
+</p>
+
+The mode only changes card layout; search conditions, pagination, and download state remain the same. Details favors text scanning, Thumbnails maximizes cover density, and Extended exposes representative tags directly in each card.
+
+<table>
+  <tr>
+    <td><img src="images/gallery-mode-detail-phone.jpg" width="300" alt="Gallery Details mode" /></td>
+    <td><img src="images/gallery-mode-thumbnail-phone.jpg" width="300" alt="Gallery Thumbnail mode" /></td>
+    <td><img src="images/gallery-mode-extended-phone.jpg" width="300" alt="Gallery Extended mode" /></td>
+  </tr>
+  <tr>
+    <td align="center">Details</td>
+    <td align="center">Thumbnails</td>
+    <td align="center">Extended</td>
+  </tr>
+</table>
+
 ### 4.2 Split view on wide screens
 
 Enable `Settings → EH → Split view` on tablets, unfolded foldables, and PCs.
@@ -135,13 +159,26 @@ Use the search button in the title bar. Search supports keywords, uploader, tags
 
 Submit text for a normal search. Tapping a tag in gallery details opens the full search page and creates a removable tag condition. Add more tags to narrow the results, or remove an existing chip. Tapping an uploader creates a nested uploader search; Back restores the previous conditions, list position, and detail state.
 
+<p align="center">
+  <img src="images/search-phone.jpg" width="360" alt="Gallery search on a phone" />
+  <img src="images/multi-tag-search-phone.jpg" width="360" alt="Multiple tag conditions on a phone" />
+</p>
+
 ### 5.2 Advanced search and saved searches
 
 Use the advanced button beside the search field to select categories, name/tag/description/torrent scope, and other conditions. Save a useful combination as a search bookmark and restore it later from the bookmark row.
 
+<p align="center">
+  <img src="images/advanced-search-phone.jpg" width="360" alt="Advanced gallery search on a phone" />
+</p>
+
 ### 5.3 Image search
 
 Select a photo or file, then choose Similar image or Cover search. The corresponding actions in gallery details reuse the same search page and route state.
+
+<p align="center">
+  <img src="images/image-search-phone.jpg" width="360" alt="Image search panel on a phone" />
+</p>
 
 ## 6. Gallery details and actions
 
@@ -149,6 +186,7 @@ Gallery details contain the cover, titles, uploader, category, page count, size,
 
 <p align="center">
   <img src="images/gallery-detail-phone.jpg" width="360" alt="Gallery details on a phone" />
+  <img src="images/gallery-detail-actions-phone.jpg" width="360" alt="Gallery detail actions on a phone" />
 </p>
 
 Common actions include:
@@ -163,6 +201,10 @@ Common actions include:
 - Enter the full-screen reader.
 
 Tap a tag to search it. Use the add button beside the tag section to enter tag editing and voting. Translated tag names and categories follow `Show tag translations`, independently of the app language.
+
+<p align="center">
+  <img src="images/gallery-tag-vote-phone.jpg" width="360" alt="Tag editing and voting on a phone" />
+</p>
 
 ## 7. Reader
 
@@ -221,6 +263,10 @@ Open `Settings → Translation`:
 2. Enable Manga translation to show the edge-aligned reader button.
 3. Select a target language and service.
 
+<p align="center">
+  <img src="images/translation-settings-phone.jpg" width="360" alt="Translation settings on a phone" />
+</p>
+
 Without AI translation, the app can use Google, Bing, Baidu, Youdao, MyMemory, or Lingva web services. AI translation supports DeepSeek, OpenAI, Gemini, and custom OpenAI-compatible endpoints. Custom endpoints can store multiple names, URLs, keys, and models.
 
 Tap the reader translation button to show or hide the current gallery's translated overlays. Long-press it to rerun OCR and translation for the current page. Current, next, and following pages have priority. Downloaded results are stored with download metadata; online-reading results are stored in history. Leaving the reader cancels pending and interruptible work.
@@ -232,6 +278,10 @@ For OCR placement problems, enable OCR debug recording, reproduce once, export t
 Use Download in gallery details or a card's long-press menu.
 
 ### 9.1 Download settings
+
+<p align="center">
+  <img src="images/download-settings-phone.jpg" width="360" alt="Download settings on a phone" />
+</p>
 
 - Location: app files or the public Downloads directory.
 - Multi-thread downloads: a single shared worker count for reader and download tasks. Workers are calculated across all galleries; when the active gallery has fewer remaining images than available workers, the next queued gallery can start.
@@ -270,6 +320,12 @@ JSON backup, supported Android database import, and Wi-Fi Direct transfer can ca
 
 ## 11. Appearance, language, and privacy
 
+The Settings home groups options under EH, Reading, Downloads, Privacy, Translation, Advanced, and About.
+
+<p align="center">
+  <img src="images/settings-overview-phone.jpg" width="360" alt="Settings overview on a phone" />
+</p>
+
 `Settings → EH` supports light, dark, black, and follow-system themes, plus several theme colors. Open `Settings → Advanced → App language` for Follow system, English, Simplified Chinese, or Traditional Chinese. Tag translation is independent of the app language.
 
 `Settings → Privacy` includes app authentication, screenshot/task-preview protection, private download notifications, saved error bodies, and crash logs. Enable diagnostic storage only while investigating a problem and clear it afterward.
@@ -291,6 +347,10 @@ Keep defaults when the site works normally.
 - Direct-connect detection keeps proxy and DoH behavior, but can bypass hosts/SNI enhancements when direct access works.
 
 Run Network diagnostics after changing these options to test E-Hentai, ExHentai, the forum, and the project repository separately.
+
+<p align="center">
+  <img src="images/advanced-settings-phone.jpg" width="360" alt="Advanced settings, log export, and network diagnostics" />
+</p>
 
 ## 13. Backup, restore, and Wi-Fi Direct transfer
 

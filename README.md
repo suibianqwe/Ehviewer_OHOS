@@ -49,28 +49,28 @@ API 20 起可安装；低于 API 23 的设备会自动跳过不兼容的 SNI 域
 
 <table>
   <tr>
-    <td><img src="docs/images/home-black.jpg" alt="黑色主题主页" width="220" /></td>
-    <td><img src="docs/images/gallery-list.jpg" alt="画廊列表" width="220" /></td>
-    <td><img src="docs/images/advanced-search.jpg" alt="高级搜索" width="220" /></td>
-    <td><img src="docs/images/gallery-detail-actions.jpg" alt="画廊详情操作" width="220" /></td>
+    <td><img src="docs/images/gallery-mode-detail-phone.jpg" alt="画廊详情模式" width="220" /></td>
+    <td><img src="docs/images/gallery-mode-thumbnail-phone.jpg" alt="画廊缩略图模式" width="220" /></td>
+    <td><img src="docs/images/gallery-mode-extended-phone.jpg" alt="画廊扩展模式" width="220" /></td>
+    <td><img src="docs/images/advanced-search-phone.jpg" alt="高级搜索" width="220" /></td>
   </tr>
   <tr>
-    <td align="center">黑色主题</td>
-    <td align="center">画廊列表</td>
+    <td align="center">详情模式</td>
+    <td align="center">缩略图模式</td>
+    <td align="center">扩展模式</td>
     <td align="center">高级搜索</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/image-search-phone.jpg" alt="图片搜索" width="220" /></td>
+    <td><img src="docs/images/gallery-detail-actions-phone.jpg" alt="画廊详情操作" width="220" /></td>
+    <td><img src="docs/images/gallery-tag-vote-phone.jpg" alt="标签编辑与投票" width="220" /></td>
+    <td><img src="docs/images/home-tablet.jpg" alt="平板横屏画廊列表" width="440" /></td>
+  </tr>
+  <tr>
+    <td align="center">图片搜索</td>
     <td align="center">详情操作</td>
-  </tr>
-  <tr>
-    <td><img src="docs/images/multi-tag-search.jpg" alt="多标签搜索" width="220" /></td>
-    <td><img src="docs/images/reader-settings.jpg" alt="阅读器设置" width="220" /></td>
-    <td><img src="docs/images/gallery-detail-tag-vote.jpg" alt="标签编辑与投票" width="220" /></td>
-    <td><img src="docs/images/split-pane.jpg" alt="宽屏分栏模式" width="220" /></td>
-  </tr>
-  <tr>
-    <td align="center">多标签搜索</td>
-    <td align="center">阅读器设置</td>
     <td align="center">标签编辑与投票</td>
-    <td align="center">宽屏分栏</td>
+    <td align="center">平板横屏画廊列表</td>
   </tr>
 </table>
 

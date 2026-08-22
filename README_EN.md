@@ -44,6 +44,33 @@ Portrait screenshots below come from a phone; landscape screenshots come from a 
 
 <table>
   <tr>
+    <td><img src="docs/images/gallery-mode-detail-phone.jpg" alt="Gallery Details mode" width="220" /></td>
+    <td><img src="docs/images/gallery-mode-thumbnail-phone.jpg" alt="Gallery Thumbnail mode" width="220" /></td>
+    <td><img src="docs/images/gallery-mode-extended-phone.jpg" alt="Gallery Extended mode" width="220" /></td>
+    <td><img src="docs/images/advanced-search-phone.jpg" alt="Advanced gallery search" width="220" /></td>
+  </tr>
+  <tr>
+    <td align="center">Details</td>
+    <td align="center">Thumbnails</td>
+    <td align="center">Extended</td>
+    <td align="center">Advanced search</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/image-search-phone.jpg" alt="Image search" width="220" /></td>
+    <td><img src="docs/images/gallery-detail-actions-phone.jpg" alt="Gallery detail actions" width="220" /></td>
+    <td><img src="docs/images/gallery-tag-vote-phone.jpg" alt="Tag editing and voting" width="220" /></td>
+    <td><img src="docs/images/home-tablet.jpg" alt="Gallery list on a landscape tablet" width="440" /></td>
+  </tr>
+  <tr>
+    <td align="center">Image search</td>
+    <td align="center">Detail actions</td>
+    <td align="center">Tag voting</td>
+    <td align="center">Tablet gallery list</td>
+  </tr>
+</table>
+
+<table>
+  <tr>
     <td><img src="docs/images/subscriptions-phone.jpg" alt="Subscriptions on a phone" width="260" /></td>
     <td><img src="docs/images/reader-layout-phone.jpg" alt="Reader layout settings on a phone" width="260" /></td>
     <td><img src="docs/images/gallery-detail-tablet.jpg" alt="Split gallery details on a tablet" width="520" /></td>

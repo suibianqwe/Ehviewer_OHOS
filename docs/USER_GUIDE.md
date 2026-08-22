@@ -91,8 +91,8 @@
 侧边菜单可进入主页、订阅、热门、排行、收藏、历史、下载和设置。右下角工具栏会根据页面显示布局、筛选、刷新、翻译或状态过滤等操作。
 
 <p align="center">
-  <img src="images/home-dark.jpg" width="360" alt="深色主题主页" />
-  <img src="images/home-black.jpg" width="360" alt="黑色主题主页" />
+  <img src="images/home-phone.jpg" width="360" alt="手机竖屏主页" />
+  <img src="images/home-tablet.jpg" width="900" alt="平板横屏主页" />
 </p>
 
 订阅页展示账号关注标签匹配的画廊，也是本教程进入阅读器的起点。
@@ -121,16 +121,27 @@
 详情和扩展模式使用“详情大小”；缩略图模式使用“缩略图大小”。标签、语言和分类的中文显示由“显示标签翻译”控制。
 
 <p align="center">
-  <img src="images/gallery-list.jpg" width="420" alt="画廊列表卡片" />
+  <img src="images/gallery-mode-selection-phone.jpg" width="360" alt="手机列表模式选择" />
 </p>
+
+三种模式只改变画廊卡片的排版，不改变搜索条件、分页和下载状态。详情适合快速阅读文字信息，缩略图适合浏览大量封面，扩展适合直接查看画廊的代表性标签。
+
+<table>
+  <tr>
+    <td><img src="images/gallery-mode-detail-phone.jpg" width="300" alt="手机画廊详情模式" /></td>
+    <td><img src="images/gallery-mode-thumbnail-phone.jpg" width="300" alt="手机画廊缩略图模式" /></td>
+    <td><img src="images/gallery-mode-extended-phone.jpg" width="300" alt="手机画廊扩展模式" /></td>
+  </tr>
+  <tr>
+    <td align="center">详情</td>
+    <td align="center">缩略图</td>
+    <td align="center">扩展</td>
+  </tr>
+</table>
 
 ### 4.2 宽屏分栏
 
 在平板、折叠屏展开态和电脑窗口中，可通过 `设置 → EH → 分栏模式` 启用左右分栏。
-
-<p align="center">
-  <img src="images/split-pane.jpg" width="900" alt="宽屏左右分栏" />
-</p>
 
 <p align="center">
   <img src="images/subscriptions-tablet.jpg" width="900" alt="平板横屏订阅列表" />
@@ -152,7 +163,8 @@
 输入关键词后提交即可搜索。点击详情页标签时，会打开完整搜索页并生成可移除的标签条件；可以继续添加多个标签。
 
 <p align="center">
-  <img src="images/multi-tag-search.jpg" width="420" alt="多标签搜索" />
+  <img src="images/search-phone.jpg" width="360" alt="手机画廊搜索页" />
+  <img src="images/multi-tag-search-phone.jpg" width="360" alt="手机多标签搜索条件" />
 </p>
 
 - 点击标签：加入搜索条件。
@@ -165,7 +177,7 @@
 点击搜索栏旁的高级按钮，可设置分类、搜索范围和高级条件。
 
 <p align="center">
-  <img src="images/advanced-search.jpg" width="420" alt="高级搜索条件" />
+  <img src="images/advanced-search-phone.jpg" width="360" alt="手机高级搜索条件" />
 </p>
 
 常用选项包括画廊分类、名称/标签/描述/种子范围以及订阅、上传者、标签等搜索模式。搜索条件可以保存为搜索书签，之后从搜索书签栏快速恢复。
@@ -175,7 +187,7 @@
 图片搜索可从相册或文件中选择图片，再选择相似图片搜索或封面搜索。
 
 <p align="center">
-  <img src="images/image-search-dialog.jpg" width="420" alt="图片搜索方式选择" />
+  <img src="images/image-search-phone.jpg" width="360" alt="手机图片搜索面板" />
 </p>
 
 详情页“相似画廊”和“搜索封面”会复用相同的搜索页面与路由状态。
@@ -186,7 +198,7 @@
 
 <p align="center">
   <img src="images/gallery-detail-phone.jpg" width="360" alt="手机竖屏画廊详情" />
-  <img src="images/gallery-detail-actions.jpg" width="420" alt="画廊详情操作栏" />
+  <img src="images/gallery-detail-actions-phone.jpg" width="360" alt="手机画廊详情操作栏" />
 </p>
 
 常用操作：
@@ -206,7 +218,7 @@
 点击标签可进入对应搜索。点击标签区域的添加按钮可进入编辑和投票模式。
 
 <p align="center">
-  <img src="images/gallery-detail-tag-vote.jpg" width="900" alt="详情页标签编辑与投票" />
+  <img src="images/gallery-tag-vote-phone.jpg" width="360" alt="手机详情页标签编辑与投票" />
 </p>
 
 标签名称、标签类别和搜索联想是否显示中文，由 `设置 → EH → 显示标签翻译` 统一控制，与系统语言无关。
@@ -295,6 +307,10 @@
 2. 开启“漫画翻译”，阅读器内会显示半透明贴边翻译按钮。
 3. 选择目标语言和翻译服务。
 
+<p align="center">
+  <img src="images/translation-settings-phone.jpg" width="360" alt="手机翻译设置" />
+</p>
+
 列表翻译会优先处理当前屏幕内容，再处理屏幕外上下少量项目。滑动后，新进入翻译区的内容才会加入请求。
 
 ### 8.2 机翻与 AI 翻译
@@ -324,6 +340,10 @@
 ### 9.1 下载设置
 
 进入 `设置 → 下载`：
+
+<p align="center">
+  <img src="images/download-settings-phone.jpg" width="360" alt="手机下载设置" />
+</p>
 
 - 下载位置：应用文件目录或公共 Downloads 目录。
 - 多线程下载：统一控制阅读器与下载页图片任务并行数；线程池按全部画廊计算，当前画廊剩余图片不足时会继续处理下一个等待画廊。
@@ -385,6 +405,12 @@
 
 ## 11. 外观、语言与隐私
 
+设置首页按 EH、阅读、下载、隐私、翻译、高级和关于分组，先选择功能分组再修改具体选项。
+
+<p align="center">
+  <img src="images/settings-overview-phone.jpg" width="360" alt="手机设置首页" />
+</p>
+
 ### 11.1 外观
 
 `设置 → EH` 支持浅色、深色、黑色主题，也可跟随系统深色模式。主题色包含蓝色、天蓝色、青色、绿色、紫色、橙色和玫红色；标题栏及启动过渡背景会跟随主题色。
@@ -427,6 +453,10 @@
 - 直连检测：在保留代理和 DoH 的情况下检测当前站点；成功时跳过 Hosts 与 SNI 前置，失败时才允许它们参与。
 
 更改网络设置后可运行“网络诊断”，分别检查 E-Hentai、ExHentai、论坛和项目仓库。
+
+<p align="center">
+  <img src="images/advanced-settings-phone.jpg" width="360" alt="手机高级设置、日志与网络诊断入口" />
+</p>
 
 ## 13. 备份、恢复与 Wi-Fi 直连传输
 
