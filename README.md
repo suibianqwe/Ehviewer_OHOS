@@ -1,5 +1,7 @@
 # EhViewer HarmonyOS
 
+[English](README_EN.md) · 简体中文
+
 <p align="center">
   <img src="entry/src/main/resources/base/media/app_icon.png" width="120" alt="EhViewer HarmonyOS 应用图标" />
 </p>
@@ -10,8 +12,8 @@
 
 请在 [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases) 下载最新的未签名 HAP，可使用 [小白调试助手](https://github.com/likuai2010/auto-installer) 安装。
 
-- 当前版本：`0.6.1`
-- 安装包：[`EhViewer_OHOS_0.6.1.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.6.1/EhViewer_OHOS_0.6.1.hap)
+- 当前版本：`0.6.2`
+- 安装包：[`EhViewer_OHOS_0.6.2.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.6.2/EhViewer_OHOS_0.6.2.hap)
 - 目标 API：`26.0.0`
 - 兼容 API：`6.0.0(20)`
 
@@ -23,7 +25,9 @@ API 20 起可安装；低于 API 23 的设备会自动跳过不兼容的 SNI 域
 
 ### [EhViewer HarmonyOS 完整使用教程](docs/USER_GUIDE.md)
 
-教程包含目录、分章节步骤、真实界面截图、常见问题和日志导出说明。
+也可阅读 [English User Guide](docs/USER_GUIDE_EN.md)。教程包含目录、分章节步骤、手机/平板实机截图、常见问题和日志导出说明。
+
+> 图片或封面无法加载时，请先进入 `设置 → EH → 账号配置`，等待账号配置页面加载后返回，让应用重新获取当前站点配置；再回到原页面重试。
 
 ## 功能特色
 
@@ -31,15 +35,17 @@ API 20 起可安装；低于 API 23 的设备会自动跳过不兼容的 SNI 域
 - 搜索：支持关键词、多标签、上传者、高级筛选、搜索书签、搜索历史、相似图片和封面搜索。
 - 详情：支持收藏、评分、系统分享、Torrent 磁力链接、存档、H@H、评论、预览图、相似画廊、标签编辑和投票。
 - 阅读：支持左右/连续阅读、阅读预设、双击与手势缩放、方向适配、自适应一屏双页、白边裁切、预加载和独立全屏阅读器。
-- 图像增强：支持系统超分、API 26 Core Vision AI 超分及 SDR 转 HDR，可在预渲染阶段按“超分 → HDR”顺序组合处理。
+- 图像增强：支持图像调节、自适应去除摩尔纹、系统/API 26 Core Vision AI 超分及 SDR 转 HDR；在预渲染阶段按“去摩尔纹与图像调节 → 超分 → HDR”顺序组合处理。
 - 翻译：支持列表标题、详情标题、评论及漫画 OCR 翻译，可选网页翻译、DeepSeek、OpenAI、Gemini 和自定义兼容 API。
 - 下载：支持统一优先级并行调度、通知进度与速度、隐私通知、状态筛选、多选管理、恢复下载项和 ZIP 导入/导出。
 - 宽屏：支持可拖动分割线的左右分栏，列表、详情和设置页面保持独立路由与焦点返回逻辑。
-- 迁移：支持 JSON/安卓数据库导入、原 EhViewer 下载目录恢复，以及阅读进度双向同步、图片文件和评论黑名单的 Wi-Fi 直连传输。
+- 迁移：支持 JSON/安卓数据库导入、原 EhViewer 下载目录恢复，以及阅读进度、应用设置、登录 Cookie、收藏、书签、图片文件和评论黑名单的 Wi-Fi 直连多选传输；本机 `igneous` 不会导出或被传入值覆盖。
 - 个性化：支持简体中文、繁体中文、明暗主题、多种主题色、标签翻译、过滤规则、评论黑名单和隐私保护。
 - 网络：支持系统/HTTP/SOCKS5 代理、DoH、内置 Hosts、SNI 域名前置、直连检测和网络诊断。
 
 ## 界面预览
+
+以下截图分别来自手机竖屏和平板横屏实机；进入阅读器的示例路径为 `订阅 → 画廊详情 → 阅读`。
 
 <table>
   <tr>
@@ -65,6 +71,19 @@ API 20 起可安装；低于 API 23 的设备会自动跳过不兼容的 SNI 域
     <td align="center">阅读器设置</td>
     <td align="center">标签编辑与投票</td>
     <td align="center">宽屏分栏</td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td><img src="docs/images/subscriptions-phone.jpg" alt="手机竖屏订阅页" width="260" /></td>
+    <td><img src="docs/images/reader-layout-phone.jpg" alt="手机竖屏阅读器页面布局" width="260" /></td>
+    <td><img src="docs/images/gallery-detail-tablet.jpg" alt="平板横屏订阅与详情分栏" width="520" /></td>
+  </tr>
+  <tr>
+    <td align="center">手机订阅页</td>
+    <td align="center">阅读器页面布局</td>
+    <td align="center">平板分栏详情</td>
   </tr>
 </table>
 
