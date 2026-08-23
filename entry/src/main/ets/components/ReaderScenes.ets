@@ -292,6 +292,9 @@ export struct ReaderScene {
   private pageGroupRefreshTimer: number = -1;
   private pageGroupRefreshPending: boolean = false;
   private swiperAnimating: boolean = false;
+  private swiperSourceSyncTarget: number = -1;
+  private swiperSourceSyncRevision: number = 0;
+  private swiperSourceSyncTimer: number = -1;
   private continuousScroller: Scroller = new Scroller();
   private continuousScrollTarget: number = -1;
   private continuousScrollRevision: number = 0;
@@ -512,6 +515,7 @@ export struct ReaderScene {
     this.clearPageGroupRefreshTimer();
     this.pageGroupRefreshPending = false;
     this.clearContinuousPageSync();
+    this.clearSwiperSourceSync();
     this.swiperAnimating = false;
     this.clearSliderTimer();
     this.clearScreenTapTimer();
@@ -1221,7 +1225,54 @@ export struct ReaderScene {
       });
     }
     this.mountedPairedPageKeys = [];
+    const anchor = this.pageGroupAnchorForPageIndex(this.currentIndex);
+    const targetVisualIndex = pages.indexOf(anchor);
+    this.scheduleSwiperSourceSync(targetVisualIndex < 0 ? 0 : targetVisualIndex);
     this.readerPageIndexesSource.setItems(items);
+  }
+
+  private clearSwiperSourceSync(): void {
+    this.swiperSourceSyncRevision++;
+    this.swiperSourceSyncTarget = -1;
+    if (this.swiperSourceSyncTimer !== -1) {
+      clearTimeout(this.swiperSourceSyncTimer);
+      this.swiperSourceSyncTimer = -1;
+    }
+  }
+
+  private scheduleSwiperSourceSync(targetVisualIndex: number): void {
+    if (this.isContinuousVerticalMode()) {
+      this.clearSwiperSourceSync();
+      return;
+    }
+    if (this.swiperSourceSyncTimer !== -1) {
+      clearTimeout(this.swiperSourceSyncTimer);
+      this.swiperSourceSyncTimer = -1;
+    }
+    const revision = ++this.swiperSourceSyncRevision;
+    this.swiperSourceSyncTarget = targetVisualIndex;
+    this.swiperSourceSyncTimer = setTimeout(() => {
+      this.swiperSourceSyncTimer = -1;
+      if (!this.readerWindowActive || revision !== this.swiperSourceSyncRevision ||
+        this.isContinuousVerticalMode()) {
+        if (revision === this.swiperSourceSyncRevision) {
+          this.swiperSourceSyncTarget = -1;
+        }
+        return;
+      }
+      const expectedIndex = this.visualIndexForPageIndex(this.currentIndex);
+      this.swiperSourceSyncTarget = expectedIndex;
+      try {
+        this.swiperController.changeIndex(expectedIndex, false);
+      } catch (error) {
+      }
+      this.swiperSourceSyncTimer = setTimeout(() => {
+        if (revision === this.swiperSourceSyncRevision) {
+          this.swiperSourceSyncTarget = -1;
+          this.swiperSourceSyncTimer = -1;
+        }
+      }, 80) as number;
+    }, 0) as number;
   }
 
   private visualIndexForPageIndex(index: number): number {
@@ -2621,6 +2672,18 @@ export struct ReaderScene {
   }
 
   private onSwiperChange(visualIndex: number): void {
+    if (this.swiperSourceSyncTarget >= 0) {
+      const expectedIndex = this.visualIndexForPageIndex(this.currentIndex);
+      if (visualIndex !== expectedIndex) {
+        try {
+          this.swiperController.changeIndex(expectedIndex, false);
+        } catch (error) {
+        }
+        return;
+      }
+      this.clearSwiperSourceSync();
+      return;
+    }
     const index = this.pageIndexForVisualIndex(visualIndex);
     if (index === this.currentIndex) {
       return;
