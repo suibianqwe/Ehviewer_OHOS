@@ -786,6 +786,8 @@ function bookmarkSummary(item: SearchBookmarkInfo): string {
   return parts.join(' · ');
 }
 
+let searchBookmarkDrawerScrollOffset: number = 0;
+
 @Component
 export struct SearchBookmarkDrawer {
   @Prop statusBarHeight: number = 0;
@@ -795,6 +797,31 @@ export struct SearchBookmarkDrawer {
   onDelete: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
   onSettings: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+  private bookmarkScroller: Scroller = new Scroller();
+  private restoringScrollPosition: boolean = false;
+
+  private restoreScrollPosition(): void {
+    if (searchBookmarkDrawerScrollOffset <= 0) {
+      return;
+    }
+    this.restoringScrollPosition = true;
+    setTimeout(() => {
+      this.bookmarkScroller.scrollTo({ xOffset: 0, yOffset: searchBookmarkDrawerScrollOffset });
+      setTimeout(() => {
+        this.restoringScrollPosition = false;
+      }, 80);
+    }, 0);
+  }
+
+  private rememberScrollPosition(): void {
+    if (this.restoringScrollPosition) {
+      return;
+    }
+    const offset = this.bookmarkScroller.currentOffset().yOffset;
+    if (!Number.isNaN(offset)) {
+      searchBookmarkDrawerScrollOffset = Math.max(0, offset);
+    }
+  }
 
   build() {
     Column() {
@@ -833,7 +860,7 @@ export struct SearchBookmarkDrawer {
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
       } else {
-        List() {
+        List({ scroller: this.bookmarkScroller }) {
           ForEach(this.bookmarks, (item: SearchBookmarkInfo) => {
             ListItem() {
               SearchBookmarkDrawerRow({
@@ -853,6 +880,15 @@ export struct SearchBookmarkDrawer {
         .height('100%')
         .layoutWeight(1)
         .cachedCount(6)
+        .onAppear(() => {
+          this.restoreScrollPosition();
+        })
+        .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
+          this.rememberScrollPosition();
+        })
+        .onScrollStop(() => {
+          this.rememberScrollPosition();
+        })
       }
     }
     .width(288)
@@ -3946,6 +3982,7 @@ export struct GalleryListContent {
   private readonly REFRESH_OFFSET: number = 42;
   @State viewportHeight: number = 0;
   private listScroller: Scroller = new Scroller();
+  private searchTagScroller: Scroller = new Scroller();
   private cardScrollAnchor: GalleryCardScrollAnchor = new GalleryCardScrollAnchor();
   private loadMorePending: boolean = false;
   private restoredScroll: boolean = false;
@@ -4491,6 +4528,12 @@ export struct GalleryListContent {
     this.onKeywordChange(removeSearchTagToken(this.keyword, token));
   }
 
+  private scrollSearchTagsToEnd(): void {
+    setTimeout(() => {
+      this.searchTagScroller.scrollEdge(Edge.End);
+    }, 0);
+  }
+
   private searchTagStripMaxWidth(): number {
     const width = this.effectiveContentWidth();
     if (width <= 0) {
@@ -4541,7 +4584,7 @@ export struct GalleryListContent {
   private searchKeywordEditor() {
     Row({ space: this.selectedSearchTagTokens().length > 0 ? 4 : 0 }) {
       if (this.selectedSearchTagTokens().length > 0) {
-        Scroll() {
+        Scroll(this.searchTagScroller) {
           Row({ space: 6 }) {
             ForEach(this.selectedSearchTagTokens(), (token: string) => {
               this.searchTagChip(token)
@@ -4705,6 +4748,7 @@ export struct GalleryListContent {
     if (suggestion.kind === 'tag') {
       this.onKeywordChange(addSearchTagToken(this.keyword, suggestion.query));
       this.onSearchModeChange(ListMode.Normal);
+      this.scrollSearchTagsToEnd();
       return;
     }
     this.onKeywordChange(suggestion.query);

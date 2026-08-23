@@ -2020,6 +2020,10 @@ export function zhText(text: string): string {
     case 'Past Year': return '过去一年';
     case 'Past Month': return '过去一个月';
     case 'Yesterday': return '昨天';
+    case 'Just now': return '刚刚';
+    case ' minutes ago': return '分钟前';
+    case ' hours ago': return '小时前';
+    case ' days ago': return '天前';
     case 'History deleted': return '历史记录已删除';
     case 'Loading top lists...': return '正在加载排行榜...';
     case 'No image selected for search': return '未选择用于搜索的图片';

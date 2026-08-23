@@ -1,7 +1,13 @@
 import { GalleryComment } from '../../model/GalleryModels';
 import { ehTranslationService } from '../../services/EhTranslationService';
 import { ehCommentBlacklistStore } from '../../services/EhCommentBlacklistStore';
-import { getAbilityContext, plainTextFromHtml, uiText } from '../../shared/EhShared';
+import {
+  LANGUAGE_REVISION_KEY,
+  getAbilityContext,
+  plainTextFromHtml,
+  shouldUseChineseUi,
+  uiText
+} from '../../shared/EhShared';
 import {
   themeInactiveActionText,
   themeOnPrimaryText,
@@ -18,6 +24,56 @@ interface CommentTextSegment {
 }
 
 const COMMENT_URL_PATTERN: RegExp = /(https?:\/\/[^\s<>"']+|magnet:\?[^\s<>"']+)/gi;
+const COMMENT_DATE_PATTERN: RegExp = /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4}),\s+(\d{1,2}):(\d{2})$/;
+const COMMENT_MONTHS: string[] = [
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december'
+];
+
+function parseCommentPostedTime(posted: string): number {
+  const match = COMMENT_DATE_PATTERN.exec(posted.trim());
+  if (match === null) {
+    return Number.NaN;
+  }
+  const month = COMMENT_MONTHS.indexOf(match[2].toLowerCase());
+  const day = Number.parseInt(match[1]);
+  const year = Number.parseInt(match[3]);
+  const hour = Number.parseInt(match[4]);
+  const minute = Number.parseInt(match[5]);
+  if (month < 0 || Number.isNaN(day) || Number.isNaN(year) || Number.isNaN(hour) || Number.isNaN(minute)) {
+    return Number.NaN;
+  }
+  return Date.UTC(year, month, day, hour, minute);
+}
+
+function chineseCommentPostedText(posted: string): string {
+  if (!shouldUseChineseUi()) {
+    return posted;
+  }
+  const time = parseCommentPostedTime(posted);
+  if (Number.isNaN(time)) {
+    return posted;
+  }
+  const elapsed = Date.now() - time;
+  if (elapsed >= 0 && elapsed < 60 * 1000) {
+    return uiText('Just now');
+  }
+  if (elapsed >= 0 && elapsed < 60 * 60 * 1000) {
+    return Math.max(1, Math.floor(elapsed / (60 * 1000))).toString() + uiText(' minutes ago');
+  }
+  if (elapsed >= 0 && elapsed < 24 * 60 * 60 * 1000) {
+    return Math.floor(elapsed / (60 * 60 * 1000)).toString() + uiText(' hours ago');
+  }
+  if (elapsed >= 0 && elapsed < 48 * 60 * 60 * 1000) {
+    return uiText('Yesterday');
+  }
+  if (elapsed >= 0 && elapsed < 7 * 24 * 60 * 60 * 1000) {
+    return Math.floor(elapsed / (24 * 60 * 60 * 1000)).toString() + uiText(' days ago');
+  }
+  const date = new Date(time);
+  const dateText = (date.getMonth() + 1).toString() + '月' + date.getDate().toString() + '日';
+  return date.getFullYear() === new Date().getFullYear() ? dateText : date.getFullYear().toString() + '年' + dateText;
+}
 
 function scoreText(score: number): string {
   return score > 0 ? '+' + score.toString() : score.toString();
@@ -244,6 +300,7 @@ export struct GalleryCommentRow {
   rowClickable: boolean = false;
   @Prop translateComment: boolean = false;
   @Prop translationPriority: number = 2;
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   onVoteComment: (comment: GalleryComment, vote: number) => void = (_comment: GalleryComment, _vote: number) => {};
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
   onTapRow: () => void = () => {};
@@ -284,7 +341,7 @@ export struct GalleryCommentRow {
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .width('100%')
-          Text(this.comment.posted)
+          Text(chineseCommentPostedText(this.comment.posted))
             .fontSize(11)
             .fontColor(themeSecondaryText())
             .maxLines(1)

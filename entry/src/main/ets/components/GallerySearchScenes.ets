@@ -62,6 +62,21 @@ const TAG_NAMESPACE_OPTIONS: TagNamespaceOption[] = [
   { value: 'rows' }
 ];
 
+const LEGACY_TAG_NAMESPACE_ALIASES: Record<string, string> = {
+  'a': 'artist',
+  'c': 'character',
+  'cos': 'cosplayer',
+  'f': 'female',
+  'g': 'group',
+  'l': 'language',
+  'm': 'male',
+  'n': 'rows',
+  'o': 'other',
+  'p': 'parody',
+  'r': 'reclass',
+  'x': 'mixed'
+};
+
 function isDefaultFilterDisableFlag(flag: number): boolean {
   return flag === 0x100 || flag === 0x200 || flag === 0x400;
 }
@@ -79,6 +94,36 @@ function activeTagPrefix(keyword: string): string {
 }
 
 const EXACT_TAG_PATTERN: RegExp = /([A-Za-z0-9_]+:[^$]+?\$)/g;
+const QUOTED_TAG_PATTERN: RegExp = /(^|\s)([A-Za-z0-9_]+):"([^"]+)"(?=\s|$)/g;
+const LEGACY_PLAIN_TAG_PATTERN: RegExp = /(^|\s)(a|c|cos|f|g|l|m|n|o|p|r|x):([^\s$"]+)(?=\s|$)/gi;
+
+function fullTagNamespace(namespace: string): string {
+  const normalized = namespace.trim().toLowerCase();
+  const aliased = LEGACY_TAG_NAMESPACE_ALIASES[normalized];
+  return aliased === undefined ? normalized : aliased;
+}
+
+export function normalizeLegacySearchKeyword(keyword: string): string {
+  QUOTED_TAG_PATTERN.lastIndex = 0;
+  let normalized = keyword.replace(QUOTED_TAG_PATTERN,
+    (_all: string, leading: string, namespace: string, rawTag: string): string => {
+      const tag = rawTag.trim().replace(/\$+$/, '').trim();
+      if (tag.length === 0) {
+        return _all;
+      }
+      return leading + fullTagNamespace(namespace) + ':' + tag + '$';
+    });
+  LEGACY_PLAIN_TAG_PATTERN.lastIndex = 0;
+  normalized = normalized.replace(LEGACY_PLAIN_TAG_PATTERN,
+    (_all: string, leading: string, namespace: string, rawTag: string): string => {
+      const tag = rawTag.trim();
+      if (tag.length === 0) {
+        return _all;
+      }
+      return leading + fullTagNamespace(namespace) + ':' + tag + '$';
+    });
+  return normalized.replace(/\s+/g, ' ').trim();
+}
 
 export function normalizeSearchTagToken(tag: string): string {
   const trimmed = tag.trim();
@@ -89,10 +134,11 @@ export function normalizeSearchTagToken(tag: string): string {
 }
 
 export function searchTagTokens(keyword: string): string[] {
+  const normalizedKeyword = normalizeLegacySearchKeyword(keyword);
   const tokens: string[] = [];
   const seen: string[] = [];
   EXACT_TAG_PATTERN.lastIndex = 0;
-  let match: RegExpExecArray | null = EXACT_TAG_PATTERN.exec(keyword);
+  let match: RegExpExecArray | null = EXACT_TAG_PATTERN.exec(normalizedKeyword);
   while (match !== null) {
     const token = match[1].trim();
     const key = token.toLowerCase();
@@ -100,14 +146,15 @@ export function searchTagTokens(keyword: string): string[] {
       tokens.push(token);
       seen.push(key);
     }
-    match = EXACT_TAG_PATTERN.exec(keyword);
+    match = EXACT_TAG_PATTERN.exec(normalizedKeyword);
   }
   return tokens;
 }
 
 export function searchKeywordWithoutTagTokens(keyword: string): string {
+  const normalizedKeyword = normalizeLegacySearchKeyword(keyword);
   EXACT_TAG_PATTERN.lastIndex = 0;
-  return keyword.replace(EXACT_TAG_PATTERN, ' ').replace(/\s+/g, ' ').trim();
+  return normalizedKeyword.replace(EXACT_TAG_PATTERN, ' ').replace(/\s+/g, ' ').trim();
 }
 
 export function searchTagTokenLabel(token: string): string {
@@ -147,9 +194,9 @@ export function searchKeywordForRequest(keyword: string): string {
 
   const parts: string[] = [];
   for (let i = 0; i < tokens.length; i++) {
-    const label = searchTagTokenLabel(tokens[i]);
-    if (label.length > 0) {
-      parts.push(label);
+    const token = searchTagTokenForRequest(tokens[i]);
+    if (token.length > 0) {
+      parts.push(token);
     }
   }
   const text = searchKeywordWithoutTagTokens(keyword);
@@ -157,6 +204,26 @@ export function searchKeywordForRequest(keyword: string): string {
     parts.push(text);
   }
   return parts.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function searchTagTokenForRequest(token: string): string {
+  let value = token.trim();
+  if (value.endsWith('$')) {
+    value = value.substring(0, value.length - 1).trim();
+  }
+  const colon = value.indexOf(':');
+  if (colon <= 0 || colon >= value.length - 1) {
+    return '';
+  }
+  const namespace = value.substring(0, colon).trim();
+  const tag = value.substring(colon + 1).trim();
+  if (namespace.length === 0 || tag.length === 0) {
+    return '';
+  }
+  if (/\s/.test(tag)) {
+    return namespace + ':"' + tag.replace(/"/g, '\\"') + '$"';
+  }
+  return namespace + ':' + tag + '$';
 }
 
 export function composeSearchKeywordWithInput(keyword: string, input: string): string {
