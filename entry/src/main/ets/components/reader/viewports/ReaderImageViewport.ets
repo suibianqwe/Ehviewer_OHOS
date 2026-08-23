@@ -53,7 +53,7 @@ export struct ReaderImageViewport {
   @Prop @Watch('onImageSourceChange') preferOriginal: boolean = false;
   @Prop @Watch('onFitModeChange') fitMode: string = 'Fit screen';
   @Prop @Watch('onFixedScaleChange') fixedScale: number = READER_BASE_SCALE;
-  @Prop startPosition: string = 'Top right';
+  @Prop startPosition: string = 'Center';
   @Prop @Watch('onActiveChange') isActive: boolean = false;
   @Prop @Watch('onHdrEnabledChange') hdrEnabled: boolean = false;
   @Prop @Watch('onImageAdjustmentChange') imageAdjustmentSettings: ReaderImageAdjustmentSettings =
@@ -75,6 +75,7 @@ export struct ReaderImageViewport {
   onImageLongPress: () => void = () => {};
   onSwipeLockChange: (locked: boolean) => void = (_locked: boolean) => {};
   onZoomChange: (percent: number) => void = (_percent: number) => {};
+  onZoomCommit: (percent: number) => void = (_percent: number) => {};
   onImageSizeChange: (width: number, height: number) => void = (_width: number, _height: number) => {};
   onEdgeSwipe: (direction: number) => void = (_direction: number) => {};
 
@@ -109,6 +110,7 @@ export struct ReaderImageViewport {
   private adjustmentRequestId: number = 0;
   private adjustmentCompleted: boolean = false;
   private cropRequestId: number = 0;
+  private isPinching: boolean = false;
 
   aboutToAppear(): void {
     this.onImageSourceChange();
@@ -117,6 +119,7 @@ export struct ReaderImageViewport {
   }
 
   aboutToDisappear(): void {
+    this.isPinching = false;
     this.releaseRuntimeState();
     if (this.isActive && this.interactive) {
       this.onSwipeLockChange(false);
@@ -128,22 +131,31 @@ export struct ReaderImageViewport {
       return;
     }
     this.lastCommandVersion = this.commandVersion;
+    let commitScale = false;
     if (this.command === 'zoom_in') {
       this.imageModel.zoomBy(1.25);
+      commitScale = true;
     } else if (this.command === 'zoom_out') {
       this.imageModel.zoomBy(0.8);
+      commitScale = true;
     } else if (this.command === 'double_zoom') {
       this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseOut }, () => {
         this.imageModel.toggleDoubleTap(this.imageModel.componentWidth / 2,
           this.imageModel.componentHeight / 2);
         this.reportState();
+        this.commitZoomState();
       });
+      return;
     } else if (this.command === 'reset') {
       this.imageModel.reset();
+      commitScale = true;
     } else if (this.command === 'fixed_scale') {
       this.syncFixedScale();
     }
     this.reportState();
+    if (commitScale) {
+      this.commitZoomState();
+    }
   }
 
   onActiveChange(): void {
@@ -214,6 +226,7 @@ export struct ReaderImageViewport {
       return;
     }
     this.retainedSourceIdentity = sourceIdentity;
+    this.isPinching = false;
     this.imageModel.reset();
     this.syncRenderTransform();
     this.releaseHdrPixelMap();
@@ -524,7 +537,7 @@ export struct ReaderImageViewport {
   }
 
   onFixedScaleChange(): void {
-    if (normalizePageScalingOption(this.fitMode) === 'Fixed scale') {
+    if (!this.isPinching && normalizePageScalingOption(this.fitMode) === 'Fixed scale') {
       this.imageModel.setScale(this.fixedScale);
       this.reportState();
     }
@@ -777,6 +790,12 @@ export struct ReaderImageViewport {
     this.onZoomChange(this.imageModel.zoomPercent());
   }
 
+  private commitZoomState(): void {
+    if (this.interactive && this.isActive) {
+      this.onZoomCommit(this.imageModel.zoomPercent());
+    }
+  }
+
   private reportImageSize(): void {
     if (this.sourceImageWidth <= 0 || this.sourceImageHeight <= 0) {
       return;
@@ -907,6 +926,7 @@ export struct ReaderImageViewport {
             this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseOut }, () => {
               this.imageModel.toggleDoubleTap(this.tapCenterX(event), this.tapCenterY(event));
               this.reportState();
+              this.commitZoomState();
             });
           }),
         TapGesture({ count: 1 })
@@ -961,6 +981,7 @@ export struct ReaderImageViewport {
             }),
           PinchGesture({ fingers: 2, distance: 1 })
             .onActionStart((event: GestureEvent) => {
+              this.isPinching = true;
               this.imageModel.pinchStart(event.pinchCenterX, event.pinchCenterY);
               this.reportState();
             })
@@ -970,11 +991,15 @@ export struct ReaderImageViewport {
             })
             .onActionEnd(() => {
               this.imageModel.pinchEnd();
+              this.isPinching = false;
               this.reportState();
+              this.commitZoomState();
             })
             .onActionCancel(() => {
               this.imageModel.pinchEnd();
+              this.isPinching = false;
               this.reportState();
+              this.commitZoomState();
             })
         )
       )

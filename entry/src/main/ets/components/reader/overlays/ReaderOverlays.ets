@@ -389,7 +389,7 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuImageVibrance: number = 0;
   @Prop menuImageTemperature: number = 0;
   @Prop menuImageGrayscale: number = 0;
-  @Prop menuStartPosition: string = 'Top right';
+  @Prop menuStartPosition: string = 'Center';
   @Prop menuAutoTransferTime: string = '5s';
   @Prop menuKeepScreenOn: boolean = false;
   @Prop menuReadingFullscreen: boolean = true;

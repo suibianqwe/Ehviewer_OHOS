@@ -68,7 +68,7 @@ const BUILT_IN_READER_PRESETS: ReaderPresetProfile[] = [
     builtIn: true,
     values: createReaderPresetValues('Default', 'Right to left', 'Fit screen', false, false, false,
       READER_SUPER_RESOLUTION_ENGINE_DETAIL, false,
-      'Top right')
+      'Center')
   },
   {
     id: 'reader_preset_dual_manga',
@@ -77,7 +77,7 @@ const BUILT_IN_READER_PRESETS: ReaderPresetProfile[] = [
     builtIn: true,
     values: createReaderPresetValues('Default', 'Right to left', 'Fit screen', true, true, false,
       READER_SUPER_RESOLUTION_ENGINE_DETAIL, false,
-      'Top right')
+      'Center')
   },
   {
     id: 'reader_preset_comic',
@@ -198,7 +198,7 @@ export function readerPresetValuesFromSettings(): ReaderPresetValues {
     ehSettingsStore.getValue('reader_image_super_resolution', 'Off') === 'On',
     ehSettingsStore.getValue('reader_super_resolution_engine', READER_SUPER_RESOLUTION_ENGINE_DETAIL),
     ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On',
-    ehSettingsStore.getValue('start_position', 'Top right'),
+    ehSettingsStore.getValue('start_position', 'Center'),
     readerImageAdjustmentSettingsFromStore()
   );
 }
@@ -340,7 +340,7 @@ export function createReaderPresetValues(screenRotation: string, readingDirectio
     imageSuperResolution: imageSuperResolution,
     superResolutionEngine: normalizeReaderSuperResolutionEngine(superResolutionEngine),
     sdrToHdr: sdrToHdr,
-    startPosition: normalizeOption(startPosition, ['Top left', 'Top right', 'Bottom left', 'Bottom right', 'Center'], 'Top right'),
+    startPosition: normalizeOption(startPosition, ['Top left', 'Top right', 'Bottom left', 'Bottom right', 'Center'], 'Center'),
     imageAdjustment: cloneReaderImageAdjustmentSettings(imageAdjustment)
   };
 }
@@ -359,7 +359,7 @@ function parseStoredReaderPresetValues(value: StoredReaderPresetValues | undefin
     typeof value.superResolutionEngine === 'string' ? value.superResolutionEngine :
       READER_SUPER_RESOLUTION_ENGINE_DETAIL,
     value.sdrToHdr === true,
-    typeof value.startPosition === 'string' ? value.startPosition : 'Top right',
+    typeof value.startPosition === 'string' ? value.startPosition : 'Center',
     parseStoredImageAdjustment(value.imageAdjustment)
   );
 }

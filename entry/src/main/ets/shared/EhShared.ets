@@ -3566,7 +3566,7 @@ export function normalizeStartPositionOption(value: string): string {
   if (value === '4' || value === 'Center') {
     return 'Center';
   }
-  return 'Top right';
+  return 'Center';
 }
 
 function normalizeReaderSettingOption(key: string, value: string): string {

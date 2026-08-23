@@ -241,7 +241,7 @@ export struct ReaderScene {
   @State imageSuperResolutionEngine: string = READER_SUPER_RESOLUTION_ENGINE_DETAIL;
   @State sdrToHdrEnabled: boolean = false;
   @State imageAdjustmentSettings: ReaderImageAdjustmentSettings = new ReaderImageAdjustmentSettings();
-  @State startPosition: string = 'Top right';
+  @State startPosition: string = 'Center';
   @State showInfo: boolean = false;
   @State preferOriginal: boolean = false;
   @State menuVisible: boolean = false;
@@ -339,7 +339,7 @@ export struct ReaderScene {
   @State menuImageSuperResolutionEngine: string = READER_SUPER_RESOLUTION_ENGINE_DETAIL;
   @State menuSdrToHdrEnabled: boolean = false;
   @State menuImageAdjustmentSettings: ReaderImageAdjustmentSettings = new ReaderImageAdjustmentSettings();
-  @State menuStartPosition: string = 'Top right';
+  @State menuStartPosition: string = 'Center';
   @State menuKeepScreenOn: boolean = false;
   @State menuShowClock: boolean = true;
   @State menuShowProgress: boolean = true;
@@ -416,7 +416,7 @@ export struct ReaderScene {
       setEmbeddedReaderActive(true);
     }
     this.fitMode = normalizePageScalingOption(ehSettingsStore.getValue('page_scaling', 'Fit screen'));
-    this.startPosition = normalizeStartPositionOption(ehSettingsStore.getValue('start_position', 'Top right'));
+    this.startPosition = normalizeStartPositionOption(ehSettingsStore.getValue('start_position', 'Center'));
     this.menuVisible = false;
     this.imageActionsVisible = false;
     this.sliderVisible = false;
@@ -1335,7 +1335,7 @@ export struct ReaderScene {
     this.menuSdrToHdrEnabled = ehSettingsStore.getValue('reader_sdr_to_hdr', 'Off') === 'On';
     this.menuImageAdjustmentSettings = readerImageAdjustmentSettingsFromStore();
     this.menuSettingsTab = this.readerSettingsTabFromStore();
-    this.menuStartPosition = normalizeStartPositionOption(ehSettingsStore.getValue('start_position', 'Top right'));
+    this.menuStartPosition = normalizeStartPositionOption(ehSettingsStore.getValue('start_position', 'Center'));
     this.menuKeepScreenOn = ehSettingsStore.getValue('keep_screen_on', 'Off') === 'On';
     this.menuShowClock = ehSettingsStore.getValue('gallery_show_clock', 'On') === 'On';
     this.menuShowProgress = ehSettingsStore.getValue('gallery_show_progress', 'On') === 'On';
@@ -3031,9 +3031,11 @@ export struct ReaderScene {
       onZoomChange: (percent: number) => {
         if (this.pageGroupAnchorForPageIndex(index) === this.currentIndex) {
           this.zoomPercent = percent;
-          if (this.isFixedScaleMode()) {
-            this.fixedScale = Math.max(READER_MIN_SCALE, Math.min(READER_MAX_SCALE, percent / 100));
-          }
+        }
+      },
+      onZoomCommit: (percent: number) => {
+        if (this.pageGroupAnchorForPageIndex(index) === this.currentIndex && this.isFixedScaleMode()) {
+          this.fixedScale = Math.max(READER_MIN_SCALE, Math.min(READER_MAX_SCALE, percent / 100));
         }
       },
       onImageSizeChange: (width: number, height: number) => {
@@ -3246,6 +3248,8 @@ export struct ReaderScene {
                 },
                 onZoomChange: (percent: number) => {
                   this.zoomPercent = percent;
+                },
+                onZoomCommit: (percent: number) => {
                   this.fixedScale = Math.max(READER_MIN_SCALE, Math.min(READER_MAX_SCALE, percent / 100));
                 },
                 onHorizontalBoundsChange: (maxOffsetX: number) => {

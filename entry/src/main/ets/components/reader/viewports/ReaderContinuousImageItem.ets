@@ -72,6 +72,7 @@ export struct ReaderContinuousImageItem {
   onImageLongPress: () => void = () => {};
   onImageSizeChange: (width: number, height: number) => void = (_width: number, _height: number) => {};
   onZoomChange: (percent: number) => void = (_percent: number) => {};
+  onZoomCommit: (percent: number) => void = (_percent: number) => {};
   onHorizontalBoundsChange: (maxOffsetX: number) => void = (_maxOffsetX: number) => {};
   onHorizontalDragStart: (maxOffsetX: number) => void = (_maxOffsetX: number) => {};
   onHorizontalDragUpdate: (offsetX: number, maxOffsetX: number) => void = (_offsetX: number, _maxOffsetX: number) => {};
@@ -115,6 +116,7 @@ export struct ReaderContinuousImageItem {
   }
 
   aboutToDisappear(): void {
+    this.isPinching = false;
     this.releaseRuntimeState();
   }
 
@@ -134,8 +136,9 @@ export struct ReaderContinuousImageItem {
     }
     this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseOut }, () => {
       this.imageModel.toggleDoubleTap(this.componentWidth / 2, this.itemHeight() / 2);
+      this.reportState();
+      this.commitZoomState();
     });
-    this.reportState();
   }
 
   private imageUrl(): string {
@@ -663,6 +666,12 @@ export struct ReaderContinuousImageItem {
     this.reportHorizontalBounds();
   }
 
+  private commitZoomState(): void {
+    if (this.isActive) {
+      this.onZoomCommit(this.imageModel.zoomPercent());
+    }
+  }
+
   private shouldHandleImagePan(event: BaseGestureEvent): boolean {
     const panEvent = event as PanGestureEvent;
     return this.imageModel.shouldHandleContinuousImagePan(
@@ -823,11 +832,13 @@ export struct ReaderContinuousImageItem {
               this.imageModel.pinchEnd();
               this.isPinching = false;
               this.reportState();
+              this.commitZoomState();
             })
             .onActionCancel(() => {
               this.imageModel.pinchEnd();
               this.isPinching = false;
               this.reportState();
+              this.commitZoomState();
             }),
           PanGesture({ fingers: 1, distance: 3 })
             .onActionStart(() => {

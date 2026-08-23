@@ -112,7 +112,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'reader_image_grayscale', value: '0' },
     { key: 'reader_settings_tab', value: '0' },
     { key: 'reader_custom_presets', value: '[]' },
-    { key: 'start_position', value: 'Top right' },
+    { key: 'start_position', value: 'Center' },
     { key: 'start_transfer_time', value: '5s' },
     { key: 'reader_standalone', value: 'On' },
     { key: 'keep_screen_on', value: 'Off' },
