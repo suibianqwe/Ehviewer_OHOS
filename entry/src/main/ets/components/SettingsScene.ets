@@ -5,6 +5,7 @@ import { util } from '@kit.ArkTS';
 import { webview } from '@kit.ArkWeb';
 import { GalleryInfo, GallerySite } from '../model/GalleryModels';
 import { ehBookmarkStore } from '../services/EhBookmarkStore';
+import { BrowsePositionsBackupInfo, ehBrowsePositionStore } from '../services/EhBrowsePositionStore';
 import { ehCookieStore } from '../services/EhCookieStore';
 import {
   DOWNLOAD_LOCATION_APP_FILES,
@@ -15,6 +16,7 @@ import {
 } from '../services/EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, ehDownloadStore } from '../services/EhDownloadStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
+import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
 import {
   DownloadMetadataRestoreResult,
@@ -1296,19 +1298,24 @@ export struct SettingsScene {
     Promise.all([
       ehCookieStore.ensureLoaded(context),
       ehSettingsStore.ensureLoaded(context),
-      ehHistoryStore.load(context),
+      ehHistoryStore.ensureLoaded(context),
+      ehSearchHistoryStore.load(context),
       ehDownloadStore.load(context),
       ehFilterStore.ensureLoaded(context),
       ehLocalFavoritesStore.ensureLoaded(context),
       ehBookmarkStore.ensureLoaded(context),
-      ehCommentBlacklistStore.ensureLoaded(context)
+      ehCommentBlacklistStore.ensureLoaded(context),
+      ehBrowsePositionStore.ensureLoaded(context)
     ]).then(() => {
       const bundle: EhBackupBundle = {
-        version: 1,
+        version: 2,
         exportedAt: now.toISOString(),
         cookies: ehCookieStore.getTransferCookieHeader(),
         settings: ehSettingsStore.getTransferEntries(),
         history: ehHistoryStore.getItems(),
+        readingProgress: ehHistoryStore.getReadingProgressBackupItems(),
+        searchHistory: ehSearchHistoryStore.getKeywords(),
+        browsePositions: ehBrowsePositionStore.getBackupInfo(),
         downloadItems: ehDownloadStore.getItems(),
         downloadLabels: ehDownloadStore.getLabels(),
         filterRules: ehFilterStore.getRules(),
@@ -1545,6 +1552,7 @@ export struct SettingsScene {
             }
           }
         }
+        const importedReadingProgress = Array.isArray(bundle.readingProgress) ? bundle.readingProgress : [];
 
         let downloadsChanged = false;
         if (Array.isArray(bundle.downloadLabels)) {
@@ -1570,24 +1578,28 @@ export struct SettingsScene {
           saves.push(ehDownloadStore.save(context));
         }
 
-        if (importedHistory.length > 0) {
-          saves.push(ehHistoryStore.ensureLoaded(context).then(() => {
+        if (importedHistory.length > 0 || importedReadingProgress.length > 0) {
+          saves.push(ehHistoryStore.ensureLoaded(context).then(async () => {
             for (let i = 0; i < importedHistory.length; i++) {
               ehHistoryStore.addGallery(importedHistory[i], importedHistoryLimit);
             }
+            ehHistoryStore.importReadingProgressBackupItems(importedReadingProgress);
+            if (importedHistory.length === 0) {
+              await ehHistoryStore.save(context);
+              return;
+            }
             this.showBlockingBusy('Rebuilding imported history metadata...');
-            return rebuildImportedHistoryMetadata(context, importedHistory, this.currentGallerySite());
-          })
-            .then((result: DownloadMetadataRestoreResult) => {
-              this.hideBlockingBusy();
-              if (result.rebuilt > 0 || result.fetched > 0) {
-                this.showFloatingStatus('Imported history metadata rebuilt: ' + result.rebuilt.toString() +
-                  ', fetched ' + result.fetched.toString());
-              }
-            }).catch((error: Error) => {
-              this.hideBlockingBusy();
-              throw error;
-            }));
+            const result: DownloadMetadataRestoreResult = await rebuildImportedHistoryMetadata(context,
+              importedHistory, this.currentGallerySite());
+            this.hideBlockingBusy();
+            if (result.rebuilt > 0 || result.fetched > 0) {
+              this.showFloatingStatus('Imported history metadata rebuilt: ' + result.rebuilt.toString() +
+                ', fetched ' + result.fetched.toString());
+            }
+          }).catch((error: Error) => {
+            this.hideBlockingBusy();
+            throw error;
+          }));
         }
 
         if (Array.isArray(bundle.filterRules)) {
@@ -1614,6 +1626,23 @@ export struct SettingsScene {
           saves.push(ehBookmarkStore.ensureLoaded(context).then(() => {
             ehBookmarkStore.importBackupItems(bookmarks);
             return ehBookmarkStore.save(context);
+          }));
+        }
+
+        if (Array.isArray(bundle.searchHistory)) {
+          const searchHistory = bundle.searchHistory;
+          saves.push(ehSearchHistoryStore.load(context).then(() => {
+            ehSearchHistoryStore.importKeywords(searchHistory);
+            return ehSearchHistoryStore.save(context);
+          }));
+        }
+
+        if (bundle.browsePositions !== undefined && bundle.browsePositions !== null &&
+          typeof bundle.browsePositions === 'object') {
+          const browsePositions = bundle.browsePositions as BrowsePositionsBackupInfo;
+          saves.push(ehBrowsePositionStore.ensureLoaded(context).then(() => {
+            ehBrowsePositionStore.importBackupInfo(browsePositions);
+            return ehBrowsePositionStore.save(context);
           }));
         }
 

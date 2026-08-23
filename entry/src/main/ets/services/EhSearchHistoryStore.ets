@@ -2,7 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 
 const FILE_NAME: string = 'ehviewer_search_history.json';
-const SEARCH_HISTORY_MAX_SIZE: number = 128;
+const SEARCH_HISTORY_MAX_SIZE: number = 100;
 
 interface SearchHistoryFile {
   version?: number;
@@ -20,8 +20,36 @@ export class EhSearchHistoryStore {
     return this.keywords.slice();
   }
 
+  importKeywords(keywords: string[]): number {
+    if (!Array.isArray(keywords)) {
+      return 0;
+    }
+    const imported: string[] = [];
+    for (let i = 0; i < keywords.length && imported.length < SEARCH_HISTORY_MAX_SIZE; i++) {
+      if (typeof keywords[i] !== 'string') {
+        continue;
+      }
+      const trimmed = keywords[i].trim();
+      if (trimmed.length > 0 && imported.indexOf(trimmed) < 0) {
+        imported.push(trimmed);
+      }
+    }
+    const importedCount = imported.length;
+    for (let i = 0; i < this.keywords.length && imported.length < SEARCH_HISTORY_MAX_SIZE; i++) {
+      if (imported.indexOf(this.keywords[i]) < 0) {
+        imported.push(this.keywords[i]);
+      }
+    }
+    this.keywords = imported;
+    this.queueSave();
+    return importedCount;
+  }
+
   async load(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
+    if (this.loaded) {
+      return;
+    }
     if (this.loadPromise !== null) {
       await this.loadPromise;
       return;
@@ -32,6 +60,13 @@ export class EhSearchHistoryStore {
     } finally {
       this.loadPromise = null;
     }
+  }
+
+  async save(context: common.UIAbilityContext): Promise<void> {
+    this.context = context;
+    const pending = this.saveChain.then(() => this.saveNow(context));
+    this.saveChain = pending.catch(() => {});
+    await pending;
   }
 
   record(keyword: string): void {

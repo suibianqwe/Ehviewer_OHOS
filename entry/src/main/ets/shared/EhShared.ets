@@ -4,7 +4,8 @@ import { fileIo as fs, fileUri } from '@kit.CoreFileKit';
 import { GalleryCategory, GalleryComment, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite, GalleryTagGroup, GalleryTagInfo, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
 import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
-import { ehHistoryStore } from '../services/EhHistoryStore';
+import { ehHistoryStore, ReadingProgressBackupInfo } from '../services/EhHistoryStore';
+import { BrowsePositionsBackupInfo } from '../services/EhBrowsePositionStore';
 import {
   DEFAULT_DOWNLOAD_LABEL_ASK,
   DEFAULT_DOWNLOAD_LABEL_SETTING_KEY,
@@ -68,6 +69,9 @@ export interface EhBackupBundle {
   cookies: string;
   settings: SettingEntry[];
   history: GalleryInfo[];
+  readingProgress?: ReadingProgressBackupInfo[];
+  searchHistory?: string[];
+  browsePositions?: BrowsePositionsBackupInfo;
   downloadItems: DownloadInfo[];
   downloadLabels: DownloadLabel[];
   filterRules: FilterRule[];
@@ -1749,8 +1753,8 @@ export function zhText(text: string): string {
     case 'Bypass SNI blocking using built-in host fronting': return '使用内置 hosts 绕过 SNI 封锁';
     case 'Use direct connection when the selected site responds within 5s': return '所选站点 5 秒内可直连时不使用 hosts 和域名前置';
     case 'Export data': return '导出数据';
-    case 'Save settings, login cookies, history, downloads, filters and comment blacklist without igneous to a JSON file':
-      return '将设置、登录 Cookie、历史记录、下载、过滤规则和评论黑名单保存为 JSON 文件（不含 igneous）';
+    case 'Save settings, login cookies, gallery and search history, reading progress, favorites, downloads, browsing positions, filters and comment blacklist without igneous to a JSON file':
+      return '将设置、登录 Cookie、画廊和搜索历史、阅读进度、收藏、下载、浏览位置、过滤规则和评论黑名单保存为 JSON 文件（不含 igneous）';
     case 'Import data': return '导入数据';
     case 'Restore settings and local data from a supported backup file': return '从支持的备份文件恢复设置和本地数据';
     case 'Wi-Fi server/client': return 'Wi-Fi 服务器/客户端';
@@ -3082,21 +3086,21 @@ export function downloadPageIndexes(count: number): number[] {
 export function downloadQueueSummary(items: DownloadInfo[]): string {
   let wait = 0;
   let active = 0;
-  let done = 0;
   let failed = 0;
   for (let i = 0; i < items.length; i++) {
     if (items[i].state === DownloadState.Wait) {
       wait++;
     } else if (items[i].state === DownloadState.Downloading) {
       active++;
-    } else if (items[i].state === DownloadState.Finish) {
-      done++;
     } else if (items[i].state === DownloadState.Failed) {
       failed++;
     }
   }
+  if (active <= 0 && failed <= 0) {
+    return '';
+  }
   return uiText('Waiting') + ' ' + wait.toString() + ' / ' + uiText('Downloading') + ' ' + active.toString() +
-    ' / ' + uiText('Downloaded') + ' ' + done.toString() + ' / ' + uiText('Failed') + ' ' + failed.toString();
+    ' / ' + uiText('Failed') + ' ' + failed.toString();
 }
 
 export function routeTitle(route: GalleryRoute): string {
@@ -3427,7 +3431,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
     rows.push(optionSettingsRow('domain_fronting', 'Domain fronting', 'Bypass SNI blocking using built-in host fronting', entries, ON_OFF_OPTIONS));
     rows.push(optionSettingsRow('auto_direct_connection', 'Direct connection check', 'Use direct connection when the selected site responds within 5s', entries, ON_OFF_OPTIONS));
     rows.push(staticSettingsRow('export_data', 'Export data',
-      'Save settings, login cookies, history, downloads, filters and comment blacklist without igneous to a JSON file',
+      'Save settings, login cookies, gallery and search history, reading progress, favorites, downloads, browsing positions, filters and comment blacklist without igneous to a JSON file',
       'Export', 'action'));
     rows.push(staticSettingsRow('import_data', 'Import data', 'Restore settings and local data from a supported backup file', 'Import', 'action'));
     rows.push(staticSettingsRow('wifi_transfer', 'Wi-Fi Direct transfer',

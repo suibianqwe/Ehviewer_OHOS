@@ -10,7 +10,7 @@ export interface BrowsePosition {
   offset: number;
 }
 
-interface StoredBrowsePositions {
+export interface BrowsePositionsBackupInfo {
   bookmarkDrawer?: BrowsePosition;
   downloads?: BrowsePosition;
 }
@@ -64,6 +64,23 @@ export class EhBrowsePositionStore {
     return cloneBrowsePosition(this.downloads);
   }
 
+  getBackupInfo(): BrowsePositionsBackupInfo {
+    return {
+      bookmarkDrawer: cloneBrowsePosition(this.bookmarkDrawer),
+      downloads: cloneBrowsePosition(this.downloads)
+    };
+  }
+
+  importBackupInfo(value: BrowsePositionsBackupInfo): void {
+    if (value.bookmarkDrawer !== undefined) {
+      this.bookmarkDrawer = normalizeBrowsePosition(value.bookmarkDrawer);
+    }
+    if (value.downloads !== undefined) {
+      this.downloads = normalizeBrowsePosition(value.downloads);
+    }
+    this.scheduleSave();
+  }
+
   updateBookmarkDrawerPosition(anchorId: string, anchorIndex: number, offset: number): void {
     this.bookmarkDrawer = normalizeBrowsePosition({
       anchorId: anchorId,
@@ -90,12 +107,22 @@ export class EhBrowsePositionStore {
     this.queueSave();
   }
 
+  async save(context: common.UIAbilityContext): Promise<void> {
+    this.context = context;
+    if (this.saveTimer >= 0) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = -1;
+    }
+    const pending = this.enqueueSave(context, this.getBackupInfo());
+    await pending;
+  }
+
   private async load(context: common.UIAbilityContext): Promise<void> {
     try {
       const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
       const raw = await prefs.get(VALUES_KEY, '');
       if (typeof raw === 'string' && raw.length > 0) {
-        const parsed = JSON.parse(raw) as StoredBrowsePositions;
+        const parsed = JSON.parse(raw) as BrowsePositionsBackupInfo;
         this.bookmarkDrawer = normalizeBrowsePosition(parsed.bookmarkDrawer);
         this.downloads = normalizeBrowsePosition(parsed.downloads);
       }
@@ -126,15 +153,17 @@ export class EhBrowsePositionStore {
     if (!this.loaded || context === undefined) {
       return;
     }
-    const snapshot: StoredBrowsePositions = {
-      bookmarkDrawer: cloneBrowsePosition(this.bookmarkDrawer),
-      downloads: cloneBrowsePosition(this.downloads)
-    };
-    this.saveChain = this.saveChain.then(async () => {
+    this.enqueueSave(context, this.getBackupInfo());
+  }
+
+  private enqueueSave(context: common.UIAbilityContext, snapshot: BrowsePositionsBackupInfo): Promise<void> {
+    const pending = this.saveChain.then(async () => {
       const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
       await prefs.put(VALUES_KEY, JSON.stringify(snapshot));
       await prefs.flush();
-    }).catch(() => {});
+    });
+    this.saveChain = pending.catch(() => {});
+    return pending;
   }
 }
 
