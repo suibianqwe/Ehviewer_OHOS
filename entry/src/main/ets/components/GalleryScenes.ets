@@ -4028,6 +4028,9 @@ export struct GalleryListContent {
   @State viewportHeight: number = 0;
   private listScroller: Scroller = new Scroller();
   private searchTagScroller: Scroller = new Scroller();
+  private searchTagTokenCount: number = 0;
+  private searchTagEndScrollRequest: number = 0;
+  private searchTagEndScrollPending: boolean = false;
   private cardScrollAnchor: GalleryCardScrollAnchor = new GalleryCardScrollAnchor();
   private loadMorePending: boolean = false;
   private restoredScroll: boolean = false;
@@ -4062,7 +4065,13 @@ export struct GalleryListContent {
   }
 
   onSearchKeywordChanged(): void {
+    const tagCount = this.selectedSearchTagTokens().length;
+    const tagAdded = tagCount > this.searchTagTokenCount;
+    this.searchTagTokenCount = tagCount;
     this.refreshSearchSuggestions();
+    if (tagAdded) {
+      this.scrollSearchTagsToEnd();
+    }
   }
 
   onGalleriesChanged(): void {
@@ -4185,6 +4194,7 @@ export struct GalleryListContent {
     this.onLayoutWidthHintChanged();
     this.syncContentWidthFromWindow();
     this.syncPageJumpDraft();
+    this.searchTagTokenCount = this.selectedSearchTagTokens().length;
     this.refreshSearchSuggestions();
     if (this.initialScrollOffset > 0) {
       this.contentOpacity = 0;
@@ -4231,6 +4241,8 @@ export struct GalleryListContent {
   }
 
   aboutToDisappear(): void {
+    this.searchTagEndScrollRequest++;
+    this.searchTagEndScrollPending = false;
     this.cardScrollAnchor.clear();
     this.unregisterActiveBackHandler();
     this.unregisterActiveBackHandler = () => {};
@@ -4578,8 +4590,36 @@ export struct GalleryListContent {
   }
 
   private scrollSearchTagsToEnd(): void {
+    this.searchTagEndScrollPending = true;
+    const request = ++this.searchTagEndScrollRequest;
     setTimeout(() => {
-      this.searchTagScroller.scrollEdge(Edge.End);
+      this.alignSearchTagsToEnd(request, false);
+    }, 0);
+    setTimeout(() => {
+      this.alignSearchTagsToEnd(request, false);
+    }, 40);
+    setTimeout(() => {
+      this.alignSearchTagsToEnd(request, true);
+    }, 100);
+  }
+
+  private alignSearchTagsToEnd(request: number, finish: boolean): void {
+    if (request !== this.searchTagEndScrollRequest) {
+      return;
+    }
+    this.searchTagScroller.scrollEdge(Edge.End);
+    if (finish) {
+      this.searchTagEndScrollPending = false;
+    }
+  }
+
+  private alignPendingSearchTagsAfterLayout(): void {
+    if (!this.searchTagEndScrollPending) {
+      return;
+    }
+    const request = this.searchTagEndScrollRequest;
+    setTimeout(() => {
+      this.alignSearchTagsToEnd(request, false);
     }, 0);
   }
 
@@ -4639,6 +4679,9 @@ export struct GalleryListContent {
               this.searchTagChip(token)
             }, (token: string) => token)
           }
+          .onAreaChange((_oldArea: Area, _newArea: Area) => {
+            this.alignPendingSearchTagsAfterLayout();
+          })
         }
         .height(30)
         .scrollable(ScrollDirection.Horizontal)
@@ -4797,7 +4840,6 @@ export struct GalleryListContent {
     if (suggestion.kind === 'tag') {
       this.onKeywordChange(addSearchTagToken(this.keyword, suggestion.query));
       this.onSearchModeChange(ListMode.Normal);
-      this.scrollSearchTagsToEnd();
       return;
     }
     this.onKeywordChange(suggestion.query);
