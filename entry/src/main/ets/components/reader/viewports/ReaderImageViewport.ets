@@ -67,6 +67,7 @@ export struct ReaderImageViewport {
   @Prop @Watch('onCropWhiteBordersChange') cropWhiteBorders: boolean = false;
   @Prop translation: ReaderPageTranslation | null = null;
   @Prop allowEdgeSwipe: boolean = true;
+  @Prop interactive: boolean = true;
   @Prop command: string = '';
   @Prop @Watch('onCommandChange') commandVersion: number = 0;
   onTap: (x: number, y: number, w: number, h: number) => void = () => {};
@@ -114,13 +115,13 @@ export struct ReaderImageViewport {
 
   aboutToDisappear(): void {
     this.releaseRuntimeState();
-    if (this.isActive) {
+    if (this.isActive && this.interactive) {
       this.onSwipeLockChange(false);
     }
   }
 
   onCommandChange(): void {
-    if (!this.isActive || this.commandVersion === this.lastCommandVersion) {
+    if (!this.interactive || !this.isActive || this.commandVersion === this.lastCommandVersion) {
       return;
     }
     this.lastCommandVersion = this.commandVersion;
@@ -753,7 +754,7 @@ export struct ReaderImageViewport {
   }
 
   private reportState(): void {
-    if (!this.isActive) {
+    if (!this.interactive || !this.isActive) {
       return;
     }
     this.onSwipeLockChange(this.imageModel.disableSwipe);
@@ -963,6 +964,9 @@ export struct ReaderImageViewport {
       )
     )
     .onGestureJudgeBegin((gestureInfo: GestureInfo, event: BaseGestureEvent) => {
+      if (!this.interactive) {
+        return GestureJudgeResult.REJECT;
+      }
       if (gestureInfo.type === GestureControl.GestureType.DRAG) {
         return GestureJudgeResult.REJECT;
       }

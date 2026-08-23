@@ -82,9 +82,11 @@ import {
 import { ArrayDataSource } from '../shared/ListDataSource';
 import {
   READER_BASE_SCALE,
+  READER_INERTIA_DURATION,
   READER_MAX_SCALE,
   READER_MIN_SCALE,
   READER_OFFSCREEN_RENDER_SCREEN_COUNT,
+  ReaderPreviewModel,
   readerBackgroundColor,
   readerLocalSourceImagePath
 } from './reader/core/ReaderCore';
@@ -234,6 +236,7 @@ export struct ReaderScene {
   @State continuousOffsetX: number = 0;
   @State viewportCommand: string = '';
   @State viewportCommandVersion: number = 0;
+  @State pairedImageModel: ReaderPreviewModel = new ReaderPreviewModel();
   @State comicTranslationButtonX: number = 0;
   @State comicTranslationButtonY: number = 160;
   // Swiper direction state (applied from menu)
@@ -263,6 +266,7 @@ export struct ReaderScene {
   private continuousScroller: Scroller = new Scroller();
   private activeImageWidth: number = 0;
   private activeImageHeight: number = 0;
+  private pairedViewportIndex: number = -1;
   private continuousDragStartOffsetX: number = 0;
   private comicTranslationDragStartX: number = 0;
   private comicTranslationDragStartY: number = 0;
@@ -643,6 +647,7 @@ export struct ReaderScene {
 
   onGalleryIdChange(): void {
     this.imageProcessingPrefetchScope.clear();
+    this.resetPairedViewport();
     if (!this.resetReaderImageSizesForGallery()) {
       return;
     }
@@ -655,6 +660,7 @@ export struct ReaderScene {
     if (this.readerWindowActive) {
       this.syncReaderPageIndexSource();
       this.syncImageProcessingPrefetch();
+      this.syncPairedViewport(this.currentIndex);
     }
   }
 
@@ -669,10 +675,12 @@ export struct ReaderScene {
   }
 
   onTotalPagesChange(): void {
+    this.resetPairedViewport();
     this.currentIndex = this.pageGroupAnchorForPageIndex(this.currentIndex);
     this.sliderLiveIndex = this.clampReaderPageIndex(this.currentIndex);
     this.syncReaderPageIndexSource();
     this.syncImageProcessingPrefetch();
+    this.syncPairedViewport(this.currentIndex);
   }
 
   private statusBarHeightVp(): number {
@@ -773,6 +781,7 @@ export struct ReaderScene {
   }
 
   onPageIndexChange(): void {
+    this.resetPairedViewport();
     this.currentIndex = this.pageGroupAnchorForPageIndex(this.pageIndex);
     this.sliderLiveIndex = this.clampReaderPageIndex(this.currentIndex);
     this.sliderDragging = false;
@@ -782,6 +791,7 @@ export struct ReaderScene {
     this.scheduleAutoTransfer();
     this.syncReaderPageIndexSource();
     this.syncImageProcessingPrefetch();
+    this.syncPairedViewport(this.currentIndex);
     try {
       this.swiperController.changeIndex(this.visualIndexForPageIndex(this.currentIndex), false);
     } catch (e) {}
@@ -885,9 +895,11 @@ export struct ReaderScene {
         return;
       }
       this.pageGroupRefreshPending = false;
+      this.resetPairedViewport();
       this.normalizeCurrentPageGroup();
       this.syncReaderPageIndexSource();
       this.syncImageProcessingPrefetch();
+      this.syncPairedViewport(this.currentIndex);
     }, Math.max(0, delay)) as number;
   }
 
@@ -937,6 +949,7 @@ export struct ReaderScene {
     if (anchor === this.currentIndex) {
       return;
     }
+    this.resetPairedViewport();
     this.currentIndex = anchor;
     this.sliderLiveIndex = anchor;
     this.imageActionPageIndex = anchor;
@@ -1153,7 +1166,25 @@ export struct ReaderScene {
     return this.swiperVertical;
   }
 
-  private issueViewportCommand(command: string): void {
+  private issueViewportCommand(command: string, centerX: number = -1, centerY: number = -1): void {
+    if (!this.isContinuousVerticalMode() && this.shouldPairPage(this.currentIndex)) {
+      this.syncPairedViewport(this.currentIndex);
+      if (command === 'zoom_in') {
+        this.pairedImageModel.zoomBy(1.25);
+      } else if (command === 'zoom_out') {
+        this.pairedImageModel.zoomBy(0.8);
+      } else if (command === 'double_zoom') {
+        this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseOut }, () => {
+          this.pairedImageModel.toggleDoubleTap(
+            centerX >= 0 ? centerX : this.pairedImageModel.componentWidth / 2,
+            centerY >= 0 ? centerY : this.pairedImageModel.componentHeight / 2
+          );
+        });
+      } else if (command === 'reset') {
+        this.pairedImageModel.reset();
+      }
+      this.reportPairedViewportState(this.currentIndex);
+    }
     this.viewportCommand = command;
     this.viewportCommandVersion++;
   }
@@ -2401,11 +2432,13 @@ export struct ReaderScene {
     if (target === this.currentIndex) {
       return;
     }
+    this.resetPairedViewport();
     this.resetActiveImageSize();
     this.currentIndex = target;
     this.isDisableSwipe = false;
     this.zoomPercent = this.isFixedScaleMode() ? Math.round(this.fixedScale * 100) : 100;
     this.imageActionsVisible = false;
+    this.syncPairedViewport(target);
     if (this.autoTransferPlaying) {
       this.scheduleAutoTransfer();
     }
@@ -2459,12 +2492,14 @@ export struct ReaderScene {
     if (index === this.currentIndex) {
       return;
     }
+    this.resetPairedViewport();
     this.resetActiveImageSize();
     this.currentIndex = index;
     this.syncImageProcessingPrefetch();
     this.isDisableSwipe = false;
     this.zoomPercent = this.isFixedScaleMode() ? Math.round(this.fixedScale * 100) : 100;
     this.imageActionsVisible = false;
+    this.syncPairedViewport(index);
     if (this.autoTransferPlaying) {
       this.scheduleAutoTransfer();
     }
@@ -2552,7 +2587,7 @@ export struct ReaderScene {
   private onReaderScreenTap(event: GestureEvent): void {
     if (this.screenTapTimer !== -1) {
       this.clearScreenTapTimer();
-      this.issueViewportCommand('double_zoom');
+      this.issueViewportCommand('double_zoom', this.tapLocalX(event), this.tapLocalY(event));
       return;
     }
     const tapX = this.tapLocalX(event);
@@ -2601,8 +2636,90 @@ export struct ReaderScene {
     return Math.max(1, this.pairedPageCrossExtent(groupIndex) * size.width / size.height);
   }
 
+  private pairedCanvasWidth(index: number): number {
+    if (this.readerLayoutHeight >= this.readerLayoutWidth) {
+      return this.pairedPageCrossExtent(index);
+    }
+    return this.pairedPageDisplayExtent(index, index) + this.pairedPageDisplayExtent(index, index + 1);
+  }
+
+  private pairedCanvasHeight(index: number): number {
+    if (this.readerLayoutHeight >= this.readerLayoutWidth) {
+      return this.pairedPageDisplayExtent(index, index) + this.pairedPageDisplayExtent(index, index + 1);
+    }
+    return this.pairedPageCrossExtent(index);
+  }
+
+  private resetPairedViewport(): void {
+    this.pairedViewportIndex = -1;
+    this.pairedImageModel.reset();
+  }
+
+  private syncPairedViewport(index: number, width: number = this.readerLayoutWidth,
+    height: number = this.readerLayoutHeight): void {
+    if (index !== this.currentIndex || !this.shouldPairPage(index) || width <= 0 || height <= 0) {
+      return;
+    }
+    if (this.pairedViewportIndex !== index) {
+      this.pairedImageModel.reset();
+      this.pairedViewportIndex = index;
+    }
+    this.pairedImageModel.setComponentSize(width, height);
+    this.pairedImageModel.setImageSize(this.pairedCanvasWidth(index), this.pairedCanvasHeight(index));
+    this.reportPairedViewportState(index);
+  }
+
+  private reportPairedViewportState(index: number): void {
+    if (index !== this.currentIndex || this.pairedViewportIndex !== index) {
+      return;
+    }
+    this.isDisableSwipe = this.pairedImageModel.disableSwipe;
+    this.zoomPercent = this.pairedImageModel.zoomPercent();
+  }
+
+  private pairedScale(index: number): number {
+    return this.pairedViewportIndex === index ? this.pairedImageModel.currentScale : READER_BASE_SCALE;
+  }
+
+  private pairedOffsetX(index: number): number {
+    return this.pairedViewportIndex === index ? this.pairedImageModel.currentOffsetX : 0;
+  }
+
+  private pairedOffsetY(index: number): number {
+    return this.pairedViewportIndex === index ? this.pairedImageModel.currentOffsetY : 0;
+  }
+
+  private pairedPageIndexAt(index: number, event: GestureEvent): number {
+    const scale = Math.max(READER_MIN_SCALE, this.pairedImageModel.currentScale);
+    const canvasLeft = (this.pairedImageModel.componentWidth - this.pairedImageModel.imageWidth * scale) / 2 +
+      this.pairedImageModel.currentOffsetX;
+    const canvasTop = (this.pairedImageModel.componentHeight - this.pairedImageModel.imageHeight * scale) / 2 +
+      this.pairedImageModel.currentOffsetY;
+    const localX = (this.tapLocalX(event) - canvasLeft) / scale;
+    const localY = (this.tapLocalY(event) - canvasTop) / scale;
+    if (this.readerLayoutHeight >= this.readerLayoutWidth) {
+      return localY < this.pairedPageDisplayExtent(index, index) ? index : index + 1;
+    }
+    const firstVisualExtent = this.swiperReversed ?
+      this.pairedPageDisplayExtent(index, index + 1) : this.pairedPageDisplayExtent(index, index);
+    if (localX < firstVisualExtent) {
+      return this.swiperReversed ? index + 1 : index;
+    }
+    return this.swiperReversed ? index : index + 1;
+  }
+
+  private shouldLetSwiperHandlePairedPan(event: BaseGestureEvent): boolean {
+    const panEvent = event as PanGestureEvent;
+    return this.pairedImageModel.shouldLetSwiperHandlePan(
+      panEvent.offsetX,
+      panEvent.velocityX,
+      panEvent.offsetY,
+      panEvent.velocityY
+    );
+  }
+
   @Builder
-  private ReaderPageViewport(index: number, width: Length, height: Length) {
+  private ReaderPageViewport(index: number, width: Length, height: Length, interactive: boolean = true) {
     ReaderImageViewport({
       page: this.pageForIndex(index),
       statusText: index === this.pageIndex ? this.statusText : uiText('Image page is loading'),
@@ -2622,6 +2739,7 @@ export struct ReaderScene {
       translation: this.pageGroupAnchorForPageIndex(index) === this.currentIndex ?
         this.readerTranslationForPage(index) : null,
       allowEdgeSwipe: !this.swiperVertical,
+      interactive: interactive,
       command: this.viewportCommand,
       commandVersion: this.viewportCommandVersion,
       onTap: () => {},
@@ -2667,30 +2785,117 @@ export struct ReaderScene {
   }
 
   @Builder
+  private ReaderPairedPageGroup(index: number) {
+    Stack({ alignContent: Alignment.Center }) {
+      if (this.readerLayoutHeight >= this.readerLayoutWidth) {
+        Column({ space: 0 }) {
+          this.ReaderPageViewport(index, '100%', this.pairedPageDisplayExtent(index, index), false)
+          this.ReaderPageViewport(index + 1, '100%', this.pairedPageDisplayExtent(index, index + 1), false)
+        }
+        .width(this.pairedCanvasWidth(index))
+        .height(this.pairedCanvasHeight(index))
+        .scale({ x: this.pairedScale(index), y: this.pairedScale(index), centerX: '50%', centerY: '50%' })
+        .translate({ x: this.pairedOffsetX(index), y: this.pairedOffsetY(index) })
+      } else {
+        Row({ space: 0 }) {
+          if (this.swiperReversed) {
+            this.ReaderPageViewport(index + 1, this.pairedPageDisplayExtent(index, index + 1), '100%', false)
+            this.ReaderPageViewport(index, this.pairedPageDisplayExtent(index, index), '100%', false)
+          } else {
+            this.ReaderPageViewport(index, this.pairedPageDisplayExtent(index, index), '100%', false)
+            this.ReaderPageViewport(index + 1, this.pairedPageDisplayExtent(index, index + 1), '100%', false)
+          }
+        }
+        .width(this.pairedCanvasWidth(index))
+        .height(this.pairedCanvasHeight(index))
+        .scale({ x: this.pairedScale(index), y: this.pairedScale(index), centerX: '50%', centerY: '50%' })
+        .translate({ x: this.pairedOffsetX(index), y: this.pairedOffsetY(index) })
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .clip(true)
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      const width = Number.parseFloat(newArea.width.toString());
+      const height = Number.parseFloat(newArea.height.toString());
+      this.syncPairedViewport(index, width, height);
+    })
+    .gesture(
+      GestureGroup(GestureMode.Parallel,
+        LongPressGesture({ repeat: false })
+          .onAction((event: GestureEvent) => {
+            if (index === this.currentIndex) {
+              this.showImageActions(this.pairedPageIndexAt(index, event));
+            }
+          }),
+        PanGesture({ fingers: 1, distance: 3 })
+          .onActionStart(() => {
+            this.pairedImageModel.panStart();
+            this.reportPairedViewportState(index);
+          })
+          .onActionUpdate((event: GestureEvent) => {
+            this.pairedImageModel.panUpdate(event.offsetX, event.offsetY);
+            this.reportPairedViewportState(index);
+          })
+          .onActionEnd((event: GestureEvent) => {
+            const edgeDirection = this.pairedImageModel.edgeSwipeDirection(
+              event.offsetX,
+              event.velocityX,
+              event.offsetY,
+              event.velocityY
+            );
+            this.getUIContext().animateTo({ duration: READER_INERTIA_DURATION, curve: Curve.EaseOut }, () => {
+              this.pairedImageModel.panEnd(event.velocityX, event.velocityY);
+            });
+            this.reportPairedViewportState(index);
+            if (edgeDirection !== 0) {
+              this.jumpByVisualDirection(edgeDirection);
+            }
+          })
+          .onActionCancel(() => {
+            this.getUIContext().animateTo({ duration: READER_INERTIA_DURATION, curve: Curve.EaseOut }, () => {
+              this.pairedImageModel.panEnd();
+            });
+            this.reportPairedViewportState(index);
+          }),
+        PinchGesture({ fingers: 2, distance: 1 })
+          .onActionStart((event: GestureEvent) => {
+            this.pairedImageModel.pinchStart(event.pinchCenterX, event.pinchCenterY);
+            this.reportPairedViewportState(index);
+          })
+          .onActionUpdate((event: GestureEvent) => {
+            this.pairedImageModel.pinchUpdate(event.scale);
+            this.reportPairedViewportState(index);
+          })
+          .onActionEnd(() => {
+            this.pairedImageModel.pinchEnd();
+            this.reportPairedViewportState(index);
+          })
+          .onActionCancel(() => {
+            this.pairedImageModel.pinchEnd();
+            this.reportPairedViewportState(index);
+          })
+      )
+    )
+    .onGestureJudgeBegin((gestureInfo: GestureInfo, event: BaseGestureEvent) => {
+      if (gestureInfo.type === GestureControl.GestureType.DRAG) {
+        return GestureJudgeResult.REJECT;
+      }
+      if (gestureInfo.type === GestureControl.GestureType.PAN_GESTURE &&
+        this.shouldLetSwiperHandlePairedPan(event)) {
+        return GestureJudgeResult.REJECT;
+      }
+      return GestureJudgeResult.CONTINUE;
+    })
+    .draggable(false)
+  }
+
+  @Builder
   private ReaderPageGroup(index: number, paired: boolean) {
     Stack({ alignContent: Alignment.Center }) {
       if (this.shouldRenderPageGroup(index)) {
         if (paired) {
-          if (this.readerLayoutHeight >= this.readerLayoutWidth) {
-            Column({ space: 0 }) {
-              this.ReaderPageViewport(index, '100%', this.pairedPageDisplayExtent(index, index))
-              this.ReaderPageViewport(index + 1, '100%', this.pairedPageDisplayExtent(index, index + 1))
-            }
-            .width(this.pairedPageCrossExtent(index))
-            .height(this.pairedPageDisplayExtent(index, index) + this.pairedPageDisplayExtent(index, index + 1))
-          } else {
-            Row({ space: 0 }) {
-              if (this.swiperReversed) {
-                this.ReaderPageViewport(index + 1, this.pairedPageDisplayExtent(index, index + 1), '100%')
-                this.ReaderPageViewport(index, this.pairedPageDisplayExtent(index, index), '100%')
-              } else {
-                this.ReaderPageViewport(index, this.pairedPageDisplayExtent(index, index), '100%')
-                this.ReaderPageViewport(index + 1, this.pairedPageDisplayExtent(index, index + 1), '100%')
-              }
-            }
-            .width(this.pairedPageDisplayExtent(index, index) + this.pairedPageDisplayExtent(index, index + 1))
-            .height(this.pairedPageCrossExtent(index))
-          }
+          this.ReaderPairedPageGroup(index)
         } else {
           this.ReaderPageViewport(index, '100%', '100%')
         }
@@ -3228,10 +3433,12 @@ export struct ReaderScene {
         layoutChanged = true;
       }
       if (layoutChanged) {
+        this.resetPairedViewport();
         this.normalizeCurrentPageGroup();
         this.syncReaderPageIndexSource();
         this.syncComicTranslationButtonPosition();
         this.syncImageProcessingPrefetch();
+        this.syncPairedViewport(this.currentIndex);
       }
     })
     .backgroundColor(readerBackgroundColor())
