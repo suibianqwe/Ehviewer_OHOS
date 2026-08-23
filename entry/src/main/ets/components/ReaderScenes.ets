@@ -293,6 +293,9 @@ export struct ReaderScene {
   private pageGroupRefreshPending: boolean = false;
   private swiperAnimating: boolean = false;
   private continuousScroller: Scroller = new Scroller();
+  private continuousScrollTarget: number = -1;
+  private continuousScrollRevision: number = 0;
+  private continuousScrollTimer: number = -1;
   private activeImageWidth: number = 0;
   private activeImageHeight: number = 0;
   private pairedViewportIndex: number = -1;
@@ -420,6 +423,9 @@ export struct ReaderScene {
     this.imageActionPageIndex = this.currentIndex;
     this.syncOverlayState();
     this.syncDirectionState();
+    if (this.isContinuousVerticalMode()) {
+      this.scheduleContinuousPageSync(this.currentIndex, false);
+    }
     this.syncUltraDarkState();
     this.refreshBattery();
     this.refreshOverlayInfo();
@@ -505,6 +511,7 @@ export struct ReaderScene {
     }
     this.clearPageGroupRefreshTimer();
     this.pageGroupRefreshPending = false;
+    this.clearContinuousPageSync();
     this.swiperAnimating = false;
     this.clearSliderTimer();
     this.clearScreenTapTimer();
@@ -700,6 +707,9 @@ export struct ReaderScene {
       this.syncReaderPageIndexSource();
       this.syncImageProcessingPrefetch();
       this.syncPairedViewport(this.currentIndex);
+      if (this.isContinuousVerticalMode()) {
+        this.scheduleContinuousPageSync(this.currentIndex, false);
+      }
     }
   }
 
@@ -715,11 +725,14 @@ export struct ReaderScene {
 
   onTotalPagesChange(): void {
     this.resetPairedViewport();
-    this.currentIndex = this.pageGroupAnchorForPageIndex(this.currentIndex);
+    this.currentIndex = this.pageGroupAnchorForPageIndex(this.pageIndex);
     this.sliderLiveIndex = this.clampReaderPageIndex(this.currentIndex);
     this.syncReaderPageIndexSource();
     this.syncImageProcessingPrefetch();
     this.syncPairedViewport(this.currentIndex);
+    if (this.readerWindowActive && this.isContinuousVerticalMode()) {
+      this.scheduleContinuousPageSync(this.currentIndex, false);
+    }
   }
 
   private statusBarHeightVp(): number {
@@ -770,6 +783,7 @@ export struct ReaderScene {
 
   private syncDirectionState(): void {
     const dir = normalizeReadingDirectionOption(ehSettingsStore.getValue('reading_direction', 'Right to left'));
+    const oldVertical = this.swiperVertical;
     const oldReversed = this.swiperReversed;
     this.swiperVertical = dir === 'Top to bottom';
     this.swiperReversed = dir === 'Right to left';
@@ -779,6 +793,13 @@ export struct ReaderScene {
       try {
         this.swiperController.changeIndex(this.visualIndexForPageIndex(this.currentIndex), false);
       } catch (e) {}
+    }
+    if (this.swiperVertical) {
+      if (!oldVertical || oldReversed !== this.swiperReversed) {
+        this.scheduleContinuousPageSync(this.currentIndex, false);
+      }
+    } else if (oldVertical) {
+      this.clearContinuousPageSync();
     }
   }
 
@@ -836,9 +857,13 @@ export struct ReaderScene {
     this.syncImageProcessingPrefetch();
     this.syncPairedViewport(this.currentIndex);
     if (pageGroupChanged) {
-      try {
-        this.swiperController.changeIndex(this.visualIndexForPageIndex(this.currentIndex), false);
-      } catch (e) {}
+      if (this.isContinuousVerticalMode()) {
+        this.scheduleContinuousPageSync(this.currentIndex, false);
+      } else {
+        try {
+          this.swiperController.changeIndex(this.visualIndexForPageIndex(this.currentIndex), false);
+        } catch (e) {}
+      }
     }
   }
 
@@ -2504,10 +2529,56 @@ export struct ReaderScene {
     if (this.autoTransferPlaying) {
       this.scheduleAutoTransfer();
     }
-    try {
-      this.swiperController.changeIndex(this.visualIndexForPageIndex(target), true);
-    } catch (e) {}
+    if (this.isContinuousVerticalMode()) {
+      this.scheduleContinuousPageSync(target, true);
+    } else {
+      try {
+        this.swiperController.changeIndex(this.visualIndexForPageIndex(target), true);
+      } catch (e) {}
+    }
     this.onJump(target);
+  }
+
+  private clearContinuousPageSync(): void {
+    this.continuousScrollRevision++;
+    this.continuousScrollTarget = -1;
+    if (this.continuousScrollTimer !== -1) {
+      clearTimeout(this.continuousScrollTimer);
+      this.continuousScrollTimer = -1;
+    }
+  }
+
+  private scheduleContinuousPageSync(pageIndex: number, smooth: boolean): void {
+    if (!this.isContinuousVerticalMode()) {
+      return;
+    }
+    const target = this.clampReaderPageIndex(pageIndex);
+    this.continuousScrollTarget = target;
+    const revision = ++this.continuousScrollRevision;
+    if (this.continuousScrollTimer !== -1) {
+      clearTimeout(this.continuousScrollTimer);
+      this.continuousScrollTimer = -1;
+    }
+    this.scheduleContinuousPageSyncAttempt(target, revision, smooth, 0);
+  }
+
+  private scheduleContinuousPageSyncAttempt(target: number, revision: number, smooth: boolean,
+    attempt: number): void {
+    const delay = attempt === 0 ? 0 : attempt === 1 ? 80 : 180;
+    this.continuousScrollTimer = setTimeout(() => {
+      this.continuousScrollTimer = -1;
+      if (!this.readerWindowActive || !this.isContinuousVerticalMode() ||
+        revision !== this.continuousScrollRevision || target !== this.continuousScrollTarget) {
+        return;
+      }
+      try {
+        this.continuousScroller.scrollToIndex(this.visualIndexForPageIndex(target), smooth, ScrollAlign.START);
+      } catch (error) {
+      }
+      if (attempt < 2 && target === this.continuousScrollTarget && revision === this.continuousScrollRevision) {
+        this.scheduleContinuousPageSyncAttempt(target, revision, false, attempt + 1);
+      }
+    }, delay) as number;
   }
 
   private previousReaderPage(): void {
@@ -2573,6 +2644,16 @@ export struct ReaderScene {
 
   private onContinuousScrollIndex(index: number): void {
     const pageIndex = this.pageIndexForVisualIndex(index);
+    if (this.continuousScrollTarget >= 0) {
+      if (pageIndex !== this.continuousScrollTarget) {
+        return;
+      }
+      this.continuousScrollTarget = -1;
+      if (this.continuousScrollTimer !== -1) {
+        clearTimeout(this.continuousScrollTimer);
+        this.continuousScrollTimer = -1;
+      }
+    }
     if (pageIndex === this.currentIndex) {
       return;
     }
@@ -3116,7 +3197,11 @@ export struct ReaderScene {
   build() {
     Stack({ alignContent: Alignment.Center }) {
       if (this.isContinuousVerticalMode()) {
-        List({ space: 0, scroller: this.continuousScroller }) {
+        List({
+          space: 0,
+          scroller: this.continuousScroller,
+          initialIndex: this.visualIndexForPageIndex(this.currentIndex)
+        }) {
           LazyForEach(this.readerPageIndexSource(), (item: ReaderPageGroupItem) => {
             ListItem() {
               ReaderContinuousImageItem({

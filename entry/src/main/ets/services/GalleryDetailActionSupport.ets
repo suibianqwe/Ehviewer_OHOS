@@ -18,9 +18,8 @@ export function createTagSearchRequest(namespace: string, tag: string): DetailSe
   if (trimmedNamespace.length === 0 || trimmedTag.length === 0) {
     return null;
   }
-  const tagQuery = trimmedTag.indexOf(' ') >= 0 ? '"' + trimmedTag.replace(/"/g, '\\"') + '"' : trimmedTag;
-  const keyword = trimmedNamespace + ':' + tagQuery;
-  return createKeywordSearchRequest(keyword, ListMode.Tag, keyword);
+  const keyword = trimmedNamespace + ':' + trimmedTag.replace(/\$+$/, '').trim() + '$';
+  return createKeywordSearchRequest(keyword, ListMode.Tag, trimmedNamespace + ':' + trimmedTag);
 }
 
 export function createSimilarGallerySearch(detail: GalleryDetail): DetailSearchRequest | null {
@@ -30,7 +29,7 @@ export function createSimilarGallerySearch(detail: GalleryDetail): DetailSearchR
   }
   const artist = firstArtistTag(detail.tags);
   if (artist.length > 0) {
-    return createKeywordSearchRequest('artist:' + artist, ListMode.Tag, 'Similar');
+    return createKeywordSearchRequest('artist:' + artist.replace(/\$+$/, '').trim() + '$', ListMode.Tag, 'Similar');
   }
   if (detail.uploader !== undefined && detail.uploader.length > 0) {
     return createKeywordSearchRequest(detail.uploader, ListMode.Uploader, 'Similar');

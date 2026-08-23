@@ -101,8 +101,9 @@ function activeTagPrefix(keyword: string): string {
 }
 
 const EXACT_TAG_PATTERN: RegExp = /([A-Za-z0-9_]+:[^$]+?\$)/g;
-const QUOTED_TAG_PATTERN: RegExp = /(^|\s)([A-Za-z0-9_]+):"([^"]+)"(?=\s|$)/g;
-const LEGACY_PLAIN_TAG_PATTERN: RegExp = /(^|\s)(a|c|cos|f|g|l|m|n|o|p|r|x):([^\s$"]+)(?=\s|$)/gi;
+const QUOTED_TAG_PATTERN: RegExp = /(^|\s)([A-Za-z0-9_]+):"([^"]+)"\$?(?=\s|$)/g;
+const PLAIN_TAG_PATTERN: RegExp =
+  /(^|\s)(a|artist|c|character|cos|cosplayer|f|female|g|group|l|language|location|m|male|mixed|n|o|other|p|parody|r|reclass|rows|x):([^\s$"]+)\$?(?=\s|$)/gi;
 
 function fullTagNamespace(namespace: string): string {
   const normalized = namespace.trim().toLowerCase();
@@ -120,8 +121,8 @@ export function normalizeLegacySearchKeyword(keyword: string): string {
       }
       return leading + fullTagNamespace(namespace) + ':' + tag + '$';
     });
-  LEGACY_PLAIN_TAG_PATTERN.lastIndex = 0;
-  normalized = normalized.replace(LEGACY_PLAIN_TAG_PATTERN,
+  PLAIN_TAG_PATTERN.lastIndex = 0;
+  normalized = normalized.replace(PLAIN_TAG_PATTERN,
     (_all: string, leading: string, namespace: string, rawTag: string): string => {
       const tag = rawTag.trim();
       if (tag.length === 0) {
