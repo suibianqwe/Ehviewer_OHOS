@@ -1136,21 +1136,6 @@ export struct ActionBubble {
 
   build() {
     Row({ space: 8 }) {
-      if (this.active && this.label.length > 0) {
-        Text(this.label)
-          .fontSize(12)
-          .fontColor(themePrimaryText())
-          .textAlign(TextAlign.End)
-          .backgroundColor(themeSurface())
-          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-          .borderRadius(14)
-          .shadow({ radius: 8, color: themeShadowColor(), offsetX: 0, offsetY: 2 })
-          .maxLines(1)
-          .transition(TransitionEffect.OPACITY
-            .combine(TransitionEffect.translate({ x: 8 }))
-            .animation({ duration: 140, curve: Curve.EaseOut }))
-      }
-
       Column() {
         SymbolGlyph(this.symbolIcon)
           .fontSize(this.primary ? 26 : 20)
@@ -1172,9 +1157,26 @@ export struct ActionBubble {
           this.onTapAction();
         }
       })
+
+      if (this.active && this.label.length > 0) {
+        Text(this.label)
+          .direction(Direction.Ltr)
+          .fontSize(12)
+          .fontColor(themePrimaryText())
+          .textAlign(TextAlign.End)
+          .backgroundColor(themeSurface())
+          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+          .borderRadius(14)
+          .shadow({ radius: 8, color: themeShadowColor(), offsetX: 0, offsetY: 2 })
+          .maxLines(1)
+          .transition(TransitionEffect.OPACITY
+            .combine(TransitionEffect.translate({ x: 8 }))
+            .animation({ duration: 140, curve: Curve.EaseOut }))
+      }
     }
+    .direction(Direction.Rtl)
     .alignItems(VerticalAlign.Center)
-    .justifyContent(FlexAlign.End)
+    .justifyContent(FlexAlign.Start)
     .hitTestBehavior(HitTestMode.Transparent)
     .transition(TransitionEffect.OPACITY
       .combine(TransitionEffect.translate({ y: 12 }))

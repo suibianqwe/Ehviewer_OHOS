@@ -2781,7 +2781,7 @@ struct DownloadToolColumn {
     if (kind === 'jump') return $r('sys.symbol.chevron_forward');
     if (kind === 'start') return $r('sys.symbol.play_fill');
     if (kind === 'stop') return $r('sys.symbol.pause_fill');
-    if (kind === 'scan') return $r('sys.symbol.play_arrow_triangle_2_circlepath');
+    if (kind === 'scan') return $r('sys.symbol.doc_text_badge_magnifyingglass');
     if (kind === 'translate') return $r('sys.symbol.translate');
     if (kind === 'random') return $r('sys.symbol.shuffle');
     return $r('sys.symbol.more');
