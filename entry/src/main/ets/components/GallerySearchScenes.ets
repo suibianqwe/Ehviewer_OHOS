@@ -100,13 +100,57 @@ function activeTagPrefix(keyword: string): string {
   return collected.join(' ').trim();
 }
 
+interface ActiveTagSearchInput {
+  text: string;
+  query: string;
+  namespace: string;
+}
+
+function activeTagSearchInput(keyword: string): ActiveTagSearchInput {
+  const trimmed = keyword.trim();
+  const explicit = trimmed.match(/(^|\s)([A-Za-z0-9_]+)\s*[:：]\s*(.*)$/);
+  if (explicit !== null && isKnownTagNamespace(explicit[2])) {
+    let query = explicit[3].trim();
+    query = query.replace(/^["“＂]/, '').trim();
+    query = query.replace(/\$+$/, '').trim();
+    query = query.replace(/["”＂]$/, '').trim();
+    query = query.replace(/\$+$/, '').trim();
+    return {
+      text: explicit[0].trim(),
+      query: query,
+      namespace: fullTagNamespace(explicit[2])
+    };
+  }
+  const active = activeTagPrefix(trimmed);
+  return {
+    text: active,
+    query: active,
+    namespace: ''
+  };
+}
+
 const EXACT_TAG_PATTERN: RegExp = /([A-Za-z0-9_]+:[^$]+?\$)/g;
 const QUOTED_TAG_PATTERN: RegExp = /(^|\s)([A-Za-z0-9_]+):"([^"]+)"\$?(?=\s|$)/g;
+const SUBMITTED_TAG_PATTERN: RegExp =
+  /(^|\s)([A-Za-z0-9_]+)\s*[:：]\s*(?:"([^"]+)"|“([^”]+)”|＂([^＂]+)＂|([^$\s]+))\$?(?=\s|$)/g;
 
 function fullTagNamespace(namespace: string): string {
   const normalized = namespace.trim().toLowerCase();
   const aliased = LEGACY_TAG_NAMESPACE_ALIASES[normalized];
   return aliased === undefined ? normalized : aliased;
+}
+
+function isKnownTagNamespace(namespace: string): boolean {
+  const normalized = fullTagNamespace(namespace);
+  if (normalized === 'reclass') {
+    return true;
+  }
+  for (let i = 0; i < TAG_NAMESPACE_OPTIONS.length; i++) {
+    if (TAG_NAMESPACE_OPTIONS[i].value === normalized) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function normalizeExactSearchTagToken(token: string): string {
@@ -145,6 +189,25 @@ export function normalizeLegacySearchKeyword(keyword: string): string {
     });
   normalized = normalizeExactSearchTags(normalized);
   return normalized.replace(/\s+/g, ' ').trim();
+}
+
+export function normalizeSubmittedSearchKeyword(keyword: string): string {
+  SUBMITTED_TAG_PATTERN.lastIndex = 0;
+  const normalized = keyword.replace(SUBMITTED_TAG_PATTERN,
+    (_all: string, leading: string, namespace: string, quotedTag: string, curvedQuotedTag: string,
+      fullWidthQuotedTag: string, unquotedTag: string): string => {
+      if (!isKnownTagNamespace(namespace)) {
+        return _all;
+      }
+      const rawTag = quotedTag || curvedQuotedTag || fullWidthQuotedTag || unquotedTag || '';
+      const tag = rawTag.trim().replace(/\$+$/, '').trim();
+      if (tag.length === 0) {
+        return _all;
+      }
+      return leading + fullTagNamespace(namespace) + ':' + tag + '$';
+    });
+  SUBMITTED_TAG_PATTERN.lastIndex = 0;
+  return normalizeLegacySearchKeyword(normalized);
 }
 
 export function normalizeSearchTagToken(tag: string): string {
@@ -278,8 +341,9 @@ export function addSearchTagToken(keyword: string, tag: string): string {
     tokens.push(nextToken);
   }
   const text = searchKeywordWithoutTagTokens(keyword);
-  const active = activeTagPrefix(text);
-  const remaining = active.length > 0 && text.endsWith(active) ? text.substring(0, text.length - active.length).trim() : text;
+  const active = activeTagSearchInput(text);
+  const remaining = active.text.length > 0 && text.endsWith(active.text) ?
+    text.substring(0, text.length - active.text.length).trim() : text;
   if (remaining.length > 0) {
     tokens.push(remaining);
   }
@@ -291,11 +355,11 @@ export function applyTagSuggestionToKeyword(keyword: string, tag: string): strin
   if (trimmed.length === 0) {
     return tag;
   }
-  const active = activeTagPrefix(trimmed);
-  if (active.length === 0) {
+  const active = activeTagSearchInput(trimmed);
+  if (active.text.length === 0) {
     return (trimmed + ' ' + tag).trim();
   }
-  const start = trimmed.length - active.length;
+  const start = trimmed.length - active.text.length;
   if (start <= 0) {
     return tag;
   }
@@ -341,12 +405,13 @@ export function buildSearchSuggestions(keyword: string, limit: number = 0,
     return next;
   }
 
-  const active = activeTagPrefix(text);
-  if (active.length === 0) {
+  const active = activeTagSearchInput(text);
+  if (active.query.length === 0) {
     return next;
   }
 
-  const tags = ehTagTranslationStore.suggest(active, limit, namespaces);
+  const activeNamespaces = active.namespace.length > 0 ? [active.namespace] : namespaces;
+  const tags = ehTagTranslationStore.suggest(active.query, limit, activeNamespaces);
   for (let i = 0; i < tags.length; i++) {
     const tag = tags[i];
     const translated = shouldShowTagTranslations() && tag.translated.length > 0;

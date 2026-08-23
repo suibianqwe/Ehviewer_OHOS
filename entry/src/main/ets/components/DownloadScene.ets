@@ -108,6 +108,7 @@ import {
 import {
   applyTagSuggestionToKeyword,
   buildSearchSuggestions,
+  normalizeSubmittedSearchKeyword,
   recordSearchHistory,
   SearchAdvancedPanel,
   SearchSuggestionItem,
@@ -837,6 +838,7 @@ export struct DownloadScene {
   }
 
   private applyDownloadSearch(): void {
+    this.query = normalizeSubmittedSearchKeyword(this.query);
     this.searchSubmitted = true;
     recordSearchHistory(this.query);
     this.downloadJumpPageIndex = 0;

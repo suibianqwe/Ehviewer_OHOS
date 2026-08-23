@@ -120,6 +120,7 @@ import {
   gallerySuggestionUrl,
   QuickActionColumn,
   removeSearchTagToken,
+  normalizeSubmittedSearchKeyword,
   SearchAdvancedPanel,
   SearchSuggestionItem,
   SearchSuggestionList,
@@ -2392,6 +2393,7 @@ export struct GalleryListScene {
 
   private applySearch(): void {
     this.fabExpanded = false;
+    this.keyword = normalizeSubmittedSearchKeyword(this.keyword);
     this.rememberSearchKeyword(this.keyword);
     const directGallery = gallerySuggestionUrl(this.keyword);
     if (directGallery !== null) {
