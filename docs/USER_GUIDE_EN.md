@@ -2,7 +2,7 @@
 
 English · [简体中文](USER_GUIDE.md)
 
-This guide applies to EhViewer HarmonyOS `0.6.2`. Button positions may vary with the device, system version, window size, and permissions, but the entry points and behavior are the same. Portrait screenshots were captured on a phone and landscape screenshots on a tablet. Every reader screenshot in this guide was reached through `Subscriptions → Gallery details → Read`.
+This guide applies to EhViewer HarmonyOS `0.6.3`. Button positions may vary with the device, system version, window size, and permissions, but the entry points and behavior are the same. Portrait screenshots were captured on a phone and landscape screenshots on a tablet. Every reader screenshot in this guide was reached through `Subscriptions → Gallery details → Read`.
 
 > Tip: the app follows the system proxy and language by default. On a working network, advanced options such as custom hosts, SNI fronting, and DoH are normally unnecessary.
 

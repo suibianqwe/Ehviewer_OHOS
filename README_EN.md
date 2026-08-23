@@ -12,8 +12,8 @@ EhViewer HarmonyOS is a HarmonyOS port of [Ehviewer_CN_SXJ](https://github.com/x
 
 Download the latest unsigned HAP from [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases). It can be installed with tools such as [Auto Installer](https://github.com/likuai2010/auto-installer).
 
-- Current version: `0.6.2`
-- Package: [`EhViewer_OHOS_0.6.2.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.6.2/EhViewer_OHOS_0.6.2.hap)
+- Current version: `0.6.3`
+- Package: [`EhViewer_OHOS_0.6.3.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.6.3/EhViewer_OHOS_0.6.3.hap)
 - Target API: `26.0.0`
 - Compatible API: `6.0.0(20)`
 

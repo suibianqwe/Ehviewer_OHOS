@@ -12,8 +12,8 @@
 
 请在 [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases) 下载最新的未签名 HAP，可使用 [小白调试助手](https://github.com/likuai2010/auto-installer) 安装。
 
-- 当前版本：`0.6.2`
-- 安装包：[`EhViewer_OHOS_0.6.2.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.6.2/EhViewer_OHOS_0.6.2.hap)
+- 当前版本：`0.6.3`
+- 安装包：[`EhViewer_OHOS_0.6.3.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.6.3/EhViewer_OHOS_0.6.3.hap)
 - 目标 API：`26.0.0`
 - 兼容 API：`6.0.0(20)`
 
