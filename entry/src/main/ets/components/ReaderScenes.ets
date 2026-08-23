@@ -3006,7 +3006,11 @@ export struct ReaderScene {
       interactive: interactive,
       command: this.viewportCommand,
       commandVersion: this.viewportCommandVersion,
-      onTap: () => {},
+      onTap: (x: number, y: number, w: number, h: number) => {
+        if (interactive && this.pageGroupAnchorForPageIndex(index) === this.currentIndex) {
+          this.onTap(x, y, w, h);
+        }
+      },
       onRetry: () => {
         if (index === this.currentIndex) {
           this.onRetry();

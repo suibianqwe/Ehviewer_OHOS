@@ -150,6 +150,7 @@ export struct ReaderImageViewport {
     if (this.isActive) {
       this.startDownloadProgressMonitor();
       this.syncFixedScale();
+      this.reportState();
       this.reportImageSize();
     }
   }
@@ -213,6 +214,8 @@ export struct ReaderImageViewport {
       return;
     }
     this.retainedSourceIdentity = sourceIdentity;
+    this.imageModel.reset();
+    this.syncRenderTransform();
     this.releaseHdrPixelMap();
     this.releaseSuperResolutionPixelMap();
     this.releaseAdjustedPixelMap();
@@ -244,6 +247,7 @@ export struct ReaderImageViewport {
     this.loadCropRect();
     this.startDownloadProgressMonitor();
     this.syncFixedScale();
+    this.reportState();
   }
 
   private releaseRuntimeState(): void {
