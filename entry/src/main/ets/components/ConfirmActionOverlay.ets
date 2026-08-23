@@ -9,7 +9,14 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../shared/EhTheme';
-import { uiControlRadius, uiDialogMaterial, uiPanelRadius } from '../shared/EhUiStyle';
+import {
+  uiButtonMaterial,
+  uiControlRadius,
+  uiDialogMaterial,
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiPanelRadius
+} from '../shared/EhUiStyle';
 
 @Component
 export struct ConfirmActionOverlay {
@@ -44,15 +51,17 @@ export struct ConfirmActionOverlay {
         Row({ space: 8 }) {
           Button(uiText('Cancel'), { type: ButtonType.Normal, stateEffect: true })
             .fontSize(14)
-            .fontColor(themePrimaryText())
+            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
             .backgroundColor(themeSurfaceVariant())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiControlRadius(6))
             .layoutWeight(1)
             .onClick(this.onCancel)
           Button(uiText(this.confirmLabel), { type: ButtonType.Normal, stateEffect: true })
             .fontSize(14)
-            .fontColor(this.danger ? themeDangerText() : themeOnPrimaryText())
+            .fontColor(this.danger ? themeDangerText() : uiMaterialForegroundColor(themeOnPrimaryText()))
             .backgroundColor(this.danger ? themeDangerBackground() : themeSurfaceVariant())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiControlRadius(6))
             .layoutWeight(1)
             .onClick(this.onConfirm)
@@ -63,7 +72,7 @@ export struct ConfirmActionOverlay {
       .width('86%')
       .constraintSize({ maxWidth: 420 })
       .padding(18)
-      .backgroundColor(themeSurface())
+      .backgroundColor(uiMaterialBackground(themeSurface()))
       .borderRadius(uiPanelRadius(8))
       .systemMaterial(uiDialogMaterial())
       .shadow({ radius: 18, color: '#33000000', offsetX: 0, offsetY: 8 })

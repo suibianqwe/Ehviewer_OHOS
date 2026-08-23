@@ -16,7 +16,7 @@ import {
   themeTertiaryText,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
 import {
   SidePanelEditableManagerRow,
   SidePanelHeader,
@@ -205,12 +205,13 @@ export struct DownloadLabelSelectionDialog {
             Button({ type: ButtonType.Circle, stateEffect: true }) {
               SymbolGlyph($r('sys.symbol.plus'))
                 .fontSize(20)
-                .fontColor([themePrimaryText()])
+                .fontColor([uiMaterialForegroundColor(themePrimaryText())])
             }
             .width(40)
             .height(40)
             .margin({ right: 8 })
             .backgroundColor(themeFieldBackground())
+            .systemMaterial(uiButtonMaterial())
             .accessibilityText(uiText('New label'))
             .onClick(() => {
               this.onAdd();
@@ -220,11 +221,12 @@ export struct DownloadLabelSelectionDialog {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.xmark'))
               .fontSize(20)
-              .fontColor([themePrimaryText()])
+              .fontColor([uiMaterialForegroundColor(themePrimaryText())])
           }
           .width(40)
           .height(40)
           .backgroundColor(themeFieldBackground())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
           })
@@ -318,11 +320,12 @@ export struct DownloadLabelEditDialog {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.xmark'))
               .fontSize(20)
-              .fontColor([themePrimaryText()])
+              .fontColor([uiMaterialForegroundColor(themePrimaryText())])
           }
           .width(40)
           .height(40)
           .backgroundColor(themeFieldBackground())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
           })
@@ -343,8 +346,9 @@ export struct DownloadLabelEditDialog {
           .width('100%')
           .height(46)
           .fontSize(16)
-          .fontColor(themeSelectedText())
+          .fontColor(uiMaterialForegroundColor(themeSelectedText()))
           .backgroundColor(themeSelectedBackground())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onConfirm();
           })

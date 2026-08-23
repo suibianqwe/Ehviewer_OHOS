@@ -132,6 +132,7 @@ import {
   themeDangerText,
   themeOnPrimaryText,
   themePageBackground,
+  themeAccentTextColor,
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
@@ -141,7 +142,13 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import {
+  uiButtonMaterial,
+  uiDialogMaterial,
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiRadius
+} from '../shared/EhUiStyle';
 import { EhBackupBundle, SessionMode, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, uiStatusText, setActiveBackHandler, padTwo, getAbilityContext, downloadSizeText, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, cloneStringOptions, isValidProxyHostText, isValidProxyPortText, normalizeProxyOption, formatNetworkDiagnostics, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption, normalizeIdentityAuthenticationOption, normalizeReaderCacheSizeOption } from '../shared/EhShared';
 import { FilterPanel } from './DownloadMigrationScenes';
 import { BlockingBusyOverlay } from './BlockingBusyOverlay';
@@ -2600,11 +2607,12 @@ struct ProxySettingsOverlay {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.xmark'))
               .fontSize(18)
-              .fontColor([themePrimaryText()])
+              .fontColor([uiMaterialForegroundColor(themePrimaryText())])
           }
           .width(40)
           .height(40)
           .backgroundColor(themeSurfaceVariant())
+          .systemMaterial(uiButtonMaterial())
           .onClick(this.onCancel)
         }
         .width('100%')
@@ -3441,11 +3449,12 @@ export struct SettingsOptionPanel {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.xmark'))
               .fontSize(18)
-              .fontColor([themePrimaryText()])
+              .fontColor([uiMaterialForegroundColor(themePrimaryText())])
           }
           .width(40)
           .height(40)
           .backgroundColor(themeSurfaceVariant())
+          .systemMaterial(uiButtonMaterial())
           .onClick(this.onBack)
         }
         .width('100%')
@@ -3467,14 +3476,15 @@ export struct SettingsOptionPanel {
                   Text(uiValue(option))
                     .fontSize(15)
                     .fontWeight(option === this.value ? FontWeight.Medium : FontWeight.Regular)
-                    .fontColor(option === this.value ? themePrimaryColor() : themePrimaryText())
+                    .fontColor(uiMaterialForegroundColor(option === this.value ? themeAccentTextColor() :
+                      themePrimaryText()))
                     .maxLines(2)
                     .textOverflow({ overflow: TextOverflow.Ellipsis })
                     .layoutWeight(1)
                   if (index < this.optionDescriptions.length && this.optionDescriptions[index].length > 0) {
                     Text(uiText(this.optionDescriptions[index]))
                       .fontSize(12)
-                      .fontColor(themeSecondaryText())
+                      .fontColor(uiMaterialForegroundColor(themeSecondaryText()))
                       .maxLines(2)
                       .textAlign(TextAlign.End)
                       .layoutWeight(1)
@@ -3495,6 +3505,7 @@ export struct SettingsOptionPanel {
               .width('100%')
               .padding(14)
               .backgroundColor(option === this.value ? themeSelectedBackground() : themeFieldBackground())
+              .systemMaterial(uiButtonMaterial())
               .borderRadius(uiRadius(6))
               .onClick(() => {
                 this.onSelect(option);
@@ -3529,8 +3540,9 @@ export struct SettingsOptionPanel {
             Button(uiText('Use custom value'))
               .height(40)
               .fontSize(13)
-              .fontColor(themeOnPrimaryText())
+              .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
               .backgroundColor(themePrimaryColor())
+              .systemMaterial(uiButtonMaterial())
               .onClick(() => {
                 const value = this.customValue.trim();
                 if (value.length > 0) {
@@ -3546,8 +3558,9 @@ export struct SettingsOptionPanel {
       .height(this.panelHeight())
       .constraintSize({ maxWidth: 420 })
       .padding({ left: 18, right: 18, top: 18, bottom: 8 })
-      .backgroundColor(themeSurface())
+      .backgroundColor(uiMaterialBackground(themeSurface()))
       .borderRadius(uiRadius(8))
+      .systemMaterial(uiDialogMaterial())
       .clip(true)
       .shadow({
         radius: 18,
@@ -3678,7 +3691,7 @@ export struct SettingsStaticRow {
           Row() {
             Text(this.row.value === 'On' ? uiText('On') : uiText('Off'))
               .fontSize(12)
-              .fontColor(this.row.value === 'On' ? themePrimaryColor() : themeTertiaryText())
+              .fontColor(this.row.value === 'On' ? themeAccentTextColor() : themeTertiaryText())
               .margin({ right: 8 })
             Toggle({ type: ToggleType.Switch, isOn: this.row.value === 'On' })
               .selectedColor(themePrimaryColor())
@@ -3703,18 +3716,19 @@ export struct SettingsStaticRow {
             Row({ space: 6 }) {
               Text(uiValue(this.row.value))
                 .fontSize(13)
-                .fontColor(themeSecondaryText())
+                .fontColor(uiMaterialForegroundColor(themeSecondaryText()))
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
               SymbolGlyph($r('sys.symbol.chevron_down'))
                 .fontSize(14)
-                .fontColor([themeSecondaryText()])
+                .fontColor([uiMaterialForegroundColor(themeSecondaryText())])
             }
           }
             .height(34)
             .constraintSize({ maxWidth: 190 })
             .padding({ left: 12, right: 10 })
             .backgroundColor(themeSurfaceVariant())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(17))
             .margin({ left: 8 })
             .onClick(() => {
@@ -3731,7 +3745,7 @@ export struct SettingsStaticRow {
         } else if (this.row.type === 'info') {
           Text(uiValue(this.row.value))
             .fontSize(12)
-            .fontColor(themeSecondaryText())
+            .fontColor(uiMaterialForegroundColor(themeSecondaryText()))
             .maxLines(2)
             .textAlign(TextAlign.End)
             .margin({ left: 12 })
@@ -3741,6 +3755,7 @@ export struct SettingsStaticRow {
             .fontSize(12)
             .fontColor(themeSecondaryText())
             .backgroundColor(themeSurfaceVariant())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(17))
             .margin({ left: 12 })
             .onClick(() => {
@@ -3792,7 +3807,7 @@ struct SettingsInlineSlider {
         })
       Text(settingsSliderDisplayText(this.row, this.liveValue))
         .fontSize(12)
-        .fontColor(themePrimaryColor())
+        .fontColor(themeAccentTextColor())
         .width(42)
         .textAlign(TextAlign.End)
     }

@@ -9,6 +9,7 @@ import {
   themeDividerColor,
   themeFieldBackground,
   themePageBackground,
+  themeAccentTextColor,
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
@@ -16,7 +17,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
 import { ConfirmActionOverlay } from './ConfirmActionOverlay';
 import { SettingsSubToolbar } from './SessionSettingsScenes';
 
@@ -123,13 +124,14 @@ export struct CommentBlacklistPanel {
         Button({ type: ButtonType.Normal, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.plus'))
             .fontSize(22)
-            .fontColor([Color.White])
+            .fontColor([uiMaterialForegroundColor(Color.White)])
         }
         .width(44)
         .height(44)
         .padding(0)
         .borderRadius(uiRadius(22))
         .backgroundColor(themePrimaryColor())
+        .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.addEntry();
         })
@@ -200,13 +202,14 @@ export struct CommentBlacklistPanel {
       Button({ type: ButtonType.Normal, stateEffect: true }) {
         SymbolGlyph($r('sys.symbol.trash'))
           .fontSize(20)
-          .fontColor([themeDangerText()])
+          .fontColor([uiMaterialForegroundColor(themeDangerText())])
       }
       .width(40)
       .height(40)
       .padding(0)
       .borderRadius(uiRadius(20))
       .backgroundColor(themeSurfaceVariant())
+      .systemMaterial(uiButtonMaterial())
       .onClick(() => {
         this.pendingDelete = entry;
       })
@@ -238,7 +241,7 @@ export struct CommentBlacklistPanel {
               Blank()
               Text(this.entries.length.toString())
                 .fontSize(13)
-                .fontColor(themePrimaryColor())
+                .fontColor(themeAccentTextColor())
             }
             .width('100%')
             .margin({ top: 4 })

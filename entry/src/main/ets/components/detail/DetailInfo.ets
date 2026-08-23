@@ -9,6 +9,7 @@ import {
 import {
   themeDividerColor,
   themePageBackground,
+  themeAccentTextColor,
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
@@ -77,7 +78,7 @@ export struct DetailInfoBlock {
       Text(uiText('More information'))
         .fontSize(14)
         .fontWeight(FontWeight.Medium)
-        .fontColor(themePrimaryColor())
+        .fontColor(themeAccentTextColor())
         .alignSelf(ItemAlign.Center)
         .margin({ top: 16 })
         .onClick(() => {

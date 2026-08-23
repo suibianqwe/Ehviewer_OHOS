@@ -23,7 +23,7 @@ import {
   themeTertiaryText,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
 import { CategoryBadge, GalleryThumb } from './GalleryScenes';
 
 @Component
@@ -186,11 +186,12 @@ export struct DownloadRow {
         Button({ type: ButtonType.Circle }) {
           SymbolGlyph($r('sys.symbol.trash'))
             .fontSize(17)
-            .fontColor([themeSecondaryText()])
+            .fontColor([uiMaterialForegroundColor(themeSecondaryText())])
         }
         .width(34)
         .height(34)
         .backgroundColor(themeTransparentColor())
+        .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.onRemove();
         })
@@ -211,11 +212,12 @@ export struct DownloadRow {
         Button({ type: ButtonType.Circle }) {
           SymbolGlyph(this.actionIcon())
             .fontSize(18)
-            .fontColor([themeOnPrimaryText()])
+            .fontColor([uiMaterialForegroundColor(themeOnPrimaryText())])
         }
         .width(38)
         .height(38)
         .backgroundColor(this.isActive() ? themeControlMutedBackground() : themePrimaryColor())
+        .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.onState();
         })

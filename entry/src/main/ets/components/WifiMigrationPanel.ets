@@ -20,6 +20,7 @@ import {
   themeFieldBackground,
   themeOnPrimaryText,
   themePageBackground,
+  themeAccentTextColor,
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
@@ -28,7 +29,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
 import { AppSubToolbar } from './NavigationComponents';
 
 @Component
@@ -239,15 +240,16 @@ export struct WifiMigrationPanel {
       Row({ space: 10 }) {
         SymbolGlyph(symbol)
           .fontSize(22)
-          .fontColor([this.role === role ? themeOnPrimaryText() : themePrimaryColor()])
+          .fontColor([uiMaterialForegroundColor(this.role === role ? themeOnPrimaryText() :
+            themeAccentTextColor())])
         Column({ space: 2 }) {
           Text(uiText(title))
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
-            .fontColor(this.role === role ? themeOnPrimaryText() : themePrimaryText())
+            .fontColor(uiMaterialForegroundColor(this.role === role ? themeOnPrimaryText() : themePrimaryText()))
           Text(uiText(summary))
             .fontSize(11)
-            .fontColor(this.role === role ? themeOnPrimaryText() : themeSecondaryText())
+            .fontColor(uiMaterialForegroundColor(this.role === role ? themeOnPrimaryText() : themeSecondaryText()))
             .maxLines(2)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
@@ -260,6 +262,7 @@ export struct WifiMigrationPanel {
     .layoutWeight(1)
     .padding({ left: 14, right: 14 })
     .backgroundColor(this.role === role ? themePrimaryColor() : themeSurfaceVariant())
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(8))
     .onClick(() => {
       this.switchRole(role);
@@ -278,16 +281,16 @@ export struct WifiMigrationPanel {
             .borderRadius(uiRadius(21))
           SymbolGlyph(symbol)
             .fontSize(21)
-            .fontColor([this.isDataKindSelected(kind) ? themeOnPrimaryText() : themePrimaryColor()])
+            .fontColor([this.isDataKindSelected(kind) ? themeOnPrimaryText() : themeAccentTextColor()])
         }
         Column({ space: 3 }) {
           Text(uiText(title))
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
-            .fontColor(themePrimaryText())
+            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
           Text(uiText(summary))
             .fontSize(11)
-            .fontColor(themeSecondaryText())
+            .fontColor(uiMaterialForegroundColor(themeSecondaryText()))
             .maxLines(2)
         }
         .alignItems(HorizontalAlign.Start)
@@ -295,7 +298,7 @@ export struct WifiMigrationPanel {
         Text(count.toString())
           .fontSize(13)
           .fontWeight(FontWeight.Medium)
-          .fontColor(this.isDataKindSelected(kind) ? themeOnPrimaryText() : themePrimaryColor())
+          .fontColor(this.isDataKindSelected(kind) ? themeOnPrimaryText() : themeAccentTextColor())
           .padding({ left: 10, right: 10, top: 5, bottom: 5 })
           .backgroundColor(this.isDataKindSelected(kind) ? themePrimaryColor() : themeSelectedBackground())
           .borderRadius(uiRadius(14))
@@ -306,6 +309,7 @@ export struct WifiMigrationPanel {
     .height(72)
     .padding({ left: 12, right: 12 })
     .backgroundColor(this.isDataKindSelected(kind) ? themeSelectedBackground() : themeSurface())
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(8))
     .onClick(() => {
       if (!this.active()) {
@@ -326,18 +330,18 @@ export struct WifiMigrationPanel {
             .borderRadius(uiRadius(21))
           SymbolGlyph($r('sys.symbol.wifi'))
             .fontSize(21)
-            .fontColor([themePrimaryColor()])
+            .fontColor([themeAccentTextColor()])
         }
         Column({ space: 3 }) {
           Text(peer.name)
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
-            .fontColor(themePrimaryText())
+            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           Text(peer.address)
             .fontSize(11)
-            .fontColor(themeSecondaryText())
+            .fontColor(uiMaterialForegroundColor(themeSecondaryText()))
             .maxLines(1)
         }
         .alignItems(HorizontalAlign.Start)
@@ -355,6 +359,7 @@ export struct WifiMigrationPanel {
     .height(66)
     .padding({ left: 12, right: 12 })
     .backgroundColor(themeSurface())
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(8))
     .onClick(() => {
       this.connectPeer(peer);
@@ -390,7 +395,7 @@ export struct WifiMigrationPanel {
                 SymbolGlyph(this.phase === WifiMigrationPhase.Error ? $r('sys.symbol.exclamationmark_triangle') :
                   $r('sys.symbol.wifi'))
                   .fontSize(22)
-                  .fontColor([this.phase === WifiMigrationPhase.Error ? themeDangerText() : themePrimaryColor()])
+                  .fontColor([this.phase === WifiMigrationPhase.Error ? themeDangerText() : themeAccentTextColor()])
               }
               Column({ space: 3 }) {
                 Text(uiText('Connection status'))
@@ -458,7 +463,7 @@ export struct WifiMigrationPanel {
                   Text(this.peerName.length > 0 ? this.peerName : this.peerAddress)
                     .fontSize(14)
                     .fontWeight(FontWeight.Medium)
-                    .fontColor(themePrimaryColor())
+                    .fontColor(themeAccentTextColor())
                     .maxLines(1)
                     .textOverflow({ overflow: TextOverflow.Ellipsis })
                 }
@@ -485,7 +490,7 @@ export struct WifiMigrationPanel {
                 Blank()
                 Text(uiText('Selected') + ': ' + this.selectedCount().toString())
                   .fontSize(12)
-                  .fontColor(themePrimaryColor())
+                  .fontColor(themeAccentTextColor())
               }
               .width('100%')
               this.dataCard(WifiMigrationDataKind.Progress, 'Reading progress',
@@ -516,7 +521,7 @@ export struct WifiMigrationPanel {
                 Blank()
                 Text(this.peers.length.toString())
                   .fontSize(12)
-                  .fontColor(themePrimaryColor())
+                  .fontColor(themeAccentTextColor())
               }
               .width('100%')
               if (this.peers.length === 0) {
@@ -542,8 +547,9 @@ export struct WifiMigrationPanel {
             .height(48)
             .fontSize(16)
             .fontWeight(FontWeight.Medium)
-            .fontColor(this.active() ? themeDangerText() : themeOnPrimaryText())
+            .fontColor(this.active() ? themeDangerText() : uiMaterialForegroundColor(themeOnPrimaryText()))
             .backgroundColor(this.active() ? themeDangerBackground() : themePrimaryColor())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(8))
             .onClick(() => {
               this.runPrimaryAction();

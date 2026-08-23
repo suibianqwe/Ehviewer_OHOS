@@ -16,7 +16,12 @@ import {
   themeOnPrimaryText,
   themePrimaryColor
 } from '../../shared/EhTheme';
-import { uiRadius } from '../../shared/EhUiStyle';
+import {
+  uiButtonMaterial,
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiRadius
+} from '../../shared/EhUiStyle';
 import { GalleryThumb, galleryThumbnailAspectRatio } from '../GalleryCards';
 import { copyTextToClipboard } from './DetailInfo';
 import { TranslationText } from '../TranslationComponents';
@@ -176,18 +181,19 @@ export struct HeaderActionButton {
     Row() {
       SymbolGlyph(this.symbolIcon)
         .fontSize(22)
-        .fontColor([this.contentColor()])
+        .fontColor([uiMaterialForegroundColor(this.contentColor())])
       Text(this.text)
         .fontSize(14)
         .fontWeight(FontWeight.Bold)
-        .fontColor(this.contentColor())
+        .fontColor(uiMaterialForegroundColor(this.contentColor()))
         .margin({ left: 10 })
     }
     .justifyContent(FlexAlign.Center)
     .alignItems(VerticalAlign.Center)
     .height(46)
     .width('100%')
-    .backgroundColor(this.buttonBackground())
+    .backgroundColor(uiMaterialBackground(this.buttonBackground()))
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(23))
     .border({
       width: this.accent ? 0 : 1,

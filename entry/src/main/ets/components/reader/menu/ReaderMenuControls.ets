@@ -7,7 +7,13 @@ import {
 } from '../../../shared/EhShared';
 import { readerSelectColors, selectArrowModifier } from '../../../shared/EhSelectStyle';
 import { themeScrimColor } from '../../../shared/EhTheme';
-import { uiRadius } from '../../../shared/EhUiStyle';
+import {
+  uiButtonMaterial,
+  uiDialogMaterial,
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiRadius
+} from '../../../shared/EhUiStyle';
 
 const READER_MENU_SURFACE = '#EE111827';
 const READER_MENU_ITEM_TEXT = '#E5E7EB';
@@ -79,7 +85,8 @@ export struct ReaderImageActionDialog {
     .width('78%')
     .constraintSize({ maxWidth: 360 })
     .padding({ top: 6, bottom: 6 })
-    .backgroundColor(READER_MENU_SURFACE)
+    .backgroundColor(uiMaterialBackground(READER_MENU_SURFACE))
+    .systemMaterial(uiDialogMaterial())
     .borderRadius(uiRadius(12))
     .clip(true)
     .shadow({ radius: 18, color: '#66000000', offsetY: 8 })
@@ -98,10 +105,10 @@ struct ReaderImageActionButton {
       Row() {
         SymbolGlyph(this.symbolIcon)
           .fontSize(20)
-          .fontColor([READER_MENU_ITEM_ICON])
+          .fontColor([uiMaterialForegroundColor(READER_MENU_ITEM_ICON)])
         Text(this.label)
           .fontSize(15)
-          .fontColor(READER_MENU_ITEM_TEXT)
+          .fontColor(uiMaterialForegroundColor(READER_MENU_ITEM_TEXT))
           .margin({ left: 12 })
           .layoutWeight(1)
           .textAlign(TextAlign.End)
@@ -112,6 +119,7 @@ struct ReaderImageActionButton {
     .width('100%')
     .height(48)
     .backgroundColor(Color.Transparent)
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(0)
     .onClick(() => {
       this.onTap();

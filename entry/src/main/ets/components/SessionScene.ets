@@ -12,8 +12,8 @@ import {
 import { EhUrl } from '../services/EhUrl';
 import { applyAppChromeImmersiveMode } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, setActiveBackHandler } from '../shared/EhShared';
-import { themeFieldBackground, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSuccessText, themeSurface, themeTransparentColor } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import { themeAccentTextColor, themeFieldBackground, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSuccessText, themeSurface, themeTransparentColor } from '../shared/EhTheme';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
 import { SessionMode, uiText, uiStatusText, getAbilityContext } from '../shared/EhShared';
 import { AppSubToolbar } from './NavigationComponents';
 import { ConfirmActionOverlay } from './ConfirmActionOverlay';
@@ -533,8 +533,9 @@ export struct SessionScene {
               .textOverflow({ overflow: TextOverflow.Ellipsis })
             Button(uiText('Cancel'))
               .type(ButtonType.Normal)
-              .fontColor(themePrimaryColor())
+              .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
               .backgroundColor(themeTransparentColor())
+              .systemMaterial(uiButtonMaterial())
               .onClick(() => {
                 this.failPasswordWebSignIn('Sign in cancelled');
               })
@@ -633,14 +634,16 @@ export struct SessionScene {
         Row() {
           Button(uiText('Register'))
             .type(ButtonType.Normal)
-            .fontColor(themePrimaryColor())
+            .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
             .backgroundColor(themeTransparentColor())
+            .systemMaterial(uiButtonMaterial())
             .layoutWeight(1)
           Button(this.signingIn ? uiText('Signing in...') : uiText('Sign in'))
             .type(ButtonType.Normal)
-            .fontColor(themePrimaryColor())
+            .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
             .fontWeight(FontWeight.Bold)
             .backgroundColor(themeTransparentColor())
+            .systemMaterial(uiButtonMaterial())
             .layoutWeight(1)
             .enabled(!this.signingIn)
             .onClick(() => {
@@ -653,21 +656,21 @@ export struct SessionScene {
 
         Text(uiText('Sign in via WebView'))
           .fontSize(14)
-          .fontColor(themePrimaryColor())
+          .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
           .margin({ top: 8 })
           .onClick(() => {
             this.prepareWebSignIn();
           })
         Text(uiText('Sign in via Cookies'))
           .fontSize(14)
-          .fontColor(themePrimaryColor())
+          .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
           .margin({ top: 10 })
           .onClick(() => {
             this.switchMode(SessionMode.Cookie);
           })
         Text(uiText('Guest mode'))
           .fontSize(14)
-          .fontColor(themePrimaryColor())
+          .fontColor(themeAccentTextColor())
           .margin({ top: 10, bottom: 18 })
           .onClick(() => {
             this.onSignedIn();
@@ -765,17 +768,19 @@ export struct SessionScene {
       Row() {
         Button(uiText('Clear'))
           .type(ButtonType.Normal)
-          .fontColor(themePrimaryColor())
+          .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
           .backgroundColor(themeTransparentColor())
+          .systemMaterial(uiButtonMaterial())
           .layoutWeight(1)
           .onClick(() => {
             this.requestClearCookie();
           })
         Button(uiText('OK'))
           .type(ButtonType.Normal)
-          .fontColor(themePrimaryColor())
+          .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
           .fontWeight(FontWeight.Bold)
           .backgroundColor(themeTransparentColor())
+          .systemMaterial(uiButtonMaterial())
           .layoutWeight(1)
           .onClick(() => {
             this.saveCookie();

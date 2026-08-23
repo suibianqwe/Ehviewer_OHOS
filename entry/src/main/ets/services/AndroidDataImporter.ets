@@ -10,6 +10,7 @@ import { ehHistoryStore } from './EhHistoryStore';
 import { ehLocalFavoritesStore } from './EhLocalFavoritesStore';
 import { HISTORY_INFO_SIZE_KEY, ehSettingsStore, historyInfoSizeLimitFromValue } from './EhSettingsStore';
 import { ehSearchHistoryStore } from './EhSearchHistoryStore';
+import { normalizeSubmittedSearchKeywordValue } from './SearchKeywordNormalization';
 import {
   CommentBlacklistBackupEntry,
   ehCommentBlacklistStore
@@ -267,12 +268,13 @@ async function importQuickSearch(store: relationalStore.RdbStore): Promise<numbe
   }
   let count = 0;
   await queryEach(store, 'SELECT * FROM "QUICK_SEARCH" ORDER BY "TIME" ASC', (row: relationalStore.ResultSet) => {
-    const keyword = getStringColumn(row, 'KEYWORD', '').trim();
+    const sourceKeyword = getStringColumn(row, 'KEYWORD', '').trim();
+    const keyword = normalizeSubmittedSearchKeywordValue(sourceKeyword);
     if (keyword.length > 0) {
       ehSearchHistoryStore.record(keyword);
     }
     const bookmark: SearchBookmarkBackupInfo = {
-      name: getStringColumn(row, 'NAME', '').trim(),
+      name: normalizedAndroidBookmarkName(getStringColumn(row, 'NAME', '').trim(), sourceKeyword, keyword),
       mode: getNumberColumn(row, 'MODE', 0),
       category: getNumberColumn(row, 'CATEGORY', GalleryCategory.None),
       keyword: keyword,
@@ -287,6 +289,13 @@ async function importQuickSearch(store: relationalStore.RdbStore): Promise<numbe
     }
   });
   return count;
+}
+
+function normalizedAndroidBookmarkName(name: string, sourceKeyword: string, keyword: string): string {
+  if (name.length === 0 || name === sourceKeyword) {
+    return keyword;
+  }
+  return name;
 }
 
 async function importCommentBlacklist(store: relationalStore.RdbStore): Promise<number> {

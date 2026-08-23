@@ -1,16 +1,22 @@
 import { uiMaterial } from '@kit.ArkUI';
 import { deviceInfo } from '@kit.BasicServicesKit';
 import { ehSettingsStore } from '../services/EhSettingsStore';
+import { themeMaterialContentColor } from './EhTheme';
 
 export const EH_UI_STYLE_CLASSIC: string = 'Classic';
 export const EH_UI_STYLE_HARMONY_7: string = 'HarmonyOS 7';
 
 let harmony7FloatingMaterial: uiMaterial.Material | undefined;
+let harmony7ButtonMaterial: uiMaterial.Material | undefined;
 let harmony7PanelMaterial: uiMaterial.Material | undefined;
 let harmony7DialogMaterial: uiMaterial.Material | undefined;
 
 function supportsHarmonyOs7Material(): boolean {
   return deviceInfo.sdkApiVersion >= 26;
+}
+
+export function isHarmonyOs7MaterialEnabled(): boolean {
+  return isHarmonyOs7UiStyle() && supportsHarmonyOs7Material();
 }
 
 export function currentUiStyleName(): string {
@@ -23,19 +29,19 @@ export function isHarmonyOs7UiStyle(): boolean {
 }
 
 export function uiControlRadius(classicRadius: number = 6): number {
-  return isHarmonyOs7UiStyle() ? Math.max(12, classicRadius) : classicRadius;
+  return Math.max(12, classicRadius);
 }
 
 export function uiCardRadius(classicRadius: number = 8): number {
-  return isHarmonyOs7UiStyle() ? Math.max(16, classicRadius) : classicRadius;
+  return Math.max(16, classicRadius);
 }
 
 export function uiPanelRadius(classicRadius: number = 12): number {
-  return isHarmonyOs7UiStyle() ? Math.max(24, classicRadius) : classicRadius;
+  return Math.max(24, classicRadius);
 }
 
 export function uiPillRadius(classicRadius: number = 18): number {
-  return isHarmonyOs7UiStyle() ? Math.max(22, classicRadius) : classicRadius;
+  return Math.max(22, classicRadius);
 }
 
 export function uiRadius(classicRadius: number): number {
@@ -49,7 +55,7 @@ export function uiRadius(classicRadius: number): number {
 }
 
 export function uiFloatingMaterial(): uiMaterial.Material | undefined {
-  if (!isHarmonyOs7UiStyle() || !supportsHarmonyOs7Material()) {
+  if (!isHarmonyOs7MaterialEnabled()) {
     return undefined;
   }
   if (harmony7FloatingMaterial === undefined) {
@@ -63,8 +69,35 @@ export function uiFloatingMaterial(): uiMaterial.Material | undefined {
   return harmony7FloatingMaterial;
 }
 
+export function uiButtonMaterial(): uiMaterial.Material | undefined {
+  if (!isHarmonyOs7MaterialEnabled()) {
+    return undefined;
+  }
+  if (harmony7ButtonMaterial === undefined) {
+    harmony7ButtonMaterial = new uiMaterial.ImmersiveMaterial({
+      style: uiMaterial.ImmersiveStyle.THIN,
+      applyShadow: true,
+      interactive: true,
+      lightEffect: { color: undefined }
+    });
+  }
+  return harmony7ButtonMaterial;
+}
+
+export function uiMaterialBackground(solidColor: string): string {
+  return isHarmonyOs7MaterialEnabled() ? 'rgba(0,0,0,0)' : solidColor;
+}
+
+export function uiMaterialForegroundColor(fallbackColor: ResourceColor): ResourceColor {
+  return isHarmonyOs7MaterialEnabled() ? themeMaterialContentColor() : fallbackColor;
+}
+
+export function uiTitleBarBlurStyle(): BlurStyle {
+  return isHarmonyOs7MaterialEnabled() ? BlurStyle.COMPONENT_THIN : BlurStyle.NONE;
+}
+
 export function uiPanelMaterial(): uiMaterial.Material | undefined {
-  if (!isHarmonyOs7UiStyle() || !supportsHarmonyOs7Material()) {
+  if (!isHarmonyOs7MaterialEnabled()) {
     return undefined;
   }
   if (harmony7PanelMaterial === undefined) {
@@ -78,7 +111,7 @@ export function uiPanelMaterial(): uiMaterial.Material | undefined {
 }
 
 export function uiDialogMaterial(): uiMaterial.Material | undefined {
-  if (!isHarmonyOs7UiStyle() || !supportsHarmonyOs7Material()) {
+  if (!isHarmonyOs7MaterialEnabled()) {
     return undefined;
   }
   if (harmony7DialogMaterial === undefined) {

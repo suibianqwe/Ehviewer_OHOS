@@ -1449,8 +1449,8 @@ export function zhText(text: string): string {
     case 'No session': return '无会话';
     case 'Theme': return '主题';
     case 'Interface style': return '界面风格';
-    case 'Choose the classic layout or the HarmonyOS 7 immersive light style': return '选择经典布局或 HarmonyOS 7 沉浸光感风格';
-    case 'Classic': return '经典';
+    case 'Choose the modern base layout without materials or the HarmonyOS 7 native material style': return '选择不使用材质的现代基础界面或 HarmonyOS 7 原生材质风格';
+    case 'Classic': return '基础';
     case 'HarmonyOS 7': return 'HarmonyOS 7';
     case 'Light': return '亮色';
     case 'Dark': return '暗色';
@@ -3204,7 +3204,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
         'Choose the accent color used by app bars, buttons and selected items', entries,
         ['Blue', 'Sky Blue', 'Teal', 'Green', 'Purple', 'Orange', 'Rose']),
       optionSettingsRow('ui_style', 'Interface style',
-        'Choose the classic layout or the HarmonyOS 7 immersive light style', entries,
+        'Choose the modern base layout without materials or the HarmonyOS 7 native material style', entries,
         ['Classic', 'HarmonyOS 7']),
       staticSettingsRow('filter', 'Filter', 'Keyword/gallery filtering rules', '', 'navigation'),
       staticSettingsRow('comment_blacklist', 'Comment blacklist',

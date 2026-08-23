@@ -4,6 +4,7 @@ import {
   themeFieldBackground,
   themeOnPrimaryActionBackground,
   themeOnPrimaryText,
+  themeMaterialContentColor,
   themePrimaryColor,
   themePrimaryText,
   themeScrimColor,
@@ -16,7 +17,25 @@ import {
   themeSurfaceVariant,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { uiCardRadius, uiControlRadius, uiPanelMaterial, uiPanelRadius, uiPillRadius } from '../shared/EhUiStyle';
+import {
+  isHarmonyOs7UiStyle,
+  uiButtonMaterial,
+  uiCardRadius,
+  uiControlRadius,
+  uiMaterialBackground,
+  uiPanelMaterial,
+  uiPanelRadius,
+  uiPillRadius,
+  uiTitleBarBlurStyle
+} from '../shared/EhUiStyle';
+
+function sidePanelChromeText(): string {
+  return isHarmonyOs7UiStyle() ? themeMaterialContentColor() : themeOnPrimaryText();
+}
+
+function sidePanelChromeBackground(solidColor: string): string {
+  return uiMaterialBackground(solidColor);
+}
 
 export const SIDE_PANEL_WIDTH: number = 288;
 
@@ -70,7 +89,7 @@ export struct RightSidePanelLayer {
       }
       .width(SIDE_PANEL_WIDTH)
       .height('100%')
-      .backgroundColor(themeSurface())
+      .backgroundColor(uiMaterialBackground(themeSurface()))
       .systemMaterial(uiPanelMaterial())
       .position({ x: this.drawerLeft, y: 0 })
       .translate({ x: this.drawerOffsetX })
@@ -103,17 +122,18 @@ export struct SidePanelManagerHeader {
       Column()
         .width('100%')
         .height(this.statusBarHeight)
-        .backgroundColor(themePrimaryColor())
+        .backgroundColor(sidePanelChromeBackground(themePrimaryColor()))
 
       Row() {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(22)
-            .fontColor([themeOnPrimaryText()])
+            .fontColor([sidePanelChromeText()])
         }
         .width(40)
         .height(40)
-        .backgroundColor(themeOnPrimaryActionBackground())
+        .backgroundColor(sidePanelChromeBackground(themeOnPrimaryActionBackground()))
+        .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.onBack();
         })
@@ -121,7 +141,7 @@ export struct SidePanelManagerHeader {
         Text(uiText(this.title))
           .fontSize(19)
           .fontWeight(FontWeight.Medium)
-          .fontColor(themeOnPrimaryText())
+          .fontColor(sidePanelChromeText())
           .layoutWeight(1)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -131,11 +151,12 @@ export struct SidePanelManagerHeader {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.plus'))
               .fontSize(20)
-              .fontColor([themeOnPrimaryText()])
+              .fontColor([sidePanelChromeText()])
           }
           .width(40)
           .height(40)
-          .backgroundColor(themeOnPrimaryActionBackground())
+          .backgroundColor(sidePanelChromeBackground(themeOnPrimaryActionBackground()))
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onAdd();
           })
@@ -144,10 +165,11 @@ export struct SidePanelManagerHeader {
       .width('100%')
       .height(56)
       .padding({ left: 12, right: 12 })
-      .backgroundColor(themePrimaryColor())
+      .backgroundColor(sidePanelChromeBackground(themePrimaryColor()))
       .alignItems(VerticalAlign.Center)
     }
     .width('100%')
+    .backgroundBlurStyle(uiTitleBarBlurStyle())
   }
 }
 
@@ -168,13 +190,13 @@ export struct SidePanelHeader {
       Column()
         .width('100%')
         .height(this.statusBarHeight)
-        .backgroundColor(themePrimaryColor())
+        .backgroundColor(sidePanelChromeBackground(themePrimaryColor()))
 
       Row() {
         Text(uiText(this.title))
           .fontSize(19)
           .fontWeight(FontWeight.Medium)
-          .fontColor(themeOnPrimaryText())
+          .fontColor(sidePanelChromeText())
           .layoutWeight(1)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -183,11 +205,12 @@ export struct SidePanelHeader {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph(this.firstActionIcon)
               .fontSize(20)
-              .fontColor([themeOnPrimaryText()])
+              .fontColor([sidePanelChromeText()])
           }
           .width(40)
           .height(40)
-          .backgroundColor(themeOnPrimaryActionBackground())
+          .backgroundColor(sidePanelChromeBackground(themeOnPrimaryActionBackground()))
+          .systemMaterial(uiButtonMaterial())
           .margin({ right: this.showSecondAction ? 6 : 0 })
           .onClick(() => {
             this.onFirstAction();
@@ -198,11 +221,12 @@ export struct SidePanelHeader {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph(this.secondActionIcon)
               .fontSize(20)
-              .fontColor([themeOnPrimaryText()])
+              .fontColor([sidePanelChromeText()])
           }
           .width(40)
           .height(40)
-          .backgroundColor(themeOnPrimaryActionBackground())
+          .backgroundColor(sidePanelChromeBackground(themeOnPrimaryActionBackground()))
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onSecondAction();
           })
@@ -211,10 +235,11 @@ export struct SidePanelHeader {
       .width('100%')
       .height(56)
       .padding({ left: 18, right: 12 })
-      .backgroundColor(themePrimaryColor())
+      .backgroundColor(sidePanelChromeBackground(themePrimaryColor()))
       .alignItems(VerticalAlign.Center)
     }
     .width('100%')
+    .backgroundBlurStyle(uiTitleBarBlurStyle())
   }
 }
 

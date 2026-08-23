@@ -4,7 +4,14 @@ import {
   uiValue
 } from '../../../shared/EhShared';
 import { themeOnPrimaryText, themeScrimColor } from '../../../shared/EhTheme';
-import { uiRadius } from '../../../shared/EhUiStyle';
+import {
+  uiButtonMaterial,
+  uiDialogMaterial,
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiRadius,
+  uiTitleBarBlurStyle
+} from '../../../shared/EhUiStyle';
 import {
   readerAutoTransferSliderValue,
   readerAutoTransferValue,
@@ -160,12 +167,13 @@ struct ReaderAutoTransferButton {
     Button({ type: ButtonType.Circle, stateEffect: true }) {
       SymbolGlyph(this.autoTransferPlaying ? $r('sys.symbol.pause_fill') : $r('sys.symbol.play_fill'))
         .fontSize(24)
-        .fontColor([Color.White])
+        .fontColor([uiMaterialForegroundColor(Color.White)])
     }
     .width(50)
     .height(50)
     .enabled(this.autoTransferEnabled)
-    .backgroundColor(this.autoTransferEnabled ? '#334155' : '#1F2937')
+    .backgroundColor(uiMaterialBackground(this.autoTransferEnabled ? '#334155' : '#1F2937'))
+    .systemMaterial(uiButtonMaterial())
     .onClick(() => {
       this.onToggleAutoTransfer();
     })
@@ -503,10 +511,10 @@ export struct ReaderSettingsMenuOverlay {
       Column({ space: 3 }) {
         SymbolGlyph(symbol)
           .fontSize(17)
-          .fontColor([enabled ? '#E5E7EB' : '#64748B'])
+          .fontColor([enabled ? uiMaterialForegroundColor('#E5E7EB') : '#64748B'])
         Text(uiText(label))
           .fontSize(11)
-          .fontColor(enabled ? '#CBD5E1' : '#64748B')
+          .fontColor(enabled ? uiMaterialForegroundColor('#CBD5E1') : '#64748B')
           .maxLines(1)
       }
       .justifyContent(FlexAlign.Center)
@@ -515,6 +523,7 @@ export struct ReaderSettingsMenuOverlay {
     .height(48)
     .enabled(enabled)
     .backgroundColor(Color.Transparent)
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(6))
     .onClick(action)
   }
@@ -567,11 +576,12 @@ export struct ReaderSettingsMenuOverlay {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.xmark'))
               .fontSize(16)
-              .fontColor([Color.White])
+              .fontColor([uiMaterialForegroundColor(Color.White)])
           }
           .width(32)
           .height(32)
           .backgroundColor('#334155')
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.closePresetDialog();
           })
@@ -581,7 +591,7 @@ export struct ReaderSettingsMenuOverlay {
         if (this.presetDialogMode === 'delete') {
           Text(uiText('Delete this reading preset?'))
             .fontSize(14)
-            .fontColor('#CBD5E1')
+            .fontColor(uiMaterialForegroundColor('#CBD5E1'))
             .width('100%')
         } else {
           Column({ space: 5 }) {
@@ -614,8 +624,9 @@ export struct ReaderSettingsMenuOverlay {
             .layoutWeight(1)
             .height(40)
             .fontSize(14)
-            .fontColor('#CBD5E1')
+            .fontColor(uiMaterialForegroundColor('#CBD5E1'))
             .backgroundColor('#334155')
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(6))
             .onClick(() => {
               this.closePresetDialog();
@@ -624,8 +635,9 @@ export struct ReaderSettingsMenuOverlay {
             .layoutWeight(1)
             .height(40)
             .fontSize(14)
-            .fontColor(Color.White)
+            .fontColor(this.presetDialogMode === 'delete' ? '#FF8A8A' : uiMaterialForegroundColor(Color.White))
             .backgroundColor(this.presetDialogMode === 'delete' ? '#B91C1C' : '#0284C7')
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(6))
             .onClick(() => {
               if (this.presetDialogMode === 'delete') {
@@ -641,7 +653,8 @@ export struct ReaderSettingsMenuOverlay {
       .width('68%')
       .constraintSize({ minWidth: 260, maxWidth: 340 })
       .padding(18)
-      .backgroundColor('#F7111827')
+      .backgroundColor(uiMaterialBackground('#F7111827'))
+      .systemMaterial(uiDialogMaterial())
       .borderRadius(uiRadius(12))
       .shadow({ radius: 18, color: '#66000000', offsetY: 8 })
     }
@@ -980,8 +993,9 @@ export struct ReaderSettingsMenuOverlay {
             .width('100%')
             .height(44)
             .fontSize(14)
-            .fontColor('#7DD3FC')
+            .fontColor(uiMaterialForegroundColor('#7DD3FC'))
             .backgroundColor(Color.Transparent)
+            .systemMaterial(uiButtonMaterial())
             .onClick(this.onResetImageAdjustments)
         }
       }
@@ -1006,11 +1020,12 @@ export struct ReaderSettingsMenuOverlay {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.chevron_left'))
               .fontSize(20)
-              .fontColor([Color.White])
+              .fontColor([uiMaterialForegroundColor(Color.White)])
           }
           .width(36)
           .height(36)
           .backgroundColor('#334155')
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onBack();
           })
@@ -1038,6 +1053,7 @@ export struct ReaderSettingsMenuOverlay {
         .height(48)
         .padding({ left: 12, right: 12, top: 6, bottom: 6 })
         .backgroundColor(themeScrimColor())
+        .backgroundBlurStyle(uiTitleBarBlurStyle())
 
         Tabs({ barPosition: BarPosition.Start, index: this.selectedTab }) {
           TabContent() {

@@ -1,6 +1,6 @@
 import { GalleryComment } from '../../model/GalleryModels';
 import { uiText } from '../../shared/EhShared';
-import { themePrimaryColor, themePrimaryText, themeSecondaryText, themeSurface } from '../../shared/EhTheme';
+import { themeAccentTextColor, themePrimaryText, themeSecondaryText, themeSurface } from '../../shared/EhTheme';
 import { GalleryCommentRow } from './CommentComponents';
 import {
   COMMENT_BLACKLIST_REVISION_KEY,
@@ -41,7 +41,7 @@ export struct DetailComments {
         } else if (this.visibleCommentItems.length > 0) {
           Text(uiText('See all') + ' (' + this.visibleCommentItems.length.toString() + ')')
             .fontSize(13)
-            .fontColor(themePrimaryColor())
+            .fontColor(themeAccentTextColor())
             .onClick(() => {
               this.onComments();
             })

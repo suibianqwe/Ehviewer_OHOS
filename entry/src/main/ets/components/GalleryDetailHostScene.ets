@@ -83,6 +83,7 @@ import {
 import {
   themeDividerColor,
   themeFieldBackground,
+  themeAccentTextColor,
   themePrimaryColor,
   themePrimaryText,
   themeScrimColor,
@@ -91,7 +92,7 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
 import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
 import {
   DOWNLOAD_LABEL_OPTION_ASK,
@@ -160,11 +161,12 @@ struct AddFavoriteDialog {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.xmark'))
               .fontSize(20)
-              .fontColor([themePrimaryText()])
+              .fontColor([uiMaterialForegroundColor(themePrimaryText())])
           }
           .width(40)
           .height(40)
           .backgroundColor(themeFieldBackground())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
           })
@@ -183,7 +185,7 @@ struct AddFavoriteDialog {
                 Column() {
                   SymbolGlyph(item.slot === -1 ? $r('sys.symbol.heart') : $r('sys.symbol.folder'))
                     .fontSize(21)
-                    .fontColor([themePrimaryColor()])
+                    .fontColor([themeAccentTextColor()])
                 }
                 .width(38)
                 .height(38)

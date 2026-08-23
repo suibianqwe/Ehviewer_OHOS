@@ -17,7 +17,7 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../../shared/EhTheme';
-import { uiRadius } from '../../shared/EhUiStyle';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../../shared/EhUiStyle';
 
 interface CommentTextSegment {
   text: string;
@@ -246,12 +246,13 @@ export struct CommentVoteButton {
     Button({ type: ButtonType.Normal, stateEffect: true }) {
       SymbolGlyph(this.symbolIcon)
         .fontSize(22)
-        .fontColor([this.enabledValue ? (this.selected ? themeOnPrimaryText() : themePrimaryText()) :
-          themeInactiveActionText()])
+        .fontColor([this.enabledValue ? uiMaterialForegroundColor(this.selected ? themeOnPrimaryText() :
+          themePrimaryText()) : themeInactiveActionText()])
     }
       .height(36)
       .width(46)
       .backgroundColor(this.selected ? themePrimaryColor() : themeSurfaceVariant())
+      .systemMaterial(uiButtonMaterial())
       .borderRadius(uiRadius(5))
       .padding(0)
       .enabled(this.enabledValue)
@@ -339,13 +340,14 @@ export struct GalleryCommentRow {
           Button({ type: ButtonType.Normal, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.xmark_circle'))
               .fontSize(21)
-              .fontColor([themeSecondaryText()])
+              .fontColor([uiMaterialForegroundColor(themeSecondaryText())])
           }
           .height(36)
           .width(40)
           .padding(0)
           .borderRadius(uiRadius(5))
           .backgroundColor(themeSurfaceVariant())
+          .systemMaterial(uiButtonMaterial())
           .accessibilityDescription(uiText('Block user'))
           .onClick(() => {
             this.blockCommentUser();

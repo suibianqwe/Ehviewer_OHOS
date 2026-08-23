@@ -2,6 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { preferences } from '@kit.ArkData';
 import { ALL_CATEGORY, GalleryCategory, GalleryRoute } from '../model/GalleryModels';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from './EhUrl';
+import { normalizeSubmittedSearchKeywordValue } from './SearchKeywordNormalization';
 
 const PREFERENCES_NAME: string = 'ehviewer_bookmarks';
 const VALUES_KEY: string = 'items';
@@ -203,6 +204,13 @@ export class EhBookmarkStore {
       }
       next.sort((left: SearchBookmarkInfo, right: SearchBookmarkInfo): number => left.time - right.time);
       this.items = next;
+      const normalizedSnapshot = this.getBackupItems();
+      if (JSON.stringify(parsed) !== JSON.stringify(normalizedSnapshot)) {
+        try {
+          await this.saveSnapshot(context, normalizedSnapshot);
+        } catch (error) {
+        }
+      }
     } catch (error) {
       this.items = [];
     }
@@ -293,13 +301,17 @@ function normalizeBookmark(bookmark: SearchBookmarkInfo): SearchBookmarkInfo | n
   if (bookmark.name.trim().length === 0 || bookmark.mode === ListMode.ImageSearch) {
     return null;
   }
+  const sourceKeyword = bookmark.keyword.trim();
+  const keyword = normalizeSubmittedSearchKeywordValue(sourceKeyword);
+  const sourceName = bookmark.name.trim();
+  const name = sourceName === sourceKeyword && keyword.length > 0 ? keyword : sourceName;
   return {
     id: bookmark.id.length > 0 ? bookmark.id : 'bookmark_' + Date.now().toString(),
-    name: bookmark.name.trim(),
+    name: name,
     mode: normalizeBookmarkMode(bookmark.mode),
     category: normalizeBookmarkCategory(typeof bookmark.category === 'number' ? bookmark.category :
       GalleryCategory.None),
-    keyword: bookmark.keyword.trim(),
+    keyword: keyword,
     advanceSearch: typeof bookmark.advanceSearch === 'number' ? bookmark.advanceSearch : DEFAULT_ADVANCE_SEARCH,
     minRating: typeof bookmark.minRating === 'number' ? bookmark.minRating : -1,
     pageFrom: typeof bookmark.pageFrom === 'number' ? bookmark.pageFrom : -1,

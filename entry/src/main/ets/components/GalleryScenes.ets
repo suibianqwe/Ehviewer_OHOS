@@ -62,6 +62,8 @@ import {
   themeOnPrimaryText,
   themePageBackground,
   themePlaceholderColor,
+  themeAccentTextColor,
+  themeMaterialContentColor,
   themePrimaryColor,
   themePrimaryText,
   themeScrimColor,
@@ -75,7 +77,14 @@ import {
   themeTertiaryText,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import {
+  isHarmonyOs7UiStyle,
+  uiButtonMaterial,
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiRadius,
+  uiTitleBarBlurStyle
+} from '../shared/EhUiStyle';
 import { EhNavBar } from '../components/NavigationComponents';
 import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard, galleryThumbnailAspectRatio } from './GalleryCards';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
@@ -184,6 +193,14 @@ export { CommentsScene,
   ReaderPageState,
   ReaderScene,
   ReaderToolButton } from './ReaderScenes';
+
+function galleryChromeForeground(): string {
+  return isHarmonyOs7UiStyle() ? themeMaterialContentColor() : themeOnPrimaryText();
+}
+
+function galleryChromeBackground(solidColor: string): string {
+  return uiMaterialBackground(solidColor);
+}
 
 interface GalleryListSceneCache {
   keyword: string;
@@ -644,11 +661,12 @@ struct DefaultFavoriteSlotDialog {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.xmark'))
               .fontSize(20)
-              .fontColor([themePrimaryText()])
+              .fontColor([uiMaterialForegroundColor(themePrimaryText())])
           }
           .width(40)
           .height(40)
           .backgroundColor(themeFieldBackground())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
           })
@@ -3372,11 +3390,12 @@ export struct GalleryListScene {
                   Button({ type: ButtonType.Circle, stateEffect: true }) {
                     SymbolGlyph($r('sys.symbol.xmark'))
                       .fontSize(20)
-                      .fontColor([themePrimaryText()])
+                      .fontColor([uiMaterialForegroundColor(themePrimaryText())])
                   }
                   .width(38)
                   .height(38)
                   .backgroundColor(themeSurfaceVariant())
+                  .systemMaterial(uiButtonMaterial())
                   .onClick(() => {
                     this.addBookmarkDialogVisible = false;
                   })
@@ -3411,8 +3430,9 @@ export struct GalleryListScene {
                     .height(40)
                     .layoutWeight(1)
                     .fontSize(14)
-                    .fontColor(themePrimaryText())
+                    .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                     .backgroundColor(themeSurfaceVariant())
+                    .systemMaterial(uiButtonMaterial())
                     .borderRadius(uiRadius(20))
                     .onClick(() => {
                       this.addBookmarkDialogVisible = false;
@@ -3421,8 +3441,9 @@ export struct GalleryListScene {
                     .height(40)
                     .layoutWeight(1)
                     .fontSize(14)
-                    .fontColor(themeOnPrimaryText())
+                    .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
                     .backgroundColor(themePrimaryColor())
+                    .systemMaterial(uiButtonMaterial())
                     .borderRadius(uiRadius(20))
                     .onClick(() => {
                       this.confirmAddBookmark();
@@ -3663,11 +3684,12 @@ struct ImageSearchPanel {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.xmark'))
               .fontSize(18)
-              .fontColor([themePrimaryText()])
+              .fontColor([uiMaterialForegroundColor(themePrimaryText())])
           }
           .width(34)
           .height(34)
           .backgroundColor(themeFieldBackground())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
           })
@@ -3679,10 +3701,10 @@ struct ImageSearchPanel {
             Row({ space: 6 }) {
               SymbolGlyph($r('sys.symbol.magnifyingglass'))
                 .fontSize(18)
-                .fontColor([themeOnPrimaryText()])
+                .fontColor([uiMaterialForegroundColor(themeOnPrimaryText())])
               Text(uiText('From album'))
                 .fontSize(13)
-                .fontColor(themeOnPrimaryText())
+                .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
             }
             .justifyContent(FlexAlign.Center)
             .alignItems(VerticalAlign.Center)
@@ -3692,6 +3714,7 @@ struct ImageSearchPanel {
           .layoutWeight(1)
           .borderRadius(uiRadius(6))
           .backgroundColor(themePrimaryColor())
+          .systemMaterial(uiButtonMaterial())
           .enabled(!this.busy)
           .onClick(() => {
             this.chooseFromAlbum();
@@ -3701,10 +3724,10 @@ struct ImageSearchPanel {
             Row({ space: 6 }) {
               SymbolGlyph($r('sys.symbol.folder'))
                 .fontSize(18)
-                .fontColor([themePrimaryColor()])
+                .fontColor([uiMaterialForegroundColor(themeAccentTextColor())])
               Text(uiText('From file'))
                 .fontSize(13)
-                .fontColor(themePrimaryColor())
+                .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
             }
             .justifyContent(FlexAlign.Center)
             .alignItems(VerticalAlign.Center)
@@ -3714,6 +3737,7 @@ struct ImageSearchPanel {
           .layoutWeight(1)
           .borderRadius(uiRadius(6))
           .backgroundColor(themeFieldBackground())
+          .systemMaterial(uiButtonMaterial())
           .enabled(!this.busy)
           .onClick(() => {
             this.chooseFromFile();
@@ -3782,8 +3806,9 @@ struct ImageSearchPanel {
           .height(40)
           .width('100%')
           .fontSize(14)
-          .fontColor(themeOnPrimaryText())
+          .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
           .backgroundColor(themePrimaryColor())
+          .systemMaterial(uiButtonMaterial())
           .borderRadius(uiRadius(6))
           .enabled(this.selectedPath.length > 0 && !this.busy)
           .onClick(() => {
@@ -3823,10 +3848,10 @@ export struct GalleryCardActionOverlay {
       Row() {
         SymbolGlyph(symbolIcon)
           .fontSize(20)
-          .fontColor([color])
+          .fontColor([uiMaterialForegroundColor(color)])
         Text(uiText(label))
           .fontSize(15)
-          .fontColor(color)
+          .fontColor(uiMaterialForegroundColor(color))
           .margin({ left: 12 })
           .layoutWeight(1)
           .textAlign(TextAlign.End)
@@ -3837,6 +3862,7 @@ export struct GalleryCardActionOverlay {
     .width('100%')
     .height(48)
     .backgroundColor(Color.Transparent)
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(0)
     .onClick(onTap)
   }
@@ -4748,17 +4774,18 @@ export struct GalleryListContent {
       Column()
         .height(this.statusBarVp())
         .width('100%')
-        .backgroundColor(themePrimaryColor())
+        .backgroundColor(galleryChromeBackground(themePrimaryColor()))
 
       Row({ space: 8 }) {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(22)
-            .fontColor([themeOnPrimaryText()])
+            .fontColor([galleryChromeForeground()])
         }
         .width(40)
         .height(40)
-        .backgroundColor(themeOnPrimaryActionBackground())
+        .backgroundColor(galleryChromeBackground(themeOnPrimaryActionBackground()))
+        .systemMaterial(uiButtonMaterial())
         .flexShrink(0)
         .onClick(() => {
           this.onBack();
@@ -4769,13 +4796,14 @@ export struct GalleryListContent {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.plus'))
             .fontSize(22)
-            .fontColor([themeOnPrimaryText()])
+            .fontColor([galleryChromeForeground()])
         }
         .width(40)
         .height(40)
-        .backgroundColor(
+        .backgroundColor(galleryChromeBackground(
           this.advancedPanelVisible || this.advancedSearchEnabled ? themeOnPrimaryActionStrongBackground() :
-            themeOnPrimaryActionBackground())
+            themeOnPrimaryActionBackground()))
+        .systemMaterial(uiButtonMaterial())
         .flexShrink(0)
         .onClick(() => {
           this.toggleAdvancedPanel();
@@ -4785,13 +4813,14 @@ export struct GalleryListContent {
       .height(this.barHeight)
       .padding({ left: 12, right: 12 })
       .alignItems(VerticalAlign.Center)
-      .backgroundColor(themePrimaryColor())
+      .backgroundColor(galleryChromeBackground(themePrimaryColor()))
     }
     .width('100%')
     .translate({ y: this.toolbarOffsetY })
     .opacity(1)
     .visibility(this.toolbarVisible() ? Visibility.Visible : Visibility.Hidden)
     .animation({ duration: 200, curve: Curve.EaseOut })
+    .backgroundBlurStyle(uiTitleBarBlurStyle())
     .zIndex(10)
   }
 
@@ -5444,8 +5473,9 @@ export struct GalleryListContent {
                     .height(34)
                     .width('100%')
                     .fontSize(12)
-                    .fontColor(themePrimaryColor())
+                    .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
                     .backgroundColor(themeFieldBackground())
+                    .systemMaterial(uiButtonMaterial())
                     .borderRadius(uiRadius(4))
                     .onClick(() => {
                       this.onSeekJump('jump=' + preset);
@@ -5499,8 +5529,9 @@ export struct GalleryListContent {
               .height(36)
               .width('100%')
               .fontSize(13)
-              .fontColor(themeOnPrimaryText())
+              .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
               .backgroundColor(themePrimaryColor())
+              .systemMaterial(uiButtonMaterial())
               .borderRadius(uiRadius(4))
               .onClick(() => {
                 this.submitSeekDate();
@@ -5537,8 +5568,9 @@ export struct GalleryListContent {
               .height(36)
               .width('100%')
               .fontSize(13)
-              .fontColor(themeOnPrimaryText())
+              .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
               .backgroundColor(themePrimaryColor())
+              .systemMaterial(uiButtonMaterial())
               .borderRadius(uiRadius(4))
               .onClick(() => {
                 this.submitPageJump();
@@ -5697,8 +5729,9 @@ export struct GalleryListStateView {
         Button(uiText('Refresh'))
           .height(38)
           .fontSize(13)
-          .fontColor(themeOnPrimaryText())
+          .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
           .backgroundColor(themePrimaryColor())
+          .systemMaterial(uiButtonMaterial())
           .margin({ top: 16 })
           .onClick(() => {
             this.onRefresh();

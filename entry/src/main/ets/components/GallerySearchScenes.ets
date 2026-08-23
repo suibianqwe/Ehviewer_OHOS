@@ -4,6 +4,10 @@ import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { mainContentWidthFallbackVp } from '../services/EhWindowImmersive';
 import {
+  normalizeLegacySearchKeywordValue,
+  normalizeSubmittedSearchKeywordValue
+} from '../services/SearchKeywordNormalization';
+import {
   LANGUAGE_REVISION_KEY,
   categoryColor,
   categoryDisplayName,
@@ -13,7 +17,14 @@ import {
   uiText
 } from '../shared/EhShared';
 import { themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import {
+  isHarmonyOs7UiStyle,
+  uiButtonMaterial,
+  uiFloatingMaterial,
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiRadius
+} from '../shared/EhUiStyle';
 import {
   FLOATING_ACTION_GAP,
   FLOATING_ACTION_PRIMARY_GAP,
@@ -38,6 +49,14 @@ export interface SearchSuggestionItem {
 export interface GalleryUrlMatch {
   gid: number;
   token: string;
+}
+
+function floatingActionForeground(): ResourceColor {
+  return uiMaterialForegroundColor(themeOnPrimaryText());
+}
+
+function floatingActionBackground(solidColor: string): string {
+  return uiMaterialBackground(solidColor);
 }
 
 interface SearchCategoryOption {
@@ -131,9 +150,6 @@ function activeTagSearchInput(keyword: string): ActiveTagSearchInput {
 }
 
 const EXACT_TAG_PATTERN: RegExp = /([A-Za-z0-9_]+:[^$]+?\$)/g;
-const QUOTED_TAG_PATTERN: RegExp = /(^|\s)([A-Za-z0-9_]+):"([^"]+)"\$?(?=\s|$)/g;
-const SUBMITTED_TAG_PATTERN: RegExp =
-  /(^|\s)([A-Za-z0-9_]+)\s*[:：]\s*(?:"([^"]+)"|“([^”]+)”|＂([^＂]+)＂|([^$\s]+))\$?(?=\s|$)/g;
 
 function fullTagNamespace(namespace: string): string {
   const normalized = namespace.trim().toLowerCase();
@@ -154,61 +170,12 @@ function isKnownTagNamespace(namespace: string): boolean {
   return false;
 }
 
-function normalizeExactSearchTagToken(token: string): string {
-  const colon = token.indexOf(':');
-  if (colon <= 0) {
-    return token;
-  }
-  return fullTagNamespace(token.substring(0, colon)) + token.substring(colon);
-}
-
-function normalizeExactSearchTags(keyword: string): string {
-  const parts: string[] = [];
-  let offset = 0;
-  EXACT_TAG_PATTERN.lastIndex = 0;
-  let match: RegExpExecArray | null = EXACT_TAG_PATTERN.exec(keyword);
-  while (match !== null) {
-    parts.push(keyword.substring(offset, match.index));
-    parts.push(normalizeExactSearchTagToken(match[1]));
-    offset = match.index + match[0].length;
-    match = EXACT_TAG_PATTERN.exec(keyword);
-  }
-  EXACT_TAG_PATTERN.lastIndex = 0;
-  parts.push(keyword.substring(offset));
-  return parts.join('');
-}
-
 export function normalizeLegacySearchKeyword(keyword: string): string {
-  QUOTED_TAG_PATTERN.lastIndex = 0;
-  let normalized = keyword.replace(QUOTED_TAG_PATTERN,
-    (_all: string, leading: string, namespace: string, rawTag: string): string => {
-      const tag = rawTag.trim().replace(/\$+$/, '').trim();
-      if (tag.length === 0) {
-        return _all;
-      }
-      return leading + fullTagNamespace(namespace) + ':' + tag + '$';
-    });
-  normalized = normalizeExactSearchTags(normalized);
-  return normalized.replace(/\s+/g, ' ').trim();
+  return normalizeLegacySearchKeywordValue(keyword);
 }
 
 export function normalizeSubmittedSearchKeyword(keyword: string): string {
-  SUBMITTED_TAG_PATTERN.lastIndex = 0;
-  const normalized = keyword.replace(SUBMITTED_TAG_PATTERN,
-    (_all: string, leading: string, namespace: string, quotedTag: string, curvedQuotedTag: string,
-      fullWidthQuotedTag: string, unquotedTag: string): string => {
-      if (!isKnownTagNamespace(namespace)) {
-        return _all;
-      }
-      const rawTag = quotedTag || curvedQuotedTag || fullWidthQuotedTag || unquotedTag || '';
-      const tag = rawTag.trim().replace(/\$+$/, '').trim();
-      if (tag.length === 0) {
-        return _all;
-      }
-      return leading + fullTagNamespace(namespace) + ':' + tag + '$';
-    });
-  SUBMITTED_TAG_PATTERN.lastIndex = 0;
-  return normalizeLegacySearchKeyword(normalized);
+  return normalizeSubmittedSearchKeywordValue(keyword);
 }
 
 export function normalizeSearchTagToken(tag: string): string {
@@ -660,8 +627,9 @@ struct SearchNamespaceChip {
       .height(34)
       .fontSize(16)
       .fontWeight(FontWeight.Bold)
-      .fontColor(this.isActive ? themeOnPrimaryText() : this.textColor())
+      .fontColor(this.isActive ? uiMaterialForegroundColor(themeOnPrimaryText()) : this.textColor())
       .backgroundColor(this.isActive ? this.activeColor() : this.softColor())
+      .systemMaterial(uiButtonMaterial())
       .borderRadius(uiRadius(5))
       .padding({ left: 4, right: 4 })
       .opacity(this.isActive ? 1 : 0.72)
@@ -839,8 +807,10 @@ export struct SearchAdvancedPanel {
           Button(tagTranslationOptionText('All categories', '全部分类'))
             .height(32)
             .fontSize(14)
-            .fontColor(this.allCategoriesSelected() ? themeOnPrimaryText() : themeSecondaryText())
+            .fontColor(this.allCategoriesSelected() ? uiMaterialForegroundColor(themeOnPrimaryText()) :
+              themeSecondaryText())
             .backgroundColor(this.allCategoriesSelected() ? themePrimaryColor() : themeSurfaceVariant())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(4))
             .width('100%')
             .onClick(() => {
@@ -939,11 +909,11 @@ export struct SearchAdvancedPanel {
           Row({ space: 6 }) {
             SymbolGlyph($r('sys.symbol.magnifyingglass'))
               .fontSize(18)
-              .fontColor([themeOnPrimaryText()])
+              .fontColor([uiMaterialForegroundColor(themeOnPrimaryText())])
             Text(uiText('Search'))
               .fontSize(15)
               .fontWeight(FontWeight.Medium)
-              .fontColor(themeOnPrimaryText())
+              .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
           }
           .justifyContent(FlexAlign.Center)
           .alignItems(VerticalAlign.Center)
@@ -951,6 +921,7 @@ export struct SearchAdvancedPanel {
         }
         .height(44)
         .backgroundColor(themePrimaryColor())
+        .systemMaterial(uiButtonMaterial())
         .borderRadius(uiRadius(8))
         .width('100%')
         .onClick(() => {
@@ -1235,16 +1206,17 @@ export struct ActionBubble {
       Column() {
         SymbolGlyph(this.symbolIcon)
           .fontSize(this.primary ? 26 : 20)
-          .fontColor([this.isEnabled ? themeOnPrimaryText() : themeInactiveActionText()])
+          .fontColor([this.isEnabled ? floatingActionForeground() : themeInactiveActionText()])
       }
       .width(this.primary ? 54 : 44)
       .height(this.primary ? 54 : 44)
       .justifyContent(FlexAlign.Center)
       .alignItems(HorizontalAlign.Center)
       .borderRadius(uiRadius(this.primary ? 27 : 22))
-      .backgroundColor(this.isEnabled ? (this.primary || this.checked ? themePrimaryColor() :
-        themeControlNeutralBackground()) :
-        themeControlMutedBackground())
+      .backgroundColor(floatingActionBackground(this.isEnabled ?
+        (this.primary || this.checked ? themePrimaryColor() : themeControlNeutralBackground()) :
+        themeControlMutedBackground()))
+      .systemMaterial(uiButtonMaterial())
       .shadow({ radius: this.primary ? 14 : 8, color: themeShadowColor(), offsetX: 0, offsetY: 3 })
       .scale({ x: this.active ? 0.92 : 1, y: this.active ? 0.92 : 1 })
       .animation({ duration: 120, curve: Curve.EaseOut })
@@ -1260,7 +1232,8 @@ export struct ActionBubble {
           .fontSize(12)
           .fontColor(themePrimaryText())
           .textAlign(TextAlign.End)
-          .backgroundColor(themeSurface())
+          .backgroundColor(uiMaterialBackground(themeSurface()))
+          .systemMaterial(uiFloatingMaterial())
           .padding({ left: 10, right: 10, top: 5, bottom: 5 })
           .borderRadius(uiRadius(14))
           .shadow({ radius: 8, color: themeShadowColor(), offsetX: 0, offsetY: 2 })
@@ -1291,7 +1264,7 @@ export struct SearchModeSegmentButton {
       Text(uiText(this.label))
         .fontSize(12)
         .fontWeight(FontWeight.Medium)
-        .fontColor(this.selected ? themeOnPrimaryText() : themeSecondaryText())
+        .fontColor(this.selected ? uiMaterialForegroundColor(themeOnPrimaryText()) : themeSecondaryText())
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .width('100%')
@@ -1301,6 +1274,7 @@ export struct SearchModeSegmentButton {
     .layoutWeight(1)
     .padding({ left: 4, right: 4 })
     .backgroundColor(this.selected ? themePrimaryColor() : themeSurfaceVariant())
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(4))
     .onClick(() => {
       this.onSelect();
@@ -1319,8 +1293,10 @@ export struct SearchFlagChip {
     Button(uiText(this.label))
       .height(30)
       .fontSize(13)
-      .fontColor(this.isOn ? themeOnPrimaryText() : (this.isEnabled ? themeSecondaryText() : themeInactiveActionText()))
+      .fontColor(this.isOn ? uiMaterialForegroundColor(themeOnPrimaryText()) :
+        (this.isEnabled ? themeSecondaryText() : themeInactiveActionText()))
       .backgroundColor(this.isOn ? themePrimaryColor() : themeSurfaceVariant())
+      .systemMaterial(uiButtonMaterial())
       .borderRadius(uiRadius(4))
       .layoutWeight(1)
       .enabled(this.isEnabled)
@@ -1370,8 +1346,9 @@ export struct SearchCategoryChip {
       .height(32)
       .fontSize(14)
       .fontWeight(FontWeight.Bold)
-      .fontColor(this.selected ? themeOnPrimaryText() : categoryColor(this.category))
+      .fontColor(this.selected ? uiMaterialForegroundColor(themeOnPrimaryText()) : categoryColor(this.category))
       .backgroundColor(this.selected ? categoryColor(this.category) : this.softColor())
+      .systemMaterial(uiButtonMaterial())
       .borderRadius(uiRadius(4))
       .layoutWeight(1)
       .onClick(() => {
@@ -1399,11 +1376,12 @@ export struct RatingStarBar {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph(this.starActive(index) ? $r('sys.symbol.star_fill') : $r('sys.symbol.star'))
               .fontSize(22)
-              .fontColor([this.starActive(index) ? '#D28A1E' : '#9AA8B4'])
+              .fontColor([uiMaterialForegroundColor(this.starActive(index) ? '#D28A1E' : '#9AA8B4')])
           }
           .width(36)
           .height(36)
           .backgroundColor(this.starActive(index) ? '#6E521F' : themeSurfaceVariant())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onSelect(index);
           })

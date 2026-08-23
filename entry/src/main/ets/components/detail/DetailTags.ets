@@ -20,7 +20,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../../shared/EhTheme';
-import { uiRadius } from '../../shared/EhUiStyle';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../../shared/EhUiStyle';
 import {
   buildSearchSuggestions,
   SearchSuggestionItem,
@@ -132,13 +132,14 @@ export struct DetailTags {
           Button({ type: ButtonType.Normal, stateEffect: true }) {
             SymbolGlyph(this.editMode ? $r('sys.symbol.xmark') : $r('sys.symbol.plus'))
               .fontSize(18)
-              .fontColor([this.editMode ? themeOnPrimaryText() : themePrimaryColor()])
+              .fontColor([uiMaterialForegroundColor(this.editMode ? themeOnPrimaryText() : themePrimaryColor())])
           }
           .width(34)
           .height(34)
           .borderRadius(uiRadius(17))
           .padding(0)
           .backgroundColor(this.editMode ? themePrimaryColor() : themeSurfaceVariant())
+          .systemMaterial(uiButtonMaterial())
           .enabled(this.isDetailLoaded)
           .onClick(() => {
             this.setEditMode(!this.editMode);
@@ -195,13 +196,14 @@ export struct DetailTags {
               Button({ type: ButtonType.Normal, stateEffect: true }) {
                 SymbolGlyph($r('sys.symbol.plus'))
                   .fontSize(18)
-                  .fontColor([themeOnPrimaryText()])
+                  .fontColor([uiMaterialForegroundColor(themeOnPrimaryText())])
               }
               .width(42)
               .height(38)
               .borderRadius(uiRadius(6))
               .padding(0)
               .backgroundColor(themePrimaryColor())
+              .systemMaterial(uiButtonMaterial())
               .onClick(() => {
                 this.submitCurrentTag();
               })
@@ -310,17 +312,18 @@ export struct TagGroupRow {
               if (this.editMode) {
                 SymbolGlyph($r('sys.symbol.arrow_up_circle'))
                   .fontSize(12)
-                  .fontColor([themeSelectedIndicatorColor()])
+                  .fontColor([uiMaterialForegroundColor(themeSelectedIndicatorColor())])
               }
               Text(this.tagLabel(tag))
                 .fontSize(12)
-                .fontColor(this.tagTextColor())
+                .fontColor(uiMaterialForegroundColor(this.tagTextColor()))
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
             }
           }
           .height(26)
           .backgroundColor(this.tagBackgroundColor())
+          .systemMaterial(uiButtonMaterial())
           .borderRadius(uiRadius(4))
           .padding({ left: 8, right: 8 })
           .margin({ right: 6, bottom: 6 })

@@ -22,7 +22,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
 import {
   buildSearchSuggestions,
   RatingStarBar,
@@ -246,13 +246,14 @@ export struct FilterPanel {
         Button({ type: ButtonType.Normal, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.plus'))
             .fontSize(22)
-            .fontColor([Color.White])
+            .fontColor([uiMaterialForegroundColor(Color.White)])
         }
         .width(44)
         .height(44)
         .padding(0)
         .borderRadius(uiRadius(22))
         .backgroundColor(themePrimaryColor())
+        .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.submitTextRule();
         })
@@ -432,13 +433,14 @@ struct FilterRuleCard {
       Button({ type: ButtonType.Normal, stateEffect: true }) {
         SymbolGlyph(this.rule.enabled ? $r('sys.symbol.checkmark_circle') : $r('sys.symbol.xmark'))
           .fontSize(21)
-          .fontColor([this.rule.enabled ? themePrimaryColor() : themeMutedText()])
+          .fontColor([uiMaterialForegroundColor(this.rule.enabled ? themePrimaryColor() : themeMutedText())])
       }
       .width(38)
       .height(38)
       .padding(0)
       .borderRadius(uiRadius(19))
       .backgroundColor(this.rule.enabled ? themeSelectedBackgroundLight() : themeSurfaceVariant())
+      .systemMaterial(uiButtonMaterial())
       .onClick(() => {
         this.onToggle();
       })
@@ -446,13 +448,14 @@ struct FilterRuleCard {
       Button({ type: ButtonType.Normal, stateEffect: true }) {
         SymbolGlyph($r('sys.symbol.trash'))
           .fontSize(20)
-          .fontColor([themeDangerText()])
+          .fontColor([uiMaterialForegroundColor(themeDangerText())])
       }
       .width(38)
       .height(38)
       .padding(0)
       .borderRadius(uiRadius(19))
       .backgroundColor(themeSurfaceVariant())
+      .systemMaterial(uiButtonMaterial())
       .onClick(() => {
         this.onRemove();
       })

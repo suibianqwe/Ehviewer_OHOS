@@ -25,7 +25,7 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
 import { EhSubNavBar } from './NavigationComponents';
 import { CommentsScene } from './ReaderScenes';
 import { DetailHeader } from './detail/DetailHeader';
@@ -620,13 +620,14 @@ struct TagVoteOverlay {
           Button({ type: ButtonType.Normal, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.xmark'))
               .fontSize(18)
-              .fontColor([themeSecondaryText()])
+              .fontColor([uiMaterialForegroundColor(themeSecondaryText())])
           }
           .width(34)
           .height(34)
           .padding(0)
           .borderRadius(uiRadius(17))
           .backgroundColor(themeSurfaceVariant())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onDismiss();
           })
@@ -703,11 +704,12 @@ struct TagVoteWideButton {
       Row({ space: 8 }) {
         SymbolGlyph(this.symbolIcon)
           .fontSize(22)
-          .fontColor([this.enabledValue ? this.accentColor : themeInactiveActionText()])
+          .fontColor([this.enabledValue ? uiMaterialForegroundColor(this.accentColor) :
+            themeInactiveActionText()])
         Text(uiText(this.label))
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
-          .fontColor(this.enabledValue ? themePrimaryText() : themeInactiveActionText())
+          .fontColor(this.enabledValue ? uiMaterialForegroundColor(themePrimaryText()) : themeInactiveActionText())
       }
       .justifyContent(FlexAlign.Center)
       .alignItems(VerticalAlign.Center)
@@ -717,6 +719,7 @@ struct TagVoteWideButton {
     .height(44)
     .padding(0)
     .backgroundColor(this.selected ? this.selectedBackground : themeSurfaceVariant())
+    .systemMaterial(uiButtonMaterial())
     .border({
       width: this.selected ? 1.2 : 0,
       color: this.selected ? this.accentColor : Color.Transparent
@@ -741,10 +744,10 @@ struct TagActionButton {
       Row({ space: 8 }) {
         SymbolGlyph(this.symbolIcon)
           .fontSize(18)
-          .fontColor([themeSecondaryText()])
+          .fontColor([uiMaterialForegroundColor(themeSecondaryText())])
         Text(uiText(this.label))
           .fontSize(14)
-          .fontColor(themePrimaryText())
+          .fontColor(uiMaterialForegroundColor(themePrimaryText()))
           .layoutWeight(1)
           .textAlign(TextAlign.Start)
       }
@@ -755,6 +758,7 @@ struct TagActionButton {
     .height(40)
     .padding({ left: 10, right: 10 })
     .backgroundColor(themeSurfaceVariant())
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(6))
     .onClick(() => {
       this.onTap();
@@ -849,8 +853,9 @@ struct ArchiveOptionsOverlay {
             .type(ButtonType.Normal)
             .height(34)
             .fontSize(13)
-            .fontColor(themeSecondaryText())
+            .fontColor(uiMaterialForegroundColor(themeSecondaryText()))
             .backgroundColor(themeSurfaceVariant())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(6))
             .onClick(() => {
               this.onDismiss();

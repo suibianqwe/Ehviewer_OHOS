@@ -85,7 +85,7 @@ import {
   themeSurface,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
 import { FloatingToolbarHost } from './NavigationComponents';
 import { GalleryListRow, GalleryThumbCard } from './GalleryCards';
 import { ActionBubble, GalleryListScene } from './GalleryScenes';
@@ -2277,8 +2277,9 @@ export struct DownloadScene {
               .height(36)
               .width('100%')
               .fontSize(13)
-              .fontColor(themeOnPrimaryText())
+              .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
               .backgroundColor(themePrimaryColor())
+              .systemMaterial(uiButtonMaterial())
               .borderRadius(uiRadius(4))
               .onClick(() => {
                 this.submitDownloadJump();
@@ -2596,13 +2597,13 @@ struct DownloadStatusFilterOptionRow {
       Row() {
         Text(uiText(this.allOption ? 'All' : this.status))
           .fontSize(15)
-          .fontColor(this.isSelected() ? themeSelectedText() : themePrimaryText())
+          .fontColor(uiMaterialForegroundColor(this.isSelected() ? themeSelectedText() : themePrimaryText()))
           .layoutWeight(1)
           .textAlign(TextAlign.Start)
 
         SymbolGlyph(this.isSelected() ? $r('sys.symbol.checkmark_circle_fill') : $r('sys.symbol.circle'))
           .fontSize(21)
-          .fontColor([this.isSelected() ? themeSelectedText() : themeTertiaryText()])
+          .fontColor([uiMaterialForegroundColor(this.isSelected() ? themeSelectedText() : themeTertiaryText())])
       }
       .width('100%')
       .padding({ left: 14, right: 14 })
@@ -2610,6 +2611,7 @@ struct DownloadStatusFilterOptionRow {
     .width('100%')
     .height(46)
     .backgroundColor(this.isSelected() ? themeSelectedBackground() : Color.Transparent)
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(8))
     .onClick(() => {
       this.toggle();
@@ -2672,8 +2674,9 @@ struct DownloadStatusFilterOverlay {
             .height(40)
             .layoutWeight(1)
             .fontSize(14)
-            .fontColor(themePrimaryText())
+            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
             .backgroundColor(themeFieldBackground())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(8))
             .onClick(() => {
               this.onCancel();
@@ -2683,8 +2686,9 @@ struct DownloadStatusFilterOverlay {
             .height(40)
             .layoutWeight(1)
             .fontSize(14)
-            .fontColor(themeOnPrimaryText())
+            .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
             .backgroundColor(themePrimaryColor())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(8))
             .onClick(() => {
               this.onApply();

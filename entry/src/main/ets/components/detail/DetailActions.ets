@@ -15,7 +15,7 @@ import {
   themeSurfaceVariant,
   themeTransparentColor
 } from '../../shared/EhTheme';
-import { uiRadius } from '../../shared/EhUiStyle';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../../shared/EhUiStyle';
 @Component
 export struct DetailActions {
   @Prop detail: GalleryDetail = createEmptyDetail();
@@ -173,8 +173,9 @@ export struct RatingPanel {
           .type(ButtonType.Normal)
           .height(38)
           .fontSize(13)
-          .fontColor(themeSecondaryText())
+          .fontColor(uiMaterialForegroundColor(themeSecondaryText()))
           .backgroundColor(themeSurfaceVariant())
+          .systemMaterial(uiButtonMaterial())
           .borderRadius(uiRadius(4))
           .layoutWeight(1)
           .onClick(() => {
@@ -184,8 +185,9 @@ export struct RatingPanel {
           .type(ButtonType.Normal)
           .height(38)
           .fontSize(13)
-          .fontColor(themeOnPrimaryText())
+          .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
           .backgroundColor(themePrimaryColor())
+          .systemMaterial(uiButtonMaterial())
           .borderRadius(uiRadius(4))
           .layoutWeight(1)
           .onClick(() => {
@@ -215,11 +217,11 @@ export struct DetailActionItem {
     Column({ space: 6 }) {
       SymbolGlyph(this.symbolIcon)
         .fontSize(26)
-        .fontColor([this.isActive ? (this.isFilled ? themeFavoriteText() : themeDetailActionColor()) :
-          themeInactiveActionText()])
+        .fontColor([this.isActive ? uiMaterialForegroundColor(this.isFilled ? themeFavoriteText() :
+          themeDetailActionColor()) : themeInactiveActionText()])
       Text(this.label)
         .fontSize(11)
-        .fontColor(this.isActive ? themeDetailActionColor() : themeInactiveActionText())
+        .fontColor(this.isActive ? uiMaterialForegroundColor(themeDetailActionColor()) : themeInactiveActionText())
         .textAlign(TextAlign.Center)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -228,6 +230,7 @@ export struct DetailActionItem {
     .height(68)
     .justifyContent(FlexAlign.Center)
     .backgroundColor(this.pressed ? themeSurfaceVariant() : themeTransparentColor())
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(6))
     .scale({ x: this.pressed ? 0.92 : 1, y: this.pressed ? 0.92 : 1 })
     .animation({ duration: 120, curve: Curve.EaseOut })

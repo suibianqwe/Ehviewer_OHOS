@@ -301,11 +301,11 @@ function harmonyOs7Palette(base: EhColorPalette, themeName: string): EhColorPale
     surfaceVariant: black ? '#151518' : (dark ? '#27272D' : '#EFF0F4'),
     fieldBackground: black ? '#19191D' : (dark ? '#2B2B31' : '#ECEEF3'),
     primaryText: dark ? '#F5F5F7' : '#19191B',
-    secondaryText: dark ? '#C2C2C8' : '#5F6068',
-    tertiaryText: dark ? '#92939B' : '#85868F',
-    mutedText: dark ? '#7D7E86' : '#92939B',
+    secondaryText: black ? '#D5D5DA' : (dark ? '#D0D0D6' : '#5F6068'),
+    tertiaryText: black ? '#ABACB4' : (dark ? '#A9AAB2' : '#7B7C85'),
+    mutedText: black ? '#9899A1' : (dark ? '#9899A2' : '#85868F'),
     divider: black ? '#242428' : (dark ? '#34343A' : '#E2E3E8'),
-    placeholder: dark ? '#85868F' : '#7B7C85',
+    placeholder: black ? '#A2A3AC' : (dark ? '#A2A3AC' : '#70717A'),
     selectedBackground: base.selectedBackground,
     selectedBackgroundLight: base.selectedBackgroundLight,
     selectedText: base.selectedText,
@@ -319,24 +319,24 @@ function harmonyOs7Palette(base: EhColorPalette, themeName: string): EhColorPale
     onPrimaryActionBackgroundStrong: base.onPrimaryActionBackgroundStrong,
     onPrimaryActionBackgroundDisabled: base.onPrimaryActionBackgroundDisabled,
     onPrimaryDangerBackground: base.onPrimaryDangerBackground,
-    successText: base.successText,
+    successText: dark ? '#73E099' : base.successText,
     successBackground: base.successBackground,
-    dangerText: base.dangerText,
+    dangerText: dark ? '#FF8A8A' : base.dangerText,
     dangerBackground: base.dangerBackground,
-    infoText: base.infoText,
+    infoText: dark ? '#8FC7FF' : base.infoText,
     infoBackground: dark ? '#25262B' : '#EEF2F7',
     accentBackground: base.accentBackground,
     onAccent: base.onAccent,
-    favoriteText: base.favoriteText,
-    inactiveActionText: base.inactiveActionText,
+    favoriteText: dark ? '#FF91B8' : base.favoriteText,
+    inactiveActionText: dark ? '#B6B7BF' : base.inactiveActionText,
     controlNeutralBackground: dark ? '#666871' : '#6E707A',
     controlMutedBackground: dark ? '#4B4D55' : '#555761',
     transparent: base.transparent,
-    downloadStateWait: base.downloadStateWait,
-    downloadStateActive: base.downloadStateActive,
-    downloadStateDone: base.downloadStateDone,
-    downloadStateFailed: base.downloadStateFailed,
-    downloadStateIdle: base.downloadStateIdle,
+    downloadStateWait: dark ? '#FFD36D' : base.downloadStateWait,
+    downloadStateActive: dark ? '#76B7FF' : base.downloadStateActive,
+    downloadStateDone: dark ? '#73E099' : base.downloadStateDone,
+    downloadStateFailed: dark ? '#FF8A8A' : base.downloadStateFailed,
+    downloadStateIdle: dark ? '#B6B7BF' : base.downloadStateIdle,
     readerSelectText: base.readerSelectText,
     readerSelectBackground: base.readerSelectBackground,
     readerSelectPanel: base.readerSelectPanel,
@@ -369,7 +369,7 @@ function themeRuntime(): EhThemeRuntime {
       (storedThemeName === 'Black' ? 'Black' : 'Dark') : 'Light';
   }
   const basePalette = themeName === 'Black' ? BLACK_PALETTE : (themeName === 'Dark' ? DARK_PALETTE : LIGHT_PALETTE);
-  const palette = uiStyle === 'HarmonyOS 7' ? harmonyOs7Palette(basePalette, themeName) : basePalette;
+  const palette = harmonyOs7Palette(basePalette, themeName);
   const colorName = normalizeThemeColorName(colorSetting);
   let accent = THEME_ACCENTS[0];
   for (let i = 0; i < THEME_ACCENTS.length; i++) {
@@ -380,18 +380,17 @@ function themeRuntime(): EhThemeRuntime {
   }
   const primary = themeName === 'Black' ? accent.black : (themeName === 'Dark' ? accent.dark : accent.light);
   const indicator = themeName === 'Light' ? accent.light : accent.indicator;
-  const fieldBackground = themeName === 'Black' ?
-    mixThemeColor(indicator, palette.surface, uiStyle === 'HarmonyOS 7' ? 0.92 : 0.88) :
-    (themeName === 'Dark' ? mixThemeColor(indicator, palette.surface, uiStyle === 'HarmonyOS 7' ? 0.86 : 0.82) :
-      mixThemeColor(primary, palette.surface, uiStyle === 'HarmonyOS 7' ? 0.93 : 0.90));
+  const fieldBackground = themeName === 'Black' ? mixThemeColor(indicator, palette.surface, 0.92) :
+    (themeName === 'Dark' ? mixThemeColor(indicator, palette.surface, 0.86) :
+      mixThemeColor(primary, palette.surface, 0.93));
   const selectedBackground = themeName === 'Black' ?
-    mixThemeColor(indicator, BLACK_PALETTE.surface, 0.78) :
-    (themeName === 'Dark' ? mixThemeColor(indicator, DARK_PALETTE.surface, 0.74) :
-      mixThemeColor(primary, LIGHT_PALETTE.surface, 0.70));
+    mixThemeColor(indicator, palette.surface, 0.78) :
+    (themeName === 'Dark' ? mixThemeColor(indicator, palette.surface, 0.74) :
+      mixThemeColor(primary, palette.surface, 0.70));
   const selectedBackgroundLight = themeName === 'Black' ?
-    mixThemeColor(indicator, BLACK_PALETTE.surface, 0.66) :
-    (themeName === 'Dark' ? mixThemeColor(indicator, DARK_PALETTE.surface, 0.60) :
-      mixThemeColor(primary, LIGHT_PALETTE.surface, 0.82));
+    mixThemeColor(indicator, palette.surface, 0.66) :
+    (themeName === 'Dark' ? mixThemeColor(indicator, palette.surface, 0.60) :
+      mixThemeColor(primary, palette.surface, 0.82));
   const selectedText = themeName === 'Light' ?
     mixThemeColor(primary, '#000000', 0.28) : mixThemeColor(indicator, '#FFFFFF', 0.20);
   cachedThemeRuntime = {
@@ -464,6 +463,20 @@ export function themePageBackground(): string {
 
 export function themePrimaryColor(): string {
   return accentPrimaryColor();
+}
+
+export function themeMaterialContentColor(): string {
+  const colorModeValue = AppStorage.get<number>(EH_SYSTEM_COLOR_MODE_KEY);
+  return colorModeValue === EH_SYSTEM_COLOR_MODE_DARK ? '#F5F5F7' : '#19191B';
+}
+
+export function themeMaterialSecondaryContentColor(): string {
+  const colorModeValue = AppStorage.get<number>(EH_SYSTEM_COLOR_MODE_KEY);
+  return colorModeValue === EH_SYSTEM_COLOR_MODE_DARK ? '#D0D0D6' : '#5F6068';
+}
+
+export function themeAccentTextColor(): string {
+  return isDarkTheme() ? accentIndicatorColor() : accentPrimaryColor();
 }
 
 export function themeDetailActionColor(): string {

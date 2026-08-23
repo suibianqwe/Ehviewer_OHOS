@@ -21,7 +21,7 @@ import {
   themeSurface,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
 import { AppSubToolbar } from './NavigationComponents';
 
 @Component
@@ -135,11 +135,12 @@ export struct ReaderPresetPanel {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.trash'))
             .fontSize(17)
-            .fontColor([themeDangerText()])
+            .fontColor([uiMaterialForegroundColor(themeDangerText())])
         }
         .width(38)
         .height(38)
         .backgroundColor(themeDangerBackground())
+        .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.deleteProfile(profile);
         })
@@ -206,8 +207,9 @@ export struct ReaderPresetPanel {
             Button(uiText('Save'))
               .height(42)
               .fontSize(14)
-              .fontColor(themeOnPrimaryText())
+              .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
               .backgroundColor(themePrimaryColor())
+              .systemMaterial(uiButtonMaterial())
               .borderRadius(uiRadius(6))
               .onClick(() => {
                 this.saveCurrentPreset();

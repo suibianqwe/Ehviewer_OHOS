@@ -16,7 +16,7 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../../shared/EhTheme';
-import { uiRadius } from '../../shared/EhUiStyle';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../../shared/EhUiStyle';
 import { GalleryThumb } from '../GalleryCards';
 
 const PREVIEW_THUMB_LOCAL_SOURCE_CACHE: Map<string, string> = new Map<string, string>();
@@ -205,8 +205,9 @@ export struct DetailPreviewJumpOverlay {
         Button(uiText('Close'), { type: ButtonType.Normal, stateEffect: true })
           .height(38)
           .fontSize(14)
-          .fontColor(themeOnPrimaryText())
+          .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
           .backgroundColor(themePrimaryColor())
+          .systemMaterial(uiButtonMaterial())
           .borderRadius(uiRadius(6))
           .width('100%')
           .margin({ top: 16 })

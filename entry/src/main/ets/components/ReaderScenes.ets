@@ -80,6 +80,7 @@ import {
   uiText
 } from '../shared/EhShared';
 import { ArrayDataSource } from '../shared/ListDataSource';
+import { uiButtonMaterial, uiMaterialBackground, uiMaterialForegroundColor } from '../shared/EhUiStyle';
 import {
   READER_BASE_SCALE,
   READER_INERTIA_DURATION,
@@ -3731,11 +3732,12 @@ export struct ReaderScene {
         Button({ type: ButtonType.Circle }) {
           SymbolGlyph($r('sys.symbol.translate'))
             .fontSize(25)
-            .fontColor([Color.White])
+            .fontColor([uiMaterialForegroundColor(Color.White)])
         }
         .width(READER_TRANSLATION_BUTTON_SIZE)
         .height(READER_TRANSLATION_BUTTON_SIZE)
-        .backgroundColor(this.comicTranslationActive ? '#167A9A' : '#34454D')
+        .backgroundColor(uiMaterialBackground(this.comicTranslationActive ? '#167A9A' : '#34454D'))
+        .systemMaterial(uiButtonMaterial())
         .opacity(0.46)
         .shadow({ radius: 8, color: 'rgba(0,0,0,0.28)', offsetX: 0, offsetY: 2 })
         .position({ x: this.comicTranslationButtonX, y: this.comicTranslationButtonY })

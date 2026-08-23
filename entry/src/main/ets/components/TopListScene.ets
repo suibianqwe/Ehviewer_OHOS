@@ -26,6 +26,7 @@ import {
   themeOnPrimaryText,
   themeDividerColor,
   themePageBackground,
+  themeAccentTextColor,
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
@@ -862,7 +863,7 @@ export struct TopListTabs {
           Text(uiText(info.title))
             .height(34)
             .fontSize(12)
-            .fontColor(index === this.selectedIndex ? themeOnPrimaryText() : themePrimaryColor())
+            .fontColor(index === this.selectedIndex ? themeOnPrimaryText() : themeAccentTextColor())
             .textAlign(TextAlign.Center)
             .textVerticalAlign(TextVerticalAlign.CENTER)
             .padding({ left: 12, right: 12 })
@@ -1052,7 +1053,7 @@ export struct TopListBucketCard {
         Text(uiText(this.bucket.title))
           .fontSize(16)
           .fontWeight(FontWeight.Bold)
-          .fontColor(this.canOpenBucket ? themePrimaryColor() : themePrimaryText())
+          .fontColor(this.canOpenBucket ? themeAccentTextColor() : themePrimaryText())
           .layoutWeight(1)
           .decoration({ type: this.canOpenBucket ? TextDecorationType.Underline : TextDecorationType.None })
           .onClick(() => {
@@ -1111,7 +1112,7 @@ export struct TopListChip {
         .height(30)
         .fontSize(13)
         .fontWeight(this.rank <= 3 ? FontWeight.Bold : FontWeight.Medium)
-        .fontColor(themePrimaryColor())
+        .fontColor(themeAccentTextColor())
         .textAlign(TextAlign.Center)
         .textVerticalAlign(TextVerticalAlign.CENTER)
         .backgroundColor(themeSurface())

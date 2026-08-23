@@ -13,6 +13,9 @@ import {
   themeOnPrimaryDangerBackground,
   themeOnPrimarySecondaryText,
   themeOnPrimaryText,
+  themeAccentTextColor,
+  themeMaterialContentColor,
+  themeMaterialSecondaryContentColor,
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
@@ -24,8 +27,32 @@ import {
   themeSurfaceVariant,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { uiCardRadius, uiControlRadius, uiPillRadius } from '../shared/EhUiStyle';
+import {
+  isHarmonyOs7UiStyle,
+  uiButtonMaterial,
+  uiCardRadius,
+  uiControlRadius,
+  uiMaterialBackground,
+  uiPillRadius,
+  uiTitleBarBlurStyle
+} from '../shared/EhUiStyle';
 import { TranslationText } from './TranslationComponents';
+
+function navigationBarBackground(): string {
+  return uiMaterialBackground(themePrimaryColor());
+}
+
+function navigationTitleText(): string {
+  return isHarmonyOs7UiStyle() ? themeMaterialContentColor() : themeOnPrimaryText();
+}
+
+function navigationSecondaryText(): string {
+  return isHarmonyOs7UiStyle() ? themeMaterialSecondaryContentColor() : themeOnPrimarySecondaryText();
+}
+
+function navigationActionBackground(color: string): string {
+  return uiMaterialBackground(color);
+}
 
 // ===================================================================
 // EhDrawer  -- slide-in navigation drawer (HarmonyOS style)
@@ -72,7 +99,7 @@ export struct EhDrawer {
           Text(this.signedIn ? uiText('EH') : '?')
             .fontSize(22)
             .fontWeight(FontWeight.Bold)
-            .fontColor(themePrimaryColor())
+            .fontColor(themeAccentTextColor())
             .textAlign(TextAlign.Center)
             .width(52)
             .height(52)
@@ -83,11 +110,11 @@ export struct EhDrawer {
             Text(uiText('EhViewer'))
               .fontSize(17)
               .fontWeight(FontWeight.Bold)
-              .fontColor(themeOnPrimaryText())
+              .fontColor(navigationTitleText())
 
             Text(this.signedIn ? uiText('Signed in') : uiText('Guest mode'))
               .fontSize(13)
-              .fontColor(themeOnPrimarySecondaryText())
+              .fontColor(navigationSecondaryText())
               .margin({ top: 3 })
           }
           .alignItems(HorizontalAlign.Start)
@@ -99,7 +126,7 @@ export struct EhDrawer {
         .alignItems(VerticalAlign.Center)
       }
       .width('100%')
-      .backgroundColor(themePrimaryColor())
+      .backgroundColor(navigationBarBackground())
 
       // ---- Nav items ----
       List() {
@@ -441,7 +468,7 @@ export struct EhNavBar {
       Column()
         .height(this.statusBarHeight)
         .width('100%')
-        .backgroundColor(themePrimaryColor())
+        .backgroundColor(navigationBarBackground())
 
       // Main bar row
       Row() {
@@ -449,11 +476,12 @@ export struct EhNavBar {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph(this.showBackButton ? $r('sys.symbol.chevron_left') : $r('sys.symbol.open_sidebar'))
             .fontSize(22)
-            .fontColor([themeOnPrimaryText()])
+            .fontColor([navigationTitleText()])
         }
         .width(40)
         .height(40)
-        .backgroundColor(themeOnPrimaryActionBackground())
+        .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
+        .systemMaterial(uiButtonMaterial())
         .flexShrink(0)
         .onClick(() => {
           if (this.showBackButton) {
@@ -486,8 +514,8 @@ export struct EhNavBar {
             if (this.filterActive) {
               Text(uiText('Filter'))
                 .fontSize(9)
-                .fontColor(themeOnPrimaryText())
-                .backgroundColor(themeOnPrimaryActionStrongBackground())
+                .fontColor(navigationTitleText())
+                .backgroundColor(navigationActionBackground(themeOnPrimaryActionStrongBackground()))
                 .padding({ left: 5, right: 5, top: 1, bottom: 1 })
                 .borderRadius(uiControlRadius(3))
                 .margin({ left: 10, bottom: 5 })
@@ -501,12 +529,13 @@ export struct EhNavBar {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph(this.searchShowsAdvancedButton ? $r('sys.symbol.plus') : $r('sys.symbol.magnifyingglass'))
               .fontSize(this.searchShowsAdvancedButton ? 22 : 20)
-              .fontColor([themeOnPrimaryText()])
+              .fontColor([navigationTitleText()])
           }
           .width(40)
           .height(40)
-          .backgroundColor(this.searchShowsAdvancedButton && this.filterActive ? themeOnPrimaryActionStrongBackground() :
-            themeOnPrimaryActionBackground())
+          .backgroundColor(navigationActionBackground(this.searchShowsAdvancedButton && this.filterActive ?
+            themeOnPrimaryActionStrongBackground() : themeOnPrimaryActionBackground()))
+          .systemMaterial(uiButtonMaterial())
           .flexShrink(0)
           .margin({ left: 8 })
           .onClick(() => {
@@ -523,14 +552,14 @@ export struct EhNavBar {
             Text(uiText(this.title))
               .fontSize(19)
               .fontWeight(FontWeight.Medium)
-              .fontColor(themeOnPrimaryText())
+              .fontColor(navigationTitleText())
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
 
             if (this.subtitle.length > 0) {
               Text(uiText(this.subtitle))
                 .fontSize(12)
-                .fontColor(themeOnPrimarySecondaryText())
+                .fontColor(navigationSecondaryText())
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
                 .margin({ top: 1 })
@@ -544,11 +573,12 @@ export struct EhNavBar {
             Button({ type: ButtonType.Circle, stateEffect: true }) {
               SymbolGlyph($r('sys.symbol.play_arrow_triangle_2_circlepath'))
                 .fontSize(20)
-                .fontColor([themeOnPrimaryText()])
+                .fontColor([navigationTitleText()])
             }
             .width(40)
             .height(40)
-            .backgroundColor(themeOnPrimaryActionBackground())
+            .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
+            .systemMaterial(uiButtonMaterial())
             .flexShrink(0)
             .margin({ left: 6 })
             .onClick(() => { this.onRefresh(); })
@@ -558,11 +588,12 @@ export struct EhNavBar {
             Button({ type: ButtonType.Circle, stateEffect: true }) {
               SymbolGlyph($r('sys.symbol.folder'))
                 .fontSize(20)
-                .fontColor([themeOnPrimaryText()])
+                .fontColor([navigationTitleText()])
             }
             .width(40)
             .height(40)
-            .backgroundColor(themeOnPrimaryActionBackground())
+            .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
+            .systemMaterial(uiButtonMaterial())
             .flexShrink(0)
             .margin({ left: 6 })
             .onClick(() => { this.onFavoriteButton(); })
@@ -572,11 +603,12 @@ export struct EhNavBar {
             Button({ type: ButtonType.Circle, stateEffect: true }) {
               SymbolGlyph($r('sys.symbol.bookmark'))
                 .fontSize(20)
-                .fontColor([themeOnPrimaryText()])
+                .fontColor([navigationTitleText()])
             }
             .width(40)
             .height(40)
-            .backgroundColor(themeOnPrimaryActionBackground())
+            .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
+            .systemMaterial(uiButtonMaterial())
             .flexShrink(0)
             .margin({ left: 6 })
             .onClick(() => { this.onBookmarkButton(); })
@@ -586,11 +618,12 @@ export struct EhNavBar {
             Button({ type: ButtonType.Circle, stateEffect: true }) {
               SymbolGlyph($r('sys.symbol.magnifyingglass'))
                 .fontSize(20)
-                .fontColor([themeOnPrimaryText()])
+                .fontColor([navigationTitleText()])
             }
             .width(40)
             .height(40)
-            .backgroundColor(themeOnPrimaryActionBackground())
+            .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
+            .systemMaterial(uiButtonMaterial())
             .flexShrink(0)
             .margin({ left: 6 })
             .onClick(() => { this.onSearch(); })
@@ -601,12 +634,14 @@ export struct EhNavBar {
             Button({ type: ButtonType.Circle, stateEffect: true }) {
               SymbolGlyph($r('sys.symbol.trash'))
                 .fontSize(19)
-                .fontColor([themeOnPrimaryText()])
+                .fontColor([navigationTitleText()])
             }
             .width(40)
             .height(40)
             .enabled(this.canClear)
-            .backgroundColor(this.canClear ? themeOnPrimaryDangerBackground() : themeOnPrimaryActionDisabledBackground())
+            .backgroundColor(navigationActionBackground(this.canClear ? themeOnPrimaryDangerBackground() :
+              themeOnPrimaryActionDisabledBackground()))
+            .systemMaterial(uiButtonMaterial())
             .flexShrink(0)
             .margin({ left: 6 })
             .onClick(() => { this.onClear(); })
@@ -617,13 +652,14 @@ export struct EhNavBar {
       .height(this.barBodyHeight())
       .padding({ left: 12, right: 12 })
       .alignItems(VerticalAlign.Center)
-      .backgroundColor(themePrimaryColor())
+      .backgroundColor(navigationBarBackground())
     }
     .width('100%')
     .translate({ y: this.translateY })
     .opacity(1)
     .visibility(this.barVisible() ? Visibility.Visible : Visibility.Hidden)
     .animation({ duration: 200, curve: Curve.EaseOut })
+    .backgroundBlurStyle(uiTitleBarBlurStyle())
     .zIndex(10)
   }
 }
@@ -648,17 +684,18 @@ export struct EhSubNavBar {
       Column()
         .height(this.statusBarHeight)
         .width('100%')
-        .backgroundColor(themePrimaryColor())
+        .backgroundColor(navigationBarBackground())
 
       Row() {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(22)
-            .fontColor([themeOnPrimaryText()])
+            .fontColor([navigationTitleText()])
         }
         .width(40)
         .height(40)
-        .backgroundColor(themeOnPrimaryActionBackground())
+        .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
+        .systemMaterial(uiButtonMaterial())
         .flexShrink(0)
         .onClick(() => { this.onBack(); })
 
@@ -667,7 +704,7 @@ export struct EhSubNavBar {
           translationEnabled: this.translateTitle,
           fontSizeValue: 19,
           fontWeightValue: FontWeight.Medium,
-          fontColorValue: themeOnPrimaryText(),
+          fontColorValue: navigationTitleText(),
           lineHeightValue: 24,
           maxLinesValue: 1
         })
@@ -678,11 +715,13 @@ export struct EhSubNavBar {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph(this.actionIcon)
               .fontSize(22)
-              .fontColor([themeOnPrimaryText()])
+              .fontColor([navigationTitleText()])
           }
           .width(40)
           .height(40)
-          .backgroundColor(this.actionChecked ? themeOnPrimaryActionStrongBackground() : themeOnPrimaryActionBackground())
+          .backgroundColor(navigationActionBackground(this.actionChecked ? themeOnPrimaryActionStrongBackground() :
+            themeOnPrimaryActionBackground()))
+          .systemMaterial(uiButtonMaterial())
           .flexShrink(0)
           .margin({ left: 8 })
           .onClick(() => {
@@ -694,9 +733,10 @@ export struct EhSubNavBar {
       .height(56)
       .padding({ left: 12, right: 16 })
       .alignItems(VerticalAlign.Center)
-      .backgroundColor(themePrimaryColor())
+      .backgroundColor(navigationBarBackground())
     }
     .width('100%')
+    .backgroundBlurStyle(uiTitleBarBlurStyle())
     .zIndex(10)
   }
 }
@@ -902,10 +942,11 @@ struct LegacySearchBar {
     Row() {
       Button({ type: ButtonType.Circle, stateEffect: true }) {
         SymbolGlyph($r('sys.symbol.open_sidebar'))
-          .fontSize(22).fontColor([themeOnPrimaryText()])
+          .fontSize(22).fontColor([navigationTitleText()])
       }
       .width(40).height(40)
-      .backgroundColor(themeOnPrimaryActionBackground())
+      .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
+      .systemMaterial(uiButtonMaterial())
       .flexShrink(0)
       .onClick(() => { this.onMenu(); })
 
@@ -923,10 +964,11 @@ struct LegacySearchBar {
 
       Button({ type: ButtonType.Circle, stateEffect: true }) {
         SymbolGlyph($r('sys.symbol.magnifyingglass'))
-          .fontSize(20).fontColor([themeOnPrimaryText()])
+          .fontSize(20).fontColor([navigationTitleText()])
       }
       .width(40).height(40)
-      .backgroundColor(themeOnPrimaryActionBackground())
+      .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
+      .systemMaterial(uiButtonMaterial())
       .flexShrink(0)
       .margin({ left: 8 })
       .onClick(() => { this.onSearch(); })
@@ -935,7 +977,8 @@ struct LegacySearchBar {
     .height(62)
     .padding({ left: 12, right: 12 })
     .alignItems(VerticalAlign.Center)
-    .backgroundColor(themePrimaryColor())
+    .backgroundColor(navigationBarBackground())
+    .backgroundBlurStyle(uiTitleBarBlurStyle())
   }
 }
 
@@ -954,17 +997,18 @@ struct LegacyActionBar {
     Row() {
       Button({ type: ButtonType.Circle, stateEffect: true }) {
         SymbolGlyph($r('sys.symbol.open_sidebar'))
-          .fontSize(22).fontColor([themeOnPrimaryText()])
+          .fontSize(22).fontColor([navigationTitleText()])
       }
       .width(40).height(40)
-      .backgroundColor(themeOnPrimaryActionBackground())
+      .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
+      .systemMaterial(uiButtonMaterial())
       .flexShrink(0)
       .onClick(() => { this.onMenu(); })
 
       Text(uiText(this.title))
         .fontSize(18)
         .fontWeight(FontWeight.Medium)
-        .fontColor(themeOnPrimaryText())
+        .fontColor(navigationTitleText())
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .layoutWeight(1)
@@ -972,10 +1016,11 @@ struct LegacyActionBar {
 
       Button({ type: ButtonType.Circle, stateEffect: true }) {
         SymbolGlyph($r('sys.symbol.play_arrow_triangle_2_circlepath'))
-          .fontSize(20).fontColor([themeOnPrimaryText()])
+          .fontSize(20).fontColor([navigationTitleText()])
       }
       .width(40).height(40)
-      .backgroundColor(themeOnPrimaryActionBackground())
+      .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
+      .systemMaterial(uiButtonMaterial())
       .flexShrink(0)
       .margin({ left: 6 })
       .onClick(() => { this.onRefresh(); })
@@ -983,11 +1028,13 @@ struct LegacyActionBar {
       if (this.showClear) {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.trash'))
-            .fontSize(19).fontColor([themeOnPrimaryText()])
+            .fontSize(19).fontColor([navigationTitleText()])
         }
         .width(40).height(40)
         .enabled(this.canClear)
-        .backgroundColor(this.canClear ? themeOnPrimaryDangerBackground() : themeOnPrimaryActionDisabledBackground())
+        .backgroundColor(navigationActionBackground(this.canClear ? themeOnPrimaryDangerBackground() :
+          themeOnPrimaryActionDisabledBackground()))
+        .systemMaterial(uiButtonMaterial())
         .flexShrink(0)
         .margin({ left: 6 })
         .onClick(() => { this.onClear(); })
@@ -997,7 +1044,8 @@ struct LegacyActionBar {
     .height(62)
     .padding({ left: 12, right: 12 })
     .alignItems(VerticalAlign.Center)
-    .backgroundColor(themePrimaryColor())
+    .backgroundColor(navigationBarBackground())
+    .backgroundBlurStyle(uiTitleBarBlurStyle())
   }
 }
 
@@ -1059,23 +1107,24 @@ export struct AppTopBar {
       Button({ type: ButtonType.Circle, stateEffect: true }) {
         SymbolGlyph(this.symbol)
           .fontSize(22)
-          .fontColor([themeOnPrimaryText()])
+          .fontColor([navigationTitleText()])
       }
       .width(40).height(40)
-      .backgroundColor(themeOnPrimaryActionBackground())
+      .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
+      .systemMaterial(uiButtonMaterial())
       .onClick(() => { this.onAction(); })
 
       Column() {
         Text(uiText(this.title))
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
-          .fontColor(themeOnPrimaryText())
+          .fontColor(navigationTitleText())
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         if (this.subtitle.length > 0) {
           Text(uiText(this.subtitle))
             .fontSize(12)
-            .fontColor(themeOnPrimarySecondaryText())
+            .fontColor(navigationSecondaryText())
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .margin({ top: 1 })
@@ -1089,6 +1138,7 @@ export struct AppTopBar {
     .height(62)
     .padding({ left: 12, right: 16 })
     .alignItems(VerticalAlign.Center)
-    .backgroundColor(themePrimaryColor())
+    .backgroundColor(navigationBarBackground())
+    .backgroundBlurStyle(uiTitleBarBlurStyle())
   }
 }
