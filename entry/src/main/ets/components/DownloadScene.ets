@@ -12,6 +12,7 @@ import {
   ehDownloadFileStore
 } from '../services/EhDownloadFileStore';
 import { ehDownloadManager } from '../services/EhDownloadManager';
+import { BrowsePosition, ehBrowsePositionStore } from '../services/EhBrowsePositionStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import { TRANSLATION_BUTTONS_VISIBLE_KEY, ehSettingsStore } from '../services/EhSettingsStore';
 import {
@@ -114,6 +115,18 @@ import {
   SearchSummaryStrip
 } from './GallerySearchScenes';
 import {
+  FLOATING_ACTION_GAP,
+  FLOATING_ACTION_PRIMARY_GAP,
+  FLOATING_ACTION_SIZE,
+  floatingActionAvailableHeight,
+  floatingActionGridHeight,
+  floatingActionGridWidth,
+  floatingActionHitIndex,
+  floatingActionIndexesForColumn,
+  floatingActionToolbarWidth,
+  floatingActionVisualColumns
+} from './FloatingActionLayoutSupport';
+import {
   areaDimensionToVp,
   markCurrentRouteRightPane,
   normalizeSplitPaneFocus,
@@ -160,10 +173,6 @@ function normalizeDownloadSceneLocation(value: string): string {
 }
 
 const DOWNLOAD_PAGE_PROGRESS_SCALE: number = 1000;
-const ACTION_BUBBLE_SIZE: number = 44;
-const ACTION_BUBBLE_GAP: number = 8;
-const ACTION_BUBBLE_PRIMARY_SIZE: number = 54;
-const ACTION_BUBBLE_PRIMARY_GAP: number = 10;
 const DOWNLOAD_JUMP_PAGE_SIZE: number = 25;
 
 interface DownloadNavigationCache {
@@ -277,6 +286,10 @@ export struct DownloadScene {
   private cardScrollAnchor: GalleryCardScrollAnchor = new GalleryCardScrollAnchor();
   private splitDragStartWidth: number = 0;
   private downloadScrollOffset: number = 0;
+  private downloadFirstVisibleIndex: number = 0;
+  private downloadBrowsePositionLoaded: boolean = false;
+  private downloadBrowsePositionRestored: boolean = false;
+  private restoringDownloadBrowsePosition: boolean = false;
   private toolbarRestoring: boolean = false;
   private cellularWarningDialogOpen: boolean = false;
   private deleteConfirmationDialogOpen: boolean = false;
@@ -303,6 +316,7 @@ export struct DownloadScene {
       this.statusText = status;
     });
     this.refreshSearchSuggestions();
+    this.prepareDownloadBrowsePosition();
     this.loadDownloads();
     setTimeout(() => {
       this.syncSceneContentWidthFromWindow();
@@ -311,6 +325,8 @@ export struct DownloadScene {
   }
 
   aboutToDisappear(): void {
+    this.rememberDownloadScrollOffset();
+    ehBrowsePositionStore.flush();
     this.cardScrollAnchor.clear();
     this.saveNavigationCache();
     this.unsubscribeStore();
@@ -519,12 +535,8 @@ export struct DownloadScene {
   }
 
   private downloadToolActionsMaxHeight(): number {
-    if (this.viewportHeight <= 0) {
-      return 360;
-    }
     const reservedTop = this.statusBarVp() + 56 + 8;
-    const reservedBottom = 24 + ACTION_BUBBLE_PRIMARY_SIZE + ACTION_BUBBLE_PRIMARY_GAP;
-    return Math.max(ACTION_BUBBLE_SIZE, this.viewportHeight - reservedTop - reservedBottom);
+    return floatingActionAvailableHeight(this.viewportHeight, reservedTop);
   }
 
   private updateToolbarForScrollFrame(scrollOffset: number): number {
@@ -597,6 +609,20 @@ export struct DownloadScene {
       this.getUIContext().getPromptAction().showToast({ message: uiStatusText(message) });
     } catch (error) {
     }
+  }
+
+  private prepareDownloadBrowsePosition(): void {
+    const context = getAbilityContext();
+    if (context === undefined) {
+      return;
+    }
+    ehBrowsePositionStore.ensureLoaded(context).then(() => {
+      const position = ehBrowsePositionStore.getDownloadPosition();
+      this.downloadScrollOffset = position.offset;
+      this.downloadFirstVisibleIndex = position.anchorIndex;
+      this.downloadBrowsePositionLoaded = true;
+      this.restoreDownloadScrollOffset();
+    }).catch(() => {});
   }
 
   private openDownloadLabelDrawer(): void {
@@ -1210,6 +1236,11 @@ export struct DownloadScene {
   private refreshDownloadRows(): void {
     this.visibleItems = this.computeVisibleDownloadItems();
     this.syncDownloadCardStates();
+    if (this.downloadBrowsePositionLoaded && !this.downloadBrowsePositionRestored) {
+      setTimeout(() => {
+        this.restoreDownloadScrollOffset();
+      }, 0);
+    }
   }
 
   private updateVisibleTranslationItem(index: number, visible: boolean): void {
@@ -1232,12 +1263,16 @@ export struct DownloadScene {
     }
     this.translationVisibleStart = start;
     this.translationVisibleEnd = end;
+    this.downloadFirstVisibleIndex = start;
   }
 
   private setVisibleTranslationRange(start: number, end: number): void {
     this.translationVisibleItems = [];
     this.translationVisibleStart = start;
     this.translationVisibleEnd = end;
+    if (start >= 0) {
+      this.downloadFirstVisibleIndex = start;
+    }
   }
 
   private translationPriorityFor(index: number): number {
@@ -1868,15 +1903,50 @@ export struct DownloadScene {
 
   private restoreDownloadScrollOffset(): void {
     this.syncDownloadContentWidthFromWindow();
-    if (this.downloadScrollOffset > 0) {
-      setTimeout(() => {
-        this.downloadScroller.scrollTo({ xOffset: 0, yOffset: this.downloadScrollOffset });
-      }, 0);
+    if (!this.downloadBrowsePositionLoaded || this.downloadBrowsePositionRestored || this.visibleItems.length === 0) {
+      return;
     }
+    const position: BrowsePosition = ehBrowsePositionStore.getDownloadPosition();
+    let targetIndex = -1;
+    if (position.anchorId.length > 0) {
+      for (let i = 0; i < this.visibleItems.length; i++) {
+        if (this.visibleItems[i].gid.toString() === position.anchorId) {
+          targetIndex = i;
+          break;
+        }
+      }
+    }
+    if (targetIndex < 0) {
+      targetIndex = Math.min(position.anchorIndex, this.visibleItems.length - 1);
+    }
+    this.downloadFirstVisibleIndex = targetIndex;
+    this.downloadBrowsePositionRestored = true;
+    this.restoringDownloadBrowsePosition = true;
+    setTimeout(() => {
+      if (targetIndex === position.anchorIndex && position.offset > 0) {
+        this.downloadScroller.scrollTo({ xOffset: 0, yOffset: position.offset });
+      } else if (targetIndex > 0) {
+        const scrollIndex = galleryListMode() === 'Thumb' ? targetIndex :
+          Math.floor(targetIndex / Math.max(1, this.downloadColumnCount())) + 1;
+        this.downloadScroller.scrollToIndex(scrollIndex);
+      }
+      setTimeout(() => {
+        this.restoringDownloadBrowsePosition = false;
+      }, 80);
+    }, 0);
   }
 
   private rememberDownloadScrollOffset(): void {
+    if (this.restoringDownloadBrowsePosition) {
+      return;
+    }
     this.downloadScrollOffset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
+    if (!this.downloadBrowsePositionLoaded) {
+      return;
+    }
+    const index = Math.max(0, Math.min(this.downloadFirstVisibleIndex, this.visibleItems.length - 1));
+    const anchorId = this.visibleItems.length > 0 ? this.visibleItems[index].gid.toString() : '';
+    ehBrowsePositionStore.updateDownloadPosition(anchorId, index, this.downloadScrollOffset);
   }
 
   build() {
@@ -2676,59 +2746,24 @@ struct DownloadToolColumn {
     return this.actionCount();
   }
 
-  private maxActionRows(): number {
-    return Math.max(1, Math.floor((Math.max(ACTION_BUBBLE_SIZE, this.maxExpandedHeight) +
-      ACTION_BUBBLE_GAP) / (ACTION_BUBBLE_SIZE + ACTION_BUBBLE_GAP)));
-  }
-
-  private actionColumnCount(): number {
-    const count = this.actionCount();
-    if (count <= 0) {
-      return 0;
-    }
-    return Math.ceil(count / this.maxActionRows());
-  }
-
-  private actionRows(): number {
-    return Math.min(this.actionCount(), this.maxActionRows());
-  }
-
   private expandedActionsHeight(): number {
-    const rows = this.actionRows();
-    if (rows <= 0) {
-      return 0;
-    }
-    return rows * ACTION_BUBBLE_SIZE + (rows - 1) * ACTION_BUBBLE_GAP;
+    return floatingActionGridHeight(this.actionCount(), this.maxExpandedHeight);
   }
 
   private expandedActionsWidth(): number {
-    const columns = this.actionColumnCount();
-    if (columns <= 0) {
-      return 0;
-    }
-    return columns * ACTION_BUBBLE_SIZE + (columns - 1) * ACTION_BUBBLE_GAP;
+    return floatingActionGridWidth(this.actionCount(), this.maxExpandedHeight);
   }
 
   private toolbarWidth(): number {
-    return Math.max(ACTION_BUBBLE_PRIMARY_SIZE, this.expandedActionsWidth());
+    return floatingActionToolbarWidth(this.actionCount(), this.maxExpandedHeight);
   }
 
   private visualActionColumns(): number[] {
-    const columns: number[] = [];
-    for (let column = this.actionColumnCount() - 1; column >= 0; column--) {
-      columns.push(column);
-    }
-    return columns;
+    return floatingActionVisualColumns(this.actionCount(), this.maxExpandedHeight);
   }
 
   private actionIndexesForColumn(column: number): number[] {
-    const indexes: number[] = [];
-    const start = column * this.maxActionRows();
-    const end = Math.min(this.actionCount(), start + this.maxActionRows());
-    for (let index = start; index < end; index++) {
-      indexes.push(index);
-    }
-    return indexes;
+    return floatingActionIndexesForColumn(column, this.actionCount(), this.maxExpandedHeight);
   }
 
   private actionKind(index: number): string {
@@ -2802,37 +2837,7 @@ struct DownloadToolColumn {
   }
 
   private hitActionIndex(x: number, y: number): number {
-    const count = this.actionCount();
-    if (count > 0) {
-      const actionsHeight = this.expandedActionsHeight();
-      const actionsWidth = this.expandedActionsWidth();
-      const actionsLeft = this.toolbarWidth() - actionsWidth;
-      if (x >= actionsLeft && x <= this.toolbarWidth() && y >= 0 && y <= actionsHeight) {
-        const relativeX = x - actionsLeft;
-        const visualColumn = Math.floor(relativeX / (ACTION_BUBBLE_SIZE + ACTION_BUBBLE_GAP));
-        const columnLeft = visualColumn * (ACTION_BUBBLE_SIZE + ACTION_BUBBLE_GAP);
-        const row = Math.floor(y / (ACTION_BUBBLE_SIZE + ACTION_BUBBLE_GAP));
-        const rowTop = row * (ACTION_BUBBLE_SIZE + ACTION_BUBBLE_GAP);
-        if (visualColumn >= 0 && visualColumn < this.actionColumnCount() &&
-          relativeX <= columnLeft + ACTION_BUBBLE_SIZE &&
-          row >= 0 && row < this.maxActionRows() && y >= rowTop && y <= rowTop + ACTION_BUBBLE_SIZE) {
-          const logicalColumn = this.actionColumnCount() - visualColumn - 1;
-          const index = logicalColumn * this.maxActionRows() + row;
-          return index < count ? index : -1;
-        }
-      }
-      const primaryTop = actionsHeight + ACTION_BUBBLE_PRIMARY_GAP;
-      const primaryLeft = this.toolbarWidth() - ACTION_BUBBLE_PRIMARY_SIZE;
-      if (x >= primaryLeft && x <= this.toolbarWidth() &&
-        y >= primaryTop && y <= primaryTop + ACTION_BUBBLE_PRIMARY_SIZE) {
-        return this.primaryIndex();
-      }
-      return -1;
-    }
-    if (x >= 0 && x <= ACTION_BUBBLE_PRIMARY_SIZE && y >= 0 && y <= ACTION_BUBBLE_PRIMARY_SIZE) {
-      return this.primaryIndex();
-    }
-    return -1;
+    return floatingActionHitIndex(x, y, this.actionCount(), this.maxExpandedHeight);
   }
 
   private touchX(event: TouchEvent): number {
@@ -2926,27 +2931,27 @@ struct DownloadToolColumn {
   build() {
     Column() {
       if (this.expanded) {
-        Row({ space: ACTION_BUBBLE_GAP }) {
+        Row({ space: FLOATING_ACTION_GAP }) {
           ForEach(this.visualActionColumns(), (column: number) => {
-            Column({ space: ACTION_BUBBLE_GAP }) {
+            Column({ space: FLOATING_ACTION_GAP }) {
               ForEach(this.actionIndexesForColumn(column), (index: number) => {
                 Row() {
                   this.actionBubble(index)
                 }
-                .width(ACTION_BUBBLE_SIZE)
-                .height(ACTION_BUBBLE_SIZE)
+                .width(FLOATING_ACTION_SIZE)
+                .height(FLOATING_ACTION_SIZE)
                 .justifyContent(FlexAlign.End)
                 .clip(false)
               }, (index: number) => index.toString())
             }
-            .width(ACTION_BUBBLE_SIZE)
+            .width(FLOATING_ACTION_SIZE)
             .alignItems(HorizontalAlign.End)
           }, (column: number) => column.toString())
         }
         .width(this.expandedActionsWidth())
         .height(this.expandedActionsHeight())
         .alignItems(VerticalAlign.Top)
-        .margin({ bottom: 10 })
+        .margin({ bottom: FLOATING_ACTION_PRIMARY_GAP })
         .transition(TransitionEffect.OPACITY
           .combine(TransitionEffect.translate({ y: 12 }))
           .animation({ duration: 180, curve: Curve.EaseOut }))

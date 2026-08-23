@@ -5,6 +5,7 @@ import { systemShare } from '@kit.ShareKit';
 import { KeyCode } from '@ohos.multimodalInput.keyCode';
 import { ALL_CATEGORY, GalleryCategory, GalleryDetail, GalleryInfo, GalleryRoute, GallerySite } from '../model/GalleryModels';
 import { SearchBookmarkInfo, ehBookmarkStore } from '../services/EhBookmarkStore';
+import { BrowsePosition, ehBrowsePositionStore } from '../services/EhBrowsePositionStore';
 import { ehCookieStore } from '../services/EhCookieStore';
 import {
   EhHttpClient,
@@ -130,6 +131,7 @@ import {
   searchTagTokens,
   recordSearchHistory
 } from './GallerySearchScenes';
+import { floatingActionAvailableHeight } from './FloatingActionLayoutSupport';
 import {
   uiText,
   uiStatusText,
@@ -786,8 +788,6 @@ function bookmarkSummary(item: SearchBookmarkInfo): string {
   return parts.join(' · ');
 }
 
-let searchBookmarkDrawerScrollOffset: number = 0;
-
 @Component
 export struct SearchBookmarkDrawer {
   @Prop statusBarHeight: number = 0;
@@ -799,14 +799,54 @@ export struct SearchBookmarkDrawer {
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   private bookmarkScroller: Scroller = new Scroller();
   private restoringScrollPosition: boolean = false;
+  private positionLoaded: boolean = false;
+  private firstVisibleIndex: number = 0;
 
-  private restoreScrollPosition(): void {
-    if (searchBookmarkDrawerScrollOffset <= 0) {
+  aboutToAppear(): void {
+    const context = getAbilityContext();
+    if (context === undefined) {
       return;
     }
+    ehBrowsePositionStore.ensureLoaded(context).then(() => {
+      this.positionLoaded = true;
+      this.restoreScrollPosition();
+    }).catch(() => {});
+  }
+
+  aboutToDisappear(): void {
+    this.rememberScrollPosition();
+    ehBrowsePositionStore.flush();
+  }
+
+  private bookmarkIndexById(id: string): number {
+    if (id.length === 0) {
+      return -1;
+    }
+    for (let i = 0; i < this.bookmarks.length; i++) {
+      if (this.bookmarks[i].id === id) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  private restoreScrollPosition(): void {
+    if (!this.positionLoaded || this.bookmarks.length === 0) {
+      return;
+    }
+    const position: BrowsePosition = ehBrowsePositionStore.getBookmarkDrawerPosition();
+    let targetIndex = this.bookmarkIndexById(position.anchorId);
+    if (targetIndex < 0) {
+      targetIndex = Math.min(position.anchorIndex, this.bookmarks.length - 1);
+    }
+    this.firstVisibleIndex = targetIndex;
     this.restoringScrollPosition = true;
     setTimeout(() => {
-      this.bookmarkScroller.scrollTo({ xOffset: 0, yOffset: searchBookmarkDrawerScrollOffset });
+      if (targetIndex === position.anchorIndex && position.offset > 0) {
+        this.bookmarkScroller.scrollTo({ xOffset: 0, yOffset: position.offset });
+      } else if (targetIndex > 0) {
+        this.bookmarkScroller.scrollToIndex(targetIndex);
+      }
       setTimeout(() => {
         this.restoringScrollPosition = false;
       }, 80);
@@ -819,7 +859,9 @@ export struct SearchBookmarkDrawer {
     }
     const offset = this.bookmarkScroller.currentOffset().yOffset;
     if (!Number.isNaN(offset)) {
-      searchBookmarkDrawerScrollOffset = Math.max(0, offset);
+      const index = Math.max(0, Math.min(this.firstVisibleIndex, this.bookmarks.length - 1));
+      const anchorId = this.bookmarks.length > 0 ? this.bookmarks[index].id : '';
+      ehBrowsePositionStore.updateBookmarkDrawerPosition(anchorId, index, Math.max(0, offset));
     }
   }
 
@@ -885,6 +927,9 @@ export struct SearchBookmarkDrawer {
         })
         .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
           this.rememberScrollPosition();
+        })
+        .onScrollIndex((first: number, _last: number) => {
+          this.firstVisibleIndex = Math.max(0, first);
         })
         .onScrollStop(() => {
           this.rememberScrollPosition();
@@ -4332,6 +4377,10 @@ export struct GalleryListContent {
     return Math.max(360, this.viewportHeight - this.statusBarVp() - this.barHeight - 28);
   }
 
+  private quickActionsMaxHeight(): number {
+    return floatingActionAvailableHeight(this.viewportHeight, this.statusBarVp() + this.barHeight + 8);
+  }
+
   private visibleBarHeight(): number {
     return immersiveChromeHeightFromOffset(this.toolbarOffsetY, this.totalBarHeight());
   }
@@ -5218,6 +5267,7 @@ export struct GalleryListContent {
             canBookmark: this.showBookmarkButton,
             showTranslationButton: this.shouldShowTranslationAction(),
             translationEnabled: this.translationEnabled,
+            maxExpandedHeight: this.quickActionsMaxHeight(),
             onToggle: this.onToggleActions,
             onFilter: this.onFilter,
             onJump: () => {

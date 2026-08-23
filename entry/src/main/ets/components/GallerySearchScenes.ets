@@ -13,6 +13,17 @@ import {
   uiText
 } from '../shared/EhShared';
 import { themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
+import {
+  FLOATING_ACTION_GAP,
+  FLOATING_ACTION_PRIMARY_GAP,
+  FLOATING_ACTION_SIZE,
+  floatingActionGridHeight,
+  floatingActionGridWidth,
+  floatingActionHitIndex,
+  floatingActionIndexesForColumn,
+  floatingActionToolbarWidth,
+  floatingActionVisualColumns
+} from './FloatingActionLayoutSupport';
 
 export interface SearchSuggestionItem {
   kind: string;
@@ -43,10 +54,6 @@ interface TagNamespaceOption {
 }
 
 const SEARCH_SUGGESTION_RENDER_BATCH: number = 80;
-const ACTION_BUBBLE_SIZE: number = 44;
-const ACTION_BUBBLE_GAP: number = 8;
-const ACTION_BUBBLE_PRIMARY_SIZE: number = 54;
-const ACTION_BUBBLE_PRIMARY_GAP: number = 10;
 const TAG_NAMESPACE_OPTIONS: TagNamespaceOption[] = [
   { value: 'artist' },
   { value: 'group' },
@@ -902,6 +909,7 @@ export struct QuickActionColumn {
   @Prop canBookmark: boolean = false;
   @Prop showTranslationButton: boolean = true;
   @Prop translationEnabled: boolean = false;
+  @Prop maxExpandedHeight: number = 360;
   onToggle: () => void = () => {};
   onFilter: () => void = () => {};
   onJump: () => void = () => {};
@@ -930,11 +938,23 @@ export struct QuickActionColumn {
   }
 
   private expandedActionsHeight(): number {
-    const count = this.actionCount();
-    if (count <= 0) {
-      return 0;
-    }
-    return count * ACTION_BUBBLE_SIZE + (count - 1) * ACTION_BUBBLE_GAP;
+    return floatingActionGridHeight(this.actionCount(), this.maxExpandedHeight);
+  }
+
+  private expandedActionsWidth(): number {
+    return floatingActionGridWidth(this.actionCount(), this.maxExpandedHeight);
+  }
+
+  private toolbarWidth(): number {
+    return floatingActionToolbarWidth(this.actionCount(), this.maxExpandedHeight);
+  }
+
+  private visualActionColumns(): number[] {
+    return floatingActionVisualColumns(this.actionCount(), this.maxExpandedHeight);
+  }
+
+  private actionIndexesForColumn(column: number): number[] {
+    return floatingActionIndexesForColumn(column, this.actionCount(), this.maxExpandedHeight);
   }
 
   private bookmarkActionIndex(): number {
@@ -957,25 +977,16 @@ export struct QuickActionColumn {
     return this.showTranslationButton ? 4 : 3;
   }
 
-  private hitActionIndex(y: number): number {
-    const count = this.actionCount();
-    if (count > 0) {
-      const actionsHeight = this.expandedActionsHeight();
-      if (y >= 0 && y <= actionsHeight) {
-        const row = Math.floor(y / (ACTION_BUBBLE_SIZE + ACTION_BUBBLE_GAP));
-        const rowTop = row * (ACTION_BUBBLE_SIZE + ACTION_BUBBLE_GAP);
-        if (row >= 0 && row < count && y >= rowTop && y <= rowTop + ACTION_BUBBLE_SIZE) {
-          return row;
-        }
-      }
-      const primaryTop = actionsHeight + ACTION_BUBBLE_PRIMARY_GAP;
-      if (y >= primaryTop && y <= primaryTop + ACTION_BUBBLE_PRIMARY_SIZE) {
-        return this.primaryIndex();
-      }
-      return -1;
+  private hitActionIndex(x: number, y: number): number {
+    return floatingActionHitIndex(x, y, this.actionCount(), this.maxExpandedHeight);
+  }
+
+  private touchX(event: TouchEvent): number {
+    if (event.touches.length > 0) {
+      return event.touches[0].x;
     }
-    if (y >= 0 && y <= ACTION_BUBBLE_PRIMARY_SIZE) {
-      return this.primaryIndex();
+    if (event.changedTouches.length > 0) {
+      return event.changedTouches[0].x;
     }
     return -1;
   }
@@ -991,7 +1002,7 @@ export struct QuickActionColumn {
   }
 
   private updateActiveAction(event: TouchEvent): void {
-    const index = this.hitActionIndex(this.touchY(event));
+    const index = this.hitActionIndex(this.touchX(event), this.touchY(event));
     if (index !== this.activeActionIndex) {
       this.getUIContext().animateTo({ duration: 120, curve: Curve.EaseOut }, () => {
         this.activeActionIndex = index;
@@ -1028,7 +1039,7 @@ export struct QuickActionColumn {
     if (event.type === TouchType.Down || event.type === TouchType.Move) {
       this.updateActiveAction(event);
     } else if (event.type === TouchType.Up) {
-      const index = this.hitActionIndex(this.touchY(event));
+      const index = this.hitActionIndex(this.touchX(event), this.touchY(event));
       const fallbackIndex = index >= 0 ? index : this.activeActionIndex;
       this.activeActionIndex = -1;
       this.triggerAction(fallbackIndex);
@@ -1037,70 +1048,73 @@ export struct QuickActionColumn {
     }
   }
 
+  private actionLabel(index: number): string {
+    if (index === 0) return this.accountFilterEnabled ? uiText('Filter On') : uiText('Filter');
+    if (index === 1) return uiText('Jump');
+    if (index === 2) return uiText('Refresh');
+    if (index === this.translationActionIndex()) {
+      return this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles');
+    }
+    if (index === this.bookmarkActionIndex()) return uiText('Add bookmark');
+    if (index === this.imageSearchActionIndex()) return uiText('Image search');
+    if (index === this.randomActionIndex()) return uiText('Random');
+    return '';
+  }
+
+  private actionIcon(index: number): Resource {
+    if (index === 0) return $r('sys.symbol.funnel');
+    if (index === 1) return $r('sys.symbol.chevron_forward');
+    if (index === 2) return $r('sys.symbol.play_arrow_triangle_2_circlepath');
+    if (index === this.translationActionIndex()) return $r('sys.symbol.translate');
+    if (index === this.bookmarkActionIndex()) return $r('sys.symbol.bookmark');
+    if (index === this.imageSearchActionIndex()) return $r('sys.symbol.magnifyingglass');
+    if (index === this.randomActionIndex()) return $r('sys.symbol.play_fill');
+    return $r('sys.symbol.more');
+  }
+
+  private actionEnabled(index: number): boolean {
+    if (index === 1) return this.canJump;
+    if (index === this.randomActionIndex()) return this.canRandom;
+    return index >= 0 && index < this.actionCount();
+  }
+
+  @Builder
+  private actionBubble(index: number) {
+    ActionBubble({
+      label: this.actionLabel(index),
+      symbolIcon: this.actionIcon(index),
+      isEnabled: this.actionEnabled(index),
+      checked: (index === 0 && this.accountFilterEnabled) ||
+        (index === this.translationActionIndex() && this.translationEnabled),
+      active: this.activeActionIndex === index,
+      directTap: false
+    })
+  }
+
   build() {
     Column() {
       if (this.expanded) {
-        Column({ space: 8 }) {
-          ActionBubble({
-            label: this.accountFilterEnabled ? uiText('Filter On') : uiText('Filter'),
-            symbolIcon: $r('sys.symbol.funnel'),
-            isEnabled: true,
-            checked: this.accountFilterEnabled,
-            active: this.activeActionIndex === 0,
-            directTap: false
-          })
-          ActionBubble({
-            label: uiText('Jump'),
-            symbolIcon: $r('sys.symbol.chevron_forward'),
-            isEnabled: this.canJump,
-            active: this.activeActionIndex === 1,
-            directTap: false
-          })
-          ActionBubble({
-            label: uiText('Refresh'),
-            symbolIcon: $r('sys.symbol.play_arrow_triangle_2_circlepath'),
-            isEnabled: true,
-            active: this.activeActionIndex === 2,
-            directTap: false
-          })
-          if (this.showTranslationButton) {
-            ActionBubble({
-              label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
-              symbolIcon: $r('sys.symbol.translate'),
-              isEnabled: true,
-              checked: this.translationEnabled,
-              active: this.activeActionIndex === this.translationActionIndex(),
-              directTap: false
-            })
-          }
-          if (this.canBookmark) {
-            ActionBubble({
-              label: uiText('Add bookmark'),
-              symbolIcon: $r('sys.symbol.bookmark'),
-              isEnabled: true,
-              active: this.activeActionIndex === this.bookmarkActionIndex(),
-              directTap: false
-            })
-          }
-          if (this.canImageSearch) {
-            ActionBubble({
-              label: uiText('Image search'),
-              symbolIcon: $r('sys.symbol.magnifyingglass'),
-              isEnabled: true,
-              active: this.activeActionIndex === this.imageSearchActionIndex(),
-              directTap: false
-            })
-          }
-          ActionBubble({
-            label: uiText('Random'),
-            symbolIcon: $r('sys.symbol.play_fill'),
-            isEnabled: this.canRandom,
-            active: this.activeActionIndex === this.randomActionIndex(),
-            directTap: false
-          })
+        Row({ space: FLOATING_ACTION_GAP }) {
+          ForEach(this.visualActionColumns(), (column: number) => {
+            Column({ space: FLOATING_ACTION_GAP }) {
+              ForEach(this.actionIndexesForColumn(column), (index: number) => {
+                Row() {
+                  this.actionBubble(index)
+                }
+                .width(FLOATING_ACTION_SIZE)
+                .height(FLOATING_ACTION_SIZE)
+                .justifyContent(FlexAlign.End)
+                .clip(false)
+              }, (index: number) => index.toString())
+            }
+            .width(FLOATING_ACTION_SIZE)
+            .alignItems(HorizontalAlign.End)
+          }, (column: number) => column.toString())
         }
-        .alignItems(HorizontalAlign.End)
-        .margin({ bottom: 10 })
+        .width(this.expandedActionsWidth())
+        .height(this.expandedActionsHeight())
+        .alignItems(VerticalAlign.Top)
+        .margin({ bottom: FLOATING_ACTION_PRIMARY_GAP })
         .transition(TransitionEffect.OPACITY
           .combine(TransitionEffect.translate({ y: 12 }))
           .animation({ duration: 180, curve: Curve.EaseOut }))
@@ -1115,6 +1129,7 @@ export struct QuickActionColumn {
         directTap: false
       })
     }
+    .width(this.toolbarWidth())
     .alignItems(HorizontalAlign.End)
     .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
     .onTouch((event: TouchEvent) => {
