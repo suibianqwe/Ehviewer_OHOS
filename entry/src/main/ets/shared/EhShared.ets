@@ -1269,6 +1269,8 @@ export function zhText(text: string): string {
       case 'No galleries': return '没有画廊';
     case 'Please wait...': return '请稍候...';
     case 'Migrating downloaded files...': return '正在迁移下载文件...';
+    case 'Scanning downloaded files...': return '正在扫描下载文件...';
+    case 'Cleaning migrated source files...': return '正在清理迁移后的源文件...';
     case 'Switching download location...': return '正在切换下载位置...';
     case 'Rebuilding downloaded metadata...': return '正在重建下载元数据...';
     case 'Scanning ZIP archives...': return '正在扫描压缩包...';

@@ -69,6 +69,25 @@ export interface DownloadDirectoryScanResult {
   bytes: number;
 }
 
+export type DownloadMigrationPhase = 'scanning' | 'copying' | 'cleaning';
+
+export interface DownloadMigrationProgress {
+  phase: DownloadMigrationPhase;
+  files: number;
+  bytes: number;
+  totalFiles: number;
+  totalBytes: number;
+}
+
+interface DownloadMigrationProgressState {
+  files: number;
+  bytes: number;
+  totalFiles: number;
+  totalBytes: number;
+  lastReportedAt: number;
+  onProgress?: (progress: DownloadMigrationProgress) => void;
+}
+
 export interface DownloadZipExportResult {
   path: string;
   folders: number;
@@ -136,8 +155,9 @@ export class EhDownloadFileStore {
     }
   }
 
-  migrateDownloadLocation(context: common.UIAbilityContext, fromLocation: string,
-    toLocation: string): DownloadDirectoryScanResult {
+  async migrateDownloadLocation(context: common.UIAbilityContext, fromLocation: string,
+    toLocation: string, onProgress?: (progress: DownloadMigrationProgress) => void):
+    Promise<DownloadDirectoryScanResult> {
     const source = this.rootForLocation(context, fromLocation);
     const target = this.rootForLocation(context, toLocation);
     if (source === target || !exists(source)) {
@@ -145,8 +165,30 @@ export class EhDownloadFileStore {
       return { directories: 0, files: 0, bytes: 0 };
     }
     ensureDirectory(target);
-    const copied = copyDirectoryTree(source, target);
-    removeDirectoryTree(source);
+    if (onProgress !== undefined) {
+      onProgress({ phase: 'scanning', files: 0, bytes: 0, totalFiles: 0, totalBytes: 0 });
+    }
+    const total = await scanDirectoryTreeAsync(source);
+    const progressState: DownloadMigrationProgressState = {
+      files: 0,
+      bytes: 0,
+      totalFiles: total.files,
+      totalBytes: total.bytes,
+      lastReportedAt: 0,
+      onProgress: onProgress
+    };
+    reportDownloadMigrationProgress(progressState, true);
+    const copied = await copyDirectoryTreeAsync(source, target, progressState);
+    if (onProgress !== undefined) {
+      onProgress({
+        phase: 'cleaning',
+        files: copied.files,
+        bytes: copied.bytes,
+        totalFiles: total.files,
+        totalBytes: total.bytes
+      });
+    }
+    await removeDirectoryTreeAsync(source);
     return copied;
   }
 
@@ -1553,6 +1595,104 @@ function copyDirectoryTree(source: string, target: string): DownloadDirectorySca
   } catch (error) {
   }
   return { directories: directories, files: files, bytes: bytes };
+}
+
+async function scanDirectoryTreeAsync(path: string): Promise<DownloadDirectoryScanResult> {
+  try {
+    const stat = await fs.stat(path);
+    if (!stat.isDirectory()) {
+      return { directories: 0, files: 1, bytes: stat.size };
+    }
+    let directories = 1;
+    let files = 0;
+    let bytes = 0;
+    const names = await fs.listFile(path);
+    for (let i = 0; i < names.length; i++) {
+      const child = await scanDirectoryTreeAsync(path + '/' + names[i]);
+      directories += child.directories;
+      files += child.files;
+      bytes += child.bytes;
+    }
+    return { directories: directories, files: files, bytes: bytes };
+  } catch (error) {
+    throw new Error('Download migration scan failed at ' + path + ': ' + String(error));
+  }
+}
+
+async function copyDirectoryTreeAsync(source: string, target: string,
+  progress: DownloadMigrationProgressState): Promise<DownloadDirectoryScanResult> {
+  try {
+    const stat = await fs.stat(source);
+    if (!stat.isDirectory()) {
+      if (exists(target)) {
+        await removeDirectoryTreeAsync(target);
+      }
+      await fs.copyFile(source, target);
+      progress.files++;
+      progress.bytes += stat.size;
+      reportDownloadMigrationProgress(progress, progress.files >= progress.totalFiles);
+      return { directories: 0, files: 1, bytes: stat.size };
+    }
+    if (exists(target) && !isDirectory(target)) {
+      await removeDirectoryTreeAsync(target);
+    }
+    ensureDirectory(target);
+    let directories = 1;
+    let files = 0;
+    let bytes = 0;
+    const names = await fs.listFile(source);
+    for (let i = 0; i < names.length; i++) {
+      const copied = await copyDirectoryTreeAsync(source + '/' + names[i], target + '/' + names[i], progress);
+      directories += copied.directories;
+      files += copied.files;
+      bytes += copied.bytes;
+    }
+    return { directories: directories, files: files, bytes: bytes };
+  } catch (error) {
+    throw new Error('Download migration copy failed at ' + source + ': ' + String(error));
+  }
+}
+
+async function removeDirectoryTreeAsync(path: string): Promise<DownloadDirectoryScanResult> {
+  try {
+    const stat = await fs.stat(path);
+    if (!stat.isDirectory()) {
+      await fs.unlink(path);
+      return { directories: 0, files: 1, bytes: stat.size };
+    }
+    let directories = 1;
+    let files = 0;
+    let bytes = 0;
+    const names = await fs.listFile(path);
+    for (let i = 0; i < names.length; i++) {
+      const removed = await removeDirectoryTreeAsync(path + '/' + names[i]);
+      directories += removed.directories;
+      files += removed.files;
+      bytes += removed.bytes;
+    }
+    await fs.rmdir(path);
+    return { directories: directories, files: files, bytes: bytes };
+  } catch (error) {
+    throw new Error('Download migration cleanup failed at ' + path + ': ' + String(error));
+  }
+}
+
+function reportDownloadMigrationProgress(progress: DownloadMigrationProgressState, force: boolean): void {
+  if (progress.onProgress === undefined) {
+    return;
+  }
+  const now = Date.now();
+  if (!force && now - progress.lastReportedAt < 100) {
+    return;
+  }
+  progress.lastReportedAt = now;
+  progress.onProgress({
+    phase: 'copying',
+    files: progress.files,
+    bytes: progress.bytes,
+    totalFiles: progress.totalFiles,
+    totalBytes: progress.totalBytes
+  });
 }
 
 function normalizePath(path: string): string {

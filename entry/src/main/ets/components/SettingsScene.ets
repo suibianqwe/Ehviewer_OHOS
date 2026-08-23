@@ -10,6 +10,7 @@ import {
   DOWNLOAD_LOCATION_APP_FILES,
   DOWNLOAD_LOCATION_DOWNLOADS,
   DownloadDirectoryScanResult,
+  DownloadMigrationProgress,
   ehDownloadFileStore
 } from '../services/EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, ehDownloadStore } from '../services/EhDownloadStore';
@@ -212,6 +213,9 @@ export struct SettingsScene {
   @State statusText: string = '';
   @State blockingBusyVisible: boolean = false;
   @State blockingBusyMessage: string = 'Loading...';
+  @State blockingBusyProgressText: string = '';
+  @State blockingBusyProgressCurrent: number = -1;
+  @State blockingBusyProgressTotal: number = -1;
   @State themeName: string = 'Light';
   @State settingEntries: SettingEntry[] = defaultSettingEntries();
   @State optionPickerOpen: boolean = false;
@@ -292,6 +296,9 @@ export struct SettingsScene {
   }
 
   private handleSystemBack(): boolean {
+    if (this.blockingBusyVisible) {
+      return true;
+    }
     if (this.signOutConfirmationVisible) {
       this.signOutConfirmationVisible = false;
       return true;
@@ -818,7 +825,10 @@ export struct SettingsScene {
           this.hideBlockingBusy();
           return;
         }
-        const result = ehDownloadFileStore.migrateDownloadLocation(context, current, target);
+        const result = await ehDownloadFileStore.migrateDownloadLocation(context, current, target,
+          (progress: DownloadMigrationProgress) => {
+            this.updateDownloadMigrationProgress(progress);
+          });
         this.hideBlockingBusy();
         this.showFloatingStatus('Migrated downloads: ' + result.files.toString() + ' files, ' +
           downloadSizeText(result.bytes) + '.');
@@ -1391,12 +1401,40 @@ export struct SettingsScene {
 
   private showBlockingBusy(message: string): void {
     this.blockingBusyMessage = message;
+    this.blockingBusyProgressText = '';
+    this.blockingBusyProgressCurrent = -1;
+    this.blockingBusyProgressTotal = -1;
     this.blockingBusyVisible = true;
   }
 
   private hideBlockingBusy(): void {
     this.blockingBusyVisible = false;
     this.blockingBusyMessage = 'Loading...';
+    this.blockingBusyProgressText = '';
+    this.blockingBusyProgressCurrent = -1;
+    this.blockingBusyProgressTotal = -1;
+  }
+
+  private updateDownloadMigrationProgress(progress: DownloadMigrationProgress): void {
+    if (progress.phase === 'scanning') {
+      this.blockingBusyMessage = 'Scanning downloaded files...';
+      this.blockingBusyProgressText = '';
+      this.blockingBusyProgressCurrent = -1;
+      this.blockingBusyProgressTotal = -1;
+      return;
+    }
+    const countText = progress.files.toString() + ' / ' + progress.totalFiles.toString();
+    const sizeText = downloadSizeText(progress.bytes) + ' / ' + downloadSizeText(progress.totalBytes);
+    this.blockingBusyProgressText = countText + ' · ' + sizeText;
+    if (progress.phase === 'cleaning') {
+      this.blockingBusyMessage = 'Cleaning migrated source files...';
+      this.blockingBusyProgressCurrent = progress.totalBytes > 0 ? progress.totalBytes : progress.totalFiles;
+      this.blockingBusyProgressTotal = progress.totalBytes > 0 ? progress.totalBytes : progress.totalFiles;
+      return;
+    }
+    this.blockingBusyMessage = 'Migrating downloaded files...';
+    this.blockingBusyProgressCurrent = progress.totalBytes > 0 ? progress.bytes : progress.files;
+    this.blockingBusyProgressTotal = progress.totalBytes > 0 ? progress.totalBytes : progress.totalFiles;
   }
 
   private showToast(message: string): void {
@@ -2375,7 +2413,7 @@ export struct SettingsScene {
             this.chooseDownloadLocationMigration(true);
           }
         })
-          .zIndex(20)
+          .zIndex(SPLIT_PANE_MODAL_Z_INDEX)
           .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
       }
 
@@ -2418,11 +2456,16 @@ export struct SettingsScene {
       }
 
       if (this.blockingBusyVisible) {
-        BlockingBusyOverlay({ message: this.blockingBusyMessage })
+        BlockingBusyOverlay({
+          message: this.blockingBusyMessage,
+          progressText: this.blockingBusyProgressText,
+          progressCurrent: this.blockingBusyProgressCurrent,
+          progressTotal: this.blockingBusyProgressTotal
+        })
           .width(this.settingsLayerWidth())
           .height('100%')
           .position({ x: this.settingsLayerTranslateX(), y: 0 })
-          .zIndex(60)
+          .zIndex(SPLIT_PANE_MODAL_Z_INDEX)
           .transition(TransitionEffect.OPACITY.animation({ duration: 140, curve: Curve.EaseOut }))
       }
     }
