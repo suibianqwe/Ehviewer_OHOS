@@ -116,6 +116,9 @@ export { CommentsScene, PlaceholderScene } from './reader/scenes/ReaderAuxScenes
 
 const SLIDER_AUTO_HIDE_DELAY: number = 3000;
 const READER_SCREEN_TAP_DELAY: number = 300;
+const READER_PAIRED_TAP_DELAY: number = 420;
+const READER_PAIRED_TAP_MOVE_TOLERANCE: number = 14;
+const READER_PAIRED_DOUBLE_TAP_DISTANCE: number = 48;
 const READER_DUAL_PAGE_OVERFLOW_RATIO: number = 1.15;
 const READER_PAGE_GROUP_REFRESH_DELAY: number = 220;
 const READER_TRANSLATION_BUTTON_SIZE: number = 52;
@@ -329,6 +332,14 @@ export struct ReaderScene {
   private overlayRefreshTimer: number = -1;
   private overlayRefreshCount: number = 0;
   private screenTapTimer: number = -1;
+  private pairedTapTimer: number = -1;
+  private pairedTouchStartX: number = 0;
+  private pairedTouchStartY: number = 0;
+  private pairedTouchStartTime: number = 0;
+  private pairedLastTapX: number = 0;
+  private pairedLastTapY: number = 0;
+  private pairedTouchMoved: boolean = false;
+  private pairedTouchHadMultipleFingers: boolean = false;
   private lastAxisPageAt: number = 0;
   private volumeUpConfig: inputConsumer.KeyPressedConfig = {
     key: KeyCode.KEYCODE_VOLUME_UP,
@@ -470,6 +481,7 @@ export struct ReaderScene {
     this.swiperAnimating = false;
     this.clearSliderTimer();
     this.clearScreenTapTimer();
+    this.clearPairedTapTimer();
     this.clearAutoTransferTimer();
     this.clearOverlayRefreshTimer();
     this.unregisterVolumePageKeys();
@@ -1211,6 +1223,13 @@ export struct ReaderScene {
       this.sliderDragging = false;
       this.syncReaderTransientStatusBar();
     }, SLIDER_AUTO_HIDE_DELAY) as number;
+  }
+
+  private clearPairedTapTimer(): void {
+    if (this.pairedTapTimer !== -1) {
+      clearTimeout(this.pairedTapTimer);
+      this.pairedTapTimer = -1;
+    }
   }
 
   private showSlider(): void {
@@ -2585,6 +2604,9 @@ export struct ReaderScene {
   }
 
   private onReaderScreenTap(event: GestureEvent): void {
+    if (!this.isContinuousVerticalMode() && this.shouldPairPage(this.currentIndex)) {
+      return;
+    }
     if (this.screenTapTimer !== -1) {
       this.clearScreenTapTimer();
       this.issueViewportCommand('double_zoom', this.tapLocalX(event), this.tapLocalY(event));
@@ -2651,6 +2673,9 @@ export struct ReaderScene {
   }
 
   private resetPairedViewport(): void {
+    this.clearPairedTapTimer();
+    this.pairedTouchMoved = false;
+    this.pairedTouchHadMultipleFingers = false;
     this.pairedViewportIndex = -1;
     this.pairedImageModel.reset();
   }
@@ -2716,6 +2741,90 @@ export struct ReaderScene {
       panEvent.offsetY,
       panEvent.velocityY
     );
+  }
+
+  private pairedTouchX(event: TouchEvent): number {
+    if (event.changedTouches.length > 0) {
+      return event.changedTouches[0].x;
+    }
+    return event.touches.length > 0 ? event.touches[0].x : this.readerLayoutWidth / 2;
+  }
+
+  private pairedTouchY(event: TouchEvent): number {
+    if (event.changedTouches.length > 0) {
+      return event.changedTouches[0].y;
+    }
+    return event.touches.length > 0 ? event.touches[0].y : this.readerLayoutHeight / 2;
+  }
+
+  private triggerPairedSingleTap(x: number, y: number): void {
+    this.onTap(
+      x,
+      y,
+      Math.max(1, this.readerLayoutWidth),
+      Math.max(1, this.readerLayoutHeight)
+    );
+  }
+
+  private handlePairedOverlayTouch(event: TouchEvent): void {
+    const x = this.pairedTouchX(event);
+    const y = this.pairedTouchY(event);
+    if (event.type === TouchType.Down) {
+      if (event.touches.length > 1) {
+        this.pairedTouchHadMultipleFingers = true;
+        this.pairedTouchMoved = true;
+        this.clearPairedTapTimer();
+        return;
+      }
+      this.pairedTouchStartX = x;
+      this.pairedTouchStartY = y;
+      this.pairedTouchStartTime = Date.now();
+      this.pairedTouchMoved = false;
+      this.pairedTouchHadMultipleFingers = false;
+      return;
+    }
+    if (event.type === TouchType.Move) {
+      if (event.touches.length > 1) {
+        this.pairedTouchHadMultipleFingers = true;
+        this.pairedTouchMoved = true;
+        this.clearPairedTapTimer();
+        return;
+      }
+      const moveX = x - this.pairedTouchStartX;
+      const moveY = y - this.pairedTouchStartY;
+      if (Math.sqrt(moveX * moveX + moveY * moveY) > READER_PAIRED_TAP_MOVE_TOLERANCE) {
+        this.pairedTouchMoved = true;
+        this.clearPairedTapTimer();
+      }
+      return;
+    }
+    if (event.type === TouchType.Cancel) {
+      this.pairedTouchMoved = true;
+      this.pairedTouchHadMultipleFingers = false;
+      return;
+    }
+    if (event.type !== TouchType.Up || this.pairedTouchHadMultipleFingers || this.pairedTouchMoved ||
+      Date.now() - this.pairedTouchStartTime > READER_PAIRED_TAP_DELAY) {
+      return;
+    }
+    const doubleTapX = x - this.pairedLastTapX;
+    const doubleTapY = y - this.pairedLastTapY;
+    if (this.pairedTapTimer !== -1 &&
+      Math.sqrt(doubleTapX * doubleTapX + doubleTapY * doubleTapY) <= READER_PAIRED_DOUBLE_TAP_DISTANCE) {
+      this.clearPairedTapTimer();
+      this.issueViewportCommand('double_zoom', x, y);
+      return;
+    }
+    if (this.pairedTapTimer !== -1) {
+      this.clearPairedTapTimer();
+      this.triggerPairedSingleTap(this.pairedLastTapX, this.pairedLastTapY);
+    }
+    this.pairedLastTapX = x;
+    this.pairedLastTapY = y;
+    this.pairedTapTimer = setTimeout(() => {
+      this.pairedTapTimer = -1;
+      this.triggerPairedSingleTap(x, y);
+    }, READER_PAIRED_TAP_DELAY) as number;
   }
 
   @Builder
@@ -2820,74 +2929,86 @@ export struct ReaderScene {
       const height = Number.parseFloat(newArea.height.toString());
       this.syncPairedViewport(index, width, height);
     })
-    .gesture(
-      GestureGroup(GestureMode.Parallel,
-        LongPressGesture({ repeat: false })
-          .onAction((event: GestureEvent) => {
-            if (index === this.currentIndex) {
-              this.showImageActions(this.pairedPageIndexAt(index, event));
-            }
-          }),
-        PanGesture({ fingers: 1, distance: 3 })
-          .onActionStart(() => {
-            this.pairedImageModel.panStart();
-            this.reportPairedViewportState(index);
-          })
-          .onActionUpdate((event: GestureEvent) => {
-            this.pairedImageModel.panUpdate(event.offsetX, event.offsetY);
-            this.reportPairedViewportState(index);
-          })
-          .onActionEnd((event: GestureEvent) => {
-            const edgeDirection = this.pairedImageModel.edgeSwipeDirection(
-              event.offsetX,
-              event.velocityX,
-              event.offsetY,
-              event.velocityY
-            );
-            this.getUIContext().animateTo({ duration: READER_INERTIA_DURATION, curve: Curve.EaseOut }, () => {
-              this.pairedImageModel.panEnd(event.velocityX, event.velocityY);
-            });
-            this.reportPairedViewportState(index);
-            if (edgeDirection !== 0) {
-              this.jumpByVisualDirection(edgeDirection);
-            }
-          })
-          .onActionCancel(() => {
-            this.getUIContext().animateTo({ duration: READER_INERTIA_DURATION, curve: Curve.EaseOut }, () => {
-              this.pairedImageModel.panEnd();
-            });
-            this.reportPairedViewportState(index);
-          }),
-        PinchGesture({ fingers: 2, distance: 1 })
-          .onActionStart((event: GestureEvent) => {
-            this.pairedImageModel.pinchStart(event.pinchCenterX, event.pinchCenterY);
-            this.reportPairedViewportState(index);
-          })
-          .onActionUpdate((event: GestureEvent) => {
-            this.pairedImageModel.pinchUpdate(event.scale);
-            this.reportPairedViewportState(index);
-          })
-          .onActionEnd(() => {
-            this.pairedImageModel.pinchEnd();
-            this.reportPairedViewportState(index);
-          })
-          .onActionCancel(() => {
-            this.pairedImageModel.pinchEnd();
-            this.reportPairedViewportState(index);
-          })
-      )
-    )
-    .onGestureJudgeBegin((gestureInfo: GestureInfo, event: BaseGestureEvent) => {
-      if (gestureInfo.type === GestureControl.GestureType.DRAG) {
-        return GestureJudgeResult.REJECT;
-      }
-      if (gestureInfo.type === GestureControl.GestureType.PAN_GESTURE &&
-        this.shouldLetSwiperHandlePairedPan(event)) {
-        return GestureJudgeResult.REJECT;
-      }
-      return GestureJudgeResult.CONTINUE;
-    })
     .draggable(false)
+  }
+
+  @Builder
+  private ReaderPairedGestureOverlay() {
+    Stack() {}
+      .width('100%')
+      .height('100%')
+      .backgroundColor(Color.Transparent)
+      .hitTestBehavior(HitTestMode.Transparent)
+      .onTouch((event: TouchEvent) => {
+        this.handlePairedOverlayTouch(event);
+      })
+      .gesture(
+        GestureGroup(GestureMode.Parallel,
+            LongPressGesture({ repeat: false })
+              .onAction((event: GestureEvent) => {
+                this.showImageActions(this.pairedPageIndexAt(this.currentIndex, event));
+              }),
+            PanGesture({ fingers: 1, distance: 3 })
+              .onActionStart(() => {
+                this.pairedImageModel.panStart();
+                this.reportPairedViewportState(this.currentIndex);
+              })
+              .onActionUpdate((event: GestureEvent) => {
+                this.pairedImageModel.panUpdate(event.offsetX, event.offsetY);
+                this.reportPairedViewportState(this.currentIndex);
+              })
+              .onActionEnd((event: GestureEvent) => {
+                const edgeDirection = this.pairedImageModel.edgeSwipeDirection(
+                  event.offsetX,
+                  event.velocityX,
+                  event.offsetY,
+                  event.velocityY
+                );
+                this.getUIContext().animateTo({ duration: READER_INERTIA_DURATION, curve: Curve.EaseOut }, () => {
+                  this.pairedImageModel.panEnd(event.velocityX, event.velocityY);
+                });
+                this.reportPairedViewportState(this.currentIndex);
+                if (edgeDirection !== 0) {
+                  this.jumpByVisualDirection(edgeDirection);
+                }
+              })
+              .onActionCancel(() => {
+                this.getUIContext().animateTo({ duration: READER_INERTIA_DURATION, curve: Curve.EaseOut }, () => {
+                  this.pairedImageModel.panEnd();
+                });
+                this.reportPairedViewportState(this.currentIndex);
+              }),
+            PinchGesture({ fingers: 2, distance: 1 })
+              .onActionStart((event: GestureEvent) => {
+                this.pairedImageModel.pinchStart(event.pinchCenterX, event.pinchCenterY);
+                this.reportPairedViewportState(this.currentIndex);
+              })
+              .onActionUpdate((event: GestureEvent) => {
+                this.pairedImageModel.pinchUpdate(event.scale, event.pinchCenterX, event.pinchCenterY);
+                this.reportPairedViewportState(this.currentIndex);
+              })
+              .onActionEnd(() => {
+                this.pairedImageModel.pinchEnd();
+                this.reportPairedViewportState(this.currentIndex);
+              })
+              .onActionCancel(() => {
+                this.pairedImageModel.pinchEnd();
+                this.reportPairedViewportState(this.currentIndex);
+              })
+        )
+      )
+      .onGestureJudgeBegin((gestureInfo: GestureInfo, event: BaseGestureEvent) => {
+        if (gestureInfo.type === GestureControl.GestureType.DRAG) {
+          return GestureJudgeResult.REJECT;
+        }
+        if (gestureInfo.type === GestureControl.GestureType.PAN_GESTURE &&
+          this.shouldLetSwiperHandlePairedPan(event)) {
+          return GestureJudgeResult.REJECT;
+        }
+        return GestureJudgeResult.CONTINUE;
+      })
+      .draggable(false)
+      .zIndex(3)
   }
 
   @Builder
@@ -3035,18 +3156,22 @@ export struct ReaderScene {
           .zIndex(2)
       }
 
-      Stack() {}
-        .width('100%')
-        .height('100%')
-        .backgroundColor(Color.Transparent)
-        .hitTestBehavior(HitTestMode.Transparent)
-        .gesture(
-          TapGesture({ count: 1 })
-            .onAction((event: GestureEvent) => {
-              this.onReaderScreenTap(event);
-            })
-        )
-        .zIndex(3)
+      if (!this.isContinuousVerticalMode() && this.shouldPairPage(this.currentIndex)) {
+        this.ReaderPairedGestureOverlay()
+      } else {
+        Stack() {}
+          .width('100%')
+          .height('100%')
+          .backgroundColor(Color.Transparent)
+          .hitTestBehavior(HitTestMode.Transparent)
+          .gesture(
+            TapGesture({ count: 1 })
+              .onAction((event: GestureEvent) => {
+                this.onReaderScreenTap(event);
+              })
+          )
+          .zIndex(3)
+      }
 
       if (!this.menuVisible) {
         Stack({ alignContent: Alignment.TopEnd }) {

@@ -949,7 +949,7 @@ export struct ReaderImageViewport {
               this.reportState();
             })
             .onActionUpdate((event: GestureEvent) => {
-              this.imageModel.pinchUpdate(event.scale);
+              this.imageModel.pinchUpdate(event.scale, event.pinchCenterX, event.pinchCenterY);
               this.reportState();
             })
             .onActionEnd(() => {

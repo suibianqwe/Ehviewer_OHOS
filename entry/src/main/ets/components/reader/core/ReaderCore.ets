@@ -203,15 +203,20 @@ export class ReaderPreviewModel {
     this.disableSwipe = true;
   }
 
-  pinchUpdate(scale: number): void {
+  pinchUpdate(scale: number, focusX: number = -1, focusY: number = -1): void {
     if (scale <= 0 || Number.isNaN(scale)) {
       return;
     }
     const nextScale = this.clampScale(this.lastScale * scale);
-    const deltaScale = nextScale / this.lastScale;
+    const startImageLeft = (this.componentWidth - this.imageWidth * this.lastScale) / 2 + this.lastOffsetX;
+    const startImageTop = (this.componentHeight - this.imageHeight * this.lastScale) / 2 + this.lastOffsetY;
+    const currentFocusX = focusX >= 0 ? focusX : startImageLeft + this.centerX * this.imageWidth * this.lastScale;
+    const currentFocusY = focusY >= 0 ? focusY : startImageTop + this.centerY * this.imageHeight * this.lastScale;
     this.currentScale = nextScale;
-    this.currentOffsetX = this.lastOffsetX + (0.5 - this.centerX) * this.imageWidth * (1 - deltaScale) * this.lastScale;
-    this.currentOffsetY = this.lastOffsetY + (0.5 - this.centerY) * this.imageHeight * (1 - deltaScale) * this.lastScale;
+    this.currentOffsetX = currentFocusX - this.componentWidth / 2 +
+      (0.5 - this.centerX) * this.imageWidth * nextScale;
+    this.currentOffsetY = currentFocusY - this.componentHeight / 2 +
+      (0.5 - this.centerY) * this.imageHeight * nextScale;
     this.restrictBoundary();
   }
 
@@ -311,10 +316,9 @@ export class ReaderPreviewModel {
     this.centerY = center[1];
     const oldScale = Math.max(READER_MIN_SCALE, this.currentScale);
     const nextScale = this.clampScale(target);
-    const deltaScale = nextScale / oldScale;
     this.currentScale = nextScale;
-    this.currentOffsetX += (0.5 - this.centerX) * this.imageWidth * (1 - deltaScale) * oldScale;
-    this.currentOffsetY += (0.5 - this.centerY) * this.imageHeight * (1 - deltaScale) * oldScale;
+    this.currentOffsetX += (0.5 - this.centerX) * this.imageWidth * (nextScale - oldScale);
+    this.currentOffsetY += (0.5 - this.centerY) * this.imageHeight * (nextScale - oldScale);
     this.restrictBoundary();
     this.commit();
   }
