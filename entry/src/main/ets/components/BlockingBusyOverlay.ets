@@ -6,6 +6,7 @@ import {
   themeShadowColor,
   themeSurface
 } from '../shared/EhTheme';
+import { uiDialogMaterial, uiPanelRadius } from '../shared/EhUiStyle';
 
 @Component
 export struct BlockingBusyOverlay {
@@ -68,7 +69,8 @@ export struct BlockingBusyOverlay {
       .constraintSize({ maxWidth: '72%' })
       .padding({ left: 20, right: 20, top: 20, bottom: 18 })
       .backgroundColor(themeSurface())
-      .borderRadius(8)
+      .borderRadius(uiPanelRadius(8))
+      .systemMaterial(uiDialogMaterial())
       .shadow({ radius: 18, color: themeShadowColor(), offsetX: 0, offsetY: 8 })
     }
     .width('100%')

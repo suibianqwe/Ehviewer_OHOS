@@ -10,6 +10,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
+import { uiControlRadius, uiDialogMaterial, uiPanelRadius } from '../shared/EhUiStyle';
 
 @Component
 export struct UpdatePromptOverlay {
@@ -75,7 +76,7 @@ export struct UpdatePromptOverlay {
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(themeSurfaceVariant())
-            .borderRadius(6)
+            .borderRadius(uiControlRadius(6))
             .layoutWeight(1)
             .onClick(this.onCancel)
           Button(uiText('Update'), { type: ButtonType.Normal, stateEffect: true })
@@ -83,7 +84,7 @@ export struct UpdatePromptOverlay {
             .fontSize(14)
             .fontColor(themeOnPrimaryText())
             .backgroundColor(themePrimaryColor())
-            .borderRadius(6)
+            .borderRadius(uiControlRadius(6))
             .layoutWeight(1)
             .onClick(this.onUpdate)
         }
@@ -94,7 +95,8 @@ export struct UpdatePromptOverlay {
       .constraintSize({ maxWidth: 460 })
       .padding(18)
       .backgroundColor(themeSurface())
-      .borderRadius(8)
+      .borderRadius(uiPanelRadius(8))
+      .systemMaterial(uiDialogMaterial())
       .shadow({
         radius: 18,
         color: '#33000000',

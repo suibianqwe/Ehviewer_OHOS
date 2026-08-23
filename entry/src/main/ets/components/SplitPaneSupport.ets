@@ -5,6 +5,7 @@ import {
   themePrimaryColor,
   themeSurfaceVariant
 } from '../shared/EhTheme';
+import { uiControlRadius } from '../shared/EhUiStyle';
 
 export const SPLIT_PANE_RATIO_REVISION_KEY: string = 'ehviewer_split_pane_ratio_revision';
 export const SPLIT_PANE_FOCUS_LEFT: string = 'left';
@@ -143,17 +144,17 @@ export struct SplitPaneDivider {
         Column()
           .width(3)
           .height(3)
-          .borderRadius(2)
+          .borderRadius(uiControlRadius(2))
           .backgroundColor(this.touched || this.dragging ? themePrimaryColor() : themeDividerColor())
         Column()
           .width(3)
           .height(3)
-          .borderRadius(2)
+          .borderRadius(uiControlRadius(2))
           .backgroundColor(this.touched || this.dragging ? themePrimaryColor() : themeDividerColor())
         Column()
           .width(3)
           .height(3)
-          .borderRadius(2)
+          .borderRadius(uiControlRadius(2))
           .backgroundColor(this.touched || this.dragging ? themePrimaryColor() : themeDividerColor())
       }
       .width(11)
@@ -162,7 +163,7 @@ export struct SplitPaneDivider {
       .alignItems(HorizontalAlign.Center)
       .backgroundColor(themeSurfaceVariant())
       .border({ width: 1, color: this.touched || this.dragging ? themePrimaryColor() : themeDividerColor() })
-      .borderRadius(6)
+      .borderRadius(uiControlRadius(6))
       .shadow({ radius: this.touched || this.dragging ? 8 : 3, color: '#33000000', offsetY: 1 })
     }
     .width(24)

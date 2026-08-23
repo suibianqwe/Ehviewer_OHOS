@@ -16,6 +16,7 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../../shared/EhTheme';
+import { uiRadius } from '../../shared/EhUiStyle';
 import { GalleryThumb } from '../GalleryCards';
 
 const PREVIEW_THUMB_LOCAL_SOURCE_CACHE: Map<string, string> = new Map<string, string>();
@@ -206,7 +207,7 @@ export struct DetailPreviewJumpOverlay {
           .fontSize(14)
           .fontColor(themeOnPrimaryText())
           .backgroundColor(themePrimaryColor())
-          .borderRadius(6)
+          .borderRadius(uiRadius(6))
           .width('100%')
           .margin({ top: 16 })
           .onClick(() => {
@@ -217,7 +218,7 @@ export struct DetailPreviewJumpOverlay {
       .constraintSize({ maxWidth: 420 })
       .padding(18)
       .backgroundColor(themeSurface())
-      .borderRadius(8)
+      .borderRadius(uiRadius(8))
       .shadow({
         radius: 18,
         color: '#33000000',
@@ -360,7 +361,7 @@ export struct PreviewThumb {
         .width('100%')
         .height('100%')
         .backgroundColor(themeSurfaceVariant())
-        .borderRadius(this.radiusValue)
+        .borderRadius(uiRadius(this.radiusValue))
 
       if (this.loadFailed) {
         Column({ space: 4 }) {
@@ -395,7 +396,7 @@ export struct PreviewThumb {
     .width(this.widthValue)
     .height(this.heightValue)
     .clip(true)
-    .borderRadius(this.radiusValue)
+    .borderRadius(uiRadius(this.radiusValue))
   }
 }
 

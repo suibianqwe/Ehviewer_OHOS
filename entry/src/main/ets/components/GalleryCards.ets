@@ -33,6 +33,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
+import { uiCardRadius, uiControlRadius } from '../shared/EhUiStyle';
 import { TranslationText } from './TranslationComponents';
 
 const GALLERY_THUMB_LOCAL_SOURCE_CACHE: Map<string, string> = new Map<string, string>();
@@ -459,7 +460,7 @@ export struct GalleryListRow {
     .width('100%')
     .height(this.cardHeight())
     .backgroundColor(this.selected ? themeSelectedBackground() : themeSurface())
-    .borderRadius(6)
+    .borderRadius(uiCardRadius(6))
     .clip(true)
     .gesture(
       LongPressGesture({ repeat: false })
@@ -487,7 +488,7 @@ export struct GalleryTagChip {
       .height(this.heightValue)
       .padding({ left: this.horizontalPadding, right: this.horizontalPadding })
       .backgroundColor(this.backgroundColorValue)
-      .borderRadius(3)
+      .borderRadius(uiControlRadius(3))
       .maxLines(1)
       .textOverflow({ overflow: TextOverflow.Ellipsis })
   }
@@ -580,7 +581,7 @@ export struct GalleryThumb {
         .width('100%')
         .height('100%')
         .backgroundColor(themeSurfaceVariant())
-        .borderRadius(this.radiusValue)
+        .borderRadius(uiControlRadius(this.radiusValue))
 
       if (this.loadFailed) {
         Column({ space: 3 }) {
@@ -606,7 +607,7 @@ export struct GalleryThumb {
           .height('100%')
           .objectFit(ImageFit.Cover)
           .syncLoad(false)
-          .borderRadius(this.radiusValue)
+          .borderRadius(uiControlRadius(this.radiusValue))
           .onComplete((event?: GalleryImageCompleteEvent) => {
             if (event === undefined || event.width <= 0 || event.height <= 0) {
               return;
@@ -782,7 +783,7 @@ export struct GalleryThumbCard {
       }
     }
     .backgroundColor(this.selected ? themeSelectedBackground() : themeSurface())
-    .borderRadius(6)
+    .borderRadius(uiCardRadius(6))
     .clip(true)
     .gesture(
       LongPressGesture({ repeat: false })
@@ -851,6 +852,6 @@ export struct CategoryBadge {
       .height(this.heightValue)
       .padding({ left: this.horizontalPadding, right: this.horizontalPadding, top: 2, bottom: 2 })
       .backgroundColor(categoryColor(this.category))
-      .borderRadius(3)
+      .borderRadius(uiControlRadius(3))
   }
 }

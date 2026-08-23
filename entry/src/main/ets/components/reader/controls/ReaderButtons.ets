@@ -1,3 +1,5 @@
+import { uiRadius } from '../../../shared/EhUiStyle';
+
 @Component
 export struct ReaderToolButton {
   text: string = '';
@@ -36,7 +38,7 @@ export struct ReaderNavButton {
     .height(42)
     .width('100%')
     .backgroundColor(this.active ? '#2F6F8F' : '#1F2937')
-    .borderRadius(4)
+    .borderRadius(uiRadius(4))
     .onClick(() => {
       if (this.active) {
         this.onTap();
@@ -44,4 +46,3 @@ export struct ReaderNavButton {
     })
   }
 }
-

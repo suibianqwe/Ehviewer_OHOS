@@ -21,6 +21,7 @@ import {
   themeSurface,
   themeTertiaryText
 } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 import { AppSubToolbar } from './NavigationComponents';
 
 @Component
@@ -114,7 +115,7 @@ export struct ReaderPresetPanel {
               .fontColor(themeOnPrimaryText())
               .padding({ left: 8, right: 8, top: 3, bottom: 3 })
               .backgroundColor(themePrimaryColor())
-              .borderRadius(10)
+              .borderRadius(uiRadius(10))
           }
         }
         .width('100%')
@@ -152,7 +153,7 @@ export struct ReaderPresetPanel {
     .constraintSize({ minHeight: 72 })
     .padding({ left: 14, right: 14, top: 10, bottom: 10 })
     .backgroundColor(profile.id === this.activeId ? themeSelectedBackground() : themeSurface())
-    .borderRadius(8)
+    .borderRadius(uiRadius(8))
     .onClick(() => {
       this.applyProfile(profile);
     })
@@ -207,7 +208,7 @@ export struct ReaderPresetPanel {
               .fontSize(14)
               .fontColor(themeOnPrimaryText())
               .backgroundColor(themePrimaryColor())
-              .borderRadius(6)
+              .borderRadius(uiRadius(6))
               .onClick(() => {
                 this.saveCurrentPreset();
               })
@@ -217,7 +218,7 @@ export struct ReaderPresetPanel {
         .width('100%')
         .padding(12)
         .backgroundColor(themeSurface())
-        .borderRadius(8)
+        .borderRadius(uiRadius(8))
       }
       .width('100%')
       .layoutWeight(1)

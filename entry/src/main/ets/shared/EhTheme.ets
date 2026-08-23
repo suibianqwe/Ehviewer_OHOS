@@ -240,6 +240,7 @@ interface EhThemeRuntime {
   themeSetting: string;
   followSystem: string;
   colorSetting: string;
+  uiStyle: string;
   themeName: string;
   palette: EhColorPalette;
   accent: EhThemeAccent;
@@ -289,6 +290,62 @@ function mixThemeColor(from: string, to: string, amount: number): string {
   return '#' + colorChannelHex(red) + colorChannelHex(green) + colorChannelHex(blue);
 }
 
+function harmonyOs7Palette(base: EhColorPalette, themeName: string): EhColorPalette {
+  const black = themeName === 'Black';
+  const dark = themeName === 'Dark' || black;
+  return {
+    name: base.name,
+    primary: base.primary,
+    pageBackground: black ? '#000000' : (dark ? '#111114' : '#F6F7FA'),
+    surface: black ? '#0B0B0D' : (dark ? '#1C1C20' : '#FCFCFF'),
+    surfaceVariant: black ? '#151518' : (dark ? '#27272D' : '#EFF0F4'),
+    fieldBackground: black ? '#19191D' : (dark ? '#2B2B31' : '#ECEEF3'),
+    primaryText: dark ? '#F5F5F7' : '#19191B',
+    secondaryText: dark ? '#C2C2C8' : '#5F6068',
+    tertiaryText: dark ? '#92939B' : '#85868F',
+    mutedText: dark ? '#7D7E86' : '#92939B',
+    divider: black ? '#242428' : (dark ? '#34343A' : '#E2E3E8'),
+    placeholder: dark ? '#85868F' : '#7B7C85',
+    selectedBackground: base.selectedBackground,
+    selectedBackgroundLight: base.selectedBackgroundLight,
+    selectedText: base.selectedText,
+    selectedIndicator: base.selectedIndicator,
+    scrim: dark ? 'rgba(0,0,0,0.46)' : 'rgba(18,18,22,0.28)',
+    shadow: dark ? 'rgba(0,0,0,0.64)' : 'rgba(28,28,34,0.24)',
+    systemBarContent: dark ? '#F5F5F7' : '#19191B',
+    onPrimary: base.onPrimary,
+    onPrimarySecondary: base.onPrimarySecondary,
+    onPrimaryActionBackground: base.onPrimaryActionBackground,
+    onPrimaryActionBackgroundStrong: base.onPrimaryActionBackgroundStrong,
+    onPrimaryActionBackgroundDisabled: base.onPrimaryActionBackgroundDisabled,
+    onPrimaryDangerBackground: base.onPrimaryDangerBackground,
+    successText: base.successText,
+    successBackground: base.successBackground,
+    dangerText: base.dangerText,
+    dangerBackground: base.dangerBackground,
+    infoText: base.infoText,
+    infoBackground: dark ? '#25262B' : '#EEF2F7',
+    accentBackground: base.accentBackground,
+    onAccent: base.onAccent,
+    favoriteText: base.favoriteText,
+    inactiveActionText: base.inactiveActionText,
+    controlNeutralBackground: dark ? '#666871' : '#6E707A',
+    controlMutedBackground: dark ? '#4B4D55' : '#555761',
+    transparent: base.transparent,
+    downloadStateWait: base.downloadStateWait,
+    downloadStateActive: base.downloadStateActive,
+    downloadStateDone: base.downloadStateDone,
+    downloadStateFailed: base.downloadStateFailed,
+    downloadStateIdle: base.downloadStateIdle,
+    readerSelectText: base.readerSelectText,
+    readerSelectBackground: base.readerSelectBackground,
+    readerSelectPanel: base.readerSelectPanel,
+    readerSelectSelectedBackground: base.readerSelectSelectedBackground,
+    readerSelectSelectedText: base.readerSelectSelectedText,
+    readerSelectOutline: base.readerSelectOutline
+  };
+}
+
 function themeRuntime(): EhThemeRuntime {
   const revisionValue = AppStorage.get<number>(EH_THEME_REVISION_KEY);
   const revision = revisionValue === undefined ? 0 : revisionValue;
@@ -297,10 +354,11 @@ function themeRuntime(): EhThemeRuntime {
   const themeSetting = ehSettingsStore.getValue('theme', 'Light');
   const followSystem = ehSettingsStore.getValue('follow_system_dark_mode', 'Off');
   const colorSetting = ehSettingsStore.getValue('theme_color', 'Blue');
+  const uiStyle = ehSettingsStore.getValue('ui_style', 'Classic');
   const cached = cachedThemeRuntime;
   if (cached !== null && cached.revision === revision && cached.colorMode === colorMode &&
     cached.themeSetting === themeSetting && cached.followSystem === followSystem &&
-    cached.colorSetting === colorSetting) {
+    cached.colorSetting === colorSetting && cached.uiStyle === uiStyle) {
     return cached;
   }
 
@@ -310,7 +368,8 @@ function themeRuntime(): EhThemeRuntime {
     themeName = colorMode === EH_SYSTEM_COLOR_MODE_DARK ?
       (storedThemeName === 'Black' ? 'Black' : 'Dark') : 'Light';
   }
-  const palette = themeName === 'Black' ? BLACK_PALETTE : (themeName === 'Dark' ? DARK_PALETTE : LIGHT_PALETTE);
+  const basePalette = themeName === 'Black' ? BLACK_PALETTE : (themeName === 'Dark' ? DARK_PALETTE : LIGHT_PALETTE);
+  const palette = uiStyle === 'HarmonyOS 7' ? harmonyOs7Palette(basePalette, themeName) : basePalette;
   const colorName = normalizeThemeColorName(colorSetting);
   let accent = THEME_ACCENTS[0];
   for (let i = 0; i < THEME_ACCENTS.length; i++) {
@@ -322,9 +381,9 @@ function themeRuntime(): EhThemeRuntime {
   const primary = themeName === 'Black' ? accent.black : (themeName === 'Dark' ? accent.dark : accent.light);
   const indicator = themeName === 'Light' ? accent.light : accent.indicator;
   const fieldBackground = themeName === 'Black' ?
-    mixThemeColor(indicator, BLACK_PALETTE.surface, 0.88) :
-    (themeName === 'Dark' ? mixThemeColor(indicator, DARK_PALETTE.surface, 0.82) :
-      mixThemeColor(primary, LIGHT_PALETTE.surface, 0.90));
+    mixThemeColor(indicator, palette.surface, uiStyle === 'HarmonyOS 7' ? 0.92 : 0.88) :
+    (themeName === 'Dark' ? mixThemeColor(indicator, palette.surface, uiStyle === 'HarmonyOS 7' ? 0.86 : 0.82) :
+      mixThemeColor(primary, palette.surface, uiStyle === 'HarmonyOS 7' ? 0.93 : 0.90));
   const selectedBackground = themeName === 'Black' ?
     mixThemeColor(indicator, BLACK_PALETTE.surface, 0.78) :
     (themeName === 'Dark' ? mixThemeColor(indicator, DARK_PALETTE.surface, 0.74) :
@@ -341,6 +400,7 @@ function themeRuntime(): EhThemeRuntime {
     themeSetting: themeSetting,
     followSystem: followSystem,
     colorSetting: colorSetting,
+    uiStyle: uiStyle,
     themeName: themeName,
     palette: palette,
     accent: accent,

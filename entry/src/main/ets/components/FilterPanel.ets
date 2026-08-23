@@ -22,6 +22,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 import {
   buildSearchSuggestions,
   RatingStarBar,
@@ -231,7 +232,7 @@ export struct FilterPanel {
           .fontColor(themePrimaryText())
           .placeholderColor(themeTertiaryText())
           .backgroundColor(themeFieldBackground())
-          .borderRadius(8)
+          .borderRadius(uiRadius(8))
           .padding({ left: 12, right: 12 })
           .onChange((value: string) => {
             this.updateDraftText(value);
@@ -250,7 +251,7 @@ export struct FilterPanel {
         .width(44)
         .height(44)
         .padding(0)
-        .borderRadius(22)
+        .borderRadius(uiRadius(22))
         .backgroundColor(themePrimaryColor())
         .onClick(() => {
           this.submitTextRule();
@@ -314,7 +315,7 @@ export struct FilterPanel {
     .width('100%')
     .padding(14)
     .backgroundColor(themeSurface())
-    .borderRadius(8)
+    .borderRadius(uiRadius(8))
   }
 
   @Builder
@@ -388,7 +389,7 @@ struct FilterModeTab {
       .height(34)
       .padding({ left: 14, right: 14 })
       .backgroundColor(this.selected ? themePrimaryColor() : themeSurfaceVariant())
-      .borderRadius(17)
+      .borderRadius(uiRadius(17))
       .onClick(() => {
         this.onTap();
       })
@@ -419,7 +420,7 @@ struct FilterRuleCard {
             .fontColor(themeSecondaryText())
             .padding({ left: 8, right: 8, top: 3, bottom: 3 })
             .backgroundColor(themeFieldBackground())
-            .borderRadius(10)
+            .borderRadius(uiRadius(10))
           Text(this.rule.enabled ? uiText('On') : uiText('Off'))
             .fontSize(11)
             .fontColor(this.rule.enabled ? themePrimaryColor() : themeMutedText())
@@ -436,7 +437,7 @@ struct FilterRuleCard {
       .width(38)
       .height(38)
       .padding(0)
-      .borderRadius(19)
+      .borderRadius(uiRadius(19))
       .backgroundColor(this.rule.enabled ? themeSelectedBackgroundLight() : themeSurfaceVariant())
       .onClick(() => {
         this.onToggle();
@@ -450,7 +451,7 @@ struct FilterRuleCard {
       .width(38)
       .height(38)
       .padding(0)
-      .borderRadius(19)
+      .borderRadius(uiRadius(19))
       .backgroundColor(themeSurfaceVariant())
       .onClick(() => {
         this.onRemove();
@@ -459,7 +460,7 @@ struct FilterRuleCard {
     .width('100%')
     .padding(14)
     .backgroundColor(themeSurface())
-    .borderRadius(8)
+    .borderRadius(uiRadius(8))
     .border({ width: 1, color: themeDividerColor() })
   }
 }
@@ -481,7 +482,7 @@ struct EmptyFilterCard {
     .width('100%')
     .padding({ left: 20, right: 20, top: 28, bottom: 28 })
     .backgroundColor(themeSurface())
-    .borderRadius(8)
+    .borderRadius(uiRadius(8))
     .border({ width: 1, color: themeDividerColor() })
   }
 }

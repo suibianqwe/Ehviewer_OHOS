@@ -91,6 +91,7 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
 import {
   DOWNLOAD_LABEL_OPTION_ASK,
@@ -186,7 +187,7 @@ struct AddFavoriteDialog {
                 }
                 .width(38)
                 .height(38)
-                .borderRadius(9)
+                .borderRadius(uiRadius(9))
                 .justifyContent(FlexAlign.Center)
                 .alignItems(HorizontalAlign.Center)
                 .backgroundColor(themeSurfaceVariant())
@@ -237,7 +238,7 @@ struct AddFavoriteDialog {
       .height(this.panelHeight())
       .constraintSize({ maxWidth: 360, minWidth: 280, maxHeight: this.panelMaxHeight })
       .backgroundColor(themeSurface())
-      .borderRadius(10)
+      .borderRadius(uiRadius(10))
       .shadow({ radius: 24, color: themeShadowColor(), offsetX: 0, offsetY: 8 })
     }
     .width('100%')

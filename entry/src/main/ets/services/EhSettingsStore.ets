@@ -44,6 +44,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'follow_system_dark_mode', value: 'Off' },
     { key: 'theme', value: 'Light' },
     { key: 'theme_color', value: 'Blue' },
+    { key: 'ui_style', value: 'Classic' },
     { key: 'launch_page', value: 'Homepage' },
     { key: 'list_mode', value: 'Detail' },
     { key: 'detail_size', value: 'Medium' },
@@ -214,7 +215,8 @@ export class EhSettingsStore {
       if ((entry.key === 'app_language' || entry.key === 'show_tag_translations') && previous !== value) {
         result.languageChanged = true;
       }
-      if ((entry.key === 'theme' || entry.key === 'theme_color' || entry.key === 'follow_system_dark_mode') &&
+      if ((entry.key === 'theme' || entry.key === 'theme_color' || entry.key === 'follow_system_dark_mode' ||
+        entry.key === 'ui_style') &&
         previous !== value) {
         result.themeChanged = true;
       }

@@ -16,6 +16,7 @@ import {
   themeSurfaceVariant,
   themeTransparentColor
 } from '../shared/EhTheme';
+import { uiCardRadius, uiControlRadius, uiPanelMaterial, uiPanelRadius, uiPillRadius } from '../shared/EhUiStyle';
 
 export const SIDE_PANEL_WIDTH: number = 288;
 
@@ -69,6 +70,8 @@ export struct RightSidePanelLayer {
       }
       .width(SIDE_PANEL_WIDTH)
       .height('100%')
+      .backgroundColor(themeSurface())
+      .systemMaterial(uiPanelMaterial())
       .position({ x: this.drawerLeft, y: 0 })
       .translate({ x: this.drawerOffsetX })
       .shadow({ radius: 32, color: themeShadowColor(), offsetX: -8, offsetY: 0 })
@@ -237,7 +240,7 @@ export struct SidePanelRow {
       .height(40)
       .justifyContent(FlexAlign.Center)
       .alignItems(HorizontalAlign.Center)
-      .borderRadius(10)
+      .borderRadius(uiCardRadius(10))
       .backgroundColor(this.selected ? themeSelectedBackgroundLight() : themeSurfaceVariant())
 
       Column() {
@@ -348,7 +351,7 @@ export struct SidePanelEditableManagerRow {
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
         .backgroundColor(themeSurfaceVariant())
-        .borderRadius(19)
+        .borderRadius(uiPillRadius(19))
 
         if (this.editing) {
           TextInput({ text: this.draftValue, placeholder: uiText(this.placeholder) })
@@ -362,7 +365,7 @@ export struct SidePanelEditableManagerRow {
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(themeFieldBackground())
-            .borderRadius(8)
+            .borderRadius(uiControlRadius(8))
             .padding({ left: 10, right: 10 })
             .onChange((value: string) => {
               this.draftValue = value;
@@ -386,7 +389,7 @@ export struct SidePanelEditableManagerRow {
           .layoutWeight(1)
           .padding({ left: 10, right: 10 })
           .backgroundColor(themeFieldBackground())
-          .borderRadius(8)
+          .borderRadius(uiControlRadius(8))
           .alignItems(VerticalAlign.Center)
           .onClick(() => {
             this.onStartEdit();
@@ -419,6 +422,6 @@ export struct SidePanelEditableManagerRow {
     .width('100%')
     .padding(12)
     .backgroundColor(themeSurface())
-    .borderRadius(8)
+    .borderRadius(uiPanelRadius(8))
   }
 }

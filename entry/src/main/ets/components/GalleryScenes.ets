@@ -75,6 +75,7 @@ import {
   themeTertiaryText,
   themeTransparentColor
 } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 import { EhNavBar } from '../components/NavigationComponents';
 import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard, galleryThumbnailAspectRatio } from './GalleryCards';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
@@ -671,7 +672,7 @@ struct DefaultFavoriteSlotDialog {
                 }
                 .width(38)
                 .height(38)
-                .borderRadius(9)
+                .borderRadius(uiRadius(9))
                 .justifyContent(FlexAlign.Center)
                 .alignItems(HorizontalAlign.Center)
                 .backgroundColor(item.slot === this.selectedSlot ?
@@ -711,7 +712,7 @@ struct DefaultFavoriteSlotDialog {
       .height(this.panelHeight())
       .constraintSize({ maxWidth: 360, minWidth: 280, maxHeight: this.panelMaxHeight })
       .backgroundColor(themeSurface())
-      .borderRadius(10)
+      .borderRadius(uiRadius(10))
       .shadow({ radius: 24, color: themeShadowColor(), offsetX: 0, offsetY: 8 })
     }
     .width('100%')
@@ -3389,7 +3390,7 @@ export struct GalleryListScene {
                   .fontSize(15)
                   .fontColor(themePrimaryText())
                   .backgroundColor(themeFieldBackground())
-                  .borderRadius(6)
+                  .borderRadius(uiRadius(6))
                   .padding({ left: 12, right: 12 })
                   .onChange((value: string) => {
                     this.addBookmarkName = value;
@@ -3412,7 +3413,7 @@ export struct GalleryListScene {
                     .fontSize(14)
                     .fontColor(themePrimaryText())
                     .backgroundColor(themeSurfaceVariant())
-                    .borderRadius(20)
+                    .borderRadius(uiRadius(20))
                     .onClick(() => {
                       this.addBookmarkDialogVisible = false;
                     })
@@ -3422,7 +3423,7 @@ export struct GalleryListScene {
                     .fontSize(14)
                     .fontColor(themeOnPrimaryText())
                     .backgroundColor(themePrimaryColor())
-                    .borderRadius(20)
+                    .borderRadius(uiRadius(20))
                     .onClick(() => {
                       this.confirmAddBookmark();
                     })
@@ -3433,7 +3434,7 @@ export struct GalleryListScene {
               .constraintSize({ maxWidth: 340, minWidth: 280 })
               .padding(18)
               .backgroundColor(themeSurface())
-              .borderRadius(10)
+              .borderRadius(uiRadius(10))
               .shadow({ radius: 22, color: themeShadowColor(), offsetY: 8 })
               .onClick(() => {})
             }
@@ -3689,7 +3690,7 @@ struct ImageSearchPanel {
           }
           .height(38)
           .layoutWeight(1)
-          .borderRadius(6)
+          .borderRadius(uiRadius(6))
           .backgroundColor(themePrimaryColor())
           .enabled(!this.busy)
           .onClick(() => {
@@ -3711,7 +3712,7 @@ struct ImageSearchPanel {
           }
           .height(38)
           .layoutWeight(1)
-          .borderRadius(6)
+          .borderRadius(uiRadius(6))
           .backgroundColor(themeFieldBackground())
           .enabled(!this.busy)
           .onClick(() => {
@@ -3733,7 +3734,7 @@ struct ImageSearchPanel {
         .width('100%')
         .padding(10)
         .backgroundColor(themeFieldBackground())
-        .borderRadius(6)
+        .borderRadius(uiRadius(6))
 
         Row() {
           Text(uiText('Upload original image'))
@@ -3783,7 +3784,7 @@ struct ImageSearchPanel {
           .fontSize(14)
           .fontColor(themeOnPrimaryText())
           .backgroundColor(themePrimaryColor())
-          .borderRadius(6)
+          .borderRadius(uiRadius(6))
           .enabled(this.selectedPath.length > 0 && !this.busy)
           .onClick(() => {
             this.submit();
@@ -3795,7 +3796,7 @@ struct ImageSearchPanel {
     .width(this.panelWidth)
     .constraintSize({ maxHeight: this.panelMaxHeight })
     .backgroundColor(themeSurface())
-    .borderRadius(8)
+    .borderRadius(uiRadius(8))
     .shadow({ radius: 14, color: themeShadowColor(), offsetX: 0, offsetY: 4 })
   }
 }
@@ -3900,7 +3901,7 @@ export struct GalleryCardActionOverlay {
       .constraintSize({ maxWidth: 360 })
       .padding({ top: 4, bottom: 6 })
       .backgroundColor(themeSurface())
-      .borderRadius(10)
+      .borderRadius(uiRadius(10))
       .clip(true)
       .shadow({ radius: 18, color: themeShadowColor(), offsetY: 8 })
     }
@@ -4667,7 +4668,7 @@ export struct GalleryListContent {
     .height(28)
     .padding({ left: 9, right: 6 })
     .backgroundColor(themePrimaryColor())
-    .borderRadius(14)
+    .borderRadius(uiRadius(14))
     .flexShrink(0)
   }
 
@@ -4729,7 +4730,7 @@ export struct GalleryListContent {
     .layoutWeight(1)
     .padding({ left: 8, right: 8 })
     .backgroundColor(themeFieldBackground())
-    .borderRadius(19)
+    .borderRadius(uiRadius(19))
     .alignItems(VerticalAlign.Center)
   }
 
@@ -4887,7 +4888,7 @@ export struct GalleryListContent {
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
         .backgroundColor(themeSurface())
-        .borderRadius(6)
+        .borderRadius(uiRadius(6))
       }
     }
     .width('100%')
@@ -5445,7 +5446,7 @@ export struct GalleryListContent {
                     .fontSize(12)
                     .fontColor(themePrimaryColor())
                     .backgroundColor(themeFieldBackground())
-                    .borderRadius(4)
+                    .borderRadius(uiRadius(4))
                     .onClick(() => {
                       this.onSeekJump('jump=' + preset);
                       this.closeJumpPanel();
@@ -5465,7 +5466,7 @@ export struct GalleryListContent {
                 .type(InputType.Number)
                 .fontColor(themePrimaryText())
                 .backgroundColor(themeFieldBackground())
-                .borderRadius(4)
+                .borderRadius(uiRadius(4))
                 .padding({ left: 8, right: 8 })
                 .onChange((value: string) => {
                   this.seekYearDraft = value;
@@ -5476,7 +5477,7 @@ export struct GalleryListContent {
                 .type(InputType.Number)
                 .fontColor(themePrimaryText())
                 .backgroundColor(themeFieldBackground())
-                .borderRadius(4)
+                .borderRadius(uiRadius(4))
                 .padding({ left: 8, right: 8 })
                 .onChange((value: string) => {
                   this.seekMonthDraft = value;
@@ -5487,7 +5488,7 @@ export struct GalleryListContent {
                 .type(InputType.Number)
                 .fontColor(themePrimaryText())
                 .backgroundColor(themeFieldBackground())
-                .borderRadius(4)
+                .borderRadius(uiRadius(4))
                 .padding({ left: 8, right: 8 })
                 .onChange((value: string) => {
                   this.seekDayDraft = value;
@@ -5500,7 +5501,7 @@ export struct GalleryListContent {
               .fontSize(13)
               .fontColor(themeOnPrimaryText())
               .backgroundColor(themePrimaryColor())
-              .borderRadius(4)
+              .borderRadius(uiRadius(4))
               .onClick(() => {
                 this.submitSeekDate();
                 this.closeJumpPanel();
@@ -5518,7 +5519,7 @@ export struct GalleryListContent {
                 .type(InputType.Number)
                 .fontColor(themePrimaryText())
                 .backgroundColor(themeFieldBackground())
-                .borderRadius(4)
+                .borderRadius(uiRadius(4))
                 .padding({ left: 10, right: 10 })
                 .onChange((value: string) => {
                   this.pageJumpDraft = value;
@@ -5538,7 +5539,7 @@ export struct GalleryListContent {
               .fontSize(13)
               .fontColor(themeOnPrimaryText())
               .backgroundColor(themePrimaryColor())
-              .borderRadius(4)
+              .borderRadius(uiRadius(4))
               .onClick(() => {
                 this.submitPageJump();
                 this.closeJumpPanel();
@@ -5548,7 +5549,7 @@ export struct GalleryListContent {
         .width(this.useSeekJumpPanel() ? 280 : 220)
         .padding(12)
         .backgroundColor(themeSurface())
-        .borderRadius(8)
+        .borderRadius(uiRadius(8))
         .shadow({
           radius: 12,
           color: themeShadowColor(),

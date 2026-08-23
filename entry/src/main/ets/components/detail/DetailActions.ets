@@ -15,6 +15,7 @@ import {
   themeSurfaceVariant,
   themeTransparentColor
 } from '../../shared/EhTheme';
+import { uiRadius } from '../../shared/EhUiStyle';
 @Component
 export struct DetailActions {
   @Prop detail: GalleryDetail = createEmptyDetail();
@@ -174,7 +175,7 @@ export struct RatingPanel {
           .fontSize(13)
           .fontColor(themeSecondaryText())
           .backgroundColor(themeSurfaceVariant())
-          .borderRadius(4)
+          .borderRadius(uiRadius(4))
           .layoutWeight(1)
           .onClick(() => {
             this.onCancel();
@@ -185,7 +186,7 @@ export struct RatingPanel {
           .fontSize(13)
           .fontColor(themeOnPrimaryText())
           .backgroundColor(themePrimaryColor())
-          .borderRadius(4)
+          .borderRadius(uiRadius(4))
           .layoutWeight(1)
           .onClick(() => {
             this.onSubmit();
@@ -197,7 +198,7 @@ export struct RatingPanel {
     .width('100%')
     .padding(18)
     .backgroundColor(themeSurface())
-    .borderRadius(8)
+    .borderRadius(uiRadius(8))
   }
 }
 
@@ -227,7 +228,7 @@ export struct DetailActionItem {
     .height(68)
     .justifyContent(FlexAlign.Center)
     .backgroundColor(this.pressed ? themeSurfaceVariant() : themeTransparentColor())
-    .borderRadius(6)
+    .borderRadius(uiRadius(6))
     .scale({ x: this.pressed ? 0.92 : 1, y: this.pressed ? 0.92 : 1 })
     .animation({ duration: 120, curve: Curve.EaseOut })
     .onTouch((event: TouchEvent) => {

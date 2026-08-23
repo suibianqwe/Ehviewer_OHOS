@@ -23,6 +23,7 @@ import {
   themeTertiaryText,
   themeTransparentColor
 } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 import { CategoryBadge, GalleryThumb } from './GalleryScenes';
 
 @Component
@@ -126,12 +127,12 @@ export struct DownloadRow {
                 .height(4)
                 .width('100%')
                 .backgroundColor(themeDividerColor())
-                .borderRadius(2)
+                .borderRadius(uiRadius(2))
               Row()
                 .height(4)
                 .width(this.progressPercent())
                 .backgroundColor(downloadStateColor(this.item.state))
-                .borderRadius(2)
+                .borderRadius(uiRadius(2))
             }
             .width('100%')
             .height(4)
@@ -204,7 +205,7 @@ export struct DownloadRow {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .padding({ left: 6, right: 6, top: 2, bottom: 2 })
           .backgroundColor(downloadStateColor(this.item.state))
-          .borderRadius(3)
+          .borderRadius(uiRadius(3))
           .margin({ bottom: 6 })
 
         Button({ type: ButtonType.Circle }) {
@@ -227,6 +228,6 @@ export struct DownloadRow {
     .width('100%')
     .padding(8)
     .backgroundColor(themeSurface())
-    .borderRadius(6)
+    .borderRadius(uiRadius(6))
   }
 }

@@ -141,6 +141,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 import { EhBackupBundle, SessionMode, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, uiStatusText, setActiveBackHandler, padTwo, getAbilityContext, downloadSizeText, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, cloneStringOptions, isValidProxyHostText, isValidProxyPortText, normalizeProxyOption, formatNetworkDiagnostics, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption, normalizeIdentityAuthenticationOption, normalizeReaderCacheSizeOption } from '../shared/EhShared';
 import { FilterPanel } from './DownloadMigrationScenes';
 import { BlockingBusyOverlay } from './BlockingBusyOverlay';
@@ -599,7 +600,7 @@ export struct SettingsScene {
     if (key === 'show_jpn_title') {
       notifyGalleryTitleChanged();
     }
-    if (key === 'theme' || key === 'theme_color' || key === 'follow_system_dark_mode') {
+    if (key === 'theme' || key === 'theme_color' || key === 'follow_system_dark_mode' || key === 'ui_style') {
       notifyThemeChanged();
       this.settingsRenderRevision++;
       applyAppChromeImmersiveMode();
@@ -645,7 +646,7 @@ export struct SettingsScene {
       const displayValue = settingDisplayValueForStatus(key, normalizedValue);
       this.statusText = isNetworkSettingKey(key) ? 'Saved network setting: ' + key + ' = ' + displayValue +
         '. Refresh Homepage or run Network diagnostics.' : 'Saved: ' + key + ' = ' + displayValue;
-      if (key === 'theme' || key === 'theme_color' || key === 'follow_system_dark_mode') {
+      if (key === 'theme' || key === 'theme_color' || key === 'follow_system_dark_mode' || key === 'ui_style') {
         this.statusText = 'Theme refreshed';
       }
       if (cachePrune !== null && key === 'read_cache_size') {
@@ -2549,7 +2550,7 @@ struct ProxySettingsOverlay {
       .fontSize(14)
       .fontColor(this.draftType === type ? themeOnPrimaryText() : themePrimaryText())
       .backgroundColor(this.draftType === type ? themePrimaryColor() : themeFieldBackground())
-      .borderRadius(6)
+      .borderRadius(uiRadius(6))
       .opacity(type === 'SOCKS' && !this.socksSupported ? 0.45 : 1)
       .enabled(type !== 'SOCKS' || this.socksSupported)
       .onClick(() => {
@@ -2575,7 +2576,7 @@ struct ProxySettingsOverlay {
     .height(58)
     .layoutWeight(1)
     .backgroundColor(this.draftSocksDns === value ? themePrimaryColor() : themeFieldBackground())
-    .borderRadius(6)
+    .borderRadius(uiRadius(6))
     .onClick(() => {
       this.draftSocksDns = value;
     })
@@ -2724,7 +2725,7 @@ struct ProxySettingsOverlay {
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(themeSurfaceVariant())
-            .borderRadius(6)
+            .borderRadius(uiRadius(6))
             .onClick(this.onCancel)
           Button(uiText('Save'), { type: ButtonType.Normal, stateEffect: true })
             .height(42)
@@ -2732,7 +2733,7 @@ struct ProxySettingsOverlay {
             .fontSize(14)
             .fontColor(themeOnPrimaryText())
             .backgroundColor(themePrimaryColor())
-            .borderRadius(6)
+            .borderRadius(uiRadius(6))
             .onClick(() => {
               this.onSave(this.draftType, this.draftHost, this.draftPort, this.draftUsername,
                 this.draftPassword, this.draftExclusions, this.draftSocksDns);
@@ -2746,7 +2747,7 @@ struct ProxySettingsOverlay {
       .constraintSize({ maxWidth: 460, maxHeight: 650 })
       .padding(18)
       .backgroundColor(themeSurface())
-      .borderRadius(8)
+      .borderRadius(uiRadius(8))
       .shadow({ radius: 18, color: '#33000000', offsetX: 0, offsetY: 8 })
     }
     .width('100%')
@@ -2796,21 +2797,21 @@ struct DownloadMigrationConfirmOverlay {
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(themeSurfaceVariant())
-            .borderRadius(6)
+            .borderRadius(uiRadius(6))
             .layoutWeight(1)
             .onClick(this.onCancel)
           Button(uiText('Switch only'), { type: ButtonType.Normal, stateEffect: true })
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(themeSurfaceVariant())
-            .borderRadius(6)
+            .borderRadius(uiRadius(6))
             .layoutWeight(1)
             .onClick(this.onSwitchOnly)
           Button(uiText('Migrate'), { type: ButtonType.Normal, stateEffect: true })
             .fontSize(14)
             .fontColor(themeOnPrimaryText())
             .backgroundColor(themePrimaryColor())
-            .borderRadius(6)
+            .borderRadius(uiRadius(6))
             .layoutWeight(1)
             .onClick(this.onMigrate)
         }
@@ -2821,7 +2822,7 @@ struct DownloadMigrationConfirmOverlay {
       .constraintSize({ maxWidth: 420 })
       .padding(18)
       .backgroundColor(themeSurface())
-      .borderRadius(8)
+      .borderRadius(uiRadius(8))
       .shadow({
         radius: 18,
         color: '#33000000',
@@ -2952,7 +2953,7 @@ export struct SettingsHeaderRow {
     .width('100%')
     .padding(14)
     .backgroundColor(themeSurface())
-    .borderRadius(6)
+    .borderRadius(uiRadius(6))
     .onClick(() => {
       this.onTap();
     })
@@ -3264,7 +3265,7 @@ struct TranslationPromptPanel {
           .height(52)
           .padding({ left: 14, right: 14 })
           .backgroundColor(themeSurface())
-          .borderRadius(6)
+          .borderRadius(uiRadius(6))
           .onClick(() => {
             this.profileSelectorVisible = true;
           })
@@ -3312,7 +3313,7 @@ struct TranslationPromptPanel {
                 .fontSize(14)
                 .fontColor(themeDangerText())
                 .backgroundColor(themeDangerBackground())
-                .borderRadius(6)
+                .borderRadius(uiRadius(6))
                 .onClick(() => {
                   this.deletePrompt();
                 })
@@ -3323,7 +3324,7 @@ struct TranslationPromptPanel {
               .fontSize(14)
               .fontColor(themeOnPrimaryText())
               .backgroundColor(themePrimaryColor())
-              .borderRadius(6)
+              .borderRadius(uiRadius(6))
               .onClick(() => {
                 this.savePrompt();
               })
@@ -3485,7 +3486,7 @@ export struct SettingsOptionPanel {
                       .fontColor(themeOnPrimaryText())
                       .padding({ left: 10, right: 10, top: 4, bottom: 4 })
                       .backgroundColor(themePrimaryColor())
-                      .borderRadius(14)
+                      .borderRadius(uiRadius(14))
                       .margin({ left: 8 })
                   }
                 }
@@ -3494,7 +3495,7 @@ export struct SettingsOptionPanel {
               .width('100%')
               .padding(14)
               .backgroundColor(option === this.value ? themeSelectedBackground() : themeFieldBackground())
-              .borderRadius(6)
+              .borderRadius(uiRadius(6))
               .onClick(() => {
                 this.onSelect(option);
               })
@@ -3546,7 +3547,7 @@ export struct SettingsOptionPanel {
       .constraintSize({ maxWidth: 420 })
       .padding({ left: 18, right: 18, top: 18, bottom: 8 })
       .backgroundColor(themeSurface())
-      .borderRadius(8)
+      .borderRadius(uiRadius(8))
       .clip(true)
       .shadow({
         radius: 18,
@@ -3596,7 +3597,7 @@ export struct SettingsActionRow {
             .fontColor(this.isEnabled ? themeOnPrimaryText() : themeTertiaryText())
             .padding({ left: 10, right: 10, top: 5, bottom: 5 })
             .backgroundColor(this.isEnabled ? themePrimaryColor() : themeSurfaceVariant())
-            .borderRadius(14)
+            .borderRadius(uiRadius(14))
             .margin({ left: 12 })
         }
       }
@@ -3605,7 +3606,7 @@ export struct SettingsActionRow {
     .width('100%')
     .padding(14)
     .backgroundColor(themeSurface())
-    .borderRadius(6)
+    .borderRadius(uiRadius(6))
     .onClick(() => {
       if (this.isEnabled) {
         this.onTap();
@@ -3714,7 +3715,7 @@ export struct SettingsStaticRow {
             .constraintSize({ maxWidth: 190 })
             .padding({ left: 12, right: 10 })
             .backgroundColor(themeSurfaceVariant())
-            .borderRadius(17)
+            .borderRadius(uiRadius(17))
             .margin({ left: 8 })
             .onClick(() => {
               this.onTap();
@@ -3740,7 +3741,7 @@ export struct SettingsStaticRow {
             .fontSize(12)
             .fontColor(themeSecondaryText())
             .backgroundColor(themeSurfaceVariant())
-            .borderRadius(17)
+            .borderRadius(uiRadius(17))
             .margin({ left: 12 })
             .onClick(() => {
               this.onTap();
@@ -3753,10 +3754,11 @@ export struct SettingsStaticRow {
     .padding(this.row.type === 'section' ? { left: 4, right: 4, top: 12, bottom: 2 } :
       { left: 14, right: 14, top: 14, bottom: 14 })
     .backgroundColor(this.row.type === 'section' ? themePageBackground() : themeSurface())
-    .borderRadius(6)
+    .borderRadius(uiRadius(6))
     .onClick(() => {
       if (this.row.type !== 'input' && this.row.type !== 'switch' && this.row.type !== 'info' &&
-        this.row.type !== 'slider' && this.row.type !== 'section' && this.row.key !== 'theme') {
+        this.row.type !== 'slider' && this.row.type !== 'section' && this.row.key !== 'theme' &&
+        this.row.key !== 'ui_style') {
         this.onTap();
       }
     })

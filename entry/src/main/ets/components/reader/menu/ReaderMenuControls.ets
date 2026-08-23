@@ -7,6 +7,7 @@ import {
 } from '../../../shared/EhShared';
 import { readerSelectColors, selectArrowModifier } from '../../../shared/EhSelectStyle';
 import { themeScrimColor } from '../../../shared/EhTheme';
+import { uiRadius } from '../../../shared/EhUiStyle';
 
 const READER_MENU_SURFACE = '#EE111827';
 const READER_MENU_ITEM_TEXT = '#E5E7EB';
@@ -79,7 +80,7 @@ export struct ReaderImageActionDialog {
     .constraintSize({ maxWidth: 360 })
     .padding({ top: 6, bottom: 6 })
     .backgroundColor(READER_MENU_SURFACE)
-    .borderRadius(12)
+    .borderRadius(uiRadius(12))
     .clip(true)
     .shadow({ radius: 18, color: '#66000000', offsetY: 8 })
     .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))

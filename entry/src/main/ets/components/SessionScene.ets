@@ -13,6 +13,7 @@ import { EhUrl } from '../services/EhUrl';
 import { applyAppChromeImmersiveMode } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, setActiveBackHandler } from '../shared/EhShared';
 import { themeFieldBackground, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSuccessText, themeSurface, themeTransparentColor } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 import { SessionMode, uiText, uiStatusText, getAbilityContext } from '../shared/EhShared';
 import { AppSubToolbar } from './NavigationComponents';
 import { ConfirmActionOverlay } from './ConfirmActionOverlay';
@@ -836,7 +837,7 @@ export struct SignInMark {
     .width(72)
     .height(72)
     .backgroundColor(themePrimaryColor())
-    .borderRadius(18)
+    .borderRadius(uiRadius(18))
   }
 }
 

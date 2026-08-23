@@ -85,6 +85,7 @@ import {
   themeSurface,
   themeTertiaryText
 } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 import { FloatingToolbarHost } from './NavigationComponents';
 import { GalleryListRow, GalleryThumbCard } from './GalleryCards';
 import { ActionBubble, GalleryListScene } from './GalleryScenes';
@@ -1732,7 +1733,7 @@ export struct DownloadScene {
         .justifyContent(FlexAlign.Center)
         .alignItems(HorizontalAlign.Center)
         .backgroundColor(themeSurface())
-        .borderRadius(6)
+        .borderRadius(uiRadius(6))
       }
     }
     .width('100%')
@@ -2221,7 +2222,7 @@ export struct DownloadScene {
             .textAlign(TextAlign.Center)
             .backgroundColor(themeSurface())
             .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-            .borderRadius(15)
+            .borderRadius(uiRadius(15))
             .shadow({ radius: 8, color: themeShadowColor(), offsetX: 0, offsetY: 2 })
             .maxLines(1)
             .position({
@@ -2258,7 +2259,7 @@ export struct DownloadScene {
                 .type(InputType.Number)
                 .fontColor(themePrimaryText())
                 .backgroundColor(themeFieldBackground())
-                .borderRadius(4)
+                .borderRadius(uiRadius(4))
                 .padding({ left: 10, right: 10 })
                 .onChange((value: string) => {
                   this.downloadJumpDraft = value;
@@ -2278,7 +2279,7 @@ export struct DownloadScene {
               .fontSize(13)
               .fontColor(themeOnPrimaryText())
               .backgroundColor(themePrimaryColor())
-              .borderRadius(4)
+              .borderRadius(uiRadius(4))
               .onClick(() => {
                 this.submitDownloadJump();
                 this.closeDownloadJumpPanel();
@@ -2287,7 +2288,7 @@ export struct DownloadScene {
           .width(220)
           .padding(12)
           .backgroundColor(themeSurface())
-          .borderRadius(8)
+          .borderRadius(uiRadius(8))
           .shadow({
             radius: 12,
             color: themeShadowColor(),
@@ -2609,7 +2610,7 @@ struct DownloadStatusFilterOptionRow {
     .width('100%')
     .height(46)
     .backgroundColor(this.isSelected() ? themeSelectedBackground() : Color.Transparent)
-    .borderRadius(8)
+    .borderRadius(uiRadius(8))
     .onClick(() => {
       this.toggle();
     })
@@ -2673,7 +2674,7 @@ struct DownloadStatusFilterOverlay {
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(themeFieldBackground())
-            .borderRadius(8)
+            .borderRadius(uiRadius(8))
             .onClick(() => {
               this.onCancel();
             })
@@ -2684,7 +2685,7 @@ struct DownloadStatusFilterOverlay {
             .fontSize(14)
             .fontColor(themeOnPrimaryText())
             .backgroundColor(themePrimaryColor())
-            .borderRadius(8)
+            .borderRadius(uiRadius(8))
             .onClick(() => {
               this.onApply();
             })
@@ -2696,7 +2697,7 @@ struct DownloadStatusFilterOverlay {
       .constraintSize({ maxWidth: 380, maxHeight: 560 })
       .padding(16)
       .backgroundColor(themeSurface())
-      .borderRadius(12)
+      .borderRadius(uiRadius(12))
       .shadow({ radius: 18, color: themeShadowColor(), offsetY: 8 })
     }
     .width('100%')
@@ -3020,7 +3021,7 @@ struct DownloadCardStatus {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .padding({ left: 6, right: 6, top: 2, bottom: 2 })
           .backgroundColor(downloadStateColor(this.cardState.state))
-          .borderRadius(3)
+          .borderRadius(uiRadius(3))
         Text(this.cardState.progressText)
           .fontSize(11)
           .fontColor(themeSecondaryText())
@@ -3055,7 +3056,7 @@ struct DownloadCardStatus {
     .width('100%')
     .padding({ left: 8, right: 8, top: 6, bottom: 6 })
     .backgroundColor(themeSurface())
-    .borderRadius(6)
+    .borderRadius(uiRadius(6))
     .onClick(() => {
       this.onStatusTap(this.item);
     })

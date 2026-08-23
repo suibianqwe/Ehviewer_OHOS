@@ -2,6 +2,7 @@ import { MigrationTask, migrationTasks } from '../services/MigrationStatus';
 import { applyAppChromeImmersiveMode } from '../services/EhWindowImmersive';
 import { uiText } from '../shared/EhShared';
 import { themePrimaryText, themeSecondaryText, themeSuccessText, themeSurface } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 
 @Component
 export struct MigrationScene {
@@ -37,7 +38,7 @@ export struct MigrationScene {
           .width('100%')
           .padding(14)
           .backgroundColor(themeSurface())
-          .borderRadius(6)
+          .borderRadius(uiRadius(6))
         }
         .reuseId('migration-task')
       })

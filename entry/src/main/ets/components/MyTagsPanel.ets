@@ -25,6 +25,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 
 @Component
 export struct MyTagsPanel {
@@ -314,7 +315,7 @@ struct MyTagsColumn {
           .fontColor(themePrimaryText())
           .placeholderColor(themeTertiaryText())
           .backgroundColor(themeFieldBackground())
-          .borderRadius(6)
+          .borderRadius(uiRadius(6))
           .padding({ left: 10, right: 10 })
           .onChange((value: string) => {
             this.onTextChange(value);
@@ -353,7 +354,7 @@ struct MyTagsColumn {
           .width('100%')
           .padding(10)
           .backgroundColor(themeSurfaceVariant())
-          .borderRadius(6)
+          .borderRadius(uiRadius(6))
       } else {
         Flex({ wrap: FlexWrap.Wrap }) {
           ForEach(this.tags, (tag: MyTagItem) => {
@@ -372,7 +373,7 @@ struct MyTagsColumn {
     .padding(12)
     .width('100%')
     .backgroundColor(themeSurface())
-    .borderRadius(6)
+    .borderRadius(uiRadius(6))
   }
 
   private hasSearchText(): boolean {
@@ -417,7 +418,7 @@ struct MyTagRow {
     .height(28)
     .padding({ left: 9, right: 6 })
     .backgroundColor(themePrimaryColor())
-    .borderRadius(14)
+    .borderRadius(uiRadius(14))
   }
 }
 

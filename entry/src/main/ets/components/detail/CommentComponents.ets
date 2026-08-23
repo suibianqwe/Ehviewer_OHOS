@@ -17,6 +17,7 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../../shared/EhTheme';
+import { uiRadius } from '../../shared/EhUiStyle';
 
 interface CommentTextSegment {
   text: string;
@@ -251,7 +252,7 @@ export struct CommentVoteButton {
       .height(36)
       .width(46)
       .backgroundColor(this.selected ? themePrimaryColor() : themeSurfaceVariant())
-      .borderRadius(5)
+      .borderRadius(uiRadius(5))
       .padding(0)
       .enabled(this.enabledValue)
       .opacity(this.enabledValue ? 1 : 0.56)
@@ -343,7 +344,7 @@ export struct GalleryCommentRow {
           .height(36)
           .width(40)
           .padding(0)
-          .borderRadius(5)
+          .borderRadius(uiRadius(5))
           .backgroundColor(themeSurfaceVariant())
           .accessibilityDescription(uiText('Block user'))
           .onClick(() => {
@@ -393,7 +394,7 @@ export struct GalleryCommentRow {
     .width('100%')
     .padding(this.compact ? 10 : { left: 16, right: 16, top: 14, bottom: 14 })
     .backgroundColor(this.compact ? themeSurfaceVariant() : themeSurface())
-    .borderRadius(this.compact ? 6 : 0)
+    .borderRadius(this.compact ? uiRadius(6) : 0)
     .onClick(() => {
       if (this.rowClickable) {
         this.onTapRow();

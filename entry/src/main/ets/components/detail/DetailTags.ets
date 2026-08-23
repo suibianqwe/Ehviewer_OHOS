@@ -20,6 +20,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../../shared/EhTheme';
+import { uiRadius } from '../../shared/EhUiStyle';
 import {
   buildSearchSuggestions,
   SearchSuggestionItem,
@@ -135,7 +136,7 @@ export struct DetailTags {
           }
           .width(34)
           .height(34)
-          .borderRadius(17)
+          .borderRadius(uiRadius(17))
           .padding(0)
           .backgroundColor(this.editMode ? themePrimaryColor() : themeSurfaceVariant())
           .enabled(this.isDetailLoaded)
@@ -182,7 +183,7 @@ export struct DetailTags {
                 .fontColor(themePrimaryText())
                 .placeholderColor(themeTertiaryText())
                 .backgroundColor(themeFieldBackground())
-                .borderRadius(6)
+                .borderRadius(uiRadius(6))
                 .padding({ left: 10, right: 10 })
                 .layoutWeight(1)
                 .onChange((value: string) => {
@@ -198,7 +199,7 @@ export struct DetailTags {
               }
               .width(42)
               .height(38)
-              .borderRadius(6)
+              .borderRadius(uiRadius(6))
               .padding(0)
               .backgroundColor(themePrimaryColor())
               .onClick(() => {
@@ -320,7 +321,7 @@ export struct TagGroupRow {
           }
           .height(26)
           .backgroundColor(this.tagBackgroundColor())
-          .borderRadius(4)
+          .borderRadius(uiRadius(4))
           .padding({ left: 8, right: 8 })
           .margin({ right: 6, bottom: 6 })
           .onClick(() => {

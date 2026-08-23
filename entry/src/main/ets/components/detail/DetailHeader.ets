@@ -16,6 +16,7 @@ import {
   themeOnPrimaryText,
   themePrimaryColor
 } from '../../shared/EhTheme';
+import { uiRadius } from '../../shared/EhUiStyle';
 import { GalleryThumb, galleryThumbnailAspectRatio } from '../GalleryCards';
 import { copyTextToClipboard } from './DetailInfo';
 import { TranslationText } from '../TranslationComponents';
@@ -148,7 +149,7 @@ struct DetailCategoryBadge {
       .height(28)
       .padding({ left: 11, right: 11, top: 3, bottom: 3 })
       .backgroundColor(categoryColor(this.category))
-      .borderRadius(5)
+      .borderRadius(uiRadius(5))
       .onClick(() => {
         this.onTap();
       })
@@ -187,7 +188,7 @@ export struct HeaderActionButton {
     .height(46)
     .width('100%')
     .backgroundColor(this.buttonBackground())
-    .borderRadius(23)
+    .borderRadius(uiRadius(23))
     .border({
       width: this.accent ? 0 : 1,
       color: this.accent ? '#FFD34D' : '#C2E0E8'

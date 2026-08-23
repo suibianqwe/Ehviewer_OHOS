@@ -9,6 +9,7 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../shared/EhTheme';
+import { uiControlRadius, uiDialogMaterial, uiPanelRadius } from '../shared/EhUiStyle';
 
 @Component
 export struct ConfirmActionOverlay {
@@ -45,14 +46,14 @@ export struct ConfirmActionOverlay {
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(themeSurfaceVariant())
-            .borderRadius(6)
+            .borderRadius(uiControlRadius(6))
             .layoutWeight(1)
             .onClick(this.onCancel)
           Button(uiText(this.confirmLabel), { type: ButtonType.Normal, stateEffect: true })
             .fontSize(14)
             .fontColor(this.danger ? themeDangerText() : themeOnPrimaryText())
             .backgroundColor(this.danger ? themeDangerBackground() : themeSurfaceVariant())
-            .borderRadius(6)
+            .borderRadius(uiControlRadius(6))
             .layoutWeight(1)
             .onClick(this.onConfirm)
         }
@@ -63,7 +64,8 @@ export struct ConfirmActionOverlay {
       .constraintSize({ maxWidth: 420 })
       .padding(18)
       .backgroundColor(themeSurface())
-      .borderRadius(8)
+      .borderRadius(uiPanelRadius(8))
+      .systemMaterial(uiDialogMaterial())
       .shadow({ radius: 18, color: '#33000000', offsetX: 0, offsetY: 8 })
     }
     .width('100%')

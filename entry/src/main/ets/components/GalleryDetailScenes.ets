@@ -25,6 +25,7 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 import { EhSubNavBar } from './NavigationComponents';
 import { CommentsScene } from './ReaderScenes';
 import { DetailHeader } from './detail/DetailHeader';
@@ -624,7 +625,7 @@ struct TagVoteOverlay {
           .width(34)
           .height(34)
           .padding(0)
-          .borderRadius(17)
+          .borderRadius(uiRadius(17))
           .backgroundColor(themeSurfaceVariant())
           .onClick(() => {
             this.onDismiss();
@@ -676,7 +677,7 @@ struct TagVoteOverlay {
       .constraintSize({ maxWidth: 440 })
       .padding(16)
       .backgroundColor(themeSurface())
-      .borderRadius(8)
+      .borderRadius(uiRadius(8))
       .shadow({ radius: 18, color: themeShadowColor(), offsetX: 0, offsetY: 4 })
       .transition(TransitionEffect.OPACITY
         .combine(TransitionEffect.scale({ x: 0.96, y: 0.96 }))
@@ -720,7 +721,7 @@ struct TagVoteWideButton {
       width: this.selected ? 1.2 : 0,
       color: this.selected ? this.accentColor : Color.Transparent
     })
-    .borderRadius(6)
+    .borderRadius(uiRadius(6))
     .enabled(this.enabledValue)
     .opacity(this.enabledValue ? 1 : 0.56)
     .onClick(() => {
@@ -754,7 +755,7 @@ struct TagActionButton {
     .height(40)
     .padding({ left: 10, right: 10 })
     .backgroundColor(themeSurfaceVariant())
-    .borderRadius(6)
+    .borderRadius(uiRadius(6))
     .onClick(() => {
       this.onTap();
     })
@@ -850,7 +851,7 @@ struct ArchiveOptionsOverlay {
             .fontSize(13)
             .fontColor(themeSecondaryText())
             .backgroundColor(themeSurfaceVariant())
-            .borderRadius(6)
+            .borderRadius(uiRadius(6))
             .onClick(() => {
               this.onDismiss();
             })
@@ -923,7 +924,7 @@ struct ArchiveOptionsOverlay {
       .width('88%')
       .constraintSize({ maxWidth: 520 })
       .backgroundColor(themeSurface())
-      .borderRadius(12)
+      .borderRadius(uiRadius(12))
       .clip(true)
       .shadow({ radius: 18, color: themeShadowColor(), offsetX: 0, offsetY: 4 })
       .transition(TransitionEffect.OPACITY

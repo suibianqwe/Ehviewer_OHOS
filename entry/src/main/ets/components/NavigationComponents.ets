@@ -24,6 +24,7 @@ import {
   themeSurfaceVariant,
   themeTransparentColor
 } from '../shared/EhTheme';
+import { uiCardRadius, uiControlRadius, uiPillRadius } from '../shared/EhUiStyle';
 import { TranslationText } from './TranslationComponents';
 
 // ===================================================================
@@ -76,7 +77,7 @@ export struct EhDrawer {
             .width(52)
             .height(52)
             .backgroundColor(themeSurface())
-            .borderRadius(26)
+            .borderRadius(uiPillRadius(26))
 
           Column() {
             Text(uiText('EhViewer'))
@@ -243,7 +244,7 @@ struct EhLimitsPanel {
     .width('100%')
     .height(27)
     .margin({ left: 12, right: 12, bottom: 3 })
-    .borderRadius(5)
+    .borderRadius(uiControlRadius(5))
     .backgroundColor(reset ? themeSelectedBackground() : themeSurfaceVariant())
     .onClick(() => {
       if (reset) {
@@ -296,7 +297,7 @@ struct EhLimitsPanel {
       .width('100%')
       .height(36)
       .padding({ left: 8 })
-      .borderRadius(6)
+      .borderRadius(uiControlRadius(6))
       .backgroundColor(themeSurfaceVariant())
     }
     .width('100%')
@@ -341,7 +342,7 @@ struct DrawerNavItem {
       Column()
         .width(3)
         .height(28)
-        .borderRadius(2)
+        .borderRadius(uiControlRadius(2))
         .backgroundColor(this.selected ? themeSelectedIndicatorColor() : themeTransparentColor())
         .margin({ right: 10 })
 
@@ -356,7 +357,7 @@ struct DrawerNavItem {
       .justifyContent(FlexAlign.Center)
       .alignItems(HorizontalAlign.Center)
       .backgroundColor(this.selected ? themeSelectedBackgroundLight() : themeTransparentColor())
-      .borderRadius(10)
+      .borderRadius(uiCardRadius(10))
 
       Column() {
         Text(uiText(this.item.title))
@@ -473,7 +474,7 @@ export struct EhNavBar {
               .height(38)
               .width('100%')
               .backgroundColor(themeFieldBackground())
-              .borderRadius(19)
+              .borderRadius(uiPillRadius(19))
               .placeholderColor(themeSecondaryText())
               .fontColor(themePrimaryText())
               .caretColor(themePrimaryColor())
@@ -488,7 +489,7 @@ export struct EhNavBar {
                 .fontColor(themeOnPrimaryText())
                 .backgroundColor(themeOnPrimaryActionStrongBackground())
                 .padding({ left: 5, right: 5, top: 1, bottom: 1 })
-                .borderRadius(3)
+                .borderRadius(uiControlRadius(3))
                 .margin({ left: 10, bottom: 5 })
             }
           }
@@ -912,7 +913,7 @@ struct LegacySearchBar {
         .height(38)
         .layoutWeight(1)
         .backgroundColor(themeFieldBackground())
-        .borderRadius(19)
+        .borderRadius(uiPillRadius(19))
         .fontColor(themePrimaryText())
         .caretColor(themePrimaryColor())
         .placeholderColor(themeSecondaryText())

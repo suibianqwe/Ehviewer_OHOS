@@ -13,6 +13,7 @@ import {
   uiText
 } from '../shared/EhShared';
 import { themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 import {
   FLOATING_ACTION_GAP,
   FLOATING_ACTION_PRIMARY_GAP,
@@ -623,7 +624,7 @@ struct SearchSuggestionTile {
     .padding({ left: 6, right: 6 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor(themeSurface())
-    .borderRadius(5)
+    .borderRadius(uiRadius(5))
     .onClick(() => {
       this.onSelect(this.suggestion);
     })
@@ -661,7 +662,7 @@ struct SearchNamespaceChip {
       .fontWeight(FontWeight.Bold)
       .fontColor(this.isActive ? themeOnPrimaryText() : this.textColor())
       .backgroundColor(this.isActive ? this.activeColor() : this.softColor())
-      .borderRadius(5)
+      .borderRadius(uiRadius(5))
       .padding({ left: 4, right: 4 })
       .opacity(this.isActive ? 1 : 0.72)
       .animation({ duration: 120, curve: Curve.EaseOut })
@@ -840,7 +841,7 @@ export struct SearchAdvancedPanel {
             .fontSize(14)
             .fontColor(this.allCategoriesSelected() ? themeOnPrimaryText() : themeSecondaryText())
             .backgroundColor(this.allCategoriesSelected() ? themePrimaryColor() : themeSurfaceVariant())
-            .borderRadius(4)
+            .borderRadius(uiRadius(4))
             .width('100%')
             .onClick(() => {
               this.toggleAllCategories();
@@ -878,7 +879,7 @@ export struct SearchAdvancedPanel {
           .height(42)
           .padding({ left: 10, right: 10 })
           .backgroundColor(themeSurfaceVariant())
-          .borderRadius(6)
+          .borderRadius(uiRadius(6))
 
           if (this.advancedEnabledDraft) {
             Column({ space: 10 }) {
@@ -950,7 +951,7 @@ export struct SearchAdvancedPanel {
         }
         .height(44)
         .backgroundColor(themePrimaryColor())
-        .borderRadius(8)
+        .borderRadius(uiRadius(8))
         .width('100%')
         .onClick(() => {
           this.onSearch();
@@ -963,7 +964,7 @@ export struct SearchAdvancedPanel {
     }
     .width('100%')
     .backgroundColor(themeSurface())
-    .borderRadius(8)
+    .borderRadius(uiRadius(8))
     .clip(true)
     .shadow({ radius: 12, color: themeShadowColor(), offsetX: 0, offsetY: 4 })
   }
@@ -1240,7 +1241,7 @@ export struct ActionBubble {
       .height(this.primary ? 54 : 44)
       .justifyContent(FlexAlign.Center)
       .alignItems(HorizontalAlign.Center)
-      .borderRadius(this.primary ? 27 : 22)
+      .borderRadius(uiRadius(this.primary ? 27 : 22))
       .backgroundColor(this.isEnabled ? (this.primary || this.checked ? themePrimaryColor() :
         themeControlNeutralBackground()) :
         themeControlMutedBackground())
@@ -1261,7 +1262,7 @@ export struct ActionBubble {
           .textAlign(TextAlign.End)
           .backgroundColor(themeSurface())
           .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-          .borderRadius(14)
+          .borderRadius(uiRadius(14))
           .shadow({ radius: 8, color: themeShadowColor(), offsetX: 0, offsetY: 2 })
           .maxLines(1)
           .transition(TransitionEffect.OPACITY
@@ -1300,7 +1301,7 @@ export struct SearchModeSegmentButton {
     .layoutWeight(1)
     .padding({ left: 4, right: 4 })
     .backgroundColor(this.selected ? themePrimaryColor() : themeSurfaceVariant())
-    .borderRadius(4)
+    .borderRadius(uiRadius(4))
     .onClick(() => {
       this.onSelect();
     })
@@ -1320,7 +1321,7 @@ export struct SearchFlagChip {
       .fontSize(13)
       .fontColor(this.isOn ? themeOnPrimaryText() : (this.isEnabled ? themeSecondaryText() : themeInactiveActionText()))
       .backgroundColor(this.isOn ? themePrimaryColor() : themeSurfaceVariant())
-      .borderRadius(4)
+      .borderRadius(uiRadius(4))
       .layoutWeight(1)
       .enabled(this.isEnabled)
       .opacity(this.isEnabled ? 1 : 0.72)
@@ -1371,7 +1372,7 @@ export struct SearchCategoryChip {
       .fontWeight(FontWeight.Bold)
       .fontColor(this.selected ? themeOnPrimaryText() : categoryColor(this.category))
       .backgroundColor(this.selected ? categoryColor(this.category) : this.softColor())
-      .borderRadius(4)
+      .borderRadius(uiRadius(4))
       .layoutWeight(1)
       .onClick(() => {
         this.onToggle(this.category);

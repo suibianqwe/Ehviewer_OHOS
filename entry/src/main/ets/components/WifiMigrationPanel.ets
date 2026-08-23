@@ -28,6 +28,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 import { AppSubToolbar } from './NavigationComponents';
 
 @Component
@@ -259,7 +260,7 @@ export struct WifiMigrationPanel {
     .layoutWeight(1)
     .padding({ left: 14, right: 14 })
     .backgroundColor(this.role === role ? themePrimaryColor() : themeSurfaceVariant())
-    .borderRadius(8)
+    .borderRadius(uiRadius(8))
     .onClick(() => {
       this.switchRole(role);
     })
@@ -274,7 +275,7 @@ export struct WifiMigrationPanel {
             .width(42)
             .height(42)
             .backgroundColor(this.isDataKindSelected(kind) ? themePrimaryColor() : themeFieldBackground())
-            .borderRadius(21)
+            .borderRadius(uiRadius(21))
           SymbolGlyph(symbol)
             .fontSize(21)
             .fontColor([this.isDataKindSelected(kind) ? themeOnPrimaryText() : themePrimaryColor()])
@@ -297,7 +298,7 @@ export struct WifiMigrationPanel {
           .fontColor(this.isDataKindSelected(kind) ? themeOnPrimaryText() : themePrimaryColor())
           .padding({ left: 10, right: 10, top: 5, bottom: 5 })
           .backgroundColor(this.isDataKindSelected(kind) ? themePrimaryColor() : themeSelectedBackground())
-          .borderRadius(14)
+          .borderRadius(uiRadius(14))
       }
       .width('100%')
     }
@@ -305,7 +306,7 @@ export struct WifiMigrationPanel {
     .height(72)
     .padding({ left: 12, right: 12 })
     .backgroundColor(this.isDataKindSelected(kind) ? themeSelectedBackground() : themeSurface())
-    .borderRadius(8)
+    .borderRadius(uiRadius(8))
     .onClick(() => {
       if (!this.active()) {
         this.toggleDataKind(kind);
@@ -322,7 +323,7 @@ export struct WifiMigrationPanel {
             .width(42)
             .height(42)
             .backgroundColor(themeSelectedBackground())
-            .borderRadius(21)
+            .borderRadius(uiRadius(21))
           SymbolGlyph($r('sys.symbol.wifi'))
             .fontSize(21)
             .fontColor([themePrimaryColor()])
@@ -346,7 +347,7 @@ export struct WifiMigrationPanel {
           .fontColor(themeOnPrimaryText())
           .padding({ left: 12, right: 12, top: 6, bottom: 6 })
           .backgroundColor(themePrimaryColor())
-          .borderRadius(15)
+          .borderRadius(uiRadius(15))
       }
       .width('100%')
     }
@@ -354,7 +355,7 @@ export struct WifiMigrationPanel {
     .height(66)
     .padding({ left: 12, right: 12 })
     .backgroundColor(themeSurface())
-    .borderRadius(8)
+    .borderRadius(uiRadius(8))
     .onClick(() => {
       this.connectPeer(peer);
     })
@@ -385,7 +386,7 @@ export struct WifiMigrationPanel {
                   .height(44)
                   .backgroundColor(this.phase === WifiMigrationPhase.Error ? themeDangerBackground() :
                     themeSelectedBackground())
-                  .borderRadius(22)
+                  .borderRadius(uiRadius(22))
                 SymbolGlyph(this.phase === WifiMigrationPhase.Error ? $r('sys.symbol.exclamationmark_triangle') :
                   $r('sys.symbol.wifi'))
                   .fontSize(22)
@@ -472,7 +473,7 @@ export struct WifiMigrationPanel {
           .width('100%')
           .padding(16)
           .backgroundColor(themeSurface())
-          .borderRadius(8)
+          .borderRadius(uiRadius(8))
 
           if (this.role === WifiMigrationRole.Server) {
             Column({ space: 8 }) {
@@ -526,7 +527,7 @@ export struct WifiMigrationPanel {
                   .width('100%')
                   .padding(16)
                   .backgroundColor(themeSurface())
-                  .borderRadius(8)
+                  .borderRadius(uiRadius(8))
               } else {
                 ForEach(this.peers, (peer: WifiMigrationPeer) => {
                   this.peerCard(peer)
@@ -543,7 +544,7 @@ export struct WifiMigrationPanel {
             .fontWeight(FontWeight.Medium)
             .fontColor(this.active() ? themeDangerText() : themeOnPrimaryText())
             .backgroundColor(this.active() ? themeDangerBackground() : themePrimaryColor())
-            .borderRadius(8)
+            .borderRadius(uiRadius(8))
             .onClick(() => {
               this.runPrimaryAction();
             })
@@ -574,7 +575,7 @@ export struct WifiMigrationPanel {
           .width('100%')
           .padding(16)
           .backgroundColor(themeSurface())
-          .borderRadius(8)
+          .borderRadius(uiRadius(8))
           .margin({ bottom: 18 })
         }
         .width('100%')

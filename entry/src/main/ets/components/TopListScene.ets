@@ -33,6 +33,7 @@ import {
   themeSurfaceVariant,
   themeTransparentColor
 } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, runDetailBackHandler, createEmptyDetail, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneGalleryDetail, cloneGalleryInfo, cloneTopListDetail, nextFloatingToolbarOffset, currentGallerySite, uiText } from '../shared/EhShared';
 import { ActionBubble, GalleryListScene, GalleryListStateView } from './GalleryScenes';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
@@ -867,7 +868,7 @@ export struct TopListTabs {
             .padding({ left: 12, right: 12 })
             .backgroundColor(index === this.selectedIndex ? themePrimaryColor() : themeTransparentColor())
             .border({ width: 1, color: index === this.selectedIndex ? themePrimaryColor() : themeSecondaryText() })
-            .borderRadius(6)
+            .borderRadius(uiRadius(6))
             .onClick(() => {
               this.onSelect(index);
             })
@@ -1091,7 +1092,7 @@ export struct TopListBucketCard {
     .width('100%')
     .padding(12)
     .backgroundColor(themeSurface())
-    .borderRadius(6)
+    .borderRadius(uiRadius(6))
   }
 }
 
@@ -1114,7 +1115,7 @@ export struct TopListChip {
         .textAlign(TextAlign.Center)
         .textVerticalAlign(TextVerticalAlign.CENTER)
         .backgroundColor(themeSurface())
-        .borderRadius(15)
+        .borderRadius(uiRadius(15))
 
       Column() {
         TranslationText({
@@ -1141,7 +1142,7 @@ export struct TopListChip {
     .alignItems(VerticalAlign.Center)
     .backgroundColor(themeSurfaceVariant())
     .border({ width: 0.5, color: themeDividerColor() })
-    .borderRadius(6)
+    .borderRadius(uiRadius(6))
     .onClick(() => {
       this.onTap();
     })

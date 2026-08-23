@@ -4,6 +4,7 @@ import {
   uiValue
 } from '../../../shared/EhShared';
 import { themeOnPrimaryText, themeScrimColor } from '../../../shared/EhTheme';
+import { uiRadius } from '../../../shared/EhUiStyle';
 import {
   readerAutoTransferSliderValue,
   readerAutoTransferValue,
@@ -72,7 +73,7 @@ export struct ReaderInfoOverlay {
     }
     .padding({ left: 10, right: 10, top: 5, bottom: 5 })
     .backgroundColor(themeScrimColor())
-    .borderRadius(10)
+    .borderRadius(uiRadius(10))
     .hitTestBehavior(HitTestMode.Transparent)
   }
 }
@@ -121,7 +122,7 @@ struct ReaderSliderBubble {
       .width(40)
       .height(40)
       .backgroundColor('#1F2937')
-      .borderRadius(20)
+      .borderRadius(uiRadius(20))
       .borderWidth(1)
       .borderColor('#3F4756')
       .shadow({ radius: 8, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 2 })
@@ -514,7 +515,7 @@ export struct ReaderSettingsMenuOverlay {
     .height(48)
     .enabled(enabled)
     .backgroundColor(Color.Transparent)
-    .borderRadius(6)
+    .borderRadius(uiRadius(6))
     .onClick(action)
   }
 
@@ -592,7 +593,7 @@ export struct ReaderSettingsMenuOverlay {
               .placeholderColor('#94A3B8')
               .caretColor('#38BDF8')
               .backgroundColor('#1E293B')
-              .borderRadius(6)
+              .borderRadius(uiRadius(6))
               .border({ width: this.presetNameError ? 1 : 0, color: '#F87171' })
               .onChange((value: string) => {
                 this.presetEditorName = value;
@@ -615,7 +616,7 @@ export struct ReaderSettingsMenuOverlay {
             .fontSize(14)
             .fontColor('#CBD5E1')
             .backgroundColor('#334155')
-            .borderRadius(6)
+            .borderRadius(uiRadius(6))
             .onClick(() => {
               this.closePresetDialog();
             })
@@ -625,7 +626,7 @@ export struct ReaderSettingsMenuOverlay {
             .fontSize(14)
             .fontColor(Color.White)
             .backgroundColor(this.presetDialogMode === 'delete' ? '#B91C1C' : '#0284C7')
-            .borderRadius(6)
+            .borderRadius(uiRadius(6))
             .onClick(() => {
               if (this.presetDialogMode === 'delete') {
                 this.onDeleteReaderPreset();
@@ -641,7 +642,7 @@ export struct ReaderSettingsMenuOverlay {
       .constraintSize({ minWidth: 260, maxWidth: 340 })
       .padding(18)
       .backgroundColor('#F7111827')
-      .borderRadius(12)
+      .borderRadius(uiRadius(12))
       .shadow({ radius: 18, color: '#66000000', offsetY: 8 })
     }
     .width('100%')
@@ -661,7 +662,7 @@ export struct ReaderSettingsMenuOverlay {
       Row()
         .width(this.selectedTab === index ? 28 : 0)
         .height(2)
-        .borderRadius(1)
+        .borderRadius(uiRadius(1))
         .backgroundColor('#38BDF8')
     }
     .width('100%')
@@ -1073,7 +1074,7 @@ export struct ReaderSettingsMenuOverlay {
       .width('70%')
       .constraintSize({ maxWidth: 400, maxHeight: '70%' })
       .backgroundColor('#EE111827')
-      .borderRadius(12)
+      .borderRadius(uiRadius(12))
       .clip(true)
       .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
       .zIndex(1)

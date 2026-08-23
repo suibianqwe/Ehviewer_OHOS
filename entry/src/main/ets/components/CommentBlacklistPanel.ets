@@ -16,6 +16,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 import { ConfirmActionOverlay } from './ConfirmActionOverlay';
 import { SettingsSubToolbar } from './SessionSettingsScenes';
 
@@ -98,7 +99,7 @@ export struct CommentBlacklistPanel {
         .fontColor(themePrimaryText())
         .placeholderColor(themeTertiaryText())
         .backgroundColor(themeFieldBackground())
-        .borderRadius(8)
+        .borderRadius(uiRadius(8))
         .padding({ left: 12, right: 12 })
         .onChange((value: string) => {
           this.draftUser = value;
@@ -111,7 +112,7 @@ export struct CommentBlacklistPanel {
           .fontColor(themePrimaryText())
           .placeholderColor(themeTertiaryText())
           .backgroundColor(themeFieldBackground())
-          .borderRadius(8)
+          .borderRadius(uiRadius(8))
           .padding({ left: 12, right: 12 })
           .onChange((value: string) => {
             this.draftReason = value;
@@ -127,7 +128,7 @@ export struct CommentBlacklistPanel {
         .width(44)
         .height(44)
         .padding(0)
-        .borderRadius(22)
+        .borderRadius(uiRadius(22))
         .backgroundColor(themePrimaryColor())
         .onClick(() => {
           this.addEntry();
@@ -138,7 +139,7 @@ export struct CommentBlacklistPanel {
     .width('100%')
     .padding(14)
     .backgroundColor(themeSurface())
-    .borderRadius(8)
+    .borderRadius(uiRadius(8))
     .border({ width: 1, color: themeDividerColor() })
   }
 
@@ -159,7 +160,7 @@ export struct CommentBlacklistPanel {
     .width('100%')
     .padding(14)
     .backgroundColor(themeSurfaceVariant())
-    .borderRadius(8)
+    .borderRadius(uiRadius(8))
   }
 
   @Builder
@@ -204,7 +205,7 @@ export struct CommentBlacklistPanel {
       .width(40)
       .height(40)
       .padding(0)
-      .borderRadius(20)
+      .borderRadius(uiRadius(20))
       .backgroundColor(themeSurfaceVariant())
       .onClick(() => {
         this.pendingDelete = entry;
@@ -213,7 +214,7 @@ export struct CommentBlacklistPanel {
     .width('100%')
     .padding(14)
     .backgroundColor(themeSurface())
-    .borderRadius(8)
+    .borderRadius(uiRadius(8))
     .border({ width: 1, color: themeDividerColor() })
   }
 
@@ -257,7 +258,7 @@ export struct CommentBlacklistPanel {
               .width('100%')
               .padding({ left: 20, right: 20, top: 28, bottom: 28 })
               .backgroundColor(themeSurface())
-              .borderRadius(8)
+              .borderRadius(uiRadius(8))
               .border({ width: 1, color: themeDividerColor() })
             } else {
               ForEach(this.entries, (entry: CommentBlacklistEntry) => {

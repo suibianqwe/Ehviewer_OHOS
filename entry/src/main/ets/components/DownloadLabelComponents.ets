@@ -16,6 +16,7 @@ import {
   themeTertiaryText,
   themeTransparentColor
 } from '../shared/EhTheme';
+import { uiRadius } from '../shared/EhUiStyle';
 import {
   SidePanelEditableManagerRow,
   SidePanelHeader,
@@ -151,7 +152,7 @@ export struct DownloadLabelSelectionDialog {
       }
       .width(38)
       .height(38)
-      .borderRadius(9)
+      .borderRadius(uiRadius(9))
       .justifyContent(FlexAlign.Center)
       .alignItems(HorizontalAlign.Center)
       .backgroundColor(value === this.selectedLabel ? themeSelectedBackground() : themeSurfaceVariant())
@@ -280,7 +281,7 @@ export struct DownloadLabelSelectionDialog {
       .height(this.listHeight() + 57 + (this.showRemember ? 52 : 0))
       .constraintSize({ maxWidth: 380, minWidth: 280, maxHeight: this.panelMaxHeight })
       .backgroundColor(themeSurface())
-      .borderRadius(10)
+      .borderRadius(uiRadius(10))
       .shadow({ radius: 24, color: themeShadowColor(), offsetX: 0, offsetY: 8 })
     }
     .width('100%')
@@ -352,7 +353,7 @@ export struct DownloadLabelEditDialog {
       .constraintSize({ maxWidth: 380, minWidth: 280 })
       .padding(18)
       .backgroundColor(themeSurface())
-      .borderRadius(12)
+      .borderRadius(uiRadius(12))
       .shadow({ radius: 24, color: themeShadowColor(), offsetX: 0, offsetY: 8 })
     }
     .width('100%')
