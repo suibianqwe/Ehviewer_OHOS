@@ -240,6 +240,7 @@ export struct ReaderScene {
   @State viewportCommand: string = '';
   @State viewportCommandVersion: number = 0;
   @State pairedImageModel: ReaderPreviewModel = new ReaderPreviewModel();
+  @State activePagePaired: boolean = false;
   @State pairedRenderScale: number = READER_BASE_SCALE;
   @State pairedRenderOffsetX: number = 0;
   @State pairedRenderOffsetY: number = 0;
@@ -2689,7 +2690,11 @@ export struct ReaderScene {
 
   private syncPairedViewport(index: number, width: number = this.readerLayoutWidth,
     height: number = this.readerLayoutHeight): void {
-    if (index !== this.currentIndex || !this.shouldPairPage(index) || width <= 0 || height <= 0) {
+    const paired = index === this.currentIndex && this.shouldPairPage(index);
+    if (index === this.currentIndex) {
+      this.activePagePaired = paired;
+    }
+    if (!paired || width <= 0 || height <= 0) {
       return;
     }
     if (this.pairedViewportIndex !== index) {
@@ -3166,7 +3171,7 @@ export struct ReaderScene {
           .zIndex(2)
       }
 
-      if (!this.isContinuousVerticalMode() && this.shouldPairPage(this.currentIndex)) {
+      if (!this.isContinuousVerticalMode() && this.activePagePaired) {
         this.ReaderPairedGestureOverlay()
       } else {
         Stack() {}
