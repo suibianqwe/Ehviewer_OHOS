@@ -79,6 +79,9 @@ export struct ReaderImageViewport {
   onEdgeSwipe: (direction: number) => void = (_direction: number) => {};
 
   @State imageModel: ReaderPreviewModel = new ReaderPreviewModel();
+  @State renderScale: number = READER_BASE_SCALE;
+  @State renderOffsetX: number = 0;
+  @State renderOffsetY: number = 0;
   @State completedImageUrl: string = '';
   @State failedImageUrl: string = '';
   @State sourceImageWidth: number = 0;
@@ -133,6 +136,7 @@ export struct ReaderImageViewport {
       this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseOut }, () => {
         this.imageModel.toggleDoubleTap(this.imageModel.componentWidth / 2,
           this.imageModel.componentHeight / 2);
+        this.reportState();
       });
     } else if (this.command === 'reset') {
       this.imageModel.reset();
@@ -692,6 +696,7 @@ export struct ReaderImageViewport {
     this.displayImageWidth = Math.max(1, displayWidth);
     this.displayImageHeight = Math.max(1, displayHeight);
     this.imageModel.setImageSize(this.displayImageWidth, this.displayImageHeight);
+    this.syncRenderTransform();
   }
 
   private imageSourceWidthVp(sourceWidth: number): number {
@@ -753,7 +758,14 @@ export struct ReaderImageViewport {
     return this.imageModel.componentHeight / 2;
   }
 
+  private syncRenderTransform(): void {
+    this.renderScale = this.imageModel.currentScale;
+    this.renderOffsetX = this.imageModel.currentOffsetX;
+    this.renderOffsetY = this.imageModel.currentOffsetY;
+  }
+
   private reportState(): void {
+    this.syncRenderTransform();
     if (!this.interactive || !this.isActive) {
       return;
     }
@@ -827,8 +839,8 @@ export struct ReaderImageViewport {
           .width(this.imageDisplayWidth())
           .height(this.imageDisplayHeight())
           .clip(true)
-          .scale({ x: this.imageModel.currentScale, y: this.imageModel.currentScale, centerX: '50%', centerY: '50%' })
-          .translate({ x: this.imageModel.currentOffsetX, y: this.imageModel.currentOffsetY })
+          .scale({ x: this.renderScale, y: this.renderScale, centerX: '50%', centerY: '50%' })
+          .translate({ x: this.renderOffsetX, y: this.renderOffsetY })
           if (this.hdrPixelMap !== undefined) {
             Text(this.hdrFromSuperResolution ? 'SR+HDR' : 'HDR')
               .fontSize('9vp')
@@ -890,8 +902,8 @@ export struct ReaderImageViewport {
           .onAction((event: GestureEvent) => {
             this.getUIContext().animateTo({ duration: 240, curve: Curve.EaseOut }, () => {
               this.imageModel.toggleDoubleTap(this.tapCenterX(event), this.tapCenterY(event));
+              this.reportState();
             });
-            this.reportState();
           }),
         TapGesture({ count: 1 })
           .onAction((event: GestureEvent) => {
@@ -931,8 +943,8 @@ export struct ReaderImageViewport {
               );
               this.getUIContext().animateTo({ duration: READER_INERTIA_DURATION, curve: Curve.EaseOut }, () => {
                 this.imageModel.panEnd(event.velocityX, event.velocityY);
+                this.reportState();
               });
-              this.reportState();
               if (this.allowEdgeSwipe && edgeDirection !== 0) {
                 this.onEdgeSwipe(edgeDirection);
               }
@@ -940,8 +952,8 @@ export struct ReaderImageViewport {
             .onActionCancel(() => {
               this.getUIContext().animateTo({ duration: READER_INERTIA_DURATION, curve: Curve.EaseOut }, () => {
                 this.imageModel.panEnd();
+                this.reportState();
               });
-              this.reportState();
             }),
           PinchGesture({ fingers: 2, distance: 1 })
             .onActionStart((event: GestureEvent) => {

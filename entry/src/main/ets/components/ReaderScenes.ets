@@ -240,6 +240,9 @@ export struct ReaderScene {
   @State viewportCommand: string = '';
   @State viewportCommandVersion: number = 0;
   @State pairedImageModel: ReaderPreviewModel = new ReaderPreviewModel();
+  @State pairedRenderScale: number = READER_BASE_SCALE;
+  @State pairedRenderOffsetX: number = 0;
+  @State pairedRenderOffsetY: number = 0;
   @State comicTranslationButtonX: number = 0;
   @State comicTranslationButtonY: number = 160;
   // Swiper direction state (applied from menu)
@@ -1191,6 +1194,7 @@ export struct ReaderScene {
             centerX >= 0 ? centerX : this.pairedImageModel.componentWidth / 2,
             centerY >= 0 ? centerY : this.pairedImageModel.componentHeight / 2
           );
+          this.reportPairedViewportState(this.currentIndex);
         });
       } else if (command === 'reset') {
         this.pairedImageModel.reset();
@@ -2678,6 +2682,9 @@ export struct ReaderScene {
     this.pairedTouchHadMultipleFingers = false;
     this.pairedViewportIndex = -1;
     this.pairedImageModel.reset();
+    this.pairedRenderScale = READER_BASE_SCALE;
+    this.pairedRenderOffsetX = 0;
+    this.pairedRenderOffsetY = 0;
   }
 
   private syncPairedViewport(index: number, width: number = this.readerLayoutWidth,
@@ -2698,20 +2705,23 @@ export struct ReaderScene {
     if (index !== this.currentIndex || this.pairedViewportIndex !== index) {
       return;
     }
+    this.pairedRenderScale = this.pairedImageModel.currentScale;
+    this.pairedRenderOffsetX = this.pairedImageModel.currentOffsetX;
+    this.pairedRenderOffsetY = this.pairedImageModel.currentOffsetY;
     this.isDisableSwipe = this.pairedImageModel.disableSwipe;
     this.zoomPercent = this.pairedImageModel.zoomPercent();
   }
 
   private pairedScale(index: number): number {
-    return this.pairedViewportIndex === index ? this.pairedImageModel.currentScale : READER_BASE_SCALE;
+    return this.pairedViewportIndex === index ? this.pairedRenderScale : READER_BASE_SCALE;
   }
 
   private pairedOffsetX(index: number): number {
-    return this.pairedViewportIndex === index ? this.pairedImageModel.currentOffsetX : 0;
+    return this.pairedViewportIndex === index ? this.pairedRenderOffsetX : 0;
   }
 
   private pairedOffsetY(index: number): number {
-    return this.pairedViewportIndex === index ? this.pairedImageModel.currentOffsetY : 0;
+    return this.pairedViewportIndex === index ? this.pairedRenderOffsetY : 0;
   }
 
   private pairedPageIndexAt(index: number, event: GestureEvent): number {
@@ -2966,8 +2976,8 @@ export struct ReaderScene {
                 );
                 this.getUIContext().animateTo({ duration: READER_INERTIA_DURATION, curve: Curve.EaseOut }, () => {
                   this.pairedImageModel.panEnd(event.velocityX, event.velocityY);
+                  this.reportPairedViewportState(this.currentIndex);
                 });
-                this.reportPairedViewportState(this.currentIndex);
                 if (edgeDirection !== 0) {
                   this.jumpByVisualDirection(edgeDirection);
                 }
@@ -2975,8 +2985,8 @@ export struct ReaderScene {
               .onActionCancel(() => {
                 this.getUIContext().animateTo({ duration: READER_INERTIA_DURATION, curve: Curve.EaseOut }, () => {
                   this.pairedImageModel.panEnd();
+                  this.reportPairedViewportState(this.currentIndex);
                 });
-                this.reportPairedViewportState(this.currentIndex);
               }),
             PinchGesture({ fingers: 2, distance: 1 })
               .onActionStart((event: GestureEvent) => {
