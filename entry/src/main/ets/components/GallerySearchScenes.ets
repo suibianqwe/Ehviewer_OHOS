@@ -102,8 +102,6 @@ function activeTagPrefix(keyword: string): string {
 
 const EXACT_TAG_PATTERN: RegExp = /([A-Za-z0-9_]+:[^$]+?\$)/g;
 const QUOTED_TAG_PATTERN: RegExp = /(^|\s)([A-Za-z0-9_]+):"([^"]+)"\$?(?=\s|$)/g;
-const PLAIN_TAG_PATTERN: RegExp =
-  /(^|\s)(a|artist|c|character|cos|cosplayer|f|female|g|group|l|language|location|m|male|mixed|n|o|other|p|parody|r|reclass|rows|x):([^\s$"]+)\$?(?=\s|$)/gi;
 
 function fullTagNamespace(namespace: string): string {
   const normalized = namespace.trim().toLowerCase();
@@ -119,31 +117,19 @@ function normalizeExactSearchTagToken(token: string): string {
   return fullTagNamespace(token.substring(0, colon)) + token.substring(colon);
 }
 
-function normalizePlainSearchTagSegment(segment: string): string {
-  PLAIN_TAG_PATTERN.lastIndex = 0;
-  return segment.replace(PLAIN_TAG_PATTERN,
-    (_all: string, leading: string, namespace: string, rawTag: string): string => {
-      const tag = rawTag.trim();
-      if (tag.length === 0) {
-        return _all;
-      }
-      return leading + fullTagNamespace(namespace) + ':' + tag + '$';
-    });
-}
-
-function normalizePlainSearchTagsOutsideExactTokens(keyword: string): string {
+function normalizeExactSearchTags(keyword: string): string {
   const parts: string[] = [];
   let offset = 0;
   EXACT_TAG_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null = EXACT_TAG_PATTERN.exec(keyword);
   while (match !== null) {
-    parts.push(normalizePlainSearchTagSegment(keyword.substring(offset, match.index)));
+    parts.push(keyword.substring(offset, match.index));
     parts.push(normalizeExactSearchTagToken(match[1]));
     offset = match.index + match[0].length;
     match = EXACT_TAG_PATTERN.exec(keyword);
   }
   EXACT_TAG_PATTERN.lastIndex = 0;
-  parts.push(normalizePlainSearchTagSegment(keyword.substring(offset)));
+  parts.push(keyword.substring(offset));
   return parts.join('');
 }
 
@@ -157,7 +143,7 @@ export function normalizeLegacySearchKeyword(keyword: string): string {
       }
       return leading + fullTagNamespace(namespace) + ':' + tag + '$';
     });
-  normalized = normalizePlainSearchTagsOutsideExactTokens(normalized);
+  normalized = normalizeExactSearchTags(normalized);
   return normalized.replace(/\s+/g, ' ').trim();
 }
 
