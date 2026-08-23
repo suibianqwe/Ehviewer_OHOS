@@ -1,4 +1,4 @@
-import { GalleryCategory, GalleryInfo } from '../model/GalleryModels';
+import { GalleryCategory, GalleryInfo, GallerySite } from '../model/GalleryModels';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import {
@@ -12,6 +12,7 @@ import {
   gallerySimpleLanguage,
   galleryDisplayTitle,
   galleryListMode,
+  currentGallerySite,
   GALLERY_TITLE_REVISION_KEY,
   HISTORY_READ_REVISION_KEY,
   LANGUAGE_REVISION_KEY,
@@ -54,6 +55,23 @@ function normalizedThumbnailAspectRatio(width: number, height: number): number {
     return 0.75;
   }
   return Math.max(0.3, Math.min(2.5, ratio));
+}
+
+function thumbnailHost(url: string): string {
+  const scheme = url.indexOf('://');
+  const start = scheme >= 0 ? scheme + 3 : 0;
+  let end = url.indexOf('/', start);
+  if (end < 0) {
+    end = url.length;
+  }
+  const authority = url.substring(start, end).toLowerCase();
+  const port = authority.indexOf(':');
+  return port >= 0 ? authority.substring(0, port) : authority;
+}
+
+function thumbnailRequiresExHentai(url: string): boolean {
+  const host = thumbnailHost(url);
+  return host === 'exhentai.org' || host.endsWith('.exhentai.org');
 }
 
 export function galleryThumbnailAspectRatio(gallery: GalleryInfo): number {
@@ -532,6 +550,30 @@ export struct GalleryThumb {
     });
   }
 
+  private hasSiteMismatch(): boolean {
+    return thumbnailRequiresExHentai(this.url) && currentGallerySite() !== GallerySite.Ex;
+  }
+
+  private showSiteMismatchHint(): void {
+    try {
+      this.getUIContext().getPromptAction().showToast({
+        message: uiText('This cover belongs to ExHentai. Switch the gallery site to ExHentai and retry.')
+      });
+    } catch (error) {
+    }
+  }
+
+  private handleLoadErrorTap(): void {
+    if (this.hasSiteMismatch()) {
+      this.showSiteMismatchHint();
+      return;
+    }
+    if (this.url.length > 0) {
+      this.cachedUrl = '';
+      this.cacheThumb();
+    }
+  }
+
   build() {
     Stack() {
       Column()
@@ -541,20 +583,22 @@ export struct GalleryThumb {
         .borderRadius(this.radiusValue)
 
       if (this.loadFailed) {
-        Column({ space: 4 }) {
+        Column({ space: 3 }) {
           SymbolGlyph($r('sys.symbol.xmark'))
             .fontSize(22)
             .fontColor([themePlaceholderColor()])
-          Text(uiText('EH'))
-            .fontSize(10)
+          Text(uiText(this.hasSiteMismatch() ? 'Switch site' : 'Retry'))
+            .fontSize(9)
             .fontColor(themePlaceholderColor())
+            .textAlign(TextAlign.Center)
+            .maxLines(2)
+            .width('100%')
         }
+        .width('100%')
+        .padding({ left: 3, right: 3 })
         .justifyContent(FlexAlign.Center)
         .onClick(() => {
-          if (this.url.length > 0) {
-            this.cachedUrl = '';
-            this.cacheThumb();
-          }
+          this.handleLoadErrorTap();
         })
       } else if (this.localUrl.length > 0) {
         Image(this.localUrl)

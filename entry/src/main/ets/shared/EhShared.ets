@@ -1347,6 +1347,9 @@ export function zhText(text: string): string {
     case 'Resampled': return '压缩图';
     case 'Info': return '信息';
     case 'Retry': return '重试';
+    case 'Switch site': return '切换站点';
+    case 'This cover belongs to ExHentai. Switch the gallery site to ExHentai and retry.':
+      return '此封面来自 ExHentai，请将画廊站点切换为 ExHentai 后重试。';
     case 'Page URL': return '页面地址';
     case 'Image URL': return '图片地址';
     case 'Show Key': return '显示密钥';
