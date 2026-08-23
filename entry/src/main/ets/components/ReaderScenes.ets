@@ -820,20 +820,26 @@ export struct ReaderScene {
   }
 
   onPageIndexChange(): void {
-    this.resetPairedViewport();
-    this.currentIndex = this.pageGroupAnchorForPageIndex(this.pageIndex);
+    const targetIndex = this.pageGroupAnchorForPageIndex(this.pageIndex);
+    const pageGroupChanged = targetIndex !== this.currentIndex;
+    if (pageGroupChanged) {
+      this.resetPairedViewport();
+      this.isDisableSwipe = false;
+      this.zoomPercent = this.isFixedScaleMode() ? Math.round(this.fixedScale * 100) : 100;
+    }
+    this.currentIndex = targetIndex;
     this.sliderLiveIndex = this.clampReaderPageIndex(this.currentIndex);
     this.sliderDragging = false;
-    this.isDisableSwipe = false;
-    this.zoomPercent = this.isFixedScaleMode() ? Math.round(this.fixedScale * 100) : 100;
     this.imageActionsVisible = false;
     this.scheduleAutoTransfer();
     this.syncReaderPageIndexSource();
     this.syncImageProcessingPrefetch();
     this.syncPairedViewport(this.currentIndex);
-    try {
-      this.swiperController.changeIndex(this.visualIndexForPageIndex(this.currentIndex), false);
-    } catch (e) {}
+    if (pageGroupChanged) {
+      try {
+        this.swiperController.changeIndex(this.visualIndexForPageIndex(this.currentIndex), false);
+      } catch (e) {}
+    }
   }
 
   private pageGroupIndexesAscending(): number[] {
@@ -934,7 +940,15 @@ export struct ReaderScene {
         return;
       }
       this.pageGroupRefreshPending = false;
-      this.resetPairedViewport();
+      const previousIndex = this.currentIndex;
+      const previousGroup = this.readerPageGroupItem(previousIndex);
+      const nextAnchor = this.pageGroupAnchorForPageIndex(previousIndex);
+      const currentGroupUnchanged = previousGroup !== null && previousGroup.index === nextAnchor &&
+        previousGroup.paired === this.shouldPairPage(nextAnchor);
+      // Size reports from prefetched pages may rebuild other groups; keep the active group's zoom in that case.
+      if (!currentGroupUnchanged) {
+        this.resetPairedViewport();
+      }
       this.normalizeCurrentPageGroup();
       this.syncReaderPageIndexSource();
       this.syncImageProcessingPrefetch();
@@ -2989,10 +3003,8 @@ export struct ReaderScene {
       this.syncPairedViewport(index);
     })
     .onDisAppear(() => {
+      // A data-source refresh can temporarily unmount this cached node without changing the active page group.
       this.forgetMountedPairedPage(key);
-      if (this.pairedViewportIndex === index && !this.pairedPageGroupMounted(index)) {
-        this.resetPairedViewport();
-      }
     })
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       this.rememberMountedPairedPage(key);
