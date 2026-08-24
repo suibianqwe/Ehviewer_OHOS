@@ -134,16 +134,19 @@ function activeTagSearchInput(keyword: string): ActiveTagSearchInput {
   const trimmed = keyword.trim();
   const explicit = trimmed.match(/(^|\s)([A-Za-z0-9_]+)\s*[:：]\s*(.*)$/);
   if (explicit !== null && isKnownTagNamespace(explicit[2])) {
-    let query = explicit[3].trim();
-    query = query.replace(/^["“＂]/, '').trim();
+    const rawQuery = explicit[3].trim();
+    const quoted = /^["“＂]/.test(rawQuery);
+    let query = rawQuery.replace(/^["“＂]/, '').trim();
     query = query.replace(/\$+$/, '').trim();
     query = query.replace(/["”＂]$/, '').trim();
     query = query.replace(/\$+$/, '').trim();
-    return {
-      text: explicit[0].trim(),
-      query: query,
-      namespace: fullTagNamespace(explicit[2])
-    };
+    if (quoted || !/\s/.test(query)) {
+      return {
+        text: explicit[0].trim(),
+        query: query,
+        namespace: fullTagNamespace(explicit[2])
+      };
+    }
   }
   const active = activeTagPrefix(trimmed);
   return {
@@ -153,7 +156,7 @@ function activeTagSearchInput(keyword: string): ActiveTagSearchInput {
   };
 }
 
-const EXACT_TAG_PATTERN: RegExp = /([A-Za-z0-9_]+:[^$]+?\$)/g;
+const EXACT_TAG_PATTERN: RegExp = /(^|\s)([A-Za-z0-9_]+:[^$]+?\$)(?=\s|$)/g;
 
 function fullTagNamespace(namespace: string): string {
   const normalized = namespace.trim().toLowerCase();
@@ -197,9 +200,11 @@ export function searchTagTokens(keyword: string): string[] {
   EXACT_TAG_PATTERN.lastIndex = 0;
   let match: RegExpExecArray | null = EXACT_TAG_PATTERN.exec(normalizedKeyword);
   while (match !== null) {
-    const token = match[1].trim();
+    const token = match[2].trim();
     const key = token.toLowerCase();
-    if (token.length > 0 && seen.indexOf(key) < 0) {
+    const colon = token.indexOf(':');
+    const namespace = colon > 0 ? token.substring(0, colon) : '';
+    if (token.length > 0 && isKnownTagNamespace(namespace) && seen.indexOf(key) < 0) {
       tokens.push(token);
       seen.push(key);
     }
@@ -211,7 +216,14 @@ export function searchTagTokens(keyword: string): string[] {
 export function searchKeywordWithoutTagTokens(keyword: string): string {
   const normalizedKeyword = normalizeLegacySearchKeyword(keyword);
   EXACT_TAG_PATTERN.lastIndex = 0;
-  return normalizedKeyword.replace(EXACT_TAG_PATTERN, ' ').replace(/\s+/g, ' ').trim();
+  const text = normalizedKeyword.replace(EXACT_TAG_PATTERN,
+    (_all: string, leading: string, token: string): string => {
+      const colon = token.indexOf(':');
+      const namespace = colon > 0 ? token.substring(0, colon) : '';
+      return isKnownTagNamespace(namespace) ? leading : _all;
+    });
+  EXACT_TAG_PATTERN.lastIndex = 0;
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 export function searchTagTokenLabel(token: string): string {
@@ -621,13 +633,31 @@ struct SearchNamespaceChip {
   }
 
   build() {
-    Button(this.label, { type: ButtonType.Normal, stateEffect: true })
+    Button({ type: ButtonType.Normal, stateEffect: true }) {
+      Stack() {
+        Row()
+          .width('100%')
+          .height('100%')
+          .backgroundColor(this.isActive ? this.softColor() : Color.Transparent)
+          .borderRadius(uiRadius(5))
+          .opacity(this.isActive ? 0.72 : 0)
+          .animation({ duration: 180, curve: Curve.EaseInOut })
+        Text(this.label)
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(this.isActive ? this.activeColor() : themeSecondaryText())
+          .maxLines(1)
+      }
+      .width('100%')
+      .height('100%')
+      .borderRadius(uiRadius(5))
+      .clip(true)
+    }
       .width(102)
       .height(34)
-      .fontSize(16)
-      .fontWeight(FontWeight.Bold)
-      .fontColor(this.isActive ? this.activeColor() : themeSecondaryText())
-      .backgroundColor(this.isActive ? this.softColor() : Color.Transparent)
+      .backgroundColor(Color.Transparent)
+      .systemMaterial(uiSegmentMaterial())
+      .border({ width: 0, color: Color.Transparent })
       .borderRadius(uiRadius(5))
       .padding({ left: 4, right: 4 })
       .animation({ duration: 180, curve: Curve.EaseInOut })
@@ -801,11 +831,28 @@ export struct SearchAdvancedPanel {
             .fontColor(themeSecondaryText())
             .fontWeight(FontWeight.Medium)
             .margin({ top: 4 })
-          Button(tagTranslationOptionText('All categories', '全部分类'))
+          Button({ type: ButtonType.Normal, stateEffect: true }) {
+            Stack() {
+              Row()
+                .width('100%')
+                .height('100%')
+                .backgroundColor(this.allCategoriesSelected() ? themeSelectedBackground() : Color.Transparent)
+                .borderRadius(uiRadius(4))
+                .animation({ duration: 180, curve: Curve.EaseInOut })
+              Text(tagTranslationOptionText('All categories', '全部分类'))
+                .fontSize(14)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(this.allCategoriesSelected() ? themePrimaryColor() : themeSecondaryText())
+            }
+            .width('100%')
+            .height('100%')
+            .borderRadius(uiRadius(4))
+            .clip(true)
+          }
             .height(32)
-            .fontSize(14)
-            .fontColor(this.allCategoriesSelected() ? themePrimaryColor() : themeSecondaryText())
-            .backgroundColor(this.allCategoriesSelected() ? themeSelectedBackground() : Color.Transparent)
+            .backgroundColor(Color.Transparent)
+            .systemMaterial(uiSegmentMaterial())
+            .border({ width: 0, color: Color.Transparent })
             .borderRadius(uiRadius(4))
             .width('100%')
             .animation({ duration: 180, curve: Curve.EaseInOut })
@@ -1278,21 +1325,35 @@ export struct SearchModeSegmentButton {
 
   build() {
     Button({ type: ButtonType.Normal, stateEffect: true }) {
-      Text(uiText(this.label))
-        .fontSize(12)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(uiMaterialForegroundColor(this.selected ? themeOnPrimaryText() : themeSecondaryText()))
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .width('100%')
-        .textAlign(TextAlign.Center)
+      Stack() {
+        Row()
+          .width('100%')
+          .height('100%')
+          .backgroundColor(this.selected ? themeSelectedBackground() : Color.Transparent)
+          .borderRadius(uiRadius(uiTabHeight() / 2))
+          .animation({ duration: 180, curve: Curve.EaseInOut })
+        Text(uiText(this.label))
+          .fontSize(12)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.selected ? themePrimaryColor() : themeSecondaryText())
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%')
+          .textAlign(TextAlign.Center)
+      }
+      .width('100%')
+      .height('100%')
+      .borderRadius(uiRadius(uiTabHeight() / 2))
+      .clip(true)
     }
     .height(uiTabHeight())
     .layoutWeight(1)
     .padding({ left: 4, right: 4 })
-    .backgroundColor(uiMaterialBackground(this.selected ? themePrimaryColor() : themeSurfaceVariant()))
+    .backgroundColor(Color.Transparent)
     .systemMaterial(uiSegmentMaterial())
+    .border({ width: 0, color: Color.Transparent })
     .borderRadius(uiRadius(uiTabHeight() / 2))
+    .animation({ duration: 180, curve: Curve.EaseInOut })
     .onClick(() => {
       this.onSelect();
     })
@@ -1307,17 +1368,34 @@ export struct SearchFlagChip {
   onToggle: (isOn: boolean) => void = (_isOn: boolean) => {};
 
   build() {
-    Button(uiText(this.label))
+    Button({ type: ButtonType.Normal, stateEffect: true }) {
+      Stack() {
+        Row()
+          .width('100%')
+          .height('100%')
+          .backgroundColor(this.isOn ? themeSelectedBackground() : Color.Transparent)
+          .borderRadius(uiRadius(19))
+          .animation({ duration: 180, curve: Curve.EaseInOut })
+        Text(uiText(this.label))
+          .fontSize(13)
+          .fontColor(this.isOn ? themePrimaryColor() :
+            (this.isEnabled ? themeSecondaryText() : themeInactiveActionText()))
+          .maxLines(1)
+      }
+      .width('100%')
+      .height('100%')
+      .borderRadius(uiRadius(19))
+      .clip(true)
+    }
       .height(38)
-      .fontSize(13)
-      .fontColor(uiMaterialForegroundColor(this.isOn ? themeOnPrimaryText() :
-        (this.isEnabled ? themeSecondaryText() : themeInactiveActionText())))
-      .backgroundColor(uiMaterialBackground(this.isOn ? themePrimaryColor() : themeSurfaceVariant()))
+      .backgroundColor(Color.Transparent)
       .systemMaterial(uiSegmentMaterial())
+      .border({ width: 0, color: Color.Transparent })
       .borderRadius(uiRadius(19))
       .layoutWeight(1)
       .enabled(this.isEnabled)
       .opacity(this.isEnabled ? 1 : 0.72)
+      .animation({ duration: 180, curve: Curve.EaseInOut })
       .onClick(() => {
         this.onToggle(!this.isOn);
       })
@@ -1359,12 +1437,30 @@ export struct SearchCategoryChip {
   }
 
   build() {
-    Button(this.label)
+    Button({ type: ButtonType.Normal, stateEffect: true }) {
+      Stack() {
+        Row()
+          .width('100%')
+          .height('100%')
+          .backgroundColor(this.selected ? this.softColor() : Color.Transparent)
+          .borderRadius(uiRadius(20))
+          .opacity(this.selected ? 0.72 : 0)
+          .animation({ duration: 180, curve: Curve.EaseInOut })
+        Text(this.label)
+          .fontSize(14)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(this.selected ? categoryColor(this.category) : themeSecondaryText())
+          .maxLines(1)
+      }
+      .width('100%')
+      .height('100%')
+      .borderRadius(uiRadius(20))
+      .clip(true)
+    }
       .height(40)
-      .fontSize(14)
-      .fontWeight(FontWeight.Bold)
-      .fontColor(this.selected ? categoryColor(this.category) : themeSecondaryText())
-      .backgroundColor(this.selected ? this.softColor() : Color.Transparent)
+      .backgroundColor(Color.Transparent)
+      .systemMaterial(uiSegmentMaterial())
+      .border({ width: 0, color: Color.Transparent })
       .borderRadius(uiRadius(20))
       .layoutWeight(1)
       .animation({ duration: 180, curve: Curve.EaseInOut })
