@@ -81,14 +81,14 @@ export function uiFloatingMaterial(): uiMaterial.Material | undefined {
   if (!isHarmonyMaterialEnabled()) {
     return undefined;
   }
-  const materialColor = themedNeutralMaterialColor(themeSurface());
+  const materialColor = 'transparent';
   const cached = harmony7FloatingMaterials.get(materialColor);
   if (cached !== undefined) {
     return cached;
   }
   const material = new uiMaterial.ImmersiveMaterial({
-    style: uiMaterial.ImmersiveStyle.ULTRA_THIN,
-    materialColor: materialColor,
+    style: uiMaterial.ImmersiveStyle.REGULAR,
+    materialColor: Color.Transparent,
     applyShadow: true,
     interactive: false,
     lightEffect: { color: Color.White }
@@ -101,14 +101,14 @@ export function uiButtonMaterial(): uiMaterial.Material | undefined {
   if (!isHarmonyMaterialEnabled()) {
     return undefined;
   }
-  const materialColor = themedNeutralMaterialColor(themeSurface());
+  const materialColor = 'transparent';
   const cached = harmony7ButtonMaterials.get(materialColor);
   if (cached !== undefined) {
     return cached;
   }
   const material = new uiMaterial.ImmersiveMaterial({
-    style: uiMaterial.ImmersiveStyle.THIN,
-    materialColor: materialColor,
+    style: uiMaterial.ImmersiveStyle.REGULAR,
+    materialColor: Color.Transparent,
     applyShadow: true,
     interactive: true,
     lightEffect: { color: Color.White }
@@ -186,14 +186,6 @@ function translucentMaterialColor(solidColor: string): string {
   const color = solidColor.trim();
   if (/^#[0-9A-Fa-f]{6}$/.test(color)) {
     return '#73' + color.substring(1);
-  }
-  return color;
-}
-
-function themedNeutralMaterialColor(solidColor: string): string {
-  const color = solidColor.trim();
-  if (/^#[0-9A-Fa-f]{6}$/.test(color)) {
-    return '#38' + color.substring(1);
   }
   return color;
 }
@@ -331,7 +323,7 @@ export function uiPopupBackgroundEffect(): BackgroundEffectOptions {
     radius: effectEnabled ? 24 : 0,
     saturation: effectEnabled ? 1.08 : 1,
     brightness: effectEnabled ? (isDarkTheme() ? 0.84 : 1.04) : 1,
-    color: effectEnabled ? translucentMaterialColor(themeSurface()) : Color.Transparent,
+    color: Color.Transparent,
     adaptiveColor: AdaptiveColor.DEFAULT
   };
 }

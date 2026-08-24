@@ -155,10 +155,8 @@ import {
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiButtonHighlightBorderColor,
+  uiPopupBackgroundEffect,
   uiPopupEffectBackground,
-  uiPopupBlurOptions,
-  uiPopupBlurStyle,
-  uiPopupMaterialBackground,
   uiRadius,
   uiSearchFieldHeight,
   uiSearchMaterial,
@@ -3724,7 +3722,7 @@ export struct SettingsOptionPanel {
         }
         .width('100%')
         .height(this.optionListHeight())
-        .backgroundColor(uiMaterialBackground(uiListItemBackground(themeSurfaceVariant())))
+        .backgroundColor(Color.Transparent)
         .borderRadius(uiRadius(16))
         .clip(true)
 
@@ -3769,8 +3767,8 @@ export struct SettingsOptionPanel {
       .height(this.panelHeight())
       .constraintSize({ maxWidth: 420 })
       .padding({ left: 18, right: 18, top: 18, bottom: 8 })
-      .backgroundColor(uiPopupEffectBackground(uiPopupMaterialBackground(themeSurface())))
-      .backgroundBlurStyle(uiPopupBlurStyle(), uiPopupBlurOptions())
+      .backgroundColor(uiPopupEffectBackground(themeSurface()))
+      .backgroundEffect(uiPopupBackgroundEffect())
       .borderRadius(uiRadius(8))
       .clip(true)
       .shadow(isHarmonyMaterialEnabled() ? {

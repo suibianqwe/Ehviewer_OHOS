@@ -35,6 +35,9 @@ import {
   uiMaterialForegroundColor,
   uiMaterialSecondaryForegroundColor,
   uiPillRadius,
+  uiPopupBlurOptions,
+  uiPopupBlurStyle,
+  uiPopupEffectBackground,
   uiSearchFieldHeight,
   uiSearchMaterial,
   uiTitleBarBackgroundEffect,
@@ -70,6 +73,7 @@ export struct EhDrawer {
   @State signedIn: boolean = false;
   @State downloadSummary: string = '';
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+  @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
   private unsubscribeDownloadStore: () => void = () => {};
 
   aboutToAppear(): void {
@@ -148,6 +152,7 @@ export struct EhDrawer {
       .width('100%')
       .height('100%')
       .layoutWeight(1)
+      .backgroundColor(Color.Transparent)
       .cachedCount(4)
       .scrollBar(BarState.Off)
       .divider({ strokeWidth: 0.5, color: themeDividerColor(), startMargin: 56, endMargin: 0 })
@@ -177,7 +182,8 @@ export struct EhDrawer {
     }
     .width(264)
     .height('100%')
-    .backgroundColor(themeSurface())
+    .backgroundColor(uiPopupEffectBackground(themeSurface()))
+    .backgroundBlurStyle(uiPopupBlurStyle(), uiPopupBlurOptions())
   }
 }
 
