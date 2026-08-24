@@ -9,7 +9,6 @@ import {
 } from '../services/SearchKeywordNormalization';
 import {
   LANGUAGE_REVISION_KEY,
-  categoryColor,
   categoryDisplayName,
   shouldShowTagTranslations,
   tagNamespaceDisplayName,
@@ -18,11 +17,16 @@ import {
 } from '../shared/EhShared';
 import { themeAccentTextColor, themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSelectedBackground, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
 import {
+  isHarmonyMaterialEnabled,
   isHarmonyUiStyle,
   uiButtonMaterial,
   uiFloatingMaterial,
   uiMaterialBackground,
   uiMaterialForegroundColor,
+  uiMaterialLayerBackground,
+  uiPanelMaterial,
+  uiPopupBlurStyle,
+  uiPopupMaterialBackground,
   uiRadius,
   uiSegmentMaterial,
   uiSwitchHeight,
@@ -643,7 +647,7 @@ struct SearchNamespaceChip {
       .fontSize(16)
       .fontWeight(FontWeight.Bold)
       .fontColor(this.isActive ? this.activeColor() : themeSecondaryText())
-      .backgroundColor(this.isActive ? this.softColor() : Color.Transparent)
+      .backgroundColor(this.isActive ? uiMaterialLayerBackground(this.softColor()) : Color.Transparent)
       .systemMaterial(this.isActive ? uiTintedSegmentMaterial(this.softColor()) : uiSegmentMaterial())
       .border({ width: 0, color: Color.Transparent })
       .borderRadius(uiRadius(5))
@@ -821,15 +825,16 @@ export struct SearchAdvancedPanel {
             .margin({ top: 4 })
           Button(tagTranslationOptionText('All categories', '全部分类'),
             { type: ButtonType.Normal, stateEffect: true })
-            .height(32)
+            .height(34)
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
             .fontColor(this.allCategoriesSelected() ? themeAccentTextColor() : themeSecondaryText())
-            .backgroundColor(this.allCategoriesSelected() ? themeSelectedBackground() : Color.Transparent)
+            .backgroundColor(this.allCategoriesSelected() ?
+              uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent)
             .systemMaterial(this.allCategoriesSelected() ?
               uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
             .border({ width: 0, color: Color.Transparent })
-            .borderRadius(uiRadius(4))
+            .borderRadius(uiRadius(17))
             .width('100%')
             .animation({ duration: 180, curve: Curve.EaseInOut })
             .onClick(() => {
@@ -871,7 +876,8 @@ export struct SearchAdvancedPanel {
           .width('100%')
           .height(42)
           .padding({ left: 10, right: 10 })
-          .backgroundColor(themeSurfaceVariant())
+          .backgroundColor(uiMaterialLayerBackground(themeSurfaceVariant()))
+          .systemMaterial(uiSegmentMaterial())
           .borderRadius(uiRadius(6))
 
           if (this.advancedEnabledDraft) {
@@ -943,8 +949,8 @@ export struct SearchAdvancedPanel {
           .width('100%')
         }
         .height(44)
-        .backgroundColor(themePrimaryColor())
-        .systemMaterial(uiButtonMaterial())
+        .backgroundColor(uiMaterialLayerBackground(themePrimaryColor()))
+        .systemMaterial(uiTintedSegmentMaterial(themePrimaryColor()))
         .borderRadius(uiRadius(8))
         .width('100%')
         .onClick(() => {
@@ -953,14 +959,26 @@ export struct SearchAdvancedPanel {
       }
       .width('100%')
       .padding({ left: 12, right: 12, top: 10, bottom: 10 })
-      .backgroundColor(themeSurface())
+      .backgroundColor(isHarmonyUiStyle() ? Color.Transparent : themeSurface())
       .borderRadius({ bottomLeft: 8, bottomRight: 8 })
     }
     .width('100%')
-    .backgroundColor(themeSurface())
+    .backgroundColor(uiPopupMaterialBackground(themeSurface()))
+    .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
+    .systemMaterial(uiPanelMaterial())
     .borderRadius(uiRadius(8))
     .clip(true)
-    .shadow({ radius: 12, color: themeShadowColor(), offsetX: 0, offsetY: 4 })
+    .shadow(isHarmonyMaterialEnabled() ? {
+      radius: 0,
+      color: Color.Transparent,
+      offsetX: 0,
+      offsetY: 0
+    } : {
+      radius: 12,
+      color: themeShadowColor(),
+      offsetX: 0,
+      offsetY: 4
+    })
   }
 
   private categoryRows(): SearchCategoryOption[][] {
@@ -1366,7 +1384,7 @@ export struct SearchModeSegmentButton {
     .height(uiTabHeight())
     .layoutWeight(1)
     .padding({ left: 4, right: 4 })
-    .backgroundColor(this.selected ? themeSelectedBackground() : Color.Transparent)
+    .backgroundColor(this.selected ? uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent)
     .systemMaterial(this.selected ? uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
     .border({ width: 0, color: Color.Transparent })
     .borderRadius(uiRadius(uiTabHeight() / 2))
@@ -1386,14 +1404,15 @@ export struct SearchFlagChip {
 
   build() {
     Button(uiText(this.label), { type: ButtonType.Normal, stateEffect: true })
-      .height(38)
-      .fontSize(13)
+      .height(34)
+      .fontSize(14)
+      .fontWeight(FontWeight.Medium)
       .fontColor(this.isOn ? themeAccentTextColor() :
         (this.isEnabled ? themeSecondaryText() : themeInactiveActionText()))
-      .backgroundColor(this.isOn ? themeSelectedBackground() : Color.Transparent)
+      .backgroundColor(this.isOn ? uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent)
       .systemMaterial(this.isOn ? uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
       .border({ width: 0, color: Color.Transparent })
-      .borderRadius(uiRadius(19))
+      .borderRadius(uiRadius(17))
       .layoutWeight(1)
       .enabled(this.isEnabled)
       .opacity(this.isEnabled ? 1 : 0.72)
@@ -1411,43 +1430,17 @@ export struct SearchCategoryChip {
   @Prop selected: boolean = false;
   onToggle: (category: number) => void = (_category: number) => {};
 
-  private softColor(): string {
-    switch (this.category) {
-      case GalleryCategory.Doujinshi:
-        return '#F4E0C6';
-      case GalleryCategory.Manga:
-        return '#E5DFF5';
-      case GalleryCategory.ArtistCg:
-        return '#D8E9EF';
-      case GalleryCategory.GameCg:
-        return '#E9DEC8';
-      case GalleryCategory.ImageSet:
-        return '#D8EADF';
-      case GalleryCategory.Cosplay:
-        return '#F1D8E1';
-      case GalleryCategory.AsianPorn:
-        return '#ECDCCD';
-      case GalleryCategory.NonH:
-        return '#DDE8F2';
-      case GalleryCategory.Western:
-        return '#E0E8D2';
-      case GalleryCategory.Misc:
-        return '#E5E7EB';
-      default:
-        return themeSurfaceVariant();
-    }
-  }
-
   build() {
     Button(this.label, { type: ButtonType.Normal, stateEffect: true })
-      .height(40)
+      .height(34)
       .fontSize(14)
       .fontWeight(FontWeight.Bold)
-      .fontColor(this.selected ? categoryColor(this.category) : themeSecondaryText())
-      .backgroundColor(this.selected ? this.softColor() : Color.Transparent)
-      .systemMaterial(this.selected ? uiTintedSegmentMaterial(this.softColor()) : uiSegmentMaterial())
+      .fontColor(this.selected ? themeAccentTextColor() : themeSecondaryText())
+      .backgroundColor(this.selected ? uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent)
+      .systemMaterial(this.selected ?
+        uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
       .border({ width: 0, color: Color.Transparent })
-      .borderRadius(uiRadius(20))
+      .borderRadius(uiRadius(17))
       .layoutWeight(1)
       .animation({ duration: 180, curve: Curve.EaseInOut })
       .onClick(() => {

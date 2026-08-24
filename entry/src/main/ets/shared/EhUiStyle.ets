@@ -181,6 +181,23 @@ export function uiMaterialBackground(solidColor: string): string {
   return isHarmonyMaterialEnabled() ? 'rgba(0,0,0,0)' : solidColor;
 }
 
+export function uiMaterialLayerBackground(solidColor: string): string {
+  if (!isHarmonyUiStyle()) {
+    return solidColor;
+  }
+  return isHarmonyMaterialEnabled() ? 'rgba(0,0,0,0)' : translucentMaterialColor(solidColor);
+}
+
+export function uiPopupMaterialBackground(solidColor: string): string {
+  if (!isHarmonyUiStyle()) {
+    return solidColor;
+  }
+  if (isHarmonyMaterialEnabled()) {
+    return 'rgba(0,0,0,0)';
+  }
+  return isDarkTheme() ? 'rgba(17,24,39,0.84)' : 'rgba(248,249,252,0.84)';
+}
+
 export function uiMaterialForegroundColor(fallbackColor: ResourceColor): ResourceColor {
   return isHarmonyMaterialEnabled() ? themeMaterialContentColor() : fallbackColor;
 }

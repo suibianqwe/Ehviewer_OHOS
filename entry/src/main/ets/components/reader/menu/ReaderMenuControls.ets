@@ -13,6 +13,7 @@ import {
   uiDialogMaterial,
   uiMaterialBackground,
   uiPanelMaterial,
+  uiPopupBlurStyle,
   uiRadius,
   uiSegmentMaterial,
   uiSelectorHeight,
@@ -162,6 +163,7 @@ export struct ReaderMenuSelect {
         .font({ size: 13 })
         .fontColor(readerSelectColors().buttonText)
         .backgroundColor(uiMaterialBackground(readerSelectColors().buttonBackground))
+        .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
         .systemMaterial(uiSegmentMaterial())
         .menuBackgroundColor(uiMaterialBackground(readerSelectColors().menuBackground))
         .menuBackgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : BlurStyle.COMPONENT_THICK)

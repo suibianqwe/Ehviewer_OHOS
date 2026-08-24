@@ -155,6 +155,8 @@ import {
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiPanelMaterial,
+  uiPopupBlurStyle,
+  uiPopupMaterialBackground,
   uiRadius,
   uiSearchFieldHeight,
   uiSearchMaterial,
@@ -3754,7 +3756,8 @@ export struct SettingsOptionPanel {
       .height(this.panelHeight())
       .constraintSize({ maxWidth: 420 })
       .padding({ left: 18, right: 18, top: 18, bottom: 8 })
-      .backgroundColor(uiMaterialBackground(themeSurface()))
+      .backgroundColor(uiPopupMaterialBackground(themeSurface()))
+      .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
       .borderRadius(uiRadius(8))
       .systemMaterial(uiPanelMaterial())
       .clip(true)
