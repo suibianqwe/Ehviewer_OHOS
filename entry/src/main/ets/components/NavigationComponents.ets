@@ -571,9 +571,11 @@ export struct EhNavBar {
               .systemMaterial(uiSearchMaterial())
               .borderRadius(uiPillRadius(uiSearchFieldHeight() / 2))
               .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
+              .fontSize(16)
+              .lineHeight(22)
               .fontColor(uiMaterialForegroundColor(themePrimaryText()))
               .caretColor(themePrimaryColor())
-              .padding({ left: 16, right: 42 })
+              .padding({ left: 16, right: 42, top: 0, bottom: 0 })
               .onFocus(() => { this.onSearchFocus(); })
               .onChange((v: string) => { this.onKeywordChange(v); })
               .onSubmit(() => { this.onSearch(); })
@@ -729,6 +731,7 @@ export struct EhNavBar {
     .height(this.backdropHeight())
     .animation({ duration: 200, curve: Curve.EaseOut })
     .backgroundColor(Color.Transparent)
+    .hitTestBehavior(HitTestMode.Transparent)
     .zIndex(10)
   }
 }
@@ -955,6 +958,7 @@ export struct FloatingToolbar {
     .opacity(1)
     .visibility(this.toolbarVisible() ? Visibility.Visible : Visibility.Hidden)
     .animation({ duration: 200, curve: Curve.EaseOut })
+    .hitTestBehavior(HitTestMode.Transparent)
     .zIndex(10)
   }
 }
@@ -1064,10 +1068,12 @@ struct LegacySearchBar {
         .backgroundColor(uiMaterialBackground(themeFieldBackground()))
         .systemMaterial(uiSearchMaterial())
         .borderRadius(uiPillRadius(uiSearchFieldHeight() / 2))
+        .fontSize(16)
+        .lineHeight(22)
         .fontColor(uiMaterialForegroundColor(themePrimaryText()))
         .caretColor(themePrimaryColor())
         .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
-        .padding({ left: 14, right: 14 })
+        .padding({ left: 14, right: 14, top: 0, bottom: 0 })
         .margin({ left: 10 })
         .onChange((v: string) => { this.onKeywordChange(v); })
 

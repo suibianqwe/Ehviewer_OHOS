@@ -340,7 +340,6 @@ export struct TagGroupRow {
           })
         }, (tag: string) => this.group.namespace + ':' + tag)
       }
-      .clip(true)
       .layoutWeight(1)
     }
     .width('100%')

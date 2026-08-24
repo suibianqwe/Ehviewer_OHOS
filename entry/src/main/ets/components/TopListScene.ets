@@ -867,19 +867,18 @@ export struct TopListTabs {
     Scroll() {
       Row({ space: 8 }) {
         ForEach(this.lists, (info: TopListInfo, index: number) => {
-          Text(uiText(info.title))
+          Button(uiText(info.title))
             .height(uiTabHeight())
             .fontSize(13)
             .fontWeight(index === this.selectedIndex ? FontWeight.Bold : FontWeight.Medium)
             .fontColor(uiMaterialForegroundColor(index === this.selectedIndex ? themeOnPrimaryText() :
               themeAccentTextColor()))
-            .textAlign(TextAlign.Center)
-            .textVerticalAlign(TextVerticalAlign.CENTER)
             .padding({ left: 12, right: 12 })
             .backgroundColor(uiMaterialBackground(index === this.selectedIndex ? themePrimaryColor() :
               themeSurfaceVariant()))
             .systemMaterial(uiSegmentMaterial())
             .borderRadius(uiRadius(uiTabHeight() / 2))
+            .flexShrink(0)
             .onClick(() => {
               this.onSelect(index);
             })
@@ -890,6 +889,7 @@ export struct TopListTabs {
     .scrollable(ScrollDirection.Horizontal)
     .scrollBar(BarState.Off)
     .width('100%')
+    .height(uiTabHeight())
   }
 }
 
@@ -914,7 +914,10 @@ export struct TopListBoard {
     return scrollOffset;
   };
   private boardScroller: Scroller = new Scroller();
-  private readonly TABS_BAR_HEIGHT: number = 42;
+
+  private tabsBarHeight(): number {
+    return uiTabHeight() + 8;
+  }
 
   private translationPriorityFor(index: number): number {
     if (!this.translateTitles) {
@@ -928,7 +931,7 @@ export struct TopListBoard {
   }
 
   private contentTopPadding(): number {
-    return this.tabsVisualTop() + this.TABS_BAR_HEIGHT + 5;
+    return this.tabsVisualTop() + this.tabsBarHeight() + 5;
   }
 
   private bucketContentWidth(): number {
@@ -951,7 +954,7 @@ export struct TopListBoard {
         .backgroundColor(themeTransparentColor())
     }
       .width('100%')
-      .height(this.TABS_BAR_HEIGHT)
+      .height(this.tabsBarHeight())
       .backgroundColor(themeTransparentColor())
   }
 
@@ -1004,7 +1007,9 @@ export struct TopListBoard {
         this.TabsBar()
       }
       .width('100%')
-      .padding({ left: 12, right: 12, top: this.tabsVisualTop() })
+      .height(this.tabsBarHeight())
+      .padding({ left: 12, right: 12 })
+      .position({ x: 0, y: this.tabsVisualTop() })
       .backgroundColor(themeTransparentColor())
       .zIndex(8)
     }

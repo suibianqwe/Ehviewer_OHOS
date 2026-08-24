@@ -4773,14 +4773,16 @@ export struct GalleryListContent {
       }
 
       TextInput({ text: this.searchInputText(), placeholder: uiText(this.searchPlaceholder) })
-        .height(34)
+        .height(uiSearchFieldHeight())
         .layoutWeight(1)
         .constraintSize({ minWidth: 96 })
         .backgroundColor(themeTransparentColor())
         .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
+        .fontSize(16)
+        .lineHeight(22)
         .fontColor(uiMaterialForegroundColor(themePrimaryText()))
         .caretColor(themePrimaryColor())
-        .padding({ left: this.selectedSearchTagTokens().length > 0 ? 4 : 8, right: 8 })
+        .padding({ left: this.selectedSearchTagTokens().length > 0 ? 4 : 8, right: 8, top: 0, bottom: 0 })
         .onFocus(() => {
           this.refreshSearchSuggestions();
           this.onSearchFocus();

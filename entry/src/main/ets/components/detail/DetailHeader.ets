@@ -10,11 +10,15 @@ import {
 import {
   themeDangerBackground,
   themeDangerText,
+  themeDividerColor,
   themeInfoBackground,
   themeInfoText,
-  themeOnPrimarySecondaryText,
   themeOnPrimaryText,
-  themePrimaryColor
+  themePrimaryColor,
+  themePrimaryText,
+  themeSecondaryText,
+  themeSurface,
+  themeSurfaceVariant
 } from '../../shared/EhTheme';
 import {
   uiButtonMaterial,
@@ -74,7 +78,7 @@ export struct DetailHeader {
             translationEnabled: this.translateTitle,
             fontSizeValue: 18,
             fontWeightValue: FontWeight.Bold,
-            fontColorValue: themeOnPrimaryText(),
+            fontColorValue: themePrimaryText(),
             lineHeightValue: 24,
             maxLinesValue: 5
           })
@@ -85,7 +89,7 @@ export struct DetailHeader {
             this.detail.uploader)
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
-            .fontColor(themeOnPrimarySecondaryText())
+            .fontColor(themeSecondaryText())
             .margin({ top: 8 })
             .onClick(() => {
               this.onUploaderSearch();
@@ -123,7 +127,7 @@ export struct DetailHeader {
     }
     .width('100%')
     .padding(16)
-    .backgroundColor(themePrimaryColor())
+    .backgroundColor(themeSurface())
   }
 
   private downloadIcon(): Resource {
@@ -170,11 +174,11 @@ export struct HeaderActionButton {
   @State pressed: boolean = false;
 
   private buttonBackground(): string {
-    return this.accent ? '#FFD34D' : '#D9EEF4';
+    return this.accent ? themePrimaryColor() : themeSurfaceVariant();
   }
 
   private contentColor(): string {
-    return this.accent ? '#111827' : themePrimaryColor();
+    return this.accent ? themeOnPrimaryText() : themePrimaryText();
   }
 
   build() {
@@ -197,7 +201,7 @@ export struct HeaderActionButton {
     .borderRadius(uiRadius(23))
     .border({
       width: this.accent ? 0 : 1,
-      color: this.accent ? '#FFD34D' : '#C2E0E8'
+      color: this.accent ? themePrimaryColor() : themeDividerColor()
     })
     .shadow({
       radius: this.pressed ? 2 : 6,
