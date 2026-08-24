@@ -9,6 +9,7 @@ import {
 } from '../services/SearchKeywordNormalization';
 import {
   LANGUAGE_REVISION_KEY,
+  categoryColor,
   categoryDisplayName,
   shouldShowTagTranslations,
   tagNamespaceDisplayName,
@@ -1430,15 +1431,42 @@ export struct SearchCategoryChip {
   @Prop selected: boolean = false;
   onToggle: (category: number) => void = (_category: number) => {};
 
+  private selectedColor(): string {
+    switch (this.category) {
+      case GalleryCategory.Doujinshi:
+        return '#F0D0A8';
+      case GalleryCategory.Manga:
+        return '#D8CDF1';
+      case GalleryCategory.ArtistCg:
+        return '#C8E1EA';
+      case GalleryCategory.GameCg:
+        return '#E1CEAA';
+      case GalleryCategory.ImageSet:
+        return '#C5E1D1';
+      case GalleryCategory.Cosplay:
+        return '#E8C4D1';
+      case GalleryCategory.AsianPorn:
+        return '#E1C9B5';
+      case GalleryCategory.NonH:
+        return '#CBDDEA';
+      case GalleryCategory.Western:
+        return '#D1DCBE';
+      case GalleryCategory.Misc:
+        return '#D6D9DE';
+      default:
+        return themeSurfaceVariant();
+    }
+  }
+
   build() {
     Button(this.label, { type: ButtonType.Normal, stateEffect: true })
       .height(34)
       .fontSize(14)
       .fontWeight(FontWeight.Bold)
-      .fontColor(this.selected ? themeAccentTextColor() : themeSecondaryText())
-      .backgroundColor(this.selected ? uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent)
+      .fontColor(this.selected ? categoryColor(this.category) : themeSecondaryText())
+      .backgroundColor(this.selected ? uiMaterialLayerBackground(this.selectedColor()) : Color.Transparent)
       .systemMaterial(this.selected ?
-        uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
+        uiTintedSegmentMaterial(this.selectedColor()) : uiSegmentMaterial())
       .border({ width: 0, color: Color.Transparent })
       .borderRadius(uiRadius(17))
       .layoutWeight(1)
