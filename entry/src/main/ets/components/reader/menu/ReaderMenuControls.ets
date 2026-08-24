@@ -18,12 +18,12 @@ import {
   isHarmonyMaterialEnabled,
   uiButtonHighlightBorderColor,
   uiButtonMaterial,
-  uiMaterialBackground,
   uiPopupBackgroundEffect,
   uiPopupBlurStyle,
   uiPopupEffectBackground,
+  uiReaderOptionControlBackground,
+  uiReaderOptionSegmentMaterial,
   uiRadius,
-  uiSegmentMaterial,
   uiSelectorHeight,
   uiSwitchHeight,
   uiSwitchWidth
@@ -164,25 +164,25 @@ export struct ReaderMenuSelect {
   build() {
     Row() {
       Text(this.label)
-        .fontSize(14)
+        .fontSize(15)
         .fontColor(themePrimaryText())
         .layoutWeight(1)
       Select(this.options.map((option: string) => ({ value: uiValue(option) } as SelectOption)))
         .id('reader-menu-select-' + this.label + '-' + this.value)
         .selected(readerMenuOptionIndex(this.options, this.value))
         .value(uiValue(this.value))
-        .font({ size: 13 })
+        .font({ size: 15 })
         .fontColor(readerSelectColors().buttonText)
-        .backgroundColor(uiMaterialBackground(readerSelectColors().buttonBackground))
+        .backgroundColor(uiReaderOptionControlBackground(readerSelectColors().buttonBackground))
         .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
-        .systemMaterial(uiSegmentMaterial())
+        .systemMaterial(uiReaderOptionSegmentMaterial())
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .menuBackgroundColor(isHarmonyMaterialEnabled() ? Color.Transparent : readerSelectColors().menuBackground)
         .menuBackgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
         .menuBackgroundEffect(isHarmonyMaterialEnabled() ? uiPopupBackgroundEffect() : undefined)
         .optionBgColor(readerSelectColors().optionBackground)
         .optionFontColor(readerSelectColors().optionText)
-        .optionFont({ size: 13 })
+        .optionFont({ size: 14 })
         .selectedOptionBgColor(readerSelectColors().selectedOptionBackground)
         .selectedOptionFontColor(readerSelectColors().selectedOptionText)
         .menuOutline({ width: 1, color: readerSelectColors().outline })
@@ -236,11 +236,11 @@ export struct ReaderMenuSlider {
     Column({ space: 4 }) {
       Row() {
         Text(this.label)
-          .fontSize(14)
+          .fontSize(15)
           .fontColor(themePrimaryText())
           .layoutWeight(1)
         Text(this.valueText(this.liveValue))
-          .fontSize(13)
+          .fontSize(14)
           .fontColor(themeSecondaryText())
           .width(54)
           .textAlign(TextAlign.End)
@@ -316,7 +316,7 @@ export struct ReaderMenuToggle {
   build() {
     Row() {
       Text(this.label)
-        .fontSize(14)
+        .fontSize(15)
         .fontColor(themePrimaryText())
         .layoutWeight(1)
       Toggle({ type: ToggleType.Switch, isOn: this.value })

@@ -24,6 +24,7 @@ import {
   uiButtonMaterial,
   uiButtonHighlightBorderColor,
   uiFloatingMaterial,
+  uiFloatingButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiMaterialLayerBackground,
@@ -1301,6 +1302,7 @@ export struct ActionBubble {
       .fontColor(themePrimaryText())
       .backgroundColor(uiMaterialBackground(themeSurface()))
       .systemMaterial(uiFloatingMaterial())
+      .backgroundEffect(uiFloatingButtonBackgroundEffect())
       .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .padding({ left: 12, right: 12, top: 6, bottom: 6 })
       .borderRadius(uiRadius(15))
@@ -1328,6 +1330,7 @@ export struct ActionBubble {
       (this.primary || this.checked ? themePrimaryColor() : themeControlNeutralBackground()) :
       themeControlMutedBackground()))
     .systemMaterial(uiButtonMaterial())
+    .backgroundEffect(uiFloatingButtonBackgroundEffect(this.primary || this.checked ? themePrimaryColor() : ''))
     .border({ width: 1, color: uiButtonHighlightBorderColor() })
     .scale({ x: this.active ? 0.92 : 1, y: this.active ? 0.92 : 1 })
     .animation({ duration: 120, curve: Curve.EaseOut })

@@ -118,11 +118,12 @@ export struct DownloadLabelDrawer {
       }
       .width('100%')
       .layoutWeight(1)
+      .backgroundColor(Color.Transparent)
       .cachedCount(6)
     }
     .width(288)
     .height('100%')
-    .backgroundColor(themeSurface())
+    .backgroundColor(Color.Transparent)
   }
 }
 

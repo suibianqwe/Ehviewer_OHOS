@@ -27,10 +27,12 @@ import {
   uiPopupEffectBackground,
   uiReaderProgressBackgroundColor,
   uiReaderProgressBackgroundEffect,
+  uiReaderOptionControlBackground,
+  uiReaderOptionButtonMaterial,
+  uiReaderOptionSegmentMaterial,
   uiRadius,
   uiSearchFieldHeight,
   uiSearchMaterial,
-  uiSegmentMaterial,
   uiTabHeight,
   uiTintedButtonMaterial,
   uiTintedSegmentMaterial
@@ -537,20 +539,20 @@ export struct ReaderSettingsMenuOverlay {
     Button({ type: ButtonType.Normal, stateEffect: enabled }) {
       Column({ space: 3 }) {
         SymbolGlyph(symbol)
-          .fontSize(17)
+          .fontSize(20)
           .fontColor([enabled ? themePrimaryText() : themeSecondaryText()])
         Text(uiText(label))
-          .fontSize(11)
-          .fontColor(themeSecondaryText())
+          .fontSize(13)
+          .fontColor(enabled ? themePrimaryText() : themeSecondaryText())
           .maxLines(1)
       }
       .justifyContent(FlexAlign.Center)
     }
     .layoutWeight(1)
-    .height(48)
+    .height(54)
     .enabled(enabled)
-    .backgroundColor(Color.Transparent)
-    .systemMaterial(uiButtonMaterial())
+    .backgroundColor(uiReaderOptionControlBackground())
+    .systemMaterial(uiReaderOptionButtonMaterial())
     .borderRadius(uiRadius(6))
     .border({ width: 1, color: uiButtonHighlightBorderColor() })
     .onClick(action)
@@ -578,7 +580,7 @@ export struct ReaderSettingsMenuOverlay {
       })
     }
     .width('100%')
-    .height(52)
+    .height(58)
     .padding({ left: 10, right: 10, top: 2, bottom: 2 })
   }
 
@@ -702,7 +704,7 @@ export struct ReaderSettingsMenuOverlay {
   private ReaderSettingsTabBar(label: string, index: number) {
     Column({ space: 3 }) {
       Text(label)
-        .fontSize(13)
+        .fontSize(14)
         .fontWeight(this.selectedTab === index ? FontWeight.Medium : FontWeight.Normal)
         .fontColor(this.selectedTab === index ? themeAccentTextColor() : themeSecondaryText())
         .maxLines(1)
@@ -716,9 +718,9 @@ export struct ReaderSettingsMenuOverlay {
     .height(uiTabHeight())
     .justifyContent(FlexAlign.Center)
     .backgroundColor(this.selectedTab === index ?
-      uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent)
+      uiMaterialLayerBackground(themeSelectedBackground()) : uiReaderOptionControlBackground())
     .systemMaterial(this.selectedTab === index ?
-      uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
+      uiTintedSegmentMaterial(themeSelectedBackground()) : uiReaderOptionSegmentMaterial())
     .borderRadius(uiRadius(uiTabHeight() / 2))
     .border({ width: 1, color: uiButtonHighlightBorderColor() })
   }
@@ -1032,10 +1034,10 @@ export struct ReaderSettingsMenuOverlay {
           Button(uiText('Reset image adjustments'))
             .width('100%')
             .height(44)
-            .fontSize(14)
+            .fontSize(15)
             .fontColor(themeAccentTextColor())
-            .backgroundColor(Color.Transparent)
-            .systemMaterial(uiButtonMaterial())
+            .backgroundColor(uiReaderOptionControlBackground())
+            .systemMaterial(uiReaderOptionButtonMaterial())
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .onClick(this.onResetImageAdjustments)
         }
@@ -1060,13 +1062,13 @@ export struct ReaderSettingsMenuOverlay {
         Row() {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.chevron_left'))
-              .fontSize(20)
+              .fontSize(22)
               .fontColor([themePrimaryText()])
           }
           .width(36)
           .height(36)
-          .backgroundColor(Color.Transparent)
-          .systemMaterial(uiButtonMaterial())
+          .backgroundColor(uiReaderOptionControlBackground())
+          .systemMaterial(uiReaderOptionButtonMaterial())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(() => {
             this.onBack();

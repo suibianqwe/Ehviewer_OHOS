@@ -19,6 +19,8 @@ let harmony7ChromeMaterial: uiMaterial.Material | undefined;
 let harmony7SearchMaterial: uiMaterial.Material | undefined;
 let harmony7SegmentMaterial: uiMaterial.Material | undefined;
 const harmony7TintedSegmentMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
+const harmony7ReaderOptionButtonMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
+const harmony7ReaderOptionSegmentMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 const harmony7PanelMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 const harmony7DialogMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 
@@ -190,6 +192,14 @@ function translucentMaterialColor(solidColor: string): string {
   return color;
 }
 
+function materialColorWithAlpha(solidColor: string, alpha: string): string {
+  const color = solidColor.trim();
+  if (/^#[0-9A-Fa-f]{6}$/.test(color)) {
+    return '#' + alpha + color.substring(1);
+  }
+  return color;
+}
+
 export function uiTintedSegmentMaterial(solidColor: string): uiMaterial.Material | undefined {
   if (!isHarmonyMaterialEnabled()) {
     return undefined;
@@ -207,6 +217,46 @@ export function uiTintedSegmentMaterial(solidColor: string): uiMaterial.Material
     lightEffect: { color: Color.White }
   });
   harmony7TintedSegmentMaterials.set(materialColor, material);
+  return material;
+}
+
+export function uiReaderOptionButtonMaterial(): uiMaterial.Material | undefined {
+  if (!isHarmonyMaterialEnabled()) {
+    return undefined;
+  }
+  const materialColor = isDarkTheme() ? 'transparent' : 'rgba(255,255,255,0.22)';
+  const cached = harmony7ReaderOptionButtonMaterials.get(materialColor);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const material = new uiMaterial.ImmersiveMaterial({
+    style: uiMaterial.ImmersiveStyle.REGULAR,
+    materialColor: materialColor,
+    applyShadow: true,
+    interactive: true,
+    lightEffect: { color: Color.White }
+  });
+  harmony7ReaderOptionButtonMaterials.set(materialColor, material);
+  return material;
+}
+
+export function uiReaderOptionSegmentMaterial(): uiMaterial.Material | undefined {
+  if (!isHarmonyMaterialEnabled()) {
+    return undefined;
+  }
+  const materialColor = isDarkTheme() ? 'transparent' : 'rgba(255,255,255,0.22)';
+  const cached = harmony7ReaderOptionSegmentMaterials.get(materialColor);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const material = new uiMaterial.ImmersiveMaterial({
+    style: uiMaterial.ImmersiveStyle.THIN,
+    materialColor: materialColor,
+    applyShadow: false,
+    interactive: true,
+    lightEffect: { color: Color.White }
+  });
+  harmony7ReaderOptionSegmentMaterials.set(materialColor, material);
   return material;
 }
 
@@ -326,6 +376,34 @@ export function uiPopupBackgroundEffect(): BackgroundEffectOptions {
     color: Color.Transparent,
     adaptiveColor: AdaptiveColor.DEFAULT
   };
+}
+
+export function uiFloatingButtonBackgroundEffect(tintColor: string = ''): BackgroundEffectOptions {
+  const effectEnabled = isHarmonyUiStyle() && supportsBackgroundEffect();
+  let effectColor: ResourceColor = Color.Transparent;
+  if (effectEnabled) {
+    effectColor = tintColor.length > 0 ? materialColorWithAlpha(tintColor, '34') :
+      (isDarkTheme() ? 'rgba(10,15,24,0.28)' : 'rgba(255,255,255,0.24)');
+  }
+  return {
+    radius: effectEnabled ? 22 : 0,
+    saturation: effectEnabled ? 1.12 : 1,
+    brightness: effectEnabled ? (isDarkTheme() ? 0.9 : 1.04) : 1,
+    color: effectColor,
+    adaptiveColor: AdaptiveColor.DEFAULT
+  };
+}
+
+export function uiReaderOptionControlBackground(
+  fallbackColor: ResourceColor = Color.Transparent
+): ResourceColor {
+  if (!isHarmonyUiStyle()) {
+    return fallbackColor;
+  }
+  if (isDarkTheme() || isHarmonyMaterialEnabled()) {
+    return Color.Transparent;
+  }
+  return 'rgba(255,255,255,0.22)';
 }
 
 export function uiPopupEffectBackground(solidColor: string): string {
