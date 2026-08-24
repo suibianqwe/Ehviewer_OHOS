@@ -642,15 +642,17 @@ export struct SessionScene {
           .constraintSize({ maxWidth: 420 })
           .margin({ top: 12 })
 
-        Row() {
+        Row({ space: 12 }) {
           Button(uiText('Register'))
-            .type(ButtonType.Normal)
+            .type(ButtonType.Capsule)
+            .height(44)
             .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
             .backgroundColor(themeTransparentColor())
             .systemMaterial(uiButtonMaterial())
             .layoutWeight(1)
           Button(this.signingIn ? uiText('Signing in...') : uiText('Sign in'))
-            .type(ButtonType.Normal)
+            .type(ButtonType.Capsule)
+            .height(44)
             .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
             .fontWeight(FontWeight.Bold)
             .backgroundColor(themeTransparentColor())
@@ -784,9 +786,10 @@ export struct SessionScene {
       .layoutWeight(1)
       .width('100%')
 
-      Row() {
+      Row({ space: 12 }) {
         Button(uiText('Clear'))
-          .type(ButtonType.Normal)
+          .type(ButtonType.Capsule)
+          .height(44)
           .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
           .backgroundColor(themeTransparentColor())
           .systemMaterial(uiButtonMaterial())
@@ -794,8 +797,9 @@ export struct SessionScene {
           .onClick(() => {
             this.requestClearCookie();
           })
-        Button(uiText('OK'))
-          .type(ButtonType.Normal)
+        Button(uiText('Sign in'))
+          .type(ButtonType.Capsule)
+          .height(44)
           .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
           .fontWeight(FontWeight.Bold)
           .backgroundColor(themeTransparentColor())
@@ -806,6 +810,7 @@ export struct SessionScene {
           })
       }
       .width('100%')
+      .constraintSize({ maxWidth: 520 })
       .padding({ left: 12, right: 12, bottom: 12 })
     }
     .width('100%')
