@@ -412,15 +412,19 @@ export function uiSearchFieldHeight(): number {
 }
 
 export function uiSwitchWidth(): number {
-  return isHarmonyUiStyle() ? 56 : 52;
+  return 52;
 }
 
 export function uiSwitchHeight(): number {
-  return isHarmonyUiStyle() ? 34 : 32;
+  return 32;
 }
 
 export function uiSelectorHeight(): number {
   return isHarmonyUiStyle() ? 42 : 38;
+}
+
+export function uiReaderOptionRowHeight(): number {
+  return isHarmonyUiStyle() ? 50 : 52;
 }
 
 export function uiTabHeight(): number {

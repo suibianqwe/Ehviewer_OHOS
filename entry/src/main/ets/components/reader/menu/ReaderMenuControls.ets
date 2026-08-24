@@ -22,6 +22,7 @@ import {
   uiPopupBlurStyle,
   uiPopupEffectBackground,
   uiReaderOptionControlBackground,
+  uiReaderOptionRowHeight,
   uiReaderOptionSegmentMaterial,
   uiRadius,
   uiSelectorHeight,
@@ -207,8 +208,13 @@ export struct ReaderMenuSelect {
         })
     }
     .width('100%')
-    .height(64)
-    .padding({ left: 16, right: 16, top: 10, bottom: 10 })
+    .height(uiReaderOptionRowHeight())
+    .padding({
+      left: 16,
+      right: 16,
+      top: (uiReaderOptionRowHeight() - uiSelectorHeight()) / 2,
+      bottom: (uiReaderOptionRowHeight() - uiSelectorHeight()) / 2
+    })
     .alignItems(VerticalAlign.Center)
   }
 }
@@ -326,8 +332,13 @@ export struct ReaderMenuToggle {
         .selectedColor(themePrimaryColor())
     }
     .width('100%')
-    .height(52)
-    .padding({ left: 16, right: 16, top: 6, bottom: 6 })
+    .height(uiReaderOptionRowHeight())
+    .padding({
+      left: 16,
+      right: 16,
+      top: (uiReaderOptionRowHeight() - uiSwitchHeight()) / 2,
+      bottom: (uiReaderOptionRowHeight() - uiSwitchHeight()) / 2
+    })
     .alignItems(VerticalAlign.Center)
   }
 }
