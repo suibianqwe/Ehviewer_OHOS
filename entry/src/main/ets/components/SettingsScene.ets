@@ -154,7 +154,9 @@ import {
   uiListItemSelectedBackground,
   uiMaterialBackground,
   uiMaterialForegroundColor,
-  uiPanelMaterial,
+  uiButtonHighlightBorderColor,
+  uiPopupEffectBackground,
+  uiPopupBlurOptions,
   uiPopupBlurStyle,
   uiPopupMaterialBackground,
   uiRadius,
@@ -2631,6 +2633,7 @@ struct ProxySettingsOverlay {
           .height(40)
           .backgroundColor(themeSurfaceVariant())
           .systemMaterial(uiButtonMaterial())
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(this.onCancel)
         }
         .width('100%')
@@ -2762,6 +2765,7 @@ struct ProxySettingsOverlay {
             .fontColor(themePrimaryText())
             .backgroundColor(themeSurfaceVariant())
             .systemMaterial(uiButtonMaterial())
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .borderRadius(uiRadius(6))
             .onClick(this.onCancel)
           Button(uiText('Save'), { type: ButtonType.Normal, stateEffect: true })
@@ -2771,6 +2775,7 @@ struct ProxySettingsOverlay {
             .fontColor(themeOnPrimaryText())
             .backgroundColor(themePrimaryColor())
             .systemMaterial(uiButtonMaterial())
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .borderRadius(uiRadius(6))
             .onClick(() => {
               this.onSave(this.draftType, this.draftHost, this.draftPort, this.draftUsername,
@@ -2837,6 +2842,7 @@ struct DownloadMigrationConfirmOverlay {
             .fontColor(themePrimaryText())
             .backgroundColor(themeSurfaceVariant())
             .systemMaterial(uiButtonMaterial())
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .borderRadius(uiRadius(6))
             .layoutWeight(1)
             .onClick(this.onCancel)
@@ -2845,6 +2851,7 @@ struct DownloadMigrationConfirmOverlay {
             .fontColor(themePrimaryText())
             .backgroundColor(themeSurfaceVariant())
             .systemMaterial(uiButtonMaterial())
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .borderRadius(uiRadius(6))
             .layoutWeight(1)
             .onClick(this.onSwitchOnly)
@@ -2853,6 +2860,7 @@ struct DownloadMigrationConfirmOverlay {
             .fontColor(themeOnPrimaryText())
             .backgroundColor(themePrimaryColor())
             .systemMaterial(uiButtonMaterial())
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .borderRadius(uiRadius(6))
             .layoutWeight(1)
             .onClick(this.onMigrate)
@@ -3448,6 +3456,7 @@ struct TranslationPromptPanel {
           .padding({ left: 14, right: 14 })
           .backgroundColor(uiMaterialBackground(themeSurface()))
           .systemMaterial(uiButtonMaterial())
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .borderRadius(uiRadius(6))
           .onClick(() => {
             this.profileSelectorVisible = true;
@@ -3501,6 +3510,7 @@ struct TranslationPromptPanel {
                 .fontColor(themeDangerText())
                 .backgroundColor(themeDangerBackground())
                 .systemMaterial(uiButtonMaterial())
+                .border({ width: 1, color: uiButtonHighlightBorderColor() })
                 .borderRadius(uiRadius(6))
                 .onClick(() => {
                   this.deletePrompt();
@@ -3513,6 +3523,7 @@ struct TranslationPromptPanel {
               .fontColor(themeOnPrimaryText())
               .backgroundColor(themePrimaryColor())
               .systemMaterial(uiButtonMaterial())
+              .border({ width: 1, color: uiButtonHighlightBorderColor() })
               .borderRadius(uiRadius(6))
               .onClick(() => {
                 this.savePrompt();
@@ -3677,6 +3688,7 @@ export struct SettingsOptionPanel {
           .height(40)
           .backgroundColor(themeSurfaceVariant())
           .systemMaterial(uiButtonMaterial())
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(this.onBack)
         }
         .width('100%')
@@ -3741,6 +3753,7 @@ export struct SettingsOptionPanel {
               .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
               .backgroundColor(themePrimaryColor())
               .systemMaterial(uiButtonMaterial())
+              .border({ width: 1, color: uiButtonHighlightBorderColor() })
               .onClick(() => {
                 const value = this.customValue.trim();
                 if (value.length > 0) {
@@ -3756,10 +3769,9 @@ export struct SettingsOptionPanel {
       .height(this.panelHeight())
       .constraintSize({ maxWidth: 420 })
       .padding({ left: 18, right: 18, top: 18, bottom: 8 })
-      .backgroundColor(uiPopupMaterialBackground(themeSurface()))
-      .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
+      .backgroundColor(uiPopupEffectBackground(uiPopupMaterialBackground(themeSurface())))
+      .backgroundBlurStyle(uiPopupBlurStyle(), uiPopupBlurOptions())
       .borderRadius(uiRadius(8))
-      .systemMaterial(uiPanelMaterial())
       .clip(true)
       .shadow(isHarmonyMaterialEnabled() ? {
         radius: 0,

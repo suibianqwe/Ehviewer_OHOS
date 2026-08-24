@@ -4,7 +4,7 @@ import { DownloadInfo, ehDownloadStore } from '../services/EhDownloadStore';
 import { EhHomeLimits, EhHomeLimitsResult, ehHomeLimitsService } from '../services/EhHomeLimitsService';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { MAIN_CONTENT_WIDTH_VP_KEY } from '../services/EhWindowImmersive';
-import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, downloadQueueSummary, getAbilityContext, uiText, uiStatusText, DrawerItem, DRAWER_ITEMS } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, THEME_REVISION_KEY, downloadQueueSummary, getAbilityContext, uiText, uiStatusText, DrawerItem, DRAWER_ITEMS } from '../shared/EhShared';
 import {
   themeDividerColor,
   themeFieldBackground,
@@ -28,6 +28,7 @@ import {
   uiAdaptiveTitleSize,
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
+  uiButtonHighlightBorderColor,
   uiCardRadius,
   uiControlRadius,
   uiMaterialBackground,
@@ -500,6 +501,7 @@ export struct EhNavBar {
   onRefresh: () => void = () => {};
   onClear: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+  @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
   @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
 
   private barBodyHeight(): number {
@@ -548,6 +550,7 @@ export struct EhNavBar {
         .height(this.actionSize())
         .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
         .systemMaterial(uiButtonMaterial())
+        .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .flexShrink(0)
         .onClick(() => {
           if (this.showBackButton) {
@@ -605,6 +608,7 @@ export struct EhNavBar {
           .backgroundColor(navigationActionBackground(this.searchShowsAdvancedButton && this.filterActive ?
             themeOnPrimaryActionStrongBackground() : themeOnPrimaryActionBackground()))
           .systemMaterial(uiButtonMaterial())
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .flexShrink(0)
           .margin({ left: 8 })
           .onClick(() => {
@@ -648,6 +652,7 @@ export struct EhNavBar {
             .height(this.actionSize())
             .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
             .systemMaterial(uiButtonMaterial())
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .flexShrink(0)
             .margin({ left: 6 })
             .onClick(() => { this.onRefresh(); })
@@ -663,6 +668,7 @@ export struct EhNavBar {
             .height(this.actionSize())
             .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
             .systemMaterial(uiButtonMaterial())
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .flexShrink(0)
             .margin({ left: 6 })
             .onClick(() => { this.onFavoriteButton(); })
@@ -678,6 +684,7 @@ export struct EhNavBar {
             .height(this.actionSize())
             .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
             .systemMaterial(uiButtonMaterial())
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .flexShrink(0)
             .margin({ left: 6 })
             .onClick(() => { this.onBookmarkButton(); })
@@ -693,6 +700,7 @@ export struct EhNavBar {
             .height(this.actionSize())
             .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
             .systemMaterial(uiButtonMaterial())
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .flexShrink(0)
             .margin({ left: 6 })
             .onClick(() => { this.onSearch(); })
@@ -711,6 +719,7 @@ export struct EhNavBar {
             .backgroundColor(navigationActionBackground(this.canClear ? themeOnPrimaryDangerBackground() :
               themeOnPrimaryActionDisabledBackground()))
             .systemMaterial(uiButtonMaterial())
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .flexShrink(0)
             .margin({ left: 6 })
             .onClick(() => { this.onClear(); })
@@ -751,6 +760,7 @@ export struct EhSubNavBar {
   onBack: () => void = () => {};
   onAction: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+  @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
   @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
 
   private barBodyHeight(): number {
@@ -796,6 +806,7 @@ export struct EhSubNavBar {
         .height(this.actionSize())
         .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
         .systemMaterial(uiButtonMaterial())
+        .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .flexShrink(0)
         .onClick(() => { this.onBack(); })
 
@@ -822,6 +833,7 @@ export struct EhSubNavBar {
           .backgroundColor(navigationActionBackground(this.actionChecked ? themeOnPrimaryActionStrongBackground() :
             themeOnPrimaryActionBackground()))
           .systemMaterial(uiButtonMaterial())
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .flexShrink(0)
           .margin({ left: 8 })
           .onClick(() => {
@@ -1059,6 +1071,7 @@ struct LegacySearchBar {
       .width(40).height(40)
       .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
       .systemMaterial(uiButtonMaterial())
+      .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .flexShrink(0)
       .onClick(() => { this.onMenu(); })
 
@@ -1084,6 +1097,7 @@ struct LegacySearchBar {
       .width(40).height(40)
       .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
       .systemMaterial(uiButtonMaterial())
+      .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .flexShrink(0)
       .margin({ left: 8 })
       .onClick(() => { this.onSearch(); })
@@ -1117,6 +1131,7 @@ struct LegacyActionBar {
       .width(40).height(40)
       .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
       .systemMaterial(uiButtonMaterial())
+      .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .flexShrink(0)
       .onClick(() => { this.onMenu(); })
 
@@ -1136,6 +1151,7 @@ struct LegacyActionBar {
       .width(40).height(40)
       .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
       .systemMaterial(uiButtonMaterial())
+      .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .flexShrink(0)
       .margin({ left: 6 })
       .onClick(() => { this.onRefresh(); })
@@ -1150,6 +1166,7 @@ struct LegacyActionBar {
         .backgroundColor(navigationActionBackground(this.canClear ? themeOnPrimaryDangerBackground() :
           themeOnPrimaryActionDisabledBackground()))
         .systemMaterial(uiButtonMaterial())
+        .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .flexShrink(0)
         .margin({ left: 6 })
         .onClick(() => { this.onClear(); })
@@ -1227,6 +1244,7 @@ export struct AppTopBar {
       .width(40).height(40)
       .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
       .systemMaterial(uiButtonMaterial())
+      .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .onClick(() => { this.onAction(); })
 
       Column() {

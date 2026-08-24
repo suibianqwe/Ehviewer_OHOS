@@ -12,7 +12,7 @@ export const EH_UI_STYLE_CLASSIC: string = 'Classic';
 export const EH_UI_STYLE_HARMONY: string = 'Harmony';
 const EH_UI_STYLE_HARMONY_LEGACY: string = 'HarmonyOS 7';
 
-let harmony7FloatingMaterial: uiMaterial.Material | undefined;
+const harmony7FloatingMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 const harmony7ButtonMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 const harmony7TintedButtonMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 let harmony7ChromeMaterial: uiMaterial.Material | undefined;
@@ -81,22 +81,27 @@ export function uiFloatingMaterial(): uiMaterial.Material | undefined {
   if (!isHarmonyMaterialEnabled()) {
     return undefined;
   }
-  if (harmony7FloatingMaterial === undefined) {
-    harmony7FloatingMaterial = new uiMaterial.ImmersiveMaterial({
-      style: uiMaterial.ImmersiveStyle.ULTRA_THIN,
-      applyShadow: true,
-      interactive: false,
-      lightEffect: { color: undefined }
-    });
+  const materialColor = themedNeutralMaterialColor(themeSurface());
+  const cached = harmony7FloatingMaterials.get(materialColor);
+  if (cached !== undefined) {
+    return cached;
   }
-  return harmony7FloatingMaterial;
+  const material = new uiMaterial.ImmersiveMaterial({
+    style: uiMaterial.ImmersiveStyle.ULTRA_THIN,
+    materialColor: materialColor,
+    applyShadow: true,
+    interactive: false,
+    lightEffect: { color: Color.White }
+  });
+  harmony7FloatingMaterials.set(materialColor, material);
+  return material;
 }
 
 export function uiButtonMaterial(): uiMaterial.Material | undefined {
   if (!isHarmonyMaterialEnabled()) {
     return undefined;
   }
-  const materialColor = isDarkTheme() ? themedNeutralMaterialColor(themeSurface()) : '#00000000';
+  const materialColor = themedNeutralMaterialColor(themeSurface());
   const cached = harmony7ButtonMaterials.get(materialColor);
   if (cached !== undefined) {
     return cached;
@@ -188,7 +193,7 @@ function translucentMaterialColor(solidColor: string): string {
 function themedNeutralMaterialColor(solidColor: string): string {
   const color = solidColor.trim();
   if (/^#[0-9A-Fa-f]{6}$/.test(color)) {
-    return '#40' + color.substring(1);
+    return '#38' + color.substring(1);
   }
   return color;
 }
@@ -312,6 +317,14 @@ export function uiPopupBlurStyle(): BlurStyle {
   return isHarmonyUiStyle() && supportsBackgroundBlur() ? BlurStyle.COMPONENT_THICK : BlurStyle.NONE;
 }
 
+export function uiPopupBlurOptions(): BackgroundBlurStyleOptions {
+  return {
+    colorMode: isDarkTheme() ? ThemeColorMode.DARK : ThemeColorMode.LIGHT,
+    adaptiveColor: AdaptiveColor.DEFAULT,
+    scale: 0.82
+  };
+}
+
 export function uiPopupBackgroundEffect(): BackgroundEffectOptions {
   const effectEnabled = isHarmonyUiStyle() && supportsBackgroundEffect();
   return {
@@ -324,7 +337,8 @@ export function uiPopupBackgroundEffect(): BackgroundEffectOptions {
 }
 
 export function uiPopupEffectBackground(solidColor: string): string {
-  return isHarmonyUiStyle() && supportsBackgroundEffect() ? 'rgba(0,0,0,0)' : solidColor;
+  return isHarmonyUiStyle() && (supportsBackgroundEffect() || supportsBackgroundBlur()) ?
+    'rgba(0,0,0,0)' : solidColor;
 }
 
 export function uiSearchFieldHeight(): number {

@@ -1,4 +1,4 @@
-import { window } from '@kit.ArkUI';
+import { ColorMetrics, window } from '@kit.ArkUI';
 import { ehSettingsStore } from './EhSettingsStore';
 import {
   isDarkTheme,
@@ -21,8 +21,12 @@ const HIDDEN_SYSTEM_BARS: SystemBarName[] = [];
 const READER_STATUS_BAR_VISIBLE_SYSTEM_BARS: SystemBarName[] = ['status'];
 const savedReaderPreferredOrientations: Map<number, window.Orientation> = new Map();
 let readerChromeGeneration: number = 0;
+let appChromeGeneration: number = 0;
+let mainWindowReference: window.Window | undefined;
+let readerWindowReference: window.Window | undefined;
 
 export function rememberMainWindow(win: window.Window): void {
+  mainWindowReference = win;
   AppStorage.set<window.Window | undefined>(MAIN_WINDOW_KEY, win);
   try {
     rememberMainWindowWidthPx(win.getWindowProperties().windowRect.width);
@@ -31,7 +35,7 @@ export function rememberMainWindow(win: window.Window): void {
 }
 
 export function getMainWindow(): window.Window | undefined {
-  return AppStorage.get<window.Window>(MAIN_WINDOW_KEY);
+  return mainWindowReference ?? AppStorage.get<window.Window>(MAIN_WINDOW_KEY);
 }
 
 export function rememberMainContentWidthVp(width: number): void {
@@ -96,15 +100,17 @@ function normalizeWindowWidthVp(rawWidth: number, pxToVp: (value: number) => num
 }
 
 export function rememberReaderWindow(win: window.Window): void {
+  readerWindowReference = win;
   AppStorage.set<window.Window | undefined>(READER_WINDOW_KEY, win);
 }
 
 export function clearReaderWindow(): void {
+  readerWindowReference = undefined;
   AppStorage.set<window.Window | undefined>(READER_WINDOW_KEY, undefined);
 }
 
 export function getReaderWindow(): window.Window | undefined {
-  return AppStorage.get<window.Window>(READER_WINDOW_KEY);
+  return readerWindowReference ?? AppStorage.get<window.Window>(READER_WINDOW_KEY);
 }
 
 export function setEmbeddedReaderActive(active: boolean): void {
@@ -132,11 +138,16 @@ export function applyAppChromeImmersiveMode(win?: window.Window): void {
   if (isEmbeddedReaderActive()) {
     return;
   }
-  applyAppChromeImmersiveModeAsync(target).catch(() => {});
+  appChromeGeneration++;
+  const generation = appChromeGeneration;
+  applyAppChromeImmersiveModeAsync(target, generation).catch(() => {});
+  scheduleAppSystemBarThemeRefresh(target, generation, 80);
+  scheduleAppSystemBarThemeRefresh(target, generation, 240);
 }
 
 export async function prepareAppChromeBeforeContent(win: window.Window): Promise<void> {
-  await applyAppChromeImmersiveModeAsync(win);
+  appChromeGeneration++;
+  await applyAppChromeImmersiveModeAsync(win, appChromeGeneration);
 }
 
 // Reader page only: full-screen layout with both status bar and navigation indicator hidden.
@@ -188,13 +199,20 @@ export function scheduleReaderFullscreenImmersiveMode(win: window.Window, delayM
   }, delayMs);
 }
 
-async function applyAppChromeImmersiveModeAsync(target: window.Window): Promise<void> {
-  const useLightSystemBarIcons = isDarkTheme();
+async function applyAppChromeImmersiveModeAsync(target: window.Window, generation: number): Promise<void> {
   setWindowBackgroundColorQuietly(target, themePageBackground(), 'set app theme background');
   await setWindowLayoutFullScreenQuietly(target, true, 'set app full-screen layout');
   await setWindowSystemBarEnableQuietly(target, VISIBLE_SYSTEM_BARS, 'show app system bars');
   await setSpecificSystemBarEnabledQuietly(target, 'status', true, 'show app status bar');
   await setSpecificSystemBarEnabledQuietly(target, 'navigationIndicator', false, 'hide app navigation indicator');
+  if (generation !== appChromeGeneration || isEmbeddedReaderActive()) {
+    return;
+  }
+  await applyAppSystemBarTheme(target, 'set app transparent system bars');
+}
+
+async function applyAppSystemBarTheme(target: window.Window, operation: string): Promise<void> {
+  const useLightSystemBarIcons = isDarkTheme();
   await setWindowSystemBarPropertiesQuietly(target, {
     statusBarColor: themeTransparentColor(),
     navigationBarColor: themeTransparentColor(),
@@ -202,7 +220,17 @@ async function applyAppChromeImmersiveModeAsync(target: window.Window): Promise<
     isNavigationBarLightIcon: useLightSystemBarIcons,
     statusBarContentColor: themeSystemBarContentColor(),
     navigationBarContentColor: themeSystemBarContentColor()
-  }, 'set app transparent system bars');
+  }, operation);
+  await setStatusBarContentColorQuietly(target, themeSystemBarContentColor(), operation + ' content color');
+}
+
+function scheduleAppSystemBarThemeRefresh(target: window.Window, generation: number, delayMs: number): void {
+  setTimeout(() => {
+    if (generation !== appChromeGeneration || isEmbeddedReaderActive()) {
+      return;
+    }
+    applyAppSystemBarTheme(target, 'refresh app system bar theme').catch(() => {});
+  }, delayMs);
 }
 
 export async function applyReaderWindowState(target: window.Window, keepScreenOn: boolean,
@@ -225,6 +253,7 @@ export async function applyReaderWindowState(target: window.Window, keepScreenOn
     isNavigationBarLightIcon: true,
     statusBarContentColor: '#FFFFFF'
   }, 'set reader transparent system bars');
+  await setStatusBarContentColorQuietly(target, '#FFFFFF', 'set reader status bar content color');
 }
 
 export async function applyReaderWindowStateFromSettings(target: window.Window): Promise<void> {
@@ -338,6 +367,8 @@ async function restoreAppWindowChrome(target: window.Window): Promise<void> {
     statusBarContentColor: themeSystemBarContentColor(),
     navigationBarContentColor: themeSystemBarContentColor()
   }, 'restore app transparent system bars');
+  await setStatusBarContentColorQuietly(target, themeSystemBarContentColor(),
+    'restore app status bar content color');
 }
 
 async function restoreWindowPreferredOrientation(target: window.Window): Promise<void> {
@@ -426,6 +457,14 @@ async function setWindowSystemBarPropertiesQuietly(target: window.Window, proper
   operation: string): Promise<void> {
   try {
     await target.setWindowSystemBarProperties(properties);
+  } catch (error) {
+    logWindowError(operation, error);
+  }
+}
+
+async function setStatusBarContentColorQuietly(target: window.Window, color: string, operation: string): Promise<void> {
+  try {
+    await target.setStatusBarColor(ColorMetrics.resourceColor(color));
   } catch (error) {
     logWindowError(operation, error);
   }

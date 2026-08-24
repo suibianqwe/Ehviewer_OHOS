@@ -9,6 +9,7 @@ import {
 } from '../services/SearchKeywordNormalization';
 import {
   LANGUAGE_REVISION_KEY,
+  THEME_REVISION_KEY,
   categoryColor,
   categoryDisplayName,
   shouldShowTagTranslations,
@@ -21,6 +22,7 @@ import {
   isHarmonyMaterialEnabled,
   isHarmonyUiStyle,
   uiButtonMaterial,
+  uiButtonHighlightBorderColor,
   uiFloatingMaterial,
   uiMaterialBackground,
   uiMaterialForegroundColor,
@@ -1271,6 +1273,7 @@ export struct ActionBubble {
   @Prop active: boolean = false;
   @Prop checked: boolean = false;
   @Prop side: string = FLOATING_ACTION_SIDE_RIGHT;
+  @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
   primary: boolean = false;
   directTap: boolean = true;
   onTapAction: () => void = () => {};
@@ -1295,9 +1298,10 @@ export struct ActionBubble {
   private labelBubble() {
     Text(this.label)
       .fontSize(12)
-      .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+      .fontColor(themePrimaryText())
       .backgroundColor(uiMaterialBackground(themeSurface()))
       .systemMaterial(uiFloatingMaterial())
+      .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .padding({ left: 12, right: 12, top: 6, bottom: 6 })
       .borderRadius(uiRadius(15))
       .constraintSize({ maxWidth: 214 })
@@ -1324,6 +1328,7 @@ export struct ActionBubble {
       (this.primary || this.checked ? themePrimaryColor() : themeControlNeutralBackground()) :
       themeControlMutedBackground()))
     .systemMaterial(uiButtonMaterial())
+    .border({ width: 1, color: uiButtonHighlightBorderColor() })
     .scale({ x: this.active ? 0.92 : 1, y: this.active ? 0.92 : 1 })
     .animation({ duration: 120, curve: Curve.EaseOut })
     .onClick(() => {
@@ -1502,6 +1507,7 @@ export struct RatingStarBar {
           .height(36)
           .backgroundColor(this.starActive(index) ? '#6E521F' : themeSurfaceVariant())
           .systemMaterial(uiButtonMaterial())
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(() => {
             this.onSelect(index);
           })

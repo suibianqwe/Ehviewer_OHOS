@@ -1,4 +1,4 @@
-import { LANGUAGE_REVISION_KEY, uiText } from '../shared/EhShared';
+import { LANGUAGE_REVISION_KEY, THEME_REVISION_KEY, uiText } from '../shared/EhShared';
 import {
   themeDangerText,
   themeFieldBackground,
@@ -20,13 +20,16 @@ import {
 import {
   isHarmonyUiStyle,
   uiButtonMaterial,
+  uiButtonHighlightBorderColor,
   uiCardRadius,
   uiControlRadius,
   uiMaterialBackground,
   uiMaterialForegroundColor,
-  uiPanelMaterial,
   uiPanelRadius,
   uiPillRadius,
+  uiPopupEffectBackground,
+  uiPopupBlurOptions,
+  uiPopupBlurStyle,
   uiSearchFieldHeight,
   uiSearchMaterial
 } from '../shared/EhUiStyle';
@@ -64,6 +67,7 @@ export struct RightSidePanelLayer {
   @Prop layerZIndex: number = 15;
   onClose: () => void = () => {};
   @BuilderParam content: () => void = this.EmptyContent;
+  @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
 
   @Builder
   private EmptyContent() {
@@ -91,8 +95,8 @@ export struct RightSidePanelLayer {
       }
       .width(SIDE_PANEL_WIDTH)
       .height('100%')
-      .backgroundColor(uiMaterialBackground(themeSurface()))
-      .systemMaterial(uiPanelMaterial())
+      .backgroundColor(uiPopupEffectBackground(themeSurface()))
+      .backgroundBlurStyle(uiPopupBlurStyle(), uiPopupBlurOptions())
       .position({ x: this.drawerLeft, y: 0 })
       .translate({ x: this.drawerOffsetX })
       .shadow({ radius: 32, color: themeShadowColor(), offsetX: -8, offsetY: 0 })
@@ -136,6 +140,7 @@ export struct SidePanelManagerHeader {
         .height(40)
         .backgroundColor(sidePanelChromeBackground(themeOnPrimaryActionBackground()))
         .systemMaterial(uiButtonMaterial())
+        .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .onClick(() => {
           this.onBack();
         })
@@ -159,6 +164,7 @@ export struct SidePanelManagerHeader {
           .height(40)
           .backgroundColor(sidePanelChromeBackground(themeOnPrimaryActionBackground()))
           .systemMaterial(uiButtonMaterial())
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(() => {
             this.onAdd();
           })
@@ -212,6 +218,7 @@ export struct SidePanelHeader {
           .height(40)
           .backgroundColor(sidePanelChromeBackground(themeOnPrimaryActionBackground()))
           .systemMaterial(uiButtonMaterial())
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .margin({ right: this.showSecondAction ? 6 : 0 })
           .onClick(() => {
             this.onFirstAction();
@@ -228,6 +235,7 @@ export struct SidePanelHeader {
           .height(40)
           .backgroundColor(sidePanelChromeBackground(themeOnPrimaryActionBackground()))
           .systemMaterial(uiButtonMaterial())
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(() => {
             this.onSecondAction();
           })
@@ -304,6 +312,7 @@ export struct SidePanelRow {
         .height(36)
         .backgroundColor(themeTransparentColor())
         .systemMaterial(uiButtonMaterial())
+        .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .onClick(() => {
           this.onDelete();
         })
@@ -432,6 +441,7 @@ export struct SidePanelEditableManagerRow {
         .height(38)
         .backgroundColor(themeSurfaceVariant())
         .systemMaterial(uiButtonMaterial())
+        .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .onClick(() => {
           this.onDelete();
         })
