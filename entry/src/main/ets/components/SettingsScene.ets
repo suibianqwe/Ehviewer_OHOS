@@ -2930,6 +2930,7 @@ export struct SettingsHomePanel {
       AppToolbar({
         title: 'Settings',
         subtitle: '',
+        translateY: 0,
         onMenu: this.onMenu
       })
     }
@@ -2986,6 +2987,7 @@ export struct SettingsSubToolbar {
       title: this.title,
       showAction: this.showAction,
       actionIcon: this.actionIcon,
+      translateY: 0,
       onBack: this.onBack,
       onAction: this.onAction
     })
@@ -3189,6 +3191,7 @@ export struct SettingsDetailPanel {
 
       AppSubToolbar({
         title: uiText(settingsPanelTitle(this.panel)),
+        translateY: 0,
         onBack: this.onBack
       })
     }
@@ -3340,6 +3343,7 @@ struct TranslationPromptPanel {
       Column() {
         AppSubToolbar({
           title: uiText('System prompts'),
+          translateY: 0,
           onBack: this.onBack
         })
 
