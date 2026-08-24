@@ -27,7 +27,8 @@ import {
   uiSegmentMaterial,
   uiSwitchHeight,
   uiSwitchWidth,
-  uiTabHeight
+  uiTabHeight,
+  uiTintedSegmentMaterial
 } from '../shared/EhUiStyle';
 import {
   FLOATING_ACTION_GAP,
@@ -633,30 +634,14 @@ struct SearchNamespaceChip {
   }
 
   build() {
-    Button({ type: ButtonType.Normal, stateEffect: true }) {
-      Stack() {
-        Row()
-          .width('100%')
-          .height('100%')
-          .backgroundColor(this.isActive ? this.softColor() : Color.Transparent)
-          .borderRadius(uiRadius(5))
-          .opacity(this.isActive ? 0.72 : 0)
-          .animation({ duration: 180, curve: Curve.EaseInOut })
-        Text(this.label)
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.isActive ? this.activeColor() : themeSecondaryText())
-          .maxLines(1)
-      }
-      .width('100%')
-      .height('100%')
-      .borderRadius(uiRadius(5))
-      .clip(true)
-    }
+    Button(this.label, { type: ButtonType.Normal, stateEffect: true })
       .width(102)
       .height(34)
-      .backgroundColor(Color.Transparent)
-      .systemMaterial(uiSegmentMaterial())
+      .fontSize(16)
+      .fontWeight(FontWeight.Bold)
+      .fontColor(this.isActive ? this.activeColor() : themeSecondaryText())
+      .backgroundColor(this.isActive ? this.softColor() : Color.Transparent)
+      .systemMaterial(this.isActive ? uiTintedSegmentMaterial(this.softColor()) : uiSegmentMaterial())
       .border({ width: 0, color: Color.Transparent })
       .borderRadius(uiRadius(5))
       .padding({ left: 4, right: 4 })
@@ -831,27 +816,15 @@ export struct SearchAdvancedPanel {
             .fontColor(themeSecondaryText())
             .fontWeight(FontWeight.Medium)
             .margin({ top: 4 })
-          Button({ type: ButtonType.Normal, stateEffect: true }) {
-            Stack() {
-              Row()
-                .width('100%')
-                .height('100%')
-                .backgroundColor(this.allCategoriesSelected() ? themeSelectedBackground() : Color.Transparent)
-                .borderRadius(uiRadius(4))
-                .animation({ duration: 180, curve: Curve.EaseInOut })
-              Text(tagTranslationOptionText('All categories', '全部分类'))
-                .fontSize(14)
-                .fontWeight(FontWeight.Medium)
-                .fontColor(this.allCategoriesSelected() ? themePrimaryColor() : themeSecondaryText())
-            }
-            .width('100%')
-            .height('100%')
-            .borderRadius(uiRadius(4))
-            .clip(true)
-          }
+          Button(tagTranslationOptionText('All categories', '全部分类'),
+            { type: ButtonType.Normal, stateEffect: true })
             .height(32)
-            .backgroundColor(Color.Transparent)
-            .systemMaterial(uiSegmentMaterial())
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.allCategoriesSelected() ? themePrimaryColor() : themeSecondaryText())
+            .backgroundColor(this.allCategoriesSelected() ? themeSelectedBackground() : Color.Transparent)
+            .systemMaterial(this.allCategoriesSelected() ?
+              uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
             .border({ width: 0, color: Color.Transparent })
             .borderRadius(uiRadius(4))
             .width('100%')
@@ -1325,32 +1298,20 @@ export struct SearchModeSegmentButton {
 
   build() {
     Button({ type: ButtonType.Normal, stateEffect: true }) {
-      Stack() {
-        Row()
-          .width('100%')
-          .height('100%')
-          .backgroundColor(this.selected ? themeSelectedBackground() : Color.Transparent)
-          .borderRadius(uiRadius(uiTabHeight() / 2))
-          .animation({ duration: 180, curve: Curve.EaseInOut })
-        Text(uiText(this.label))
-          .fontSize(12)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(this.selected ? themePrimaryColor() : themeSecondaryText())
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .width('100%')
-          .textAlign(TextAlign.Center)
-      }
-      .width('100%')
-      .height('100%')
-      .borderRadius(uiRadius(uiTabHeight() / 2))
-      .clip(true)
+      Text(uiText(this.label))
+        .fontSize(12)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.selected ? themePrimaryColor() : themeSecondaryText())
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .width('100%')
+        .textAlign(TextAlign.Center)
     }
     .height(uiTabHeight())
     .layoutWeight(1)
     .padding({ left: 4, right: 4 })
-    .backgroundColor(Color.Transparent)
-    .systemMaterial(uiSegmentMaterial())
+    .backgroundColor(this.selected ? themeSelectedBackground() : Color.Transparent)
+    .systemMaterial(this.selected ? uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
     .border({ width: 0, color: Color.Transparent })
     .borderRadius(uiRadius(uiTabHeight() / 2))
     .animation({ duration: 180, curve: Curve.EaseInOut })
@@ -1368,28 +1329,13 @@ export struct SearchFlagChip {
   onToggle: (isOn: boolean) => void = (_isOn: boolean) => {};
 
   build() {
-    Button({ type: ButtonType.Normal, stateEffect: true }) {
-      Stack() {
-        Row()
-          .width('100%')
-          .height('100%')
-          .backgroundColor(this.isOn ? themeSelectedBackground() : Color.Transparent)
-          .borderRadius(uiRadius(19))
-          .animation({ duration: 180, curve: Curve.EaseInOut })
-        Text(uiText(this.label))
-          .fontSize(13)
-          .fontColor(this.isOn ? themePrimaryColor() :
-            (this.isEnabled ? themeSecondaryText() : themeInactiveActionText()))
-          .maxLines(1)
-      }
-      .width('100%')
-      .height('100%')
-      .borderRadius(uiRadius(19))
-      .clip(true)
-    }
+    Button(uiText(this.label), { type: ButtonType.Normal, stateEffect: true })
       .height(38)
-      .backgroundColor(Color.Transparent)
-      .systemMaterial(uiSegmentMaterial())
+      .fontSize(13)
+      .fontColor(this.isOn ? themePrimaryColor() :
+        (this.isEnabled ? themeSecondaryText() : themeInactiveActionText()))
+      .backgroundColor(this.isOn ? themeSelectedBackground() : Color.Transparent)
+      .systemMaterial(this.isOn ? uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
       .border({ width: 0, color: Color.Transparent })
       .borderRadius(uiRadius(19))
       .layoutWeight(1)
@@ -1437,29 +1383,13 @@ export struct SearchCategoryChip {
   }
 
   build() {
-    Button({ type: ButtonType.Normal, stateEffect: true }) {
-      Stack() {
-        Row()
-          .width('100%')
-          .height('100%')
-          .backgroundColor(this.selected ? this.softColor() : Color.Transparent)
-          .borderRadius(uiRadius(20))
-          .opacity(this.selected ? 0.72 : 0)
-          .animation({ duration: 180, curve: Curve.EaseInOut })
-        Text(this.label)
-          .fontSize(14)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.selected ? categoryColor(this.category) : themeSecondaryText())
-          .maxLines(1)
-      }
-      .width('100%')
-      .height('100%')
-      .borderRadius(uiRadius(20))
-      .clip(true)
-    }
+    Button(this.label, { type: ButtonType.Normal, stateEffect: true })
       .height(40)
-      .backgroundColor(Color.Transparent)
-      .systemMaterial(uiSegmentMaterial())
+      .fontSize(14)
+      .fontWeight(FontWeight.Bold)
+      .fontColor(this.selected ? categoryColor(this.category) : themeSecondaryText())
+      .backgroundColor(this.selected ? this.softColor() : Color.Transparent)
+      .systemMaterial(this.selected ? uiTintedSegmentMaterial(this.softColor()) : uiSegmentMaterial())
       .border({ width: 0, color: Color.Transparent })
       .borderRadius(uiRadius(20))
       .layoutWeight(1)

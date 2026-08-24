@@ -16,6 +16,7 @@ let harmony7ButtonMaterial: uiMaterial.Material | undefined;
 let harmony7ChromeMaterial: uiMaterial.Material | undefined;
 let harmony7SearchMaterial: uiMaterial.Material | undefined;
 let harmony7SegmentMaterial: uiMaterial.Material | undefined;
+const harmony7TintedSegmentMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 let harmony7PanelMaterial: uiMaterial.Material | undefined;
 let harmony7DialogMaterial: uiMaterial.Material | undefined;
 
@@ -146,6 +147,34 @@ export function uiSegmentMaterial(): uiMaterial.Material | undefined {
     });
   }
   return harmony7SegmentMaterial;
+}
+
+function translucentMaterialColor(solidColor: string): string {
+  const color = solidColor.trim();
+  if (/^#[0-9A-Fa-f]{6}$/.test(color)) {
+    return '#B3' + color.substring(1);
+  }
+  return color;
+}
+
+export function uiTintedSegmentMaterial(solidColor: string): uiMaterial.Material | undefined {
+  if (!isHarmonyMaterialEnabled()) {
+    return undefined;
+  }
+  const materialColor = translucentMaterialColor(solidColor);
+  const cached = harmony7TintedSegmentMaterials.get(materialColor);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const material = new uiMaterial.ImmersiveMaterial({
+    style: uiMaterial.ImmersiveStyle.ULTRA_THIN,
+    materialColor: materialColor,
+    applyShadow: false,
+    interactive: true,
+    lightEffect: { color: Color.White }
+  });
+  harmony7TintedSegmentMaterials.set(materialColor, material);
+  return material;
 }
 
 export function uiMaterialBackground(solidColor: string): string {
