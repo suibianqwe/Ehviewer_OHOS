@@ -9,13 +9,11 @@ import {
   uiDialogMaterial,
   uiMaterialBackground,
   uiMaterialForegroundColor,
-  uiPopupBlurStyle,
+  uiReaderMenuBackgroundEffect,
   uiRadius,
   uiSearchFieldHeight,
   uiSearchMaterial,
-  uiSegmentMaterial,
-  uiTabHeight,
-  uiTitleBarBlurStyle
+  uiTabHeight
 } from '../../../shared/EhUiStyle';
 import {
   readerAutoTransferSliderValue,
@@ -676,7 +674,7 @@ export struct ReaderSettingsMenuOverlay {
       Text(label)
         .fontSize(13)
         .fontWeight(this.selectedTab === index ? FontWeight.Medium : FontWeight.Normal)
-        .fontColor(uiMaterialForegroundColor(this.selectedTab === index ? '#FFFFFF' : '#94A3B8'))
+        .fontColor(this.selectedTab === index ? '#FFFFFF' : '#C6CBD3')
         .maxLines(1)
       Row()
         .width(this.selectedTab === index ? 28 : 0)
@@ -687,8 +685,7 @@ export struct ReaderSettingsMenuOverlay {
     .width('100%')
     .height(uiTabHeight())
     .justifyContent(FlexAlign.Center)
-    .backgroundColor(uiMaterialBackground(this.selectedTab === index ? '#334155' : '#00000000'))
-    .systemMaterial(uiSegmentMaterial())
+    .backgroundColor(this.selectedTab === index ? 'rgba(255,255,255,0.14)' : Color.Transparent)
     .borderRadius(uiRadius(uiTabHeight() / 2))
   }
 
@@ -1029,11 +1026,11 @@ export struct ReaderSettingsMenuOverlay {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.chevron_left'))
               .fontSize(20)
-              .fontColor([uiMaterialForegroundColor(Color.White)])
+              .fontColor([Color.White])
           }
           .width(36)
           .height(36)
-          .backgroundColor('#334155')
+          .backgroundColor('rgba(255,255,255,0.14)')
           .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onBack();
@@ -1042,27 +1039,26 @@ export struct ReaderSettingsMenuOverlay {
           if (this.menuShowClock) {
             Text(readerClockText())
               .fontSize(12)
-              .fontColor(uiMaterialForegroundColor('#E5E7EB'))
+              .fontColor('#E5E7EB')
               .margin({ left: 8 })
           }
           if (this.menuShowProgress) {
             Text(this.progressText)
               .fontSize(12)
-              .fontColor(uiMaterialForegroundColor('#E5E7EB'))
+              .fontColor('#E5E7EB')
               .margin({ left: 8 })
           }
           if (this.menuShowBattery) {
             Text(this.batteryText)
               .fontSize(12)
-              .fontColor(uiMaterialForegroundColor('#E5E7EB'))
+              .fontColor('#E5E7EB')
               .margin({ left: 8 })
           }
         }
         .width('100%')
         .height(48)
         .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-        .backgroundColor(themeScrimColor())
-        .backgroundBlurStyle(uiTitleBarBlurStyle())
+        .backgroundColor(Color.Transparent)
 
         Tabs({ barPosition: BarPosition.Start, index: this.selectedTab }) {
           TabContent() {
@@ -1087,10 +1083,10 @@ export struct ReaderSettingsMenuOverlay {
         }
         .barMode(BarMode.Fixed)
         .barHeight(uiTabHeight() + 8)
-        .barBackgroundColor(uiMaterialBackground('#CC111827'))
-        .barBackgroundBlurStyle(uiPopupBlurStyle())
+        .barBackgroundColor(Color.Transparent)
+        .barBackgroundBlurStyle(BlurStyle.NONE)
         .animationDuration(220)
-        .divider({ strokeWidth: 1, color: '#334155' })
+        .divider({ strokeWidth: 0, color: Color.Transparent })
         .onChange((index: number) => {
           this.selectedTab = index;
           this.onSelectedTabChange(index);
@@ -1101,7 +1097,7 @@ export struct ReaderSettingsMenuOverlay {
       .width('92%')
       .constraintSize({ maxWidth: 560, maxHeight: '86%' })
       .backgroundColor(uiMaterialBackground('#EE111827'))
-      .systemMaterial(uiDialogMaterial())
+      .backgroundEffect(uiReaderMenuBackgroundEffect())
       .borderRadius(uiRadius(20))
       .clip(true)
       .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))

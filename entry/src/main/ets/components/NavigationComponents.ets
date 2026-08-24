@@ -38,7 +38,9 @@ import {
   uiSearchMaterial,
   uiTitleBarBackgroundEffect,
   uiTitleBarFadeHeight,
-  uiTitleBarFadeStartColor
+  uiTitleBarFadeMiddleColor,
+  uiTitleBarFadeStartColor,
+  uiTitleBarFadeTailColor
 } from '../shared/EhUiStyle';
 import { TranslationText } from './TranslationComponents';
 
@@ -428,22 +430,25 @@ export struct EhTitleBarBackdrop {
   @Prop barBackdropHeight: number = 0;
 
   build() {
-    Column() {
+    Stack({ alignContent: Alignment.TopStart }) {
       Column()
-        .layoutWeight(1)
+        .width('100%')
+        .height(Math.max(0, this.barBackdropHeight - uiTitleBarFadeHeight() / 2))
+        .backgroundEffect(uiTitleBarBackgroundEffect())
 
       Column()
         .width('100%')
         .height(uiTitleBarFadeHeight())
+        .position({ x: 0, y: Math.max(0, this.barBackdropHeight - uiTitleBarFadeHeight()) })
         .linearGradient({
           angle: 180,
-          colors: [[uiTitleBarFadeStartColor(), 0.0], [themeTransparentColor(), 1.0]]
+          colors: [[uiTitleBarFadeStartColor(), 0.0], [uiTitleBarFadeMiddleColor(), 0.48],
+            [uiTitleBarFadeTailColor(), 0.82], [themeTransparentColor(), 1.0]]
         })
     }
     .width('100%')
     .height(this.barBackdropHeight)
     .backgroundColor(Color.Transparent)
-    .backgroundEffect(uiTitleBarBackgroundEffect())
     .hitTestBehavior(HitTestMode.None)
   }
 }

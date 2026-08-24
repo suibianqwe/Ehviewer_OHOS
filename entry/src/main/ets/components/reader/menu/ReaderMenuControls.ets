@@ -11,11 +11,8 @@ import {
   uiButtonMaterial,
   uiDialogMaterial,
   uiMaterialBackground,
-  uiMaterialForegroundColor,
-  uiMaterialSecondaryForegroundColor,
   uiPopupBlurStyle,
   uiRadius,
-  uiSearchMaterial,
   uiSelectorHeight,
   uiSwitchHeight,
   uiSwitchWidth
@@ -24,7 +21,7 @@ import {
 const READER_MENU_SURFACE = '#EE111827';
 const READER_MENU_ITEM_TEXT = '#E5E7EB';
 const READER_MENU_ITEM_ICON = '#FFFFFF';
-const READER_MENU_DIVIDER = '#334155';
+const READER_MENU_DIVIDER = 'rgba(255,255,255,0.09)';
 
 @Component
 export struct ReaderPopupBackdrop {
@@ -74,8 +71,8 @@ export struct ReaderImageActionDialog {
         .backgroundColor(Color.Transparent)
         .borderRadius(0)
         .fontSize(15)
-        .fontColor(uiMaterialForegroundColor(READER_MENU_ITEM_TEXT))
-        .iconColor(uiMaterialForegroundColor(READER_MENU_ITEM_ICON))
+        .fontColor(READER_MENU_ITEM_TEXT)
+        .iconColor(READER_MENU_ITEM_ICON)
         .iconSize(20)
         .layoutDirection(SecurityComponentLayoutDirection.HORIZONTAL)
         .onClick((_event: ClickEvent, result: SaveButtonOnClickResult) => {
@@ -111,10 +108,10 @@ struct ReaderImageActionButton {
       Row() {
         SymbolGlyph(this.symbolIcon)
           .fontSize(20)
-          .fontColor([uiMaterialForegroundColor(READER_MENU_ITEM_ICON)])
+          .fontColor([READER_MENU_ITEM_ICON])
         Text(this.label)
           .fontSize(15)
-          .fontColor(uiMaterialForegroundColor(READER_MENU_ITEM_TEXT))
+          .fontColor(READER_MENU_ITEM_TEXT)
           .margin({ left: 12 })
           .layoutWeight(1)
           .textAlign(TextAlign.End)
@@ -138,7 +135,7 @@ export struct ReaderMenuDivider {
   build() {
     Divider()
       .height(1)
-      .color(uiMaterialSecondaryForegroundColor(READER_MENU_DIVIDER))
+      .color(READER_MENU_DIVIDER)
       .margin({ left: 16, right: 16 })
   }
 }
@@ -154,16 +151,15 @@ export struct ReaderMenuSelect {
     Row() {
       Text(this.label)
         .fontSize(14)
-        .fontColor(uiMaterialForegroundColor(READER_MENU_ITEM_TEXT))
+        .fontColor(READER_MENU_ITEM_TEXT)
         .layoutWeight(1)
       Select(this.options.map((option: string) => ({ value: uiValue(option) } as SelectOption)))
         .id('reader-menu-select-' + this.label + '-' + this.value)
         .selected(readerMenuOptionIndex(this.options, this.value))
         .value(uiValue(this.value))
         .font({ size: 13 })
-        .fontColor(uiMaterialForegroundColor(readerSelectColors().buttonText))
+        .fontColor(readerSelectColors().buttonText)
         .backgroundColor(readerSelectColors().buttonBackground)
-        .systemMaterial(uiSearchMaterial())
         .menuBackgroundColor(readerSelectColors().menuBackground)
         .menuBackgroundBlurStyle(uiPopupBlurStyle())
         .optionBgColor(readerSelectColors().optionBackground)
@@ -172,7 +168,7 @@ export struct ReaderMenuSelect {
         .selectedOptionBgColor(readerSelectColors().selectedOptionBackground)
         .selectedOptionFontColor(readerSelectColors().selectedOptionText)
         .menuOutline({ width: 1, color: readerSelectColors().outline })
-        .arrowModifier(selectArrowModifier(uiMaterialSecondaryForegroundColor(readerSelectColors().arrow)))
+        .arrowModifier(selectArrowModifier(readerSelectColors().arrow))
         .onSelect((index: number) => {
           if (index >= 0 && index < this.options.length) {
             this.onChange(this.options[index]);
@@ -212,11 +208,11 @@ export struct ReaderMenuSlider {
       Row() {
         Text(this.label)
           .fontSize(14)
-          .fontColor(uiMaterialForegroundColor(READER_MENU_ITEM_TEXT))
+          .fontColor(READER_MENU_ITEM_TEXT)
           .layoutWeight(1)
         Text(this.valueText(this.liveValue))
           .fontSize(13)
-          .fontColor(uiMaterialSecondaryForegroundColor('#CBD5E1'))
+          .fontColor('#CBD5E1')
           .width(54)
           .textAlign(TextAlign.End)
       }
@@ -292,7 +288,7 @@ export struct ReaderMenuToggle {
     Row() {
       Text(this.label)
         .fontSize(14)
-        .fontColor(uiMaterialForegroundColor(READER_MENU_ITEM_TEXT))
+        .fontColor(READER_MENU_ITEM_TEXT)
         .layoutWeight(1)
       Toggle({ type: ToggleType.Switch, isOn: this.value })
         .width(uiSwitchWidth())

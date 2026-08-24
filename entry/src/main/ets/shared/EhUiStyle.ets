@@ -153,7 +153,7 @@ export function uiTitleBarBlurStyle(): BlurStyle {
 
 export function uiTitleBarBackgroundEffect(): BackgroundEffectOptions {
   return {
-    radius: isHarmonyOs7MaterialEnabled() ? 28 : 0,
+    radius: isHarmonyOs7MaterialEnabled() ? 8 : 0,
     saturation: 1,
     brightness: 1,
     color: Color.Transparent,
@@ -162,14 +162,32 @@ export function uiTitleBarBackgroundEffect(): BackgroundEffectOptions {
 }
 
 export function uiTitleBarFadeHeight(): number {
-  return isHarmonyOs7UiStyle() ? 6 : 3;
+  return isHarmonyOs7UiStyle() ? 36 : 8;
 }
 
 export function uiTitleBarFadeStartColor(): string {
   if (!isHarmonyOs7UiStyle()) {
     return 'rgba(0,0,0,0)';
   }
-  return isDarkTheme() ? 'rgba(12,13,16,0.12)' : 'rgba(248,249,252,0.16)';
+  return isDarkTheme() ? 'rgba(12,13,16,0.16)' : 'rgba(248,249,252,0.16)';
+}
+
+export function uiTitleBarFadeMiddleColor(): string {
+  return isDarkTheme() ? 'rgba(12,13,16,0.10)' : 'rgba(248,249,252,0.10)';
+}
+
+export function uiTitleBarFadeTailColor(): string {
+  return isDarkTheme() ? 'rgba(12,13,16,0.03)' : 'rgba(248,249,252,0.03)';
+}
+
+export function uiReaderMenuBackgroundEffect(): BackgroundEffectOptions {
+  return {
+    radius: isHarmonyOs7MaterialEnabled() ? 10 : 0,
+    saturation: 1.04,
+    brightness: 0.98,
+    color: isHarmonyOs7MaterialEnabled() ? 'rgba(11,16,25,0.18)' : Color.Transparent,
+    adaptiveColor: AdaptiveColor.DEFAULT
+  };
 }
 
 export function uiPopupBlurStyle(): BlurStyle {
