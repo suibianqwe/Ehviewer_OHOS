@@ -26,6 +26,9 @@ import { SessionMode, uiText, uiStatusText, getAbilityContext } from '../shared/
 import { AppSubToolbar } from './NavigationComponents';
 import { ConfirmActionOverlay } from './ConfirmActionOverlay';
 
+const PASSWORD_WEB_SIGN_IN_TIMEOUT_MS: number = 15000;
+const PASSWORD_WEB_FORM_MAX_ATTEMPTS: number = 24;
+
 @Component
 export struct SessionScene {
   private client: EhHttpClient = new EhHttpClient();
@@ -156,10 +159,10 @@ export struct SessionScene {
     this.passwordWebDeadlineTimer = setTimeout(() => {
       if (this.signingIn) {
         console.warn('SessionScene: password Web sign-in timed out');
-        this.failPasswordWebSignIn('Sign in timed out; continue in web sign in');
-        this.prepareWebSignIn('Direct sign in needs visible site verification. Continue signing in on the web page.');
+        this.continuePasswordSignInInWeb(
+          'Direct sign in needs visible site verification. Continue signing in on the web page.');
       }
-    }, 120000) as number;
+    }, PASSWORD_WEB_SIGN_IN_TIMEOUT_MS) as number;
     if (this.passwordWebActive) {
       loadEhWebUrlWithAndroidCompatibility(this.passwordWebController, EhUrl.SIGN_IN_REFERER);
     } else {
@@ -224,8 +227,10 @@ export struct SessionScene {
         return;
       }
       if (result.indexOf('verification') >= 0) {
-        this.passwordWebVerificationVisible = true;
-        this.statusText = 'Waiting for site verification...';
+        console.warn('SessionScene: site verification detected; continuing in visible Web sign-in');
+        this.continuePasswordSignInInWeb(
+          'Direct sign in needs visible site verification. Continue signing in on the web page.');
+        return;
       }
       this.retryPasswordWebSubmit();
     }).catch(() => {
@@ -238,10 +243,10 @@ export struct SessionScene {
     if (!this.signingIn) {
       return;
     }
-    if (this.passwordWebSubmitAttempts >= 220) {
+    if (this.passwordWebSubmitAttempts >= PASSWORD_WEB_FORM_MAX_ATTEMPTS) {
       console.warn('SessionScene: password Web form was not available after retries');
-      this.failPasswordWebSignIn('Site verification did not finish; continue in web sign in');
-      this.prepareWebSignIn('Direct sign in needs visible site verification. Continue signing in on the web page.');
+      this.continuePasswordSignInInWeb(
+        'Direct sign in needs visible site verification. Continue signing in on the web page.');
       return;
     }
     if (this.passwordWebRetryTimer !== -1) {
@@ -290,6 +295,17 @@ export struct SessionScene {
     this.passwordWebVerificationVisible = false;
     this.signingIn = false;
     this.completeSignedIn(context, 'Signed in');
+  }
+
+  private continuePasswordSignInInWeb(status: string): void {
+    this.clearPasswordWebTimers();
+    this.passwordWebActive = false;
+    this.passwordWebSubmitted = false;
+    this.passwordWebCheckingForm = false;
+    this.passwordWebLoadingAccountConfiguration = false;
+    this.passwordWebVerificationVisible = false;
+    this.signingIn = false;
+    this.enterWebSignIn(status);
   }
 
   private failPasswordWebSignIn(status: string): void {
@@ -514,6 +530,7 @@ export struct SessionScene {
       Column() {
         AppSubToolbar({
           title: uiText(this.modeTitle()),
+          showBottomFade: this.mode !== SessionMode.Web,
           onBack: () => {
             this.handleBack();
           }
@@ -1165,15 +1182,16 @@ function checkIpbPassHash(hash: string): boolean {
 function buildWebPasswordSubmitScript(username: string, password: string): string {
   const escapedUsername = JSON.stringify(username);
   const escapedPassword = JSON.stringify(password);
-  return "(() => { const user = document.querySelector('input[name=\\\"UserName\\\"]'); " +
+  return "(() => { const verification = document.querySelector('input[name=\\\"cf-turnstile-response\\\"]'); " +
+    "const challenge = document.querySelector('.cf-turnstile, iframe[src*=\\\"challenges.cloudflare.com\\\"], " +
+    "script[src*=\\\"challenge-platform\\\"]'); " +
+    "if ((verification && !verification.value) || (challenge && !verification)) return 'verification'; " +
+    "const user = document.querySelector('input[name=\\\"UserName\\\"]'); " +
     "const pass = document.querySelector('input[name=\\\"PassWord\\\"]'); " +
     "if (!user || !pass) return 'missing'; user.value = " + escapedUsername + "; pass.value = " +
     escapedPassword + "; const cookieDate = document.querySelector('input[name=\\\"CookieDate\\\"]'); " +
     "if (cookieDate) cookieDate.value = '1'; const temporary = " +
     "document.querySelector('input[name=\\\"temporary_https\\\"]'); if (temporary) temporary.value = 'off'; " +
-    "const verification = document.querySelector('input[name=\\\"cf-turnstile-response\\\"]'); " +
-    "const challenge = document.querySelector('.cf-turnstile, iframe[src*=\\\"challenges.cloudflare.com\\\"]'); " +
-    "if ((verification && !verification.value) || (challenge && !verification)) return 'verification'; " +
     "const form = user.form || pass.form || document.querySelector('form'); if (!form) return 'missing'; " +
     "setTimeout(() => HTMLFormElement.prototype.submit.call(form), 0); return 'submitted'; })();";
 }

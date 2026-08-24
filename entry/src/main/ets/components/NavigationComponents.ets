@@ -763,6 +763,7 @@ export struct EhSubNavBar {
   @Prop actionChecked: boolean = false;
   @Prop actionIcon: Resource = $r('sys.symbol.share');
   @Prop translateY: number = 0;
+  @Prop showBottomFade: boolean = true;
   onBack: () => void = () => {};
   onAction: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
@@ -786,7 +787,7 @@ export struct EhSubNavBar {
   }
 
   private backdropHeight(): number {
-    const fadeHeight = uiTitleBarFadeHeight();
+    const fadeHeight = this.showBottomFade ? uiTitleBarFadeHeight() : 0;
     const minimumHeight = this.statusBarHeight + fadeHeight;
     return Math.max(minimumHeight,
       Math.min(this.totalBarHeight() + fadeHeight, this.totalBarHeight() + this.translateY + fadeHeight));
@@ -903,6 +904,7 @@ export struct AppSubToolbar {
   @Prop actionChecked: boolean = false;
   @Prop actionIcon: Resource = $r('sys.symbol.share');
   @Prop translateY: number = 0;
+  @Prop showBottomFade: boolean = true;
   onBack: () => void = () => {};
   onAction: () => void = () => {};
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeight: number = 0;
@@ -921,6 +923,7 @@ export struct AppSubToolbar {
       actionChecked: this.actionChecked,
       actionIcon: this.actionIcon,
       translateY: this.translateY,
+      showBottomFade: this.showBottomFade,
       onBack: this.onBack,
       onAction: this.onAction
     })

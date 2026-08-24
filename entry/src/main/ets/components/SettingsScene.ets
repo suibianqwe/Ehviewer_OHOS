@@ -153,6 +153,7 @@ import {
   uiListItemBackground,
   uiListItemSelectedBackground,
   uiMaterialBackground,
+  uiMaterialLayerBackground,
   uiMaterialForegroundColor,
   uiButtonHighlightBorderColor,
   uiPopupBackgroundEffect,
@@ -161,6 +162,7 @@ import {
   uiSearchFieldHeight,
   uiSearchMaterial,
   uiSegmentMaterial,
+  uiTintedSegmentMaterial,
   uiSwitchHeight,
   uiSwitchWidth,
   uiPageHorizontalPadding
@@ -2571,10 +2573,16 @@ struct ProxySettingsOverlay {
       .height(42)
       .layoutWeight(1)
       .fontSize(14)
-      .fontColor(uiMaterialForegroundColor(this.draftType === type ? themeOnPrimaryText() : themePrimaryText()))
-      .backgroundColor(uiMaterialBackground(this.draftType === type ? themePrimaryColor() : themeFieldBackground()))
-      .systemMaterial(uiSegmentMaterial())
+      .fontColor(this.draftType === type ? themeAccentTextColor() : themeSecondaryText())
+      .fontWeight(this.draftType === type ? FontWeight.Medium : FontWeight.Normal)
+      .backgroundColor(this.draftType === type ?
+        uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent)
+      .systemMaterial(this.draftType === type ?
+        uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
+      .border({ width: this.draftType === type ? 1 : 0,
+        color: this.draftType === type ? themePrimaryColor() : Color.Transparent })
       .borderRadius(uiRadius(6))
+      .animation({ duration: 180, curve: Curve.EaseInOut })
       .opacity(type === 'SOCKS' && !this.socksSupported ? 0.45 : 1)
       .enabled(type !== 'SOCKS' || this.socksSupported)
       .onClick(() => {
