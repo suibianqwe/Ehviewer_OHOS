@@ -1,8 +1,8 @@
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { getAbilityContext } from '../shared/EhShared';
 import {
+  themeAccentTextColor,
   themeDividerColor,
-  themePrimaryColor,
   themeSurfaceVariant
 } from '../shared/EhTheme';
 import { uiControlRadius } from '../shared/EhUiStyle';
@@ -136,7 +136,7 @@ export struct SplitPaneDivider {
       Divider()
         .vertical(true)
         .strokeWidth(2)
-        .color(this.touched || this.dragging ? themePrimaryColor() : themeDividerColor())
+        .color(this.touched || this.dragging ? themeAccentTextColor() : themeDividerColor())
         .width(2)
         .height('100%')
 
@@ -145,24 +145,24 @@ export struct SplitPaneDivider {
           .width(3)
           .height(3)
           .borderRadius(uiControlRadius(2))
-          .backgroundColor(this.touched || this.dragging ? themePrimaryColor() : themeDividerColor())
+          .backgroundColor(this.touched || this.dragging ? themeAccentTextColor() : themeDividerColor())
         Column()
           .width(3)
           .height(3)
           .borderRadius(uiControlRadius(2))
-          .backgroundColor(this.touched || this.dragging ? themePrimaryColor() : themeDividerColor())
+          .backgroundColor(this.touched || this.dragging ? themeAccentTextColor() : themeDividerColor())
         Column()
           .width(3)
           .height(3)
           .borderRadius(uiControlRadius(2))
-          .backgroundColor(this.touched || this.dragging ? themePrimaryColor() : themeDividerColor())
+          .backgroundColor(this.touched || this.dragging ? themeAccentTextColor() : themeDividerColor())
       }
       .width(11)
       .height(54)
       .justifyContent(FlexAlign.Center)
       .alignItems(HorizontalAlign.Center)
       .backgroundColor(themeSurfaceVariant())
-      .border({ width: 1, color: this.touched || this.dragging ? themePrimaryColor() : themeDividerColor() })
+      .border({ width: 1, color: this.touched || this.dragging ? themeAccentTextColor() : themeDividerColor() })
       .borderRadius(uiControlRadius(6))
       .shadow({ radius: this.touched || this.dragging ? 8 : 3, color: '#33000000', offsetY: 1 })
     }

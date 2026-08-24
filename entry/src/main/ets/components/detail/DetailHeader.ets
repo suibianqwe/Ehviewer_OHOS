@@ -13,6 +13,7 @@ import {
   themeDividerColor,
   themeInfoBackground,
   themeInfoText,
+  themeAccentTextColor,
   themeOnPrimaryText,
   themePrimaryColor,
   themePrimaryText,
@@ -235,7 +236,7 @@ export struct DetailLoadStatus {
         LoadingProgress()
           .width(18)
           .height(18)
-          .color(themePrimaryColor())
+          .color(themeAccentTextColor())
           .margin({ right: 10 })
       } else {
         SymbolGlyph($r('sys.symbol.exclamationmark_circle'))

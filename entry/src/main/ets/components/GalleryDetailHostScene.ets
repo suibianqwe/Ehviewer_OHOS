@@ -217,7 +217,7 @@ struct AddFavoriteDialog {
         Row() {
           Checkbox()
             .select(this.remember)
-            .selectedColor(themePrimaryColor())
+            .selectedColor(themeAccentTextColor())
             .onChange((value: boolean) => {
               this.onRememberChange(value);
             })
@@ -745,7 +745,7 @@ export struct GalleryDetailHostScene {
       message: uiText('You are using mobile data. Continue downloading?'),
       buttons: [
         { text: uiText('Cancel'), color: themeSecondaryText() },
-        { text: uiText('Continue'), color: themePrimaryColor() }
+        { text: uiText('Continue'), color: themeAccentTextColor() }
       ]
     }).then((data) => {
       this.cellularWarningDialogOpen = false;

@@ -2,6 +2,7 @@ import { DownloadInfo, DownloadLabel } from '../services/EhDownloadStore';
 import { LANGUAGE_REVISION_KEY, uiText } from '../shared/EhShared';
 import {
   themeDividerColor,
+  themeAccentTextColor,
   themeFieldBackground,
   themePageBackground,
   themePrimaryColor,
@@ -275,7 +276,7 @@ export struct DownloadLabelSelectionDialog {
 
             Checkbox({ name: 'remember-download-label', group: 'download-label' })
               .select(this.remember)
-              .selectedColor(themePrimaryColor())
+              .selectedColor(themeAccentTextColor())
               .onChange((value: boolean) => {
                 this.remember = value;
                 this.onRememberChange(value);

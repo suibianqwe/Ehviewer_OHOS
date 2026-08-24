@@ -72,6 +72,7 @@ import {
 } from '../shared/EhShared';
 import {
   themeDividerColor,
+  themeAccentTextColor,
   themeFieldBackground,
   themeOnPrimaryText,
   themePageBackground,
@@ -782,7 +783,7 @@ export struct DownloadScene {
       message: uiText('Downloads in this label will be moved to Default') + ' (' + count.toString() + ')',
       buttons: [
         { text: uiText('Cancel'), color: themeSecondaryText() },
-        { text: uiText('Delete'), color: themePrimaryColor() }
+        { text: uiText('Delete'), color: themeAccentTextColor() }
       ]
     }).then((data) => {
       if (data.index !== 1) {
@@ -1513,7 +1514,7 @@ export struct DownloadScene {
         },
         {
           text: uiText('Continue'),
-          color: themePrimaryColor()
+          color: themeAccentTextColor()
         }
       ]
     }).then((data) => {
@@ -1558,7 +1559,7 @@ export struct DownloadScene {
         },
         {
           text: uiText('Delete'),
-          color: themePrimaryColor()
+          color: themeAccentTextColor()
         }
       ]
     }).then((data) => {
@@ -2574,7 +2575,7 @@ export struct DownloadScene {
         },
         {
           text: uiText('Delete'),
-          color: themePrimaryColor()
+          color: themeAccentTextColor()
         }
       ]
     }).then((data) => {

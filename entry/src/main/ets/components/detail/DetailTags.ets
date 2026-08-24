@@ -8,6 +8,7 @@ import {
 } from '../../shared/EhShared';
 import { sortedStringKey, toggleStringValue } from '../../shared/StringCollectionSupport';
 import {
+  themeAccentTextColor,
   themeFieldBackground,
   themeOnPrimaryText,
   themePrimaryColor,
@@ -139,7 +140,8 @@ export struct DetailTags {
           Button({ type: ButtonType.Normal, stateEffect: true }) {
             SymbolGlyph(this.editMode ? $r('sys.symbol.xmark') : $r('sys.symbol.plus'))
               .fontSize(18)
-              .fontColor([uiMaterialForegroundColor(this.editMode ? themeOnPrimaryText() : themePrimaryColor())])
+              .fontColor([uiMaterialForegroundColor(this.editMode ? themeOnPrimaryText() :
+                themeAccentTextColor())])
           }
           .width(34)
           .height(34)

@@ -9,6 +9,7 @@ import {
 } from '../services/ReaderPresetSupport';
 import { uiText } from '../shared/EhShared';
 import {
+  themeAccentTextColor,
   themeDangerBackground,
   themeDangerText,
   themeFieldBackground,
@@ -113,7 +114,7 @@ export struct ReaderPresetPanel {
           Text(profile.builtIn ? uiText(profile.name) : profile.name)
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
-            .fontColor(profile.id === this.activeId ? themePrimaryColor() : themePrimaryText())
+            .fontColor(profile.id === this.activeId ? themeAccentTextColor() : themePrimaryText())
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           if (profile.id === this.activeId) {
@@ -206,7 +207,7 @@ export struct ReaderPresetPanel {
               .fontSize(14)
               .fontColor(uiMaterialForegroundColor(themePrimaryText()))
               .placeholderColor(themeSecondaryText())
-              .caretColor(themePrimaryColor())
+              .caretColor(themeAccentTextColor())
               .backgroundColor(uiMaterialBackground(themeFieldBackground()))
               .systemMaterial(uiSearchMaterial())
               .borderRadius(uiRadius(uiSearchFieldHeight() / 2))

@@ -466,13 +466,11 @@ export function themePrimaryColor(): string {
 }
 
 export function themeMaterialContentColor(): string {
-  const colorModeValue = AppStorage.get<number>(EH_SYSTEM_COLOR_MODE_KEY);
-  return colorModeValue === EH_SYSTEM_COLOR_MODE_DARK ? '#F5F5F7' : '#19191B';
+  return isDarkTheme() ? '#F5F5F7' : '#19191B';
 }
 
 export function themeMaterialSecondaryContentColor(): string {
-  const colorModeValue = AppStorage.get<number>(EH_SYSTEM_COLOR_MODE_KEY);
-  return colorModeValue === EH_SYSTEM_COLOR_MODE_DARK ? '#D0D0D6' : '#5F6068';
+  return isDarkTheme() ? '#D0D0D6' : '#5F6068';
 }
 
 export function themeAccentTextColor(): string {

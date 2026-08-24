@@ -175,10 +175,11 @@ export struct ReaderMenuSelect {
         })
         .height(uiSelectorHeight())
         .constraintSize({ minWidth: 148, maxWidth: 220 })
+        .shadow({ radius: 10, color: '#66000000', offsetX: 0, offsetY: 3 })
     }
     .width('100%')
-    .height(52)
-    .padding({ left: 16, right: 16, top: 6, bottom: 6 })
+    .height(64)
+    .padding({ left: 16, right: 16, top: 10, bottom: 10 })
     .alignItems(VerticalAlign.Center)
   }
 }

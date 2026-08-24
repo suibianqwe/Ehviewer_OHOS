@@ -416,7 +416,7 @@ export struct WifiMigrationPanel {
               Progress({ value: this.progressValue(), total: 100, type: ProgressType.Linear })
                 .width('100%')
                 .height(6)
-                .color(themePrimaryColor())
+                .color(themeAccentTextColor())
                 .backgroundColor(themeSurfaceVariant())
               Row() {
                 Text(uiText('Progress') + ': ' + this.progressValue().toString() + '%')

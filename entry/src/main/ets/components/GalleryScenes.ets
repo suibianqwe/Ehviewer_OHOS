@@ -3797,7 +3797,7 @@ struct ImageSearchPanel {
           Toggle({ type: ToggleType.Switch, isOn: this.uploadOriginalPhoto })
             .width(uiSwitchWidth())
             .height(uiSwitchHeight())
-            .selectedColor(themePrimaryColor())
+            .selectedColor(themeAccentTextColor())
             .switchPointColor(Color.White)
             .onChange((isOn: boolean) => {
               this.uploadOriginalPhoto = isOn;
@@ -3813,7 +3813,7 @@ struct ImageSearchPanel {
           Toggle({ type: ToggleType.Switch, isOn: this.useSimilarityScan })
             .width(uiSwitchWidth())
             .height(uiSwitchHeight())
-            .selectedColor(themePrimaryColor())
+            .selectedColor(themeAccentTextColor())
             .switchPointColor(Color.White)
             .onChange((isOn: boolean) => {
               this.useSimilarityScan = isOn;
@@ -3829,7 +3829,7 @@ struct ImageSearchPanel {
           Toggle({ type: ToggleType.Switch, isOn: this.onlySearchCovers })
             .width(uiSwitchWidth())
             .height(uiSwitchHeight())
-            .selectedColor(themePrimaryColor())
+            .selectedColor(themeAccentTextColor())
             .switchPointColor(Color.White)
             .onChange((isOn: boolean) => {
               this.onlySearchCovers = isOn;
@@ -4781,7 +4781,7 @@ export struct GalleryListContent {
         .fontSize(16)
         .lineHeight(22)
         .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-        .caretColor(themePrimaryColor())
+        .caretColor(themeAccentTextColor())
         .padding({ left: this.selectedSearchTagTokens().length > 0 ? 4 : 8, right: 8, top: 0, bottom: 0 })
         .onFocus(() => {
           this.refreshSearchSuggestions();
@@ -5160,9 +5160,6 @@ export struct GalleryListContent {
           this.searchSuggestionPlaceholder()
         }
       } else if (this.galleries.length === 0) {
-        ListItem() {
-          Row().width('100%').height(this.expandedTitleContentInset())
-        }
         ListItem() {
           GalleryListStateView({
             statusText: this.statusText,
@@ -5729,7 +5726,7 @@ export struct GalleryListContent {
           LoadingProgress()
             .width(24)
             .height(24)
-            .color(themePrimaryColor())
+            .color(themeAccentTextColor())
         }
         .width('100%')
         .height(24)
@@ -5792,7 +5789,7 @@ export struct GalleryListStateView {
         LoadingProgress()
           .width(48)
           .height(48)
-          .color(themePrimaryColor())
+          .color(themeAccentTextColor())
       } else {
         SymbolGlyph(this.isError() ? $r('sys.symbol.exclamationmark_triangle') : $r('sys.symbol.magnifyingglass'))
           .fontSize(48)

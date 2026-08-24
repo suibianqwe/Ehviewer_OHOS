@@ -9,6 +9,7 @@ import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { shouldShowTagTranslations, uiText } from '../shared/EhShared';
 import { sortedStringKey, toggleStringValue } from '../shared/StringCollectionSupport';
 import {
+  themeAccentTextColor,
   themeDangerText,
   themeDividerColor,
   themeFieldBackground,
@@ -437,7 +438,7 @@ struct FilterRuleCard {
             .borderRadius(uiRadius(10))
           Text(this.rule.enabled ? uiText('On') : uiText('Off'))
             .fontSize(11)
-            .fontColor(this.rule.enabled ? themePrimaryColor() : themeMutedText())
+            .fontColor(this.rule.enabled ? themeAccentTextColor() : themeMutedText())
         }
       }
       .alignItems(HorizontalAlign.Start)
@@ -446,7 +447,7 @@ struct FilterRuleCard {
       Button({ type: ButtonType.Normal, stateEffect: true }) {
         SymbolGlyph(this.rule.enabled ? $r('sys.symbol.checkmark_circle') : $r('sys.symbol.xmark'))
           .fontSize(21)
-          .fontColor([uiMaterialForegroundColor(this.rule.enabled ? themePrimaryColor() : themeMutedText())])
+          .fontColor([uiMaterialForegroundColor(this.rule.enabled ? themeAccentTextColor() : themeMutedText())])
       }
       .width(38)
       .height(38)

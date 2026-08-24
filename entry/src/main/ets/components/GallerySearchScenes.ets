@@ -16,7 +16,7 @@ import {
   tagTranslationOptionText,
   uiText
 } from '../shared/EhShared';
-import { themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSelectedBackground, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
+import { themeAccentTextColor, themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSelectedBackground, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
 import {
   isHarmonyUiStyle,
   uiButtonMaterial,
@@ -571,7 +571,7 @@ struct SearchSuggestionTile {
   }
 
   private tintForKind(kind: string): string {
-    return kind === 'tag' ? themePrimaryColor() : themeSecondaryText();
+    return kind === 'tag' ? themeAccentTextColor() : themeSecondaryText();
   }
 
   build() {
@@ -821,7 +821,7 @@ export struct SearchAdvancedPanel {
             .height(32)
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
-            .fontColor(this.allCategoriesSelected() ? themePrimaryColor() : themeSecondaryText())
+            .fontColor(this.allCategoriesSelected() ? themeAccentTextColor() : themeSecondaryText())
             .backgroundColor(this.allCategoriesSelected() ? themeSelectedBackground() : Color.Transparent)
             .systemMaterial(this.allCategoriesSelected() ?
               uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
@@ -859,7 +859,7 @@ export struct SearchAdvancedPanel {
             Toggle({ type: ToggleType.Switch, isOn: this.advancedEnabledDraft })
               .width(uiSwitchWidth())
               .height(uiSwitchHeight())
-              .selectedColor(themePrimaryColor())
+              .selectedColor(themeAccentTextColor())
               .switchPointColor(Color.White)
               .onChange((isOn: boolean) => {
                 this.setAdvancedEnabledDraft(isOn);
@@ -1301,7 +1301,7 @@ export struct SearchModeSegmentButton {
       Text(uiText(this.label))
         .fontSize(12)
         .fontWeight(FontWeight.Medium)
-        .fontColor(this.selected ? themePrimaryColor() : themeSecondaryText())
+        .fontColor(this.selected ? themeAccentTextColor() : themeSecondaryText())
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .width('100%')
@@ -1332,7 +1332,7 @@ export struct SearchFlagChip {
     Button(uiText(this.label), { type: ButtonType.Normal, stateEffect: true })
       .height(38)
       .fontSize(13)
-      .fontColor(this.isOn ? themePrimaryColor() :
+      .fontColor(this.isOn ? themeAccentTextColor() :
         (this.isEnabled ? themeSecondaryText() : themeInactiveActionText()))
       .backgroundColor(this.isOn ? themeSelectedBackground() : Color.Transparent)
       .systemMaterial(this.isOn ? uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())

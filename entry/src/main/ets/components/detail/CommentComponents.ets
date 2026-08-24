@@ -9,11 +9,14 @@ import {
   uiText
 } from '../../shared/EhShared';
 import {
+  themeAccentTextColor,
+  themeDangerText,
   themeInactiveActionText,
   themeOnPrimaryText,
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
+  themeSuccessText,
   themeSurface,
   themeSurfaceVariant
 } from '../../shared/EhTheme';
@@ -59,10 +62,10 @@ function scoreText(score: number): string {
 
 function scoreColor(score: number): string {
   if (score > 0) {
-    return '#0A6B45';
+    return themeSuccessText();
   }
   if (score < 0) {
-    return '#B03060';
+    return themeDangerText();
   }
   return themeSecondaryText();
 }
@@ -205,10 +208,10 @@ export struct CommentLinkedText {
     Text() {
       ForEach(commentTextSegments(this.displayText()), (segment: CommentTextSegment) => {
         Span(segment.text)
-          .fontColor(segment.url.length > 0 ? themePrimaryColor() : themePrimaryText())
+          .fontColor(segment.url.length > 0 ? themeAccentTextColor() : themePrimaryText())
           .decoration({
             type: segment.url.length > 0 ? TextDecorationType.Underline : TextDecorationType.None,
-            color: themePrimaryColor()
+            color: themeAccentTextColor()
           })
           .onClick(() => {
             if (segment.url.length > 0) {

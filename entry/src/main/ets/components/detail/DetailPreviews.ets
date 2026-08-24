@@ -7,6 +7,7 @@ import {
   uiText
 } from '../../shared/EhShared';
 import {
+  themeAccentTextColor,
   themePlaceholderColor,
   themeOnPrimaryText,
   themePrimaryColor,
@@ -83,7 +84,8 @@ export struct DetailPreviews {
       Text(!this.isDetailLoaded ? uiText('Loading previews...') :
         uiText(this.previews.length.toString() + ' thumbnails / ' + this.previewTotalPages().toString() + ' pages'))
         .fontSize(12)
-        .fontColor(this.isDetailLoaded && this.previewTotalPages() > 1 ? themePrimaryColor() : themeSecondaryText())
+        .fontColor(this.isDetailLoaded && this.previewTotalPages() > 1 ?
+          themeAccentTextColor() : themeSecondaryText())
         .width('100%')
         .margin({ top: 6, bottom: 8 })
         .onClick(() => {
@@ -195,8 +197,8 @@ export struct DetailPreviewJumpOverlay {
           step: 1,
           style: SliderStyle.OutSet
         })
-          .blockColor(themePrimaryColor())
-          .selectedColor(themePrimaryColor())
+          .blockColor(themeAccentTextColor())
+          .selectedColor(themeAccentTextColor())
           .trackColor(themeSurfaceVariant())
           .enabled(this.totalPages > 1)
           .onChange((value: number, _mode: SliderChangeMode) => {

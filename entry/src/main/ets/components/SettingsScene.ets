@@ -1863,7 +1863,7 @@ export struct SettingsScene {
         },
         {
           text: uiText('Delete'),
-          color: themePrimaryColor()
+          color: themeAccentTextColor()
         }
       ]
     }).then((data) => {
@@ -3463,7 +3463,7 @@ struct TranslationPromptPanel {
             .fontSize(14)
             .fontColor(uiMaterialForegroundColor(themePrimaryText()))
             .placeholderColor(themeSecondaryText())
-            .caretColor(themePrimaryColor())
+            .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
             .systemMaterial(uiSearchMaterial())
             .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
@@ -3483,7 +3483,7 @@ struct TranslationPromptPanel {
             .fontSize(13)
             .fontColor(uiMaterialForegroundColor(themePrimaryText()))
             .placeholderColor(uiMaterialForegroundColor(themeSecondaryText()))
-            .caretColor(themePrimaryColor())
+            .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
             .systemMaterial(uiSearchMaterial())
             .borderRadius(uiRadius(18))
@@ -3884,7 +3884,7 @@ export struct SettingsStaticRow {
           Toggle({ type: ToggleType.Switch, isOn: this.row.value === 'On' })
             .width(uiSwitchWidth())
             .height(uiSwitchHeight())
-            .selectedColor(themePrimaryColor())
+            .selectedColor(themeAccentTextColor())
             .switchPointColor(Color.White)
             .margin({ left: 12 })
             .onChange((isOn: boolean) => {
