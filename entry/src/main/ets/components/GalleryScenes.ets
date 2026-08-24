@@ -90,11 +90,9 @@ import {
   uiSearchMaterial,
   uiSwitchHeight,
   uiSwitchWidth,
-  uiTitleBarBlurStyle,
-  uiTitleBarFadeHeight,
-  uiTitleBarFadeStartColor
+  uiTitleBarFadeHeight
 } from '../shared/EhUiStyle';
-import { EhNavBar } from '../components/NavigationComponents';
+import { EhNavBar, EhTitleBarBackdrop } from '../components/NavigationComponents';
 import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard, galleryThumbnailAspectRatio } from './GalleryCards';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
@@ -4475,6 +4473,13 @@ export struct GalleryListContent {
     return this.visibleBarHeight() > 0;
   }
 
+  private titleBarBackdropHeight(): number {
+    const fadeHeight = uiTitleBarFadeHeight();
+    const minimumHeight = this.statusBarVp() + fadeHeight;
+    return Math.max(minimumHeight,
+      Math.min(this.totalBarHeight() + fadeHeight, this.totalBarHeight() + this.toolbarOffsetY + fadeHeight));
+  }
+
   private handleScrollFrame(scrollOffset: number): number {
     const yOffset = normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset);
     if (yOffset <= 4) {
@@ -4816,13 +4821,16 @@ export struct GalleryListContent {
 
   @Builder
   private searchResultNavBar() {
-    Column() {
-      Column()
-        .height(this.statusBarVp())
-        .width('100%')
-        .backgroundColor(Color.Transparent)
+    Stack({ alignContent: Alignment.TopStart }) {
+      EhTitleBarBackdrop({ barBackdropHeight: this.titleBarBackdropHeight() })
 
-      Row({ space: 8 }) {
+      Column() {
+        Column()
+          .height(this.statusBarVp())
+          .width('100%')
+          .backgroundColor(Color.Transparent)
+
+        Row({ space: 8 }) {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(22)
@@ -4854,29 +4862,21 @@ export struct GalleryListContent {
         .onClick(() => {
           this.toggleAdvancedPanel();
         })
+        }
+        .width('100%')
+        .height(this.barHeight())
+        .padding({ left: 12, right: 12 })
+        .alignItems(VerticalAlign.Center)
+        .backgroundColor(Color.Transparent)
       }
       .width('100%')
-      .height(this.barHeight())
-      .padding({ left: 12, right: 12 })
-      .alignItems(VerticalAlign.Center)
-      .backgroundColor(Color.Transparent)
-
-      Column()
-        .width('100%')
-        .height(uiTitleBarFadeHeight())
-        .linearGradient({
-          angle: 180,
-          colors: [[uiTitleBarFadeStartColor(), 0.0], [themeTransparentColor(), 1.0]]
-        })
-        .hitTestBehavior(HitTestMode.None)
+      .translate({ y: this.toolbarOffsetY })
+      .visibility(this.toolbarVisible() ? Visibility.Visible : Visibility.Hidden)
     }
     .width('100%')
-    .translate({ y: this.toolbarOffsetY })
-    .opacity(1)
-    .visibility(this.toolbarVisible() ? Visibility.Visible : Visibility.Hidden)
+    .height(this.titleBarBackdropHeight())
     .animation({ duration: 200, curve: Curve.EaseOut })
     .backgroundColor(Color.Transparent)
-    .backgroundBlurStyle(uiTitleBarBlurStyle())
     .zIndex(10)
   }
 

@@ -1957,6 +1957,13 @@ export struct DownloadScene {
     if (this.restoringDownloadBrowsePosition) {
       return;
     }
+    if (this.visibleItems.length === 0) {
+      this.downloadScrollOffset = 0;
+      if (this.downloadBrowsePositionLoaded) {
+        ehBrowsePositionStore.updateDownloadPosition('', 0, 0);
+      }
+      return;
+    }
     this.downloadScrollOffset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
     if (!this.downloadBrowsePositionLoaded) {
       return;

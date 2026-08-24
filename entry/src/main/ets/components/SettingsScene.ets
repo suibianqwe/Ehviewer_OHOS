@@ -2930,7 +2930,7 @@ export struct SettingsHomePanel {
       List({ space: 0, scroller: this.settingsScroller }) {
         ListItem() {
           Row()
-            .height(0)
+            .height(this.visibleBarHeight() + 12)
         }
         ForEach(SETTINGS_HEADERS, (item: SettingsHeaderItem, index: number) => {
           ListItem() {
@@ -2946,14 +2946,14 @@ export struct SettingsHomePanel {
         }, (item: SettingsHeaderItem) => item.panel)
         ListItem() {
           Row()
-            .height(0)
+            .height(12)
         }
       }
       .width('100%')
       .height('100%')
       .cachedCount(3)
       .padding({ left: uiPageHorizontalPadding(this.contentWidth),
-        right: uiPageHorizontalPadding(this.contentWidth), top: this.visibleBarHeight() + 12, bottom: 12 })
+        right: uiPageHorizontalPadding(this.contentWidth) })
       .edgeEffect(EdgeEffect.None)
       .onScrollFrameBegin((offset: number, _state: ScrollState) => {
         return { offsetRemain: this.handleScrollFrame(offset) };
@@ -3172,7 +3172,7 @@ export struct SettingsDetailPanel {
       List({ space: 0, scroller: this.settingsScroller }) {
         ListItem() {
           Row()
-            .height(0)
+            .height(this.visibleBarHeight() + 12)
         }
         if (this.panel === SettingsPanel.Eh) {
           ListItem() {
@@ -3252,7 +3252,7 @@ export struct SettingsDetailPanel {
         }
         ListItem() {
           Row()
-            .height(0)
+            .height(12)
         }
       }
       .edgeEffect(EdgeEffect.None)
@@ -3260,7 +3260,7 @@ export struct SettingsDetailPanel {
       .height('100%')
       .cachedCount(4)
       .padding({ left: uiPageHorizontalPadding(this.contentWidth),
-        right: uiPageHorizontalPadding(this.contentWidth), top: this.visibleBarHeight() + 12, bottom: 12 })
+        right: uiPageHorizontalPadding(this.contentWidth) })
       .onScrollFrameBegin((offset: number, _state: ScrollState) => {
         return { offsetRemain: this.handleScrollFrame(offset) };
       })

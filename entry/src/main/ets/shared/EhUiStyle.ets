@@ -151,6 +151,16 @@ export function uiTitleBarBlurStyle(): BlurStyle {
   return isHarmonyOs7MaterialEnabled() ? BlurStyle.COMPONENT_ULTRA_THIN : BlurStyle.NONE;
 }
 
+export function uiTitleBarBackgroundEffect(): BackgroundEffectOptions {
+  return {
+    radius: isHarmonyOs7MaterialEnabled() ? 28 : 0,
+    saturation: 1,
+    brightness: 1,
+    color: Color.Transparent,
+    adaptiveColor: AdaptiveColor.DEFAULT
+  };
+}
+
 export function uiTitleBarFadeHeight(): number {
   return isHarmonyOs7UiStyle() ? 6 : 3;
 }

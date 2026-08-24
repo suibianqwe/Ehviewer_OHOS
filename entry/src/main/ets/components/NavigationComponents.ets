@@ -36,7 +36,7 @@ import {
   uiPillRadius,
   uiSearchFieldHeight,
   uiSearchMaterial,
-  uiTitleBarBlurStyle,
+  uiTitleBarBackgroundEffect,
   uiTitleBarFadeHeight,
   uiTitleBarFadeStartColor
 } from '../shared/EhUiStyle';
@@ -424,6 +424,31 @@ struct DrawerNavItem {
 //             search mode and action mode
 // ===================================================================
 @Component
+export struct EhTitleBarBackdrop {
+  @Prop barBackdropHeight: number = 0;
+
+  build() {
+    Column() {
+      Column()
+        .layoutWeight(1)
+
+      Column()
+        .width('100%')
+        .height(uiTitleBarFadeHeight())
+        .linearGradient({
+          angle: 180,
+          colors: [[uiTitleBarFadeStartColor(), 0.0], [themeTransparentColor(), 1.0]]
+        })
+    }
+    .width('100%')
+    .height(this.barBackdropHeight)
+    .backgroundColor(Color.Transparent)
+    .backgroundEffect(uiTitleBarBackgroundEffect())
+    .hitTestBehavior(HitTestMode.None)
+  }
+}
+
+@Component
 export struct EhNavBar {
   @Prop statusBarHeight: number = 0;  // in vp
   @Prop title: string = '';
@@ -471,16 +496,26 @@ export struct EhNavBar {
     return this.translateY > -this.totalBarHeight();
   }
 
-  build() {
-    Column() {
-      // Status bar spacer (colour-matched)
-      Column()
-        .height(this.statusBarHeight)
-        .width('100%')
-        .backgroundColor(Color.Transparent)
+  private backdropHeight(): number {
+    const fadeHeight = uiTitleBarFadeHeight();
+    const minimumHeight = this.statusBarHeight + fadeHeight;
+    return Math.max(minimumHeight,
+      Math.min(this.totalBarHeight() + fadeHeight, this.totalBarHeight() + this.translateY + fadeHeight));
+  }
 
-      // Main bar row
-      Row() {
+  build() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      EhTitleBarBackdrop({ barBackdropHeight: this.backdropHeight() })
+
+      Column() {
+        // Status bar spacer (colour-matched)
+        Column()
+          .height(this.statusBarHeight)
+          .width('100%')
+          .backgroundColor(Color.Transparent)
+
+        // Main bar row
+        Row() {
         // Hamburger / back button
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph(this.showBackButton ? $r('sys.symbol.chevron_left') : $r('sys.symbol.open_sidebar'))
@@ -657,29 +692,21 @@ export struct EhNavBar {
             .onClick(() => { this.onClear(); })
           }
         }
+        }
+        .width('100%')
+        .height(this.barBodyHeight())
+        .padding({ left: 12, right: 12 })
+        .alignItems(VerticalAlign.Center)
+        .backgroundColor(Color.Transparent)
       }
       .width('100%')
-      .height(this.barBodyHeight())
-      .padding({ left: 12, right: 12 })
-      .alignItems(VerticalAlign.Center)
-      .backgroundColor(Color.Transparent)
-
-      Column()
-        .width('100%')
-        .height(uiTitleBarFadeHeight())
-        .linearGradient({
-          angle: 180,
-          colors: [[uiTitleBarFadeStartColor(), 0.0], [themeTransparentColor(), 1.0]]
-        })
-        .hitTestBehavior(HitTestMode.None)
+      .translate({ y: this.translateY })
+      .visibility(this.barVisible() ? Visibility.Visible : Visibility.Hidden)
     }
     .width('100%')
-    .translate({ y: this.translateY })
-    .opacity(1)
-    .visibility(this.barVisible() ? Visibility.Visible : Visibility.Hidden)
+    .height(this.backdropHeight())
     .animation({ duration: 200, curve: Curve.EaseOut })
     .backgroundColor(Color.Transparent)
-    .backgroundBlurStyle(uiTitleBarBlurStyle())
     .zIndex(10)
   }
 }
@@ -717,14 +744,24 @@ export struct EhSubNavBar {
     return this.translateY > -this.totalBarHeight();
   }
 
-  build() {
-    Column() {
-      Column()
-        .height(this.statusBarHeight)
-        .width('100%')
-        .backgroundColor(Color.Transparent)
+  private backdropHeight(): number {
+    const fadeHeight = uiTitleBarFadeHeight();
+    const minimumHeight = this.statusBarHeight + fadeHeight;
+    return Math.max(minimumHeight,
+      Math.min(this.totalBarHeight() + fadeHeight, this.totalBarHeight() + this.translateY + fadeHeight));
+  }
 
-      Row() {
+  build() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      EhTitleBarBackdrop({ barBackdropHeight: this.backdropHeight() })
+
+      Column() {
+        Column()
+          .height(this.statusBarHeight)
+          .width('100%')
+          .backgroundColor(Color.Transparent)
+
+        Row() {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(22)
@@ -766,28 +803,21 @@ export struct EhSubNavBar {
             this.onAction();
           })
         }
+        }
+        .width('100%')
+        .height(this.barBodyHeight())
+        .padding({ left: 12, right: 16 })
+        .alignItems(VerticalAlign.Center)
+        .backgroundColor(Color.Transparent)
       }
       .width('100%')
-      .height(this.barBodyHeight())
-      .padding({ left: 12, right: 16 })
-      .alignItems(VerticalAlign.Center)
-      .backgroundColor(Color.Transparent)
-
-      Column()
-        .width('100%')
-        .height(uiTitleBarFadeHeight())
-        .linearGradient({
-          angle: 180,
-          colors: [[uiTitleBarFadeStartColor(), 0.0], [themeTransparentColor(), 1.0]]
-        })
-        .hitTestBehavior(HitTestMode.None)
+      .translate({ y: this.translateY })
+      .visibility(this.barVisible() ? Visibility.Visible : Visibility.Hidden)
     }
     .width('100%')
-    .translate({ y: this.translateY })
-    .visibility(this.barVisible() ? Visibility.Visible : Visibility.Hidden)
+    .height(this.backdropHeight())
     .animation({ duration: 200, curve: Curve.EaseOut })
     .backgroundColor(Color.Transparent)
-    .backgroundBlurStyle(uiTitleBarBlurStyle())
     .zIndex(10)
   }
 }
@@ -1035,7 +1065,7 @@ struct LegacySearchBar {
     .padding({ left: 12, right: 12 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor(navigationBarBackground())
-    .backgroundBlurStyle(uiTitleBarBlurStyle())
+    .backgroundEffect(uiTitleBarBackgroundEffect())
   }
 }
 
@@ -1102,7 +1132,7 @@ struct LegacyActionBar {
     .padding({ left: 12, right: 12 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor(navigationBarBackground())
-    .backgroundBlurStyle(uiTitleBarBlurStyle())
+    .backgroundEffect(uiTitleBarBackgroundEffect())
   }
 }
 
@@ -1196,6 +1226,6 @@ export struct AppTopBar {
     .padding({ left: 12, right: 16 })
     .alignItems(VerticalAlign.Center)
     .backgroundColor(navigationBarBackground())
-    .backgroundBlurStyle(uiTitleBarBlurStyle())
+    .backgroundEffect(uiTitleBarBackgroundEffect())
   }
 }
