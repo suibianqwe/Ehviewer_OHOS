@@ -19,7 +19,8 @@ import {
   uiMaterialForegroundColor,
   uiMaterialSecondaryForegroundColor,
   uiRadius,
-  uiSearchMaterial
+  uiSearchMaterial,
+  uiTintedButtonMaterial
 } from '../shared/EhUiStyle';
 import { SessionMode, uiText, uiStatusText, getAbilityContext } from '../shared/EhShared';
 import { AppSubToolbar } from './NavigationComponents';
@@ -648,7 +649,7 @@ export struct SessionScene {
             .height(44)
             .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
             .backgroundColor(themeTransparentColor())
-            .systemMaterial(uiButtonMaterial())
+            .systemMaterial(uiTintedButtonMaterial(themeSurface()))
             .layoutWeight(1)
           Button(this.signingIn ? uiText('Signing in...') : uiText('Sign in'))
             .type(ButtonType.Capsule)
@@ -656,7 +657,7 @@ export struct SessionScene {
             .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
             .fontWeight(FontWeight.Bold)
             .backgroundColor(themeTransparentColor())
-            .systemMaterial(uiButtonMaterial())
+            .systemMaterial(uiTintedButtonMaterial(themeSurface()))
             .layoutWeight(1)
             .enabled(!this.signingIn)
             .onClick(() => {
@@ -792,7 +793,7 @@ export struct SessionScene {
           .height(44)
           .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
           .backgroundColor(themeTransparentColor())
-          .systemMaterial(uiButtonMaterial())
+          .systemMaterial(uiTintedButtonMaterial(themeSurface()))
           .layoutWeight(1)
           .onClick(() => {
             this.requestClearCookie();
@@ -803,7 +804,7 @@ export struct SessionScene {
           .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
           .fontWeight(FontWeight.Bold)
           .backgroundColor(themeTransparentColor())
-          .systemMaterial(uiButtonMaterial())
+          .systemMaterial(uiTintedButtonMaterial(themeSurface()))
           .layoutWeight(1)
           .onClick(() => {
             this.saveCookie();

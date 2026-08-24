@@ -165,7 +165,7 @@ import {
   uiSwitchWidth,
   uiPageHorizontalPadding
 } from '../shared/EhUiStyle';
-import { EhBackupBundle, SessionMode, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, uiStatusText, setActiveBackHandler, padTwo, getAbilityContext, downloadSizeText, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, cloneStringOptions, isValidProxyHostText, isValidProxyPortText, normalizeProxyOption, formatNetworkDiagnostics, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption, normalizeIdentityAuthenticationOption, normalizeReaderCacheSizeOption, nextFloatingToolbarOffset } from '../shared/EhShared';
+import { EhBackupBundle, SessionMode, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, uiStatusText, setActiveBackHandler, padTwo, getAbilityContext, downloadSizeText, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, cloneStringOptions, isValidProxyHostText, isValidProxyPortText, normalizeProxyOption, formatNetworkDiagnostics, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption, normalizeIdentityAuthenticationOption, normalizeReaderCacheSizeOption } from '../shared/EhShared';
 import { FilterPanel } from './DownloadMigrationScenes';
 import { BlockingBusyOverlay } from './BlockingBusyOverlay';
 import { ConfirmActionOverlay } from './ConfirmActionOverlay';
@@ -2890,49 +2890,10 @@ export struct SettingsHomePanel {
   onOpen: (panel: SettingsPanel) => void = () => {};
   @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
-  @State toolbarOffsetY: number = 0;
   private settingsScroller: Scroller = new Scroller();
-  private toolbarRestoring: boolean = false;
 
   private totalBarHeight(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx) + uiAdaptiveToolbarHeight(this.contentWidth);
-  }
-
-  private visibleBarHeight(): number {
-    return Math.max(0, Math.min(this.totalBarHeight(), this.totalBarHeight() + this.toolbarOffsetY));
-  }
-
-  private handleScrollFrame(scrollOffset: number): number {
-    const yOffset = Math.max(0, this.settingsScroller.currentOffset().yOffset);
-    if (yOffset <= 4) {
-      this.toolbarRestoring = false;
-      this.toolbarOffsetY = 0;
-      return scrollOffset;
-    }
-    if (scrollOffset > 0 && this.visibleBarHeight() > 0) {
-      const previousOffsetY = this.toolbarOffsetY;
-      this.toolbarRestoring = false;
-      this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, yOffset,
-        this.totalBarHeight());
-      return Math.max(0, scrollOffset - Math.max(0, previousOffsetY - this.toolbarOffsetY));
-    }
-    if (scrollOffset < 0 && this.toolbarOffsetY < 0) {
-      this.restoreToolbarOnReverseScroll();
-    }
-    return scrollOffset;
-  }
-
-  private restoreToolbarOnReverseScroll(): void {
-    if (this.toolbarRestoring) {
-      return;
-    }
-    this.toolbarRestoring = true;
-    this.getUIContext().animateTo({ duration: 260, curve: Curve.EaseOut }, () => {
-      this.toolbarOffsetY = 0;
-    });
-    setTimeout(() => {
-      this.toolbarRestoring = false;
-    }, 280);
   }
 
   build() {
@@ -2940,7 +2901,7 @@ export struct SettingsHomePanel {
       List({ space: 0, scroller: this.settingsScroller }) {
         ListItem() {
           Row()
-            .height(this.visibleBarHeight() + 12)
+            .height(this.totalBarHeight() + 12)
         }
         ForEach(SETTINGS_HEADERS, (item: SettingsHeaderItem, index: number) => {
           ListItem() {
@@ -2965,14 +2926,10 @@ export struct SettingsHomePanel {
       .padding({ left: uiPageHorizontalPadding(this.contentWidth),
         right: uiPageHorizontalPadding(this.contentWidth) })
       .edgeEffect(EdgeEffect.None)
-      .onScrollFrameBegin((offset: number, _state: ScrollState) => {
-        return { offsetRemain: this.handleScrollFrame(offset) };
-      })
 
       AppToolbar({
         title: 'Settings',
         subtitle: '',
-        translateY: this.toolbarOffsetY,
         onMenu: this.onMenu
       })
     }
@@ -3115,49 +3072,10 @@ export struct SettingsDetailPanel {
   onTextDraftChange: (key: string, value: string) => void = () => {};
   @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
-  @State toolbarOffsetY: number = 0;
   private settingsScroller: Scroller = new Scroller();
-  private toolbarRestoring: boolean = false;
 
   private totalBarHeight(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx) + uiAdaptiveToolbarHeight(this.contentWidth);
-  }
-
-  private visibleBarHeight(): number {
-    return Math.max(0, Math.min(this.totalBarHeight(), this.totalBarHeight() + this.toolbarOffsetY));
-  }
-
-  private handleScrollFrame(scrollOffset: number): number {
-    const yOffset = Math.max(0, this.settingsScroller.currentOffset().yOffset);
-    if (yOffset <= 4) {
-      this.toolbarRestoring = false;
-      this.toolbarOffsetY = 0;
-      return scrollOffset;
-    }
-    if (scrollOffset > 0 && this.visibleBarHeight() > 0) {
-      const previousOffsetY = this.toolbarOffsetY;
-      this.toolbarRestoring = false;
-      this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, yOffset,
-        this.totalBarHeight());
-      return Math.max(0, scrollOffset - Math.max(0, previousOffsetY - this.toolbarOffsetY));
-    }
-    if (scrollOffset < 0 && this.toolbarOffsetY < 0) {
-      this.restoreToolbarOnReverseScroll();
-    }
-    return scrollOffset;
-  }
-
-  private restoreToolbarOnReverseScroll(): void {
-    if (this.toolbarRestoring) {
-      return;
-    }
-    this.toolbarRestoring = true;
-    this.getUIContext().animateTo({ duration: 260, curve: Curve.EaseOut }, () => {
-      this.toolbarOffsetY = 0;
-    });
-    setTimeout(() => {
-      this.toolbarRestoring = false;
-    }, 280);
   }
 
   private settingsRows(): SettingsRowItem[] {
@@ -3179,7 +3097,7 @@ export struct SettingsDetailPanel {
       List({ space: 0, scroller: this.settingsScroller }) {
         ListItem() {
           Row()
-            .height(this.visibleBarHeight() + 12)
+            .height(this.totalBarHeight() + 12)
         }
         if (this.panel === SettingsPanel.Eh) {
           ListItem() {
@@ -3268,13 +3186,9 @@ export struct SettingsDetailPanel {
       .cachedCount(4)
       .padding({ left: uiPageHorizontalPadding(this.contentWidth),
         right: uiPageHorizontalPadding(this.contentWidth) })
-      .onScrollFrameBegin((offset: number, _state: ScrollState) => {
-        return { offsetRemain: this.handleScrollFrame(offset) };
-      })
 
       AppSubToolbar({
         title: uiText(settingsPanelTitle(this.panel)),
-        translateY: this.toolbarOffsetY,
         onBack: this.onBack
       })
     }
