@@ -433,8 +433,29 @@ export struct EhTitleBarBackdrop {
     Stack({ alignContent: Alignment.TopStart }) {
       Column()
         .width('100%')
-        .height(Math.max(0, this.barBackdropHeight - uiTitleBarFadeHeight() / 2))
+        .height(Math.max(0, this.barBackdropHeight - uiTitleBarFadeHeight()))
         .backgroundEffect(uiTitleBarBackgroundEffect())
+
+      Stack({ alignContent: Alignment.TopStart }) {
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundEffect(uiTitleBarBackgroundEffect())
+
+        Column()
+          .width('100%')
+          .height('100%')
+          .linearGradient({
+            angle: 180,
+            colors: [[Color.White, 0.0], [Color.White, 0.12], ['rgba(255,255,255,0.55)', 0.58],
+              [Color.Transparent, 1.0]]
+          })
+          .blendMode(BlendMode.DST_IN, BlendApplyType.OFFSCREEN)
+      }
+      .width('100%')
+      .height(uiTitleBarFadeHeight())
+      .position({ x: 0, y: Math.max(0, this.barBackdropHeight - uiTitleBarFadeHeight()) })
+      .blendMode(BlendMode.SRC_OVER, BlendApplyType.OFFSCREEN)
 
       Column()
         .width('100%')

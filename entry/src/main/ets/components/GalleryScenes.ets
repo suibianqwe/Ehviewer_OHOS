@@ -4439,6 +4439,10 @@ export struct GalleryListContent {
     return this.statusBarVp() + this.barHeight();
   }
 
+  private expandedTitleContentInset(): number {
+    return this.totalBarHeight() + uiTitleBarFadeHeight();
+  }
+
   private imageSearchPanelWidth(): number {
     const width = this.effectiveContentWidth();
     if (width <= 0) {
@@ -4488,11 +4492,9 @@ export struct GalleryListContent {
       return scrollOffset;
     }
     if (scrollOffset > 0 && this.visibleBarHeight() > 0) {
-      const previousOffsetY = this.toolbarOffsetY;
       this.toolbarRestoring = false;
       this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, yOffset, this.totalBarHeight());
-      const consumedOffset = Math.max(0, previousOffsetY - this.toolbarOffsetY);
-      return Math.max(0, scrollOffset - consumedOffset);
+      return scrollOffset;
     }
     if (scrollOffset < 0 && this.toolbarOffsetY < 0) {
       this.restoreToolbarOnReverseScroll();
@@ -4535,7 +4537,7 @@ export struct GalleryListContent {
       galleryDetailCardHeight();
     return this.searchResultStripHeight() + rows * cardHeight +
       Math.max(0, rows - 1) * this.galleryCardGap() +
-      this.galleryCardGap() * 2 + (this.isLoadingMore ? 40 : 0);
+      this.expandedTitleContentInset() + this.galleryCardGap() * 2 + (this.isLoadingMore ? 40 : 0);
   }
 
   private triggerLoadMoreByOffset(offset: number): void {
@@ -4550,7 +4552,7 @@ export struct GalleryListContent {
   }
 
   private contentStartOffset(): number {
-    return this.visibleBarHeight();
+    return 0;
   }
 
   private listViewportHeight(): number {
@@ -5101,7 +5103,7 @@ export struct GalleryListContent {
         })
     }
     .width('100%')
-    .margin({ top: addTopSpacing ? this.galleryCardGap() : 0 })
+    .margin({ top: addTopSpacing ? this.expandedTitleContentInset() + this.galleryCardGap() : 0 })
     .reuseId('gallery-thumb-flow-item')
     .animation({ duration: 220, curve: Curve.EaseOut })
     .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
@@ -5111,7 +5113,7 @@ export struct GalleryListContent {
   private galleryListEdgeSpacer() {
     Row()
       .width('100%')
-      .height(this.galleryCardGap())
+      .height(this.expandedTitleContentInset() + this.galleryCardGap())
   }
 
   @Builder
@@ -5138,9 +5140,15 @@ export struct GalleryListContent {
     List({ space: 0, scroller: this.listScroller }) {
       if (this.shouldShowSearchSuggestions()) {
         ListItem() {
+          Row().width('100%').height(this.expandedTitleContentInset())
+        }
+        ListItem() {
           this.searchSuggestionPlaceholder()
         }
       } else if (this.galleries.length === 0) {
+        ListItem() {
+          Row().width('100%').height(this.expandedTitleContentInset())
+        }
         ListItem() {
           GalleryListStateView({
             statusText: this.statusText,
