@@ -1209,6 +1209,13 @@ export struct ActionBubble {
     return this.active && this.label.length > 0 ? 220 : this.buttonSize();
   }
 
+  private bubbleOffsetX(): number {
+    if (this.primary || !this.active || this.label.length === 0) {
+      return 0;
+    }
+    return this.buttonSize() - this.bubbleWidth();
+  }
+
   build() {
     Row({ space: 8 }) {
       if (this.active && this.label.length > 0) {
@@ -1253,6 +1260,7 @@ export struct ActionBubble {
 
     }
     .width(this.bubbleWidth())
+    .translate({ x: this.bubbleOffsetX() })
     .alignItems(VerticalAlign.Center)
     .justifyContent(FlexAlign.End)
     .hitTestBehavior(HitTestMode.Transparent)
