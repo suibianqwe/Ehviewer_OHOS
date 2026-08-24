@@ -6,25 +6,28 @@ import {
   uiValue
 } from '../../../shared/EhShared';
 import { readerSelectColors, selectArrowModifier } from '../../../shared/EhSelectStyle';
-import { themeScrimColor } from '../../../shared/EhTheme';
+import {
+  themeDividerColor,
+  themePrimaryColor,
+  themePrimaryText,
+  themeScrimColor,
+  themeSecondaryText,
+  themeSurface
+} from '../../../shared/EhTheme';
 import {
   isHarmonyMaterialEnabled,
+  uiButtonHighlightBorderColor,
   uiButtonMaterial,
-  uiDialogMaterial,
   uiMaterialBackground,
-  uiPanelMaterial,
+  uiPopupBackgroundEffect,
   uiPopupBlurStyle,
+  uiPopupEffectBackground,
   uiRadius,
   uiSegmentMaterial,
   uiSelectorHeight,
   uiSwitchHeight,
   uiSwitchWidth
 } from '../../../shared/EhUiStyle';
-
-const READER_MENU_SURFACE = '#EE111827';
-const READER_MENU_ITEM_TEXT = '#E5E7EB';
-const READER_MENU_ITEM_ICON = '#FFFFFF';
-const READER_MENU_DIVIDER = 'rgba(255,255,255,0.09)';
 
 @Component
 export struct ReaderPopupBackdrop {
@@ -74,8 +77,8 @@ export struct ReaderImageActionDialog {
         .backgroundColor(Color.Transparent)
         .borderRadius(0)
         .fontSize(15)
-        .fontColor(READER_MENU_ITEM_TEXT)
-        .iconColor(READER_MENU_ITEM_ICON)
+        .fontColor(themePrimaryText())
+        .iconColor(themePrimaryText())
         .iconSize(20)
         .layoutDirection(SecurityComponentLayoutDirection.HORIZONTAL)
         .onClick((_event: ClickEvent, result: SaveButtonOnClickResult) => {
@@ -91,11 +94,19 @@ export struct ReaderImageActionDialog {
     .width('78%')
     .constraintSize({ maxWidth: 360 })
     .padding({ top: 6, bottom: 6 })
-    .backgroundColor(uiMaterialBackground(READER_MENU_SURFACE))
-    .systemMaterial(uiDialogMaterial())
+    .backgroundColor(uiPopupEffectBackground(themeSurface()))
+    .backgroundEffect(uiPopupBackgroundEffect())
     .borderRadius(uiRadius(12))
     .clip(true)
-    .shadow({ radius: 18, color: '#66000000', offsetY: 8 })
+    .shadow(isHarmonyMaterialEnabled() ? {
+      radius: 0,
+      color: Color.Transparent,
+      offsetY: 0
+    } : {
+      radius: 18,
+      color: '#66000000',
+      offsetY: 8
+    })
     .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
   }
 }
@@ -111,10 +122,10 @@ struct ReaderImageActionButton {
       Row() {
         SymbolGlyph(this.symbolIcon)
           .fontSize(20)
-          .fontColor([READER_MENU_ITEM_ICON])
+          .fontColor([themePrimaryText()])
         Text(this.label)
           .fontSize(15)
-          .fontColor(READER_MENU_ITEM_TEXT)
+          .fontColor(themePrimaryText())
           .margin({ left: 12 })
           .layoutWeight(1)
           .textAlign(TextAlign.End)
@@ -138,7 +149,7 @@ export struct ReaderMenuDivider {
   build() {
     Divider()
       .height(1)
-      .color(READER_MENU_DIVIDER)
+      .color(themeDividerColor())
       .margin({ left: 16, right: 16 })
   }
 }
@@ -154,7 +165,7 @@ export struct ReaderMenuSelect {
     Row() {
       Text(this.label)
         .fontSize(14)
-        .fontColor(READER_MENU_ITEM_TEXT)
+        .fontColor(themePrimaryText())
         .layoutWeight(1)
       Select(this.options.map((option: string) => ({ value: uiValue(option) } as SelectOption)))
         .id('reader-menu-select-' + this.label + '-' + this.value)
@@ -165,9 +176,10 @@ export struct ReaderMenuSelect {
         .backgroundColor(uiMaterialBackground(readerSelectColors().buttonBackground))
         .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
         .systemMaterial(uiSegmentMaterial())
-        .menuBackgroundColor(uiMaterialBackground(readerSelectColors().menuBackground))
-        .menuBackgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : BlurStyle.COMPONENT_THICK)
-        .menuSystemMaterial(uiPanelMaterial())
+        .border({ width: 1, color: uiButtonHighlightBorderColor() })
+        .menuBackgroundColor(isHarmonyMaterialEnabled() ? Color.Transparent : readerSelectColors().menuBackground)
+        .menuBackgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
+        .menuBackgroundEffect(isHarmonyMaterialEnabled() ? uiPopupBackgroundEffect() : undefined)
         .optionBgColor(readerSelectColors().optionBackground)
         .optionFontColor(readerSelectColors().optionText)
         .optionFont({ size: 13 })
@@ -225,11 +237,11 @@ export struct ReaderMenuSlider {
       Row() {
         Text(this.label)
           .fontSize(14)
-          .fontColor(READER_MENU_ITEM_TEXT)
+          .fontColor(themePrimaryText())
           .layoutWeight(1)
         Text(this.valueText(this.liveValue))
           .fontSize(13)
-          .fontColor('#CBD5E1')
+          .fontColor(themeSecondaryText())
           .width(54)
           .textAlign(TextAlign.End)
       }
@@ -305,13 +317,13 @@ export struct ReaderMenuToggle {
     Row() {
       Text(this.label)
         .fontSize(14)
-        .fontColor(READER_MENU_ITEM_TEXT)
+        .fontColor(themePrimaryText())
         .layoutWeight(1)
       Toggle({ type: ToggleType.Switch, isOn: this.value })
         .width(uiSwitchWidth())
         .height(uiSwitchHeight())
         .onChange((v: boolean) => { this.onChange(v); })
-        .selectedColor('#2F6F8F')
+        .selectedColor(themePrimaryColor())
     }
     .width('100%')
     .height(52)

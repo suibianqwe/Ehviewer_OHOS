@@ -3,19 +3,37 @@ import {
   uiText,
   uiValue
 } from '../../../shared/EhShared';
-import { themeOnPrimaryText, themeScrimColor } from '../../../shared/EhTheme';
 import {
+  themeAccentTextColor,
+  themeDangerBackground,
+  themeDangerText,
+  themeOnPrimaryText,
+  themePrimaryColor,
+  themePrimaryText,
+  themeScrimColor,
+  themeSecondaryText,
+  themeSelectedBackground,
+  themeSurface,
+  themeSurfaceVariant
+} from '../../../shared/EhTheme';
+import {
+  isHarmonyMaterialEnabled,
+  uiButtonHighlightBorderColor,
   uiButtonMaterial,
-  uiDialogMaterial,
   uiMaterialBackground,
   uiMaterialForegroundColor,
-  uiReaderMenuBackgroundEffect,
+  uiMaterialLayerBackground,
+  uiPopupBackgroundEffect,
+  uiPopupEffectBackground,
   uiReaderProgressBackgroundColor,
   uiReaderProgressBackgroundEffect,
   uiRadius,
   uiSearchFieldHeight,
   uiSearchMaterial,
-  uiTabHeight
+  uiSegmentMaterial,
+  uiTabHeight,
+  uiTintedButtonMaterial,
+  uiTintedSegmentMaterial
 } from '../../../shared/EhUiStyle';
 import {
   readerAutoTransferSliderValue,
@@ -520,10 +538,10 @@ export struct ReaderSettingsMenuOverlay {
       Column({ space: 3 }) {
         SymbolGlyph(symbol)
           .fontSize(17)
-          .fontColor([enabled ? uiMaterialForegroundColor('#E5E7EB') : '#64748B'])
+          .fontColor([enabled ? themePrimaryText() : themeSecondaryText()])
         Text(uiText(label))
           .fontSize(11)
-          .fontColor(enabled ? uiMaterialForegroundColor('#CBD5E1') : '#64748B')
+          .fontColor(themeSecondaryText())
           .maxLines(1)
       }
       .justifyContent(FlexAlign.Center)
@@ -534,6 +552,7 @@ export struct ReaderSettingsMenuOverlay {
     .backgroundColor(Color.Transparent)
     .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(6))
+    .border({ width: 1, color: uiButtonHighlightBorderColor() })
     .onClick(action)
   }
 
@@ -580,17 +599,18 @@ export struct ReaderSettingsMenuOverlay {
             (this.presetDialogMode === 'rename' ? 'Rename reading preset' : 'Delete reading preset')))
             .fontSize(17)
             .fontWeight(FontWeight.Medium)
-            .fontColor(uiMaterialForegroundColor('#F8FAFC'))
+            .fontColor(themePrimaryText())
             .layoutWeight(1)
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.xmark'))
               .fontSize(16)
-              .fontColor([uiMaterialForegroundColor(Color.White)])
+              .fontColor([themePrimaryText()])
           }
           .width(32)
           .height(32)
-          .backgroundColor('#334155')
+          .backgroundColor(Color.Transparent)
           .systemMaterial(uiButtonMaterial())
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(() => {
             this.closePresetDialog();
           })
@@ -600,7 +620,7 @@ export struct ReaderSettingsMenuOverlay {
         if (this.presetDialogMode === 'delete') {
           Text(uiText('Delete this reading preset?'))
             .fontSize(14)
-            .fontColor(uiMaterialForegroundColor('#CBD5E1'))
+            .fontColor(themeSecondaryText())
             .width('100%')
         } else {
           Column({ space: 5 }) {
@@ -608,10 +628,10 @@ export struct ReaderSettingsMenuOverlay {
               .width('100%')
               .height(uiSearchFieldHeight())
               .fontSize(14)
-              .fontColor(uiMaterialForegroundColor('#F8FAFC'))
-              .placeholderColor(uiMaterialForegroundColor('#94A3B8'))
-              .caretColor('#38BDF8')
-              .backgroundColor(uiMaterialBackground('#1E293B'))
+              .fontColor(themePrimaryText())
+              .placeholderColor(themeSecondaryText())
+              .caretColor(themeAccentTextColor())
+              .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
               .systemMaterial(uiSearchMaterial())
               .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
               .border({ width: this.presetNameError ? 1 : 0, color: '#F87171' })
@@ -622,7 +642,7 @@ export struct ReaderSettingsMenuOverlay {
             if (this.presetNameError) {
               Text(uiText('Preset name is required'))
                 .fontSize(11)
-                .fontColor('#FCA5A5')
+                .fontColor(themeDangerText())
                 .width('100%')
             }
           }
@@ -634,10 +654,11 @@ export struct ReaderSettingsMenuOverlay {
             .layoutWeight(1)
             .height(40)
             .fontSize(14)
-            .fontColor(uiMaterialForegroundColor('#CBD5E1'))
-            .backgroundColor('#334155')
+            .fontColor(themePrimaryText())
+            .backgroundColor(Color.Transparent)
             .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(6))
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .onClick(() => {
               this.closePresetDialog();
             })
@@ -645,10 +666,13 @@ export struct ReaderSettingsMenuOverlay {
             .layoutWeight(1)
             .height(40)
             .fontSize(14)
-            .fontColor(this.presetDialogMode === 'delete' ? '#FF8A8A' : uiMaterialForegroundColor(Color.White))
-            .backgroundColor(this.presetDialogMode === 'delete' ? '#B91C1C' : '#0284C7')
-            .systemMaterial(uiButtonMaterial())
+            .fontColor(this.presetDialogMode === 'delete' ? themeDangerText() : themeOnPrimaryText())
+            .backgroundColor(uiMaterialLayerBackground(this.presetDialogMode === 'delete' ?
+              themeDangerBackground() : themePrimaryColor()))
+            .systemMaterial(uiTintedButtonMaterial(this.presetDialogMode === 'delete' ?
+              themeDangerBackground() : themePrimaryColor()))
             .borderRadius(uiRadius(6))
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .onClick(() => {
               if (this.presetDialogMode === 'delete') {
                 this.onDeleteReaderPreset();
@@ -663,8 +687,8 @@ export struct ReaderSettingsMenuOverlay {
       .width('68%')
       .constraintSize({ minWidth: 260, maxWidth: 340 })
       .padding(18)
-      .backgroundColor(uiMaterialBackground('#F7111827'))
-      .systemMaterial(uiDialogMaterial())
+      .backgroundColor(uiPopupEffectBackground(themeSurface()))
+      .backgroundEffect(uiPopupBackgroundEffect())
       .borderRadius(uiRadius(12))
       .shadow({ radius: 18, color: '#66000000', offsetY: 8 })
     }
@@ -680,19 +704,23 @@ export struct ReaderSettingsMenuOverlay {
       Text(label)
         .fontSize(13)
         .fontWeight(this.selectedTab === index ? FontWeight.Medium : FontWeight.Normal)
-        .fontColor(this.selectedTab === index ? '#FFFFFF' : '#C6CBD3')
+        .fontColor(this.selectedTab === index ? themeAccentTextColor() : themeSecondaryText())
         .maxLines(1)
       Row()
         .width(this.selectedTab === index ? 28 : 0)
         .height(2)
         .borderRadius(uiRadius(1))
-        .backgroundColor('#38BDF8')
+        .backgroundColor(themeAccentTextColor())
     }
     .width('100%')
     .height(uiTabHeight())
     .justifyContent(FlexAlign.Center)
-    .backgroundColor(this.selectedTab === index ? 'rgba(255,255,255,0.14)' : Color.Transparent)
+    .backgroundColor(this.selectedTab === index ?
+      uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent)
+    .systemMaterial(this.selectedTab === index ?
+      uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
     .borderRadius(uiRadius(uiTabHeight() / 2))
+    .border({ width: 1, color: uiButtonHighlightBorderColor() })
   }
 
   @Builder
@@ -1005,9 +1033,10 @@ export struct ReaderSettingsMenuOverlay {
             .width('100%')
             .height(44)
             .fontSize(14)
-            .fontColor(uiMaterialForegroundColor('#7DD3FC'))
+            .fontColor(themeAccentTextColor())
             .backgroundColor(Color.Transparent)
             .systemMaterial(uiButtonMaterial())
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .onClick(this.onResetImageAdjustments)
         }
       }
@@ -1032,12 +1061,13 @@ export struct ReaderSettingsMenuOverlay {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.chevron_left'))
               .fontSize(20)
-              .fontColor([uiMaterialForegroundColor(Color.White)])
+              .fontColor([themePrimaryText()])
           }
           .width(36)
           .height(36)
-          .backgroundColor(uiMaterialBackground('rgba(255,255,255,0.14)'))
+          .backgroundColor(Color.Transparent)
           .systemMaterial(uiButtonMaterial())
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(() => {
             this.onBack();
           })
@@ -1045,19 +1075,19 @@ export struct ReaderSettingsMenuOverlay {
           if (this.menuShowClock) {
             Text(readerClockText())
               .fontSize(12)
-              .fontColor('#E5E7EB')
+              .fontColor(themeSecondaryText())
               .margin({ left: 8 })
           }
           if (this.menuShowProgress) {
             Text(this.progressText)
               .fontSize(12)
-              .fontColor('#E5E7EB')
+              .fontColor(themeSecondaryText())
               .margin({ left: 8 })
           }
           if (this.menuShowBattery) {
             Text(this.batteryText)
               .fontSize(12)
-              .fontColor('#E5E7EB')
+              .fontColor(themeSecondaryText())
               .margin({ left: 8 })
           }
         }
@@ -1102,8 +1132,8 @@ export struct ReaderSettingsMenuOverlay {
       }
       .width('92%')
       .constraintSize({ maxWidth: 560, maxHeight: '86%' })
-      .backgroundColor(uiMaterialBackground('#EE111827'))
-      .backgroundEffect(uiReaderMenuBackgroundEffect())
+      .backgroundColor(uiPopupEffectBackground(themeSurface()))
+      .backgroundEffect(uiPopupBackgroundEffect())
       .borderRadius(uiRadius(20))
       .clip(true)
       .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))

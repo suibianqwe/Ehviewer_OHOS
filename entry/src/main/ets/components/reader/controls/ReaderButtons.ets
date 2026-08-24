@@ -1,8 +1,9 @@
 import {
-  uiButtonMaterial,
-  uiMaterialBackground,
+  uiButtonHighlightBorderColor,
+  uiMaterialLayerBackground,
   uiMaterialForegroundColor,
-  uiRadius
+  uiRadius,
+  uiTintedButtonMaterial
 } from '../../../shared/EhUiStyle';
 
 @Component
@@ -16,8 +17,9 @@ export struct ReaderToolButton {
       .height(32)
       .fontSize(12)
       .fontColor(this.active ? uiMaterialForegroundColor(Color.White) : '#6B7280')
-      .backgroundColor(uiMaterialBackground(this.active ? '#334155' : '#1F2937'))
-      .systemMaterial(uiButtonMaterial())
+      .backgroundColor(uiMaterialLayerBackground(this.active ? '#334155' : '#1F2937'))
+      .systemMaterial(uiTintedButtonMaterial(this.active ? '#334155' : '#1F2937'))
+      .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .enabled(this.active)
       .onClick(() => {
         if (this.active) {
@@ -43,9 +45,10 @@ export struct ReaderNavButton {
     .justifyContent(FlexAlign.Center)
     .height(42)
     .width('100%')
-    .backgroundColor(uiMaterialBackground(this.active ? '#2F6F8F' : '#1F2937'))
-    .systemMaterial(uiButtonMaterial())
+    .backgroundColor(uiMaterialLayerBackground(this.active ? '#2F6F8F' : '#1F2937'))
+    .systemMaterial(uiTintedButtonMaterial(this.active ? '#2F6F8F' : '#1F2937'))
     .borderRadius(uiRadius(4))
+    .border({ width: 1, color: uiButtonHighlightBorderColor() })
     .onClick(() => {
       if (this.active) {
         this.onTap();

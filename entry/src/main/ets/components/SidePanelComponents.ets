@@ -28,8 +28,7 @@ import {
   uiPanelRadius,
   uiPillRadius,
   uiSearchFieldHeight,
-  uiSearchMaterial,
-  uiTitleBarBlurStyle
+  uiSearchMaterial
 } from '../shared/EhUiStyle';
 
 function sidePanelChromeText(): string {
@@ -172,7 +171,6 @@ export struct SidePanelManagerHeader {
       .alignItems(VerticalAlign.Center)
     }
     .width('100%')
-    .backgroundBlurStyle(uiTitleBarBlurStyle())
   }
 }
 
@@ -242,7 +240,6 @@ export struct SidePanelHeader {
       .alignItems(VerticalAlign.Center)
     }
     .width('100%')
-    .backgroundBlurStyle(uiTitleBarBlurStyle())
   }
 }
 

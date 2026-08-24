@@ -621,7 +621,7 @@ export struct FavoriteCategoryDrawer {
     }
     .width(288)
     .height('100%')
-    .backgroundColor(themeSurface())
+    .backgroundColor(uiMaterialBackground(themeSurface()))
   }
 }
 
@@ -990,7 +990,7 @@ export struct SearchBookmarkDrawer {
     }
     .width(288)
     .height('100%')
-    .backgroundColor(themeSurface())
+    .backgroundColor(uiMaterialBackground(themeSurface()))
   }
 }
 

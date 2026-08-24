@@ -1,10 +1,13 @@
 import { SymbolGlyphModifier } from '@kit.ArkUI';
 import {
+  themeAccentTextColor,
   themeDividerColor,
   themeFieldBackground,
   themePrimaryText,
-  themeSelectedBackground
+  themeSelectedBackground,
+  themeSurface
 } from './EhTheme';
+import { uiListItemSelectedBackground } from './EhUiStyle';
 
 export interface SelectColorSet {
   buttonText: ResourceColor;
@@ -34,15 +37,15 @@ export function themedSelectColors(): SelectColorSet {
 
 export function readerSelectColors(): SelectColorSet {
   return {
-    buttonText: '#F2F4F7',
-    buttonBackground: 'rgba(255,255,255,0.14)',
-    menuBackground: 'rgba(17,24,39,0.72)',
+    buttonText: themePrimaryText(),
+    buttonBackground: themeFieldBackground(),
+    menuBackground: themeSurface(),
     optionBackground: Color.Transparent,
-    optionText: '#E5E7EB',
-    selectedOptionBackground: '#5238BDF8',
-    selectedOptionText: '#FFFFFF',
-    arrow: '#E5E7EB',
-    outline: 'rgba(255,255,255,0.10)'
+    optionText: themePrimaryText(),
+    selectedOptionBackground: uiListItemSelectedBackground(themeSelectedBackground()),
+    selectedOptionText: themeAccentTextColor(),
+    arrow: themePrimaryText(),
+    outline: themeDividerColor()
   };
 }
 
