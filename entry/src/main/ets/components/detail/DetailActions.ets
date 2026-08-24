@@ -16,7 +16,15 @@ import {
   themeSurfaceVariant,
   themeTransparentColor
 } from '../../shared/EhTheme';
-import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../../shared/EhUiStyle';
+import {
+  uiButtonMaterial,
+  uiDialogMaterial,
+  uiDialogSurfaceBackground,
+  uiDialogSurfaceRadius,
+  uiDialogSurfaceShadow,
+  uiMaterialForegroundColor,
+  uiRadius
+} from '../../shared/EhUiStyle';
 @Component
 export struct DetailActions {
   @Prop detail: GalleryDetail = createEmptyDetail();
@@ -202,8 +210,10 @@ export struct RatingPanel {
     }
     .width('100%')
     .padding(18)
-    .backgroundColor(themeSurface())
-    .borderRadius(uiRadius(8))
+    .backgroundColor(uiDialogSurfaceBackground())
+    .systemMaterial(uiDialogMaterial())
+    .borderRadius(uiDialogSurfaceRadius())
+    .shadow(uiDialogSurfaceShadow())
   }
 }
 

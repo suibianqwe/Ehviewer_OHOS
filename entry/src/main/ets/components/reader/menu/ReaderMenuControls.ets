@@ -11,20 +11,21 @@ import {
   themePrimaryColor,
   themePrimaryText,
   themeScrimColor,
-  themeSecondaryText,
-  themeSurface
+  themeSecondaryText
 } from '../../../shared/EhTheme';
 import {
   isHarmonyMaterialEnabled,
   uiButtonHighlightBorderColor,
   uiButtonMaterial,
+  uiDialogMaterial,
+  uiDialogSurfaceBackground,
+  uiDialogSurfaceRadius,
+  uiDialogSurfaceShadow,
   uiPopupBackgroundEffect,
   uiPopupBlurStyle,
-  uiPopupEffectBackground,
   uiReaderOptionControlBackground,
   uiReaderOptionRowHeight,
   uiReaderOptionSegmentMaterial,
-  uiRadius,
   uiSelectorHeight,
   uiSwitchHeight,
   uiSwitchWidth
@@ -95,19 +96,11 @@ export struct ReaderImageActionDialog {
     .width('78%')
     .constraintSize({ maxWidth: 360 })
     .padding({ top: 6, bottom: 6 })
-    .backgroundColor(uiPopupEffectBackground(themeSurface()))
-    .backgroundEffect(uiPopupBackgroundEffect())
-    .borderRadius(uiRadius(12))
+    .backgroundColor(uiDialogSurfaceBackground())
+    .systemMaterial(uiDialogMaterial())
+    .borderRadius(uiDialogSurfaceRadius())
     .clip(true)
-    .shadow(isHarmonyMaterialEnabled() ? {
-      radius: 0,
-      color: Color.Transparent,
-      offsetY: 0
-    } : {
-      radius: 18,
-      color: '#66000000',
-      offsetY: 8
-    })
+    .shadow(uiDialogSurfaceShadow())
     .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
   }
 }

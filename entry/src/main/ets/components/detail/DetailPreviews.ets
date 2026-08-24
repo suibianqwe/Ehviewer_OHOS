@@ -17,7 +17,15 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../../shared/EhTheme';
-import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../../shared/EhUiStyle';
+import {
+  uiButtonMaterial,
+  uiDialogMaterial,
+  uiDialogSurfaceBackground,
+  uiDialogSurfaceRadius,
+  uiDialogSurfaceShadow,
+  uiMaterialForegroundColor,
+  uiRadius
+} from '../../shared/EhUiStyle';
 import { GalleryThumb } from '../GalleryCards';
 
 const PREVIEW_THUMB_LOCAL_SOURCE_CACHE: Map<string, string> = new Map<string, string>();
@@ -220,14 +228,10 @@ export struct DetailPreviewJumpOverlay {
       .width('86%')
       .constraintSize({ maxWidth: 420 })
       .padding(18)
-      .backgroundColor(themeSurface())
-      .borderRadius(uiRadius(8))
-      .shadow({
-        radius: 18,
-        color: '#33000000',
-        offsetX: 0,
-        offsetY: 8
-      })
+      .backgroundColor(uiDialogSurfaceBackground())
+      .systemMaterial(uiDialogMaterial())
+      .borderRadius(uiDialogSurfaceRadius())
+      .shadow(uiDialogSurfaceShadow())
     }
     .width('100%')
     .height('100%')

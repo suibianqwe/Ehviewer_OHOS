@@ -2,11 +2,14 @@ import { uiText } from '../shared/EhShared';
 import {
   themePrimaryText,
   themeScrimColor,
-  themeSecondaryText,
-  themeShadowColor,
-  themeSurface
+  themeSecondaryText
 } from '../shared/EhTheme';
-import { uiDialogMaterial, uiPanelRadius } from '../shared/EhUiStyle';
+import {
+  uiDialogMaterial,
+  uiDialogSurfaceBackground,
+  uiDialogSurfaceRadius,
+  uiDialogSurfaceShadow
+} from '../shared/EhUiStyle';
 
 @Component
 export struct BlockingBusyOverlay {
@@ -68,10 +71,10 @@ export struct BlockingBusyOverlay {
       .width(280)
       .constraintSize({ maxWidth: '72%' })
       .padding({ left: 20, right: 20, top: 20, bottom: 18 })
-      .backgroundColor(themeSurface())
-      .borderRadius(uiPanelRadius(8))
+      .backgroundColor(uiDialogSurfaceBackground())
+      .borderRadius(uiDialogSurfaceRadius())
       .systemMaterial(uiDialogMaterial())
-      .shadow({ radius: 18, color: themeShadowColor(), offsetX: 0, offsetY: 8 })
+      .shadow(uiDialogSurfaceShadow())
     }
     .width('100%')
     .height('100%')

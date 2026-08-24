@@ -12,6 +12,7 @@ import {
   ehDownloadFileStore
 } from '../services/EhDownloadFileStore';
 import { ehDownloadManager } from '../services/EhDownloadManager';
+import { subscribeHoldingHandSide } from '../services/EhHoldingHandSupport';
 import { BrowsePosition, ehBrowsePositionStore } from '../services/EhBrowsePositionStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import {
@@ -95,6 +96,9 @@ import {
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
   uiDialogMaterial,
+  uiDialogSurfaceBackground,
+  uiDialogSurfaceRadius,
+  uiDialogSurfaceShadow,
   uiListGap,
   uiListItemBackground,
   uiListItemBorderColor,
@@ -316,6 +320,8 @@ export struct DownloadScene {
   private downloadBrowsePositionRestored: boolean = false;
   private restoringDownloadBrowsePosition: boolean = false;
   private toolbarRestoring: boolean = false;
+  private holdingHandActionSide: string = '';
+  private unsubscribeHoldingHandSide: () => void = () => {};
   private cellularWarningDialogOpen: boolean = false;
   private deleteConfirmationDialogOpen: boolean = false;
   private downloadCardStates: Map<number, DownloadCardState> = new Map<number, DownloadCardState>();
@@ -325,6 +331,10 @@ export struct DownloadScene {
     applyAppChromeImmersiveMode();
     this.floatingActionSide = normalizeFloatingActionSide(
       ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT));
+    this.unsubscribeHoldingHandSide();
+    this.unsubscribeHoldingHandSide = subscribeHoldingHandSide((side: string) => {
+      this.applyHoldingHandActionSide(side);
+    });
     this.restoreNavigationCache();
     this.syncSceneContentWidthFromWindow();
     this.syncDownloadContentWidthFromWindow();
@@ -358,6 +368,8 @@ export struct DownloadScene {
     this.saveNavigationCache();
     this.unsubscribeStore();
     this.unsubscribeDownloadManager();
+    this.unsubscribeHoldingHandSide();
+    this.unsubscribeHoldingHandSide = () => {};
   }
 
   onResetVersionChanged(): void {
@@ -572,17 +584,30 @@ export struct DownloadScene {
 
   private setFloatingActionSide(side: string): void {
     const normalized = normalizeFloatingActionSide(side);
-    if (normalized === this.floatingActionSide) {
-      return;
-    }
-    this.getUIContext().animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
-      this.floatingActionSide = normalized;
-    });
     ehSettingsStore.setValue(FLOATING_ACTION_SIDE_SETTING_KEY, normalized);
     const context = getAbilityContext();
     if (context !== undefined) {
       ehSettingsStore.save(context).catch(() => {});
     }
+    if (this.holdingHandActionSide.length === 0) {
+      this.animateFloatingActionSide(normalized);
+    }
+  }
+
+  private applyHoldingHandActionSide(side: string): void {
+    this.holdingHandActionSide = side;
+    const fallback = normalizeFloatingActionSide(
+      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT));
+    this.animateFloatingActionSide(side.length > 0 ? normalizeFloatingActionSide(side) : fallback);
+  }
+
+  private animateFloatingActionSide(side: string): void {
+    if (side === this.floatingActionSide) {
+      return;
+    }
+    this.getUIContext().animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
+      this.floatingActionSide = side;
+    });
   }
 
   private updateToolbarForScrollFrame(scrollOffset: number): number {
@@ -2761,10 +2786,10 @@ struct DownloadStatusFilterOverlay {
       .height('72%')
       .constraintSize({ maxWidth: 380, maxHeight: 560 })
       .padding(16)
-      .backgroundColor(uiMaterialBackground(themeSurface()))
+      .backgroundColor(uiDialogSurfaceBackground())
       .systemMaterial(uiDialogMaterial())
-      .borderRadius(uiRadius(20))
-      .shadow({ radius: 18, color: themeShadowColor(), offsetY: 8 })
+      .borderRadius(uiDialogSurfaceRadius())
+      .shadow(uiDialogSurfaceShadow())
     }
     .width('100%')
     .height('100%')

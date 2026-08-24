@@ -88,11 +88,17 @@ import {
   themePrimaryText,
   themeScrimColor,
   themeSecondaryText,
-  themeShadowColor,
-  themeSurface,
   themeSurfaceVariant
 } from '../shared/EhTheme';
-import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
+import {
+  uiButtonMaterial,
+  uiDialogMaterial,
+  uiDialogSurfaceBackground,
+  uiDialogSurfaceRadius,
+  uiDialogSurfaceShadow,
+  uiMaterialForegroundColor,
+  uiRadius
+} from '../shared/EhUiStyle';
 import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
 import {
   DOWNLOAD_LABEL_OPTION_ASK,
@@ -239,9 +245,10 @@ struct AddFavoriteDialog {
       .width('78%')
       .height(this.panelHeight())
       .constraintSize({ maxWidth: 360, minWidth: 280, maxHeight: this.panelMaxHeight })
-      .backgroundColor(themeSurface())
-      .borderRadius(uiRadius(10))
-      .shadow({ radius: 24, color: themeShadowColor(), offsetX: 0, offsetY: 8 })
+      .backgroundColor(uiDialogSurfaceBackground())
+      .systemMaterial(uiDialogMaterial())
+      .borderRadius(uiDialogSurfaceRadius())
+      .shadow(uiDialogSurfaceShadow())
     }
     .width('100%')
     .height('100%')

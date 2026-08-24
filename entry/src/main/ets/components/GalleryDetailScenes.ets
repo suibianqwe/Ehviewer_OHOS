@@ -22,11 +22,19 @@ import {
   themeInactiveActionText,
   themePrimaryText,
   themeSecondaryText,
-  themeShadowColor,
   themeSurface,
   themeSurfaceVariant
 } from '../shared/EhTheme';
-import { uiAdaptiveToolbarHeight, uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
+import {
+  uiAdaptiveToolbarHeight,
+  uiButtonMaterial,
+  uiDialogMaterial,
+  uiDialogSurfaceBackground,
+  uiDialogSurfaceRadius,
+  uiDialogSurfaceShadow,
+  uiMaterialForegroundColor,
+  uiRadius
+} from '../shared/EhUiStyle';
 import { MAIN_CONTENT_WIDTH_VP_KEY } from '../services/EhWindowImmersive';
 import { EhSubNavBar } from './NavigationComponents';
 import { CommentsScene } from './ReaderScenes';
@@ -729,9 +737,10 @@ struct TagVoteOverlay {
       .width('86%')
       .constraintSize({ maxWidth: 440 })
       .padding(16)
-      .backgroundColor(themeSurface())
-      .borderRadius(uiRadius(8))
-      .shadow({ radius: 18, color: themeShadowColor(), offsetX: 0, offsetY: 4 })
+      .backgroundColor(uiDialogSurfaceBackground())
+      .systemMaterial(uiDialogMaterial())
+      .borderRadius(uiDialogSurfaceRadius())
+      .shadow(uiDialogSurfaceShadow())
       .transition(TransitionEffect.OPACITY
         .combine(TransitionEffect.scale({ x: 0.96, y: 0.96 }))
         .animation({ duration: 180, curve: Curve.EaseOut }))
@@ -980,10 +989,11 @@ struct ArchiveOptionsOverlay {
       }
       .width('88%')
       .constraintSize({ maxWidth: 520 })
-      .backgroundColor(themeSurface())
-      .borderRadius(uiRadius(12))
+      .backgroundColor(uiDialogSurfaceBackground())
+      .systemMaterial(uiDialogMaterial())
+      .borderRadius(uiDialogSurfaceRadius())
       .clip(true)
-      .shadow({ radius: 18, color: themeShadowColor(), offsetX: 0, offsetY: 4 })
+      .shadow(uiDialogSurfaceShadow())
       .transition(TransitionEffect.OPACITY
         .combine(TransitionEffect.scale({ x: 0.96, y: 0.96 }))
         .animation({ duration: 180, curve: Curve.EaseOut }))

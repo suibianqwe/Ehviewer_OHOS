@@ -5,6 +5,7 @@ import {
   isDarkTheme,
   themeMaterialContentColor,
   themeMaterialSecondaryContentColor,
+  themeShadowColor,
   themeSurface
 } from './EhTheme';
 
@@ -518,4 +519,21 @@ export function uiDialogMaterial(): uiMaterial.Material | undefined {
   });
   harmony7DialogMaterials.set(materialColor, material);
   return material;
+}
+
+export function uiDialogSurfaceBackground(): string {
+  return uiMaterialBackground(themeSurface());
+}
+
+export function uiDialogSurfaceRadius(): number {
+  return uiPanelRadius(12);
+}
+
+export function uiDialogSurfaceShadow(): ShadowOptions {
+  return {
+    radius: 18,
+    color: themeShadowColor(),
+    offsetX: 0,
+    offsetY: 8
+  };
 }

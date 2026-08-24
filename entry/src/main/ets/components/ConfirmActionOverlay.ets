@@ -6,16 +6,16 @@ import {
   themePrimaryText,
   themeScrimColor,
   themeSecondaryText,
-  themeSurface,
   themeSurfaceVariant
 } from '../shared/EhTheme';
 import {
   uiButtonMaterial,
   uiControlRadius,
   uiDialogMaterial,
-  uiMaterialBackground,
-  uiMaterialForegroundColor,
-  uiPanelRadius
+  uiDialogSurfaceBackground,
+  uiDialogSurfaceRadius,
+  uiDialogSurfaceShadow,
+  uiMaterialForegroundColor
 } from '../shared/EhUiStyle';
 
 @Component
@@ -72,10 +72,10 @@ export struct ConfirmActionOverlay {
       .width('86%')
       .constraintSize({ maxWidth: 420 })
       .padding(18)
-      .backgroundColor(uiMaterialBackground(themeSurface()))
-      .borderRadius(uiPanelRadius(8))
+      .backgroundColor(uiDialogSurfaceBackground())
+      .borderRadius(uiDialogSurfaceRadius())
       .systemMaterial(uiDialogMaterial())
-      .shadow({ radius: 18, color: '#33000000', offsetX: 0, offsetY: 8 })
+      .shadow(uiDialogSurfaceShadow())
     }
     .width('100%')
     .height('100%')

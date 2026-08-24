@@ -15,6 +15,7 @@ import {
 import { DEFAULT_ADVANCE_SEARCH, EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder, buildJumpSeekUrl } from '../services/EhUrl';
 import { ehFilterStore } from '../services/EhFilterStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
+import { subscribeHoldingHandSide } from '../services/EhHoldingHandSupport';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
 import { DownloadLabel, ehDownloadStore } from '../services/EhDownloadStore';
 import {
@@ -81,6 +82,10 @@ import {
   uiAdaptiveColumnCount,
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
+  uiDialogMaterial,
+  uiDialogSurfaceBackground,
+  uiDialogSurfaceRadius,
+  uiDialogSurfaceShadow,
   uiListGap,
   uiMaterialBackground,
   uiMaterialForegroundColor,
@@ -742,9 +747,10 @@ struct DefaultFavoriteSlotDialog {
       .width('78%')
       .height(this.panelHeight())
       .constraintSize({ maxWidth: 360, minWidth: 280, maxHeight: this.panelMaxHeight })
-      .backgroundColor(themeSurface())
-      .borderRadius(uiRadius(10))
-      .shadow({ radius: 24, color: themeShadowColor(), offsetX: 0, offsetY: 8 })
+      .backgroundColor(uiDialogSurfaceBackground())
+      .systemMaterial(uiDialogMaterial())
+      .borderRadius(uiDialogSurfaceRadius())
+      .shadow(uiDialogSurfaceShadow())
     }
     .width('100%')
     .height('100%')
@@ -3489,9 +3495,10 @@ export struct GalleryListScene {
               .width('72%')
               .constraintSize({ maxWidth: 340, minWidth: 280 })
               .padding(18)
-              .backgroundColor(themeSurface())
-              .borderRadius(uiRadius(10))
-              .shadow({ radius: 22, color: themeShadowColor(), offsetY: 8 })
+              .backgroundColor(uiDialogSurfaceBackground())
+              .systemMaterial(uiDialogMaterial())
+              .borderRadius(uiDialogSurfaceRadius())
+              .shadow(uiDialogSurfaceShadow())
               .onClick(() => {})
             }
               .width('100%')
@@ -3973,10 +3980,11 @@ export struct GalleryCardActionOverlay {
       .width('78%')
       .constraintSize({ maxWidth: 360 })
       .padding({ top: 4, bottom: 6 })
-      .backgroundColor(themeSurface())
-      .borderRadius(uiRadius(10))
+      .backgroundColor(uiDialogSurfaceBackground())
+      .systemMaterial(uiDialogMaterial())
+      .borderRadius(uiDialogSurfaceRadius())
       .clip(true)
-      .shadow({ radius: 18, color: themeShadowColor(), offsetY: 8 })
+      .shadow(uiDialogSurfaceShadow())
     }
     .width('100%')
     .height('100%')
@@ -4126,6 +4134,8 @@ export struct GalleryListContent {
   @State bookmarkDrawerOffsetX: number = 288;
   @State bookmarkDrawerOverlayOpacity: number = 0;
   private toolbarRestoring: boolean = false;
+  private holdingHandActionSide: string = '';
+  private unsubscribeHoldingHandSide: () => void = () => {};
   private translationVisibleItems: number[] = [];
   private unregisterActiveBackHandler: () => void = () => {};
   private barHeight(): number {
@@ -4274,6 +4284,10 @@ export struct GalleryListContent {
     this.onLayoutWidthHintChanged();
     this.floatingActionSide = normalizeFloatingActionSide(
       ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT));
+    this.unsubscribeHoldingHandSide();
+    this.unsubscribeHoldingHandSide = subscribeHoldingHandSide((side: string) => {
+      this.applyHoldingHandActionSide(side);
+    });
     this.syncContentWidthFromWindow();
     this.syncPageJumpDraft();
     this.searchTagTokenCount = this.selectedSearchTagTokens().length;
@@ -4328,6 +4342,8 @@ export struct GalleryListContent {
     this.cardScrollAnchor.clear();
     this.unregisterActiveBackHandler();
     this.unregisterActiveBackHandler = () => {};
+    this.unsubscribeHoldingHandSide();
+    this.unsubscribeHoldingHandSide = () => {};
   }
 
   private handleContentBack(): boolean {
@@ -4485,17 +4501,30 @@ export struct GalleryListContent {
 
   private setFloatingActionSide(side: string): void {
     const normalized = normalizeFloatingActionSide(side);
-    if (normalized === this.floatingActionSide) {
-      return;
-    }
-    this.getUIContext().animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
-      this.floatingActionSide = normalized;
-    });
     ehSettingsStore.setValue(FLOATING_ACTION_SIDE_SETTING_KEY, normalized);
     const context = getAbilityContext();
     if (context !== undefined) {
       ehSettingsStore.save(context).catch(() => {});
     }
+    if (this.holdingHandActionSide.length === 0) {
+      this.animateFloatingActionSide(normalized);
+    }
+  }
+
+  private applyHoldingHandActionSide(side: string): void {
+    this.holdingHandActionSide = side;
+    const fallback = normalizeFloatingActionSide(
+      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT));
+    this.animateFloatingActionSide(side.length > 0 ? normalizeFloatingActionSide(side) : fallback);
+  }
+
+  private animateFloatingActionSide(side: string): void {
+    if (side === this.floatingActionSide) {
+      return;
+    }
+    this.getUIContext().animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
+      this.floatingActionSide = side;
+    });
   }
 
   private visibleBarHeight(): number {

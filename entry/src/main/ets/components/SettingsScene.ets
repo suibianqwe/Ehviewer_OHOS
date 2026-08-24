@@ -145,10 +145,12 @@ import {
   themeTertiaryText
 } from '../shared/EhTheme';
 import {
-  isHarmonyMaterialEnabled,
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
   uiDialogMaterial,
+  uiDialogSurfaceBackground,
+  uiDialogSurfaceRadius,
+  uiDialogSurfaceShadow,
   uiListGap,
   uiListItemBackground,
   uiListItemSelectedBackground,
@@ -156,8 +158,6 @@ import {
   uiMaterialLayerBackground,
   uiMaterialForegroundColor,
   uiButtonHighlightBorderColor,
-  uiPopupBackgroundEffect,
-  uiPopupEffectBackground,
   uiRadius,
   uiSearchFieldHeight,
   uiSearchMaterial,
@@ -2795,10 +2795,10 @@ struct ProxySettingsOverlay {
       .height('82%')
       .constraintSize({ maxWidth: 460, maxHeight: 650 })
       .padding(18)
-      .backgroundColor(uiMaterialBackground(themeSurface()))
+      .backgroundColor(uiDialogSurfaceBackground())
       .systemMaterial(uiDialogMaterial())
-      .borderRadius(uiRadius(20))
-      .shadow({ radius: 18, color: '#33000000', offsetX: 0, offsetY: 8 })
+      .borderRadius(uiDialogSurfaceRadius())
+      .shadow(uiDialogSurfaceShadow())
     }
     .width('100%')
     .height('100%')
@@ -2877,15 +2877,10 @@ struct DownloadMigrationConfirmOverlay {
       .width('86%')
       .constraintSize({ maxWidth: 420 })
       .padding(18)
-      .backgroundColor(uiMaterialBackground(themeSurface()))
+      .backgroundColor(uiDialogSurfaceBackground())
       .systemMaterial(uiDialogMaterial())
-      .borderRadius(uiRadius(20))
-      .shadow({
-        radius: 18,
-        color: '#33000000',
-        offsetX: 0,
-        offsetY: 8
-      })
+      .borderRadius(uiDialogSurfaceRadius())
+      .shadow(uiDialogSurfaceShadow())
     }
     .width('100%')
     .height('100%')
@@ -3693,21 +3688,11 @@ export struct SettingsOptionPanel {
       .height(this.panelHeight())
       .constraintSize({ maxWidth: 420 })
       .padding({ left: 18, right: 18, top: 18, bottom: 8 })
-      .backgroundColor(uiPopupEffectBackground(themeSurface()))
-      .backgroundEffect(uiPopupBackgroundEffect())
-      .borderRadius(uiRadius(8))
+      .backgroundColor(uiDialogSurfaceBackground())
+      .systemMaterial(uiDialogMaterial())
+      .borderRadius(uiDialogSurfaceRadius())
       .clip(true)
-      .shadow(isHarmonyMaterialEnabled() ? {
-        radius: 0,
-        color: Color.Transparent,
-        offsetX: 0,
-        offsetY: 0
-      } : {
-        radius: 18,
-        color: '#33000000',
-        offsetX: 0,
-        offsetY: 8
-      })
+      .shadow(uiDialogSurfaceShadow())
     }
     .width('100%')
     .height('100%')

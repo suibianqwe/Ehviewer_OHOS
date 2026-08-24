@@ -11,8 +11,6 @@ import {
   themeSecondaryText,
   themeSelectedBackground,
   themeSelectedText,
-  themeShadowColor,
-  themeSurface,
   themeSurfaceVariant,
   themeTertiaryText,
   themeTransparentColor
@@ -20,6 +18,9 @@ import {
 import {
   uiButtonMaterial,
   uiDialogMaterial,
+  uiDialogSurfaceBackground,
+  uiDialogSurfaceRadius,
+  uiDialogSurfaceShadow,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius,
@@ -291,9 +292,10 @@ export struct DownloadLabelSelectionDialog {
       .width('78%')
       .height(this.listHeight() + 57 + (this.showRemember ? 52 : 0))
       .constraintSize({ maxWidth: 380, minWidth: 280, maxHeight: this.panelMaxHeight })
-      .backgroundColor(themeSurface())
-      .borderRadius(uiRadius(10))
-      .shadow({ radius: 24, color: themeShadowColor(), offsetX: 0, offsetY: 8 })
+      .backgroundColor(uiDialogSurfaceBackground())
+      .systemMaterial(uiDialogMaterial())
+      .borderRadius(uiDialogSurfaceRadius())
+      .shadow(uiDialogSurfaceShadow())
     }
     .width('100%')
     .height('100%')
@@ -367,10 +369,10 @@ export struct DownloadLabelEditDialog {
       .width('78%')
       .constraintSize({ maxWidth: 380, minWidth: 280 })
       .padding(18)
-      .backgroundColor(uiMaterialBackground(themeSurface()))
+      .backgroundColor(uiDialogSurfaceBackground())
       .systemMaterial(uiDialogMaterial())
-      .borderRadius(uiRadius(20))
-      .shadow({ radius: 24, color: themeShadowColor(), offsetX: 0, offsetY: 8 })
+      .borderRadius(uiDialogSurfaceRadius())
+      .shadow(uiDialogSurfaceShadow())
     }
     .width('100%')
     .height('100%')
