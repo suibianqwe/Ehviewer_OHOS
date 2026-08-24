@@ -1031,7 +1031,7 @@ export struct ReaderSettingsMenuOverlay {
           .width(36)
           .height(36)
           .backgroundColor('rgba(255,255,255,0.14)')
-          .systemMaterial(uiButtonMaterial())
+          .border({ width: 1, color: 'rgba(255,255,255,0.10)' })
           .onClick(() => {
             this.onBack();
           })

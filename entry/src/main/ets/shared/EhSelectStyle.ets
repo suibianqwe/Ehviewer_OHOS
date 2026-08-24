@@ -36,10 +36,10 @@ export function readerSelectColors(): SelectColorSet {
   return {
     buttonText: '#F2F4F7',
     buttonBackground: 'rgba(255,255,255,0.14)',
-    menuBackground: 'rgba(17,24,39,0.94)',
+    menuBackground: '#F2111827',
     optionBackground: Color.Transparent,
     optionText: '#E5E7EB',
-    selectedOptionBackground: 'rgba(56,189,248,0.28)',
+    selectedOptionBackground: '#5238BDF8',
     selectedOptionText: '#FFFFFF',
     arrow: '#E5E7EB',
     outline: 'rgba(255,255,255,0.10)'
