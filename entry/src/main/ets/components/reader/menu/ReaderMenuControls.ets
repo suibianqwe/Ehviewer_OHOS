@@ -8,10 +8,13 @@ import {
 import { readerSelectColors, selectArrowModifier } from '../../../shared/EhSelectStyle';
 import { themeScrimColor } from '../../../shared/EhTheme';
 import {
+  isHarmonyMaterialEnabled,
   uiButtonMaterial,
   uiDialogMaterial,
   uiMaterialBackground,
+  uiPanelMaterial,
   uiRadius,
+  uiSegmentMaterial,
   uiSelectorHeight,
   uiSwitchHeight,
   uiSwitchWidth
@@ -158,9 +161,11 @@ export struct ReaderMenuSelect {
         .value(uiValue(this.value))
         .font({ size: 13 })
         .fontColor(readerSelectColors().buttonText)
-        .backgroundColor(readerSelectColors().buttonBackground)
-        .menuBackgroundColor(readerSelectColors().menuBackground)
-        .menuBackgroundBlurStyle(BlurStyle.NONE)
+        .backgroundColor(uiMaterialBackground(readerSelectColors().buttonBackground))
+        .systemMaterial(uiSegmentMaterial())
+        .menuBackgroundColor(uiMaterialBackground(readerSelectColors().menuBackground))
+        .menuBackgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : BlurStyle.COMPONENT_THICK)
+        .menuSystemMaterial(uiPanelMaterial())
         .optionBgColor(readerSelectColors().optionBackground)
         .optionFontColor(readerSelectColors().optionText)
         .optionFont({ size: 13 })
@@ -175,7 +180,17 @@ export struct ReaderMenuSelect {
         })
         .height(uiSelectorHeight())
         .constraintSize({ minWidth: 148, maxWidth: 220 })
-        .shadow({ radius: 10, color: '#66000000', offsetX: 0, offsetY: 3 })
+        .shadow(isHarmonyMaterialEnabled() ? {
+          radius: 0,
+          color: Color.Transparent,
+          offsetX: 0,
+          offsetY: 0
+        } : {
+          radius: 10,
+          color: '#66000000',
+          offsetX: 0,
+          offsetY: 3
+        })
     }
     .width('100%')
     .height(64)

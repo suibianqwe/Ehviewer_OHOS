@@ -8,8 +8,8 @@ import {
 
 export interface SelectColorSet {
   buttonText: ResourceColor;
-  buttonBackground: ResourceColor;
-  menuBackground: ResourceColor;
+  buttonBackground: string;
+  menuBackground: string;
   optionBackground: ResourceColor;
   optionText: ResourceColor;
   selectedOptionBackground: ResourceColor;
@@ -36,7 +36,7 @@ export function readerSelectColors(): SelectColorSet {
   return {
     buttonText: '#F2F4F7',
     buttonBackground: 'rgba(255,255,255,0.14)',
-    menuBackground: '#F2111827',
+    menuBackground: 'rgba(17,24,39,0.72)',
     optionBackground: Color.Transparent,
     optionText: '#E5E7EB',
     selectedOptionBackground: '#5238BDF8',

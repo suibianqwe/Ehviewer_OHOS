@@ -145,13 +145,16 @@ import {
   themeTertiaryText
 } from '../shared/EhTheme';
 import {
+  isHarmonyMaterialEnabled,
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
   uiDialogMaterial,
   uiListGap,
   uiListItemBackground,
+  uiListItemSelectedBackground,
   uiMaterialBackground,
   uiMaterialForegroundColor,
+  uiPanelMaterial,
   uiRadius,
   uiSearchFieldHeight,
   uiSearchMaterial,
@@ -3637,7 +3640,8 @@ export struct SettingsOptionPanel {
     .width('100%')
     .height(this.estimatedOptionRowHeight(index))
     .padding({ left: 14, right: 14 })
-    .backgroundColor(option === this.value ? themeSelectedBackground() : Color.Transparent)
+    .backgroundColor(option === this.value ? uiListItemSelectedBackground(themeSelectedBackground()) :
+      Color.Transparent)
     .border({ width: { bottom: index === this.options.length - 1 ? 0 : 0.5 },
       color: themeDividerColor() })
     .onClick(() => {
@@ -3706,7 +3710,7 @@ export struct SettingsOptionPanel {
         }
         .width('100%')
         .height(this.optionListHeight())
-        .backgroundColor(uiListItemBackground(themeSurfaceVariant()))
+        .backgroundColor(uiMaterialBackground(uiListItemBackground(themeSurfaceVariant())))
         .borderRadius(uiRadius(16))
         .clip(true)
 
@@ -3752,9 +3756,14 @@ export struct SettingsOptionPanel {
       .padding({ left: 18, right: 18, top: 18, bottom: 8 })
       .backgroundColor(uiMaterialBackground(themeSurface()))
       .borderRadius(uiRadius(8))
-      .systemMaterial(uiDialogMaterial())
+      .systemMaterial(uiPanelMaterial())
       .clip(true)
-      .shadow({
+      .shadow(isHarmonyMaterialEnabled() ? {
+        radius: 0,
+        color: Color.Transparent,
+        offsetX: 0,
+        offsetY: 0
+      } : {
         radius: 18,
         color: '#33000000',
         offsetX: 0,
