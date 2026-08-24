@@ -95,6 +95,8 @@ import {
   uiAdaptiveColumnCount,
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
+  uiDialogBlurOptions,
+  uiDialogBlurStyle,
   uiDialogMaterial,
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
@@ -2788,6 +2790,7 @@ struct DownloadStatusFilterOverlay {
       .padding(16)
       .backgroundColor(uiDialogSurfaceBackground())
       .systemMaterial(uiDialogMaterial())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
     }

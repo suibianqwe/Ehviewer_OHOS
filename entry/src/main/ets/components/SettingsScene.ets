@@ -147,6 +147,8 @@ import {
 import {
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
+  uiDialogBlurOptions,
+  uiDialogBlurStyle,
   uiDialogMaterial,
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
@@ -2797,6 +2799,7 @@ struct ProxySettingsOverlay {
       .padding(18)
       .backgroundColor(uiDialogSurfaceBackground())
       .systemMaterial(uiDialogMaterial())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
     }
@@ -2879,6 +2882,7 @@ struct DownloadMigrationConfirmOverlay {
       .padding(18)
       .backgroundColor(uiDialogSurfaceBackground())
       .systemMaterial(uiDialogMaterial())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
     }
@@ -3690,6 +3694,7 @@ export struct SettingsOptionPanel {
       .padding({ left: 18, right: 18, top: 18, bottom: 8 })
       .backgroundColor(uiDialogSurfaceBackground())
       .systemMaterial(uiDialogMaterial())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .clip(true)
       .shadow(uiDialogSurfaceShadow())

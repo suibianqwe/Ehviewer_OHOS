@@ -92,6 +92,8 @@ import {
 } from '../shared/EhTheme';
 import {
   uiButtonMaterial,
+  uiDialogBlurOptions,
+  uiDialogBlurStyle,
   uiDialogMaterial,
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
@@ -247,6 +249,7 @@ struct AddFavoriteDialog {
       .constraintSize({ maxWidth: 360, minWidth: 280, maxHeight: this.panelMaxHeight })
       .backgroundColor(uiDialogSurfaceBackground())
       .systemMaterial(uiDialogMaterial())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
     }

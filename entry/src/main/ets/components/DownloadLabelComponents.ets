@@ -17,6 +17,8 @@ import {
 } from '../shared/EhTheme';
 import {
   uiButtonMaterial,
+  uiDialogBlurOptions,
+  uiDialogBlurStyle,
   uiDialogMaterial,
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
@@ -294,6 +296,7 @@ export struct DownloadLabelSelectionDialog {
       .constraintSize({ maxWidth: 380, minWidth: 280, maxHeight: this.panelMaxHeight })
       .backgroundColor(uiDialogSurfaceBackground())
       .systemMaterial(uiDialogMaterial())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
     }
@@ -371,6 +374,7 @@ export struct DownloadLabelEditDialog {
       .padding(18)
       .backgroundColor(uiDialogSurfaceBackground())
       .systemMaterial(uiDialogMaterial())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
     }

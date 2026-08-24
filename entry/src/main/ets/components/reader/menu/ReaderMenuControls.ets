@@ -17,6 +17,8 @@ import {
   isHarmonyMaterialEnabled,
   uiButtonHighlightBorderColor,
   uiButtonMaterial,
+  uiDialogBlurOptions,
+  uiDialogBlurStyle,
   uiDialogMaterial,
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
@@ -98,6 +100,7 @@ export struct ReaderImageActionDialog {
     .padding({ top: 6, bottom: 6 })
     .backgroundColor(uiDialogSurfaceBackground())
     .systemMaterial(uiDialogMaterial())
+    .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
     .borderRadius(uiDialogSurfaceRadius())
     .clip(true)
     .shadow(uiDialogSurfaceShadow())

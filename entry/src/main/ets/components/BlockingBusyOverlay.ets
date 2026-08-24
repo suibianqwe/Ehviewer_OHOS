@@ -5,6 +5,8 @@ import {
   themeSecondaryText
 } from '../shared/EhTheme';
 import {
+  uiDialogBlurOptions,
+  uiDialogBlurStyle,
   uiDialogMaterial,
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
@@ -72,8 +74,9 @@ export struct BlockingBusyOverlay {
       .constraintSize({ maxWidth: '72%' })
       .padding({ left: 20, right: 20, top: 20, bottom: 18 })
       .backgroundColor(uiDialogSurfaceBackground())
-      .borderRadius(uiDialogSurfaceRadius())
       .systemMaterial(uiDialogMaterial())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
     }
     .width('100%')

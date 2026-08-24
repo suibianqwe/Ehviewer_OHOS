@@ -28,6 +28,8 @@ import {
 import {
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
+  uiDialogBlurOptions,
+  uiDialogBlurStyle,
   uiDialogMaterial,
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
@@ -739,6 +741,7 @@ struct TagVoteOverlay {
       .padding(16)
       .backgroundColor(uiDialogSurfaceBackground())
       .systemMaterial(uiDialogMaterial())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
       .transition(TransitionEffect.OPACITY
@@ -991,6 +994,7 @@ struct ArchiveOptionsOverlay {
       .constraintSize({ maxWidth: 520 })
       .backgroundColor(uiDialogSurfaceBackground())
       .systemMaterial(uiDialogMaterial())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .clip(true)
       .shadow(uiDialogSurfaceShadow())

@@ -11,6 +11,8 @@ import {
 import {
   uiButtonMaterial,
   uiControlRadius,
+  uiDialogBlurOptions,
+  uiDialogBlurStyle,
   uiDialogMaterial,
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
@@ -73,8 +75,9 @@ export struct ConfirmActionOverlay {
       .constraintSize({ maxWidth: 420 })
       .padding(18)
       .backgroundColor(uiDialogSurfaceBackground())
-      .borderRadius(uiDialogSurfaceRadius())
       .systemMaterial(uiDialogMaterial())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
     }
     .width('100%')

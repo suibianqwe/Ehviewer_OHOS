@@ -18,6 +18,8 @@ import {
 } from '../../shared/EhTheme';
 import {
   uiButtonMaterial,
+  uiDialogBlurOptions,
+  uiDialogBlurStyle,
   uiDialogMaterial,
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
@@ -212,6 +214,7 @@ export struct RatingPanel {
     .padding(18)
     .backgroundColor(uiDialogSurfaceBackground())
     .systemMaterial(uiDialogMaterial())
+    .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
     .borderRadius(uiDialogSurfaceRadius())
     .shadow(uiDialogSurfaceShadow())
   }

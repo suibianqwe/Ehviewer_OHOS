@@ -506,15 +506,15 @@ export function uiDialogMaterial(): uiMaterial.Material | undefined {
   if (!isHarmonyMaterialEnabled()) {
     return undefined;
   }
-  const materialColor = translucentMaterialColor(themeSurface());
+  const materialColor = 'transparent';
   const cached = harmony7DialogMaterials.get(materialColor);
   if (cached !== undefined) {
     return cached;
   }
   const material = new uiMaterial.ImmersiveMaterial({
-    style: uiMaterial.ImmersiveStyle.ULTRA_THICK,
-    materialColor: materialColor,
-    applyShadow: true,
+    style: uiMaterial.ImmersiveStyle.ULTRA_THIN,
+    materialColor: Color.Transparent,
+    applyShadow: false,
     interactive: false
   });
   harmony7DialogMaterials.set(materialColor, material);
@@ -522,7 +522,15 @@ export function uiDialogMaterial(): uiMaterial.Material | undefined {
 }
 
 export function uiDialogSurfaceBackground(): string {
-  return uiMaterialBackground(themeSurface());
+  return uiPopupEffectBackground(themeSurface());
+}
+
+export function uiDialogBlurStyle(): BlurStyle {
+  return isHarmonyUiStyle() && supportsBackgroundBlur() ? BlurStyle.BACKGROUND_THICK : BlurStyle.NONE;
+}
+
+export function uiDialogBlurOptions(): BackgroundBlurStyleOptions {
+  return uiPopupBlurOptions();
 }
 
 export function uiDialogSurfaceRadius(): number {
