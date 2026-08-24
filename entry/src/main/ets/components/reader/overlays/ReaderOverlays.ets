@@ -64,6 +64,10 @@ function degreeValueText(value: number): string {
   return Math.round(value).toString() + '°';
 }
 
+const READER_SLIDER_BAR_HEIGHT: number = 50;
+const READER_SLIDER_PANEL_TOP_PADDING: number = 10;
+const READER_SLIDER_PANEL_BOTTOM_PADDING: number = 20;
+
 @Component
 export struct ReaderInfoOverlay {
   @Prop showProgress: boolean = true;
@@ -270,7 +274,7 @@ struct ReaderSliderBar {
       })
     }
     .width('100%')
-    .height(50)
+    .height(READER_SLIDER_BAR_HEIGHT)
     .alignItems(VerticalAlign.Center)
   }
 }
@@ -299,8 +303,8 @@ export struct ReaderSliderPanel {
   }
 
   private panelHeight(): number {
-    // Slider bar (32) + generous top/bottom padding (10 each) + bottom safe-area inset.
-    return 62 + Math.max(0, this.bottomInset);
+    return READER_SLIDER_BAR_HEIGHT + READER_SLIDER_PANEL_TOP_PADDING +
+      READER_SLIDER_PANEL_BOTTOM_PADDING + Math.max(0, this.bottomInset);
   }
 
   private bubbleBottomMargin(): number {
@@ -354,7 +358,12 @@ export struct ReaderSliderPanel {
       }
       .width('100%')
       .height(this.panelHeight())
-      .padding({ left: 10, right: 10, top: 10, bottom: 20 + Math.max(0, this.bottomInset) })
+      .padding({
+        left: 10,
+        right: 10,
+        top: READER_SLIDER_PANEL_TOP_PADDING,
+        bottom: READER_SLIDER_PANEL_BOTTOM_PADDING + Math.max(0, this.bottomInset)
+      })
       .backgroundColor(uiReaderProgressBackgroundColor('#CC111827'))
       .backgroundEffect(uiReaderProgressBackgroundEffect())
       .borderRadius({ topLeft: uiRadius(24), topRight: uiRadius(24) })
