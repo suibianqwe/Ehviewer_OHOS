@@ -12,7 +12,6 @@ import {
   themePrimaryText,
   themeScrimColor,
   themeSecondaryText,
-  themeSelectedBackground,
   themeSurface,
   themeSurfaceVariant
 } from '../../../shared/EhTheme';
@@ -30,13 +29,11 @@ import {
   uiReaderProgressBackgroundEffect,
   uiReaderOptionControlBackground,
   uiReaderOptionButtonMaterial,
-  uiReaderOptionSegmentMaterial,
   uiRadius,
   uiSearchFieldHeight,
   uiSearchMaterial,
   uiTabHeight,
   uiTintedButtonMaterial,
-  uiTintedSegmentMaterial
 } from '../../../shared/EhUiStyle';
 import {
   readerAutoTransferSliderValue,
@@ -541,7 +538,7 @@ export struct ReaderSettingsMenuOverlay {
 
   @Builder
   private PresetActionButton(label: string, symbol: Resource, enabled: boolean, action: () => void) {
-    Button({ type: ButtonType.Normal, stateEffect: enabled }) {
+    Button({ type: ButtonType.Circle, stateEffect: enabled }) {
       Column({ space: 3 }) {
         SymbolGlyph(symbol)
           .fontSize(20)
@@ -553,19 +550,18 @@ export struct ReaderSettingsMenuOverlay {
       }
       .justifyContent(FlexAlign.Center)
     }
-    .layoutWeight(1)
-    .height(54)
+    .width(58)
+    .height(58)
     .enabled(enabled)
     .backgroundColor(uiReaderOptionControlBackground())
     .systemMaterial(uiReaderOptionButtonMaterial())
-    .borderRadius(uiRadius(6))
     .border({ width: 1, color: uiButtonHighlightBorderColor() })
     .onClick(action)
   }
 
   @Builder
   private PresetActions() {
-    Row({ space: 2 }) {
+    Row() {
       this.PresetActionButton('New preset', $r('sys.symbol.plus'), true, () => {
         this.openPresetEditor('create');
       })
@@ -585,8 +581,9 @@ export struct ReaderSettingsMenuOverlay {
       })
     }
     .width('100%')
-    .height(58)
-    .padding({ left: 10, right: 10, top: 2, bottom: 2 })
+    .height(66)
+    .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+    .justifyContent(FlexAlign.SpaceAround)
   }
 
   @Builder
@@ -705,29 +702,24 @@ export struct ReaderSettingsMenuOverlay {
     .zIndex(2)
   }
 
-  @Builder
-  private ReaderSettingsTabBar(label: string, index: number) {
-    Column({ space: 3 }) {
-      Text(label)
-        .fontSize(14)
-        .fontWeight(this.selectedTab === index ? FontWeight.Medium : FontWeight.Normal)
-        .fontColor(this.selectedTab === index ? themeAccentTextColor() : themeSecondaryText())
-        .maxLines(1)
-      Row()
-        .width(this.selectedTab === index ? 28 : 0)
-        .height(2)
-        .borderRadius(uiRadius(1))
-        .backgroundColor(themeAccentTextColor())
-    }
-    .width('100%')
-    .height(uiTabHeight())
-    .justifyContent(FlexAlign.Center)
-    .backgroundColor(this.selectedTab === index ?
-      uiMaterialLayerBackground(themeSelectedBackground()) : uiReaderOptionControlBackground())
-    .systemMaterial(this.selectedTab === index ?
-      uiTintedSegmentMaterial(themeSelectedBackground()) : uiReaderOptionSegmentMaterial())
-    .borderRadius(uiRadius(uiTabHeight() / 2))
-    .border({ width: 1, color: uiButtonHighlightBorderColor() })
+  private readerSettingsTabStyle(label: string): SubTabBarStyle {
+    return SubTabBarStyle.of(label)
+      .selectedMode(SelectedMode.INDICATOR)
+      .indicator({
+        color: themeAccentTextColor(),
+        height: 2,
+        width: 28,
+        borderRadius: 1,
+        marginTop: 5
+      })
+      .labelStyle({
+        font: { size: 14, weight: FontWeight.Medium },
+        selectedColor: themeAccentTextColor(),
+        unselectedColor: themePrimaryText(),
+        maxLines: 1,
+        overflow: TextOverflow.Ellipsis
+      })
+      .padding({ left: 4, right: 4, top: 10, bottom: 8 });
   }
 
   @Builder
@@ -1082,19 +1074,19 @@ export struct ReaderSettingsMenuOverlay {
           if (this.menuShowClock) {
             Text(readerClockText())
               .fontSize(12)
-              .fontColor(themeSecondaryText())
+              .fontColor(themePrimaryText())
               .margin({ left: 8 })
           }
           if (this.menuShowProgress) {
             Text(this.progressText)
               .fontSize(12)
-              .fontColor(themeSecondaryText())
+              .fontColor(themePrimaryText())
               .margin({ left: 8 })
           }
           if (this.menuShowBattery) {
             Text(this.batteryText)
               .fontSize(12)
-              .fontColor(themeSecondaryText())
+              .fontColor(themePrimaryText())
               .margin({ left: 8 })
           }
         }
@@ -1107,22 +1099,22 @@ export struct ReaderSettingsMenuOverlay {
           TabContent() {
             this.ReadingSettingsTab()
           }
-          .tabBar(this.ReaderSettingsTabBar(uiText('Page layout'), 0))
+          .tabBar(this.readerSettingsTabStyle(uiText('Page layout')))
 
           TabContent() {
             this.DisplaySettingsTab()
           }
-          .tabBar(this.ReaderSettingsTabBar(uiText('Screen display'), 1))
+          .tabBar(this.readerSettingsTabStyle(uiText('Screen display')))
 
           TabContent() {
             this.ControlSettingsTab()
           }
-          .tabBar(this.ReaderSettingsTabBar(uiText('Reading aids'), 2))
+          .tabBar(this.readerSettingsTabStyle(uiText('Reading aids')))
 
           TabContent() {
             this.ImageAdjustmentSettingsTab()
           }
-          .tabBar(this.ReaderSettingsTabBar(uiText('Image adjustment'), 3))
+          .tabBar(this.readerSettingsTabStyle(uiText('Image adjustment')))
         }
         .barMode(BarMode.Fixed)
         .barHeight(uiTabHeight() + 8)
