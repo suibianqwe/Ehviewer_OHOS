@@ -16,7 +16,7 @@ import {
   tagTranslationOptionText,
   uiText
 } from '../shared/EhShared';
-import { themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
+import { themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSelectedBackground, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
 import {
   isHarmonyUiStyle,
   uiButtonMaterial,
@@ -620,24 +620,17 @@ struct SearchNamespaceChip {
     return colors[this.paletteIndex % colors.length];
   }
 
-  private textColor(): string {
-    const colors: string[] = ['#1E5575', '#4A3D8A', '#7A441D', '#245B40', '#77344F', '#375B86'];
-    return colors[this.paletteIndex % colors.length];
-  }
-
   build() {
     Button(this.label, { type: ButtonType.Normal, stateEffect: true })
       .width(102)
       .height(34)
       .fontSize(16)
       .fontWeight(FontWeight.Bold)
-      .fontColor(this.isActive ? uiMaterialForegroundColor(themeOnPrimaryText()) : this.textColor())
-      .backgroundColor(this.isActive ? this.activeColor() : this.softColor())
-      .systemMaterial(uiButtonMaterial())
+      .fontColor(this.isActive ? this.activeColor() : themeSecondaryText())
+      .backgroundColor(this.isActive ? this.softColor() : Color.Transparent)
       .borderRadius(uiRadius(5))
       .padding({ left: 4, right: 4 })
-      .opacity(this.isActive ? 1 : 0.72)
-      .animation({ duration: 120, curve: Curve.EaseOut })
+      .animation({ duration: 180, curve: Curve.EaseInOut })
       .onClick(() => {
         this.onClickAction();
       })
@@ -811,12 +804,11 @@ export struct SearchAdvancedPanel {
           Button(tagTranslationOptionText('All categories', '全部分类'))
             .height(32)
             .fontSize(14)
-            .fontColor(this.allCategoriesSelected() ? uiMaterialForegroundColor(themeOnPrimaryText()) :
-              themeSecondaryText())
-            .backgroundColor(this.allCategoriesSelected() ? themePrimaryColor() : themeSurfaceVariant())
-            .systemMaterial(uiButtonMaterial())
+            .fontColor(this.allCategoriesSelected() ? themePrimaryColor() : themeSecondaryText())
+            .backgroundColor(this.allCategoriesSelected() ? themeSelectedBackground() : Color.Transparent)
             .borderRadius(uiRadius(4))
             .width('100%')
+            .animation({ duration: 180, curve: Curve.EaseInOut })
             .onClick(() => {
               this.toggleAllCategories();
             })
@@ -1209,15 +1201,40 @@ export struct ActionBubble {
   directTap: boolean = true;
   onTapAction: () => void = () => {};
 
+  private buttonSize(): number {
+    return this.primary ? 54 : 44;
+  }
+
+  private bubbleWidth(): number {
+    return this.active && this.label.length > 0 ? 220 : this.buttonSize();
+  }
+
   build() {
     Row({ space: 8 }) {
+      if (this.active && this.label.length > 0) {
+        Text(this.label)
+          .fontSize(12)
+          .fontColor(themePrimaryText())
+          .backgroundColor(uiMaterialBackground(themeSurface()))
+          .systemMaterial(uiFloatingMaterial())
+          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+          .borderRadius(uiRadius(14))
+          .shadow({ radius: 8, color: themeShadowColor(), offsetX: 0, offsetY: 2 })
+          .constraintSize({ maxWidth: 158 })
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .transition(TransitionEffect.OPACITY
+            .combine(TransitionEffect.translate({ x: 8 }))
+            .animation({ duration: 140, curve: Curve.EaseOut }))
+      }
+
       Column() {
         SymbolGlyph(this.symbolIcon)
           .fontSize(this.primary ? 26 : 20)
           .fontColor([this.isEnabled ? floatingActionForeground() : themeInactiveActionText()])
       }
-      .width(this.primary ? 54 : 44)
-      .height(this.primary ? 54 : 44)
+      .width(this.buttonSize())
+      .height(this.buttonSize())
       .justifyContent(FlexAlign.Center)
       .alignItems(HorizontalAlign.Center)
       .borderRadius(uiRadius(this.primary ? 27 : 22))
@@ -1234,26 +1251,10 @@ export struct ActionBubble {
         }
       })
 
-      if (this.active && this.label.length > 0) {
-        Text(this.label)
-          .direction(Direction.Ltr)
-          .fontSize(12)
-          .fontColor(themePrimaryText())
-          .textAlign(TextAlign.End)
-          .backgroundColor(uiMaterialBackground(themeSurface()))
-          .systemMaterial(uiFloatingMaterial())
-          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-          .borderRadius(uiRadius(14))
-          .shadow({ radius: 8, color: themeShadowColor(), offsetX: 0, offsetY: 2 })
-          .maxLines(1)
-          .transition(TransitionEffect.OPACITY
-            .combine(TransitionEffect.translate({ x: 8 }))
-            .animation({ duration: 140, curve: Curve.EaseOut }))
-      }
     }
-    .direction(Direction.Rtl)
+    .width(this.bubbleWidth())
     .alignItems(VerticalAlign.Center)
-    .justifyContent(FlexAlign.Start)
+    .justifyContent(FlexAlign.End)
     .hitTestBehavior(HitTestMode.Transparent)
     .transition(TransitionEffect.OPACITY
       .combine(TransitionEffect.translate({ y: 12 }))
@@ -1354,11 +1355,11 @@ export struct SearchCategoryChip {
       .height(40)
       .fontSize(14)
       .fontWeight(FontWeight.Bold)
-      .fontColor(uiMaterialForegroundColor(this.selected ? themeOnPrimaryText() : categoryColor(this.category)))
-      .backgroundColor(uiMaterialBackground(this.selected ? categoryColor(this.category) : this.softColor()))
-      .systemMaterial(uiSegmentMaterial())
+      .fontColor(this.selected ? categoryColor(this.category) : themeSecondaryText())
+      .backgroundColor(this.selected ? this.softColor() : Color.Transparent)
       .borderRadius(uiRadius(20))
       .layoutWeight(1)
+      .animation({ duration: 180, curve: Curve.EaseInOut })
       .onClick(() => {
         this.onToggle(this.category);
       })

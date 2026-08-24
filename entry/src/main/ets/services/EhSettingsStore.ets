@@ -44,7 +44,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'follow_system_dark_mode', value: 'Off' },
     { key: 'theme', value: 'Light' },
     { key: 'theme_color', value: 'Blue' },
-    { key: 'ui_style', value: 'Classic' },
+    { key: 'ui_style', value: 'Harmony' },
     { key: 'launch_page', value: 'Homepage' },
     { key: 'list_mode', value: 'Detail' },
     { key: 'detail_size', value: 'Medium' },
@@ -330,6 +330,7 @@ export class EhSettingsStore {
       let hasPassthroughMigration = false;
       let hasTranslationProviderSplit = false;
       let hasLegacyHarmonyUiStyle = false;
+      let hasStoredUiStyle = false;
       for (let i = 0; i < parsed.length; i++) {
         const item = parsed[i];
         if (typeof item.key === 'string' && typeof item.value === 'string') {
@@ -354,8 +355,15 @@ export class EhSettingsStore {
           if (item.key === 'ui_style' && item.value === 'HarmonyOS 7') {
             hasLegacyHarmonyUiStyle = true;
           }
+          if (item.key === 'ui_style') {
+            hasStoredUiStyle = true;
+          }
           this.setValue(item.key, item.value);
         }
+      }
+
+      if (!hasStoredUiStyle) {
+        this.setValue('ui_style', 'Classic');
       }
 
       if (!hasNetworkMigration) {
@@ -406,7 +414,7 @@ export class EhSettingsStore {
       if (!hasTranslationProviderSplit) {
         this.migrateTranslationProviderSplit();
       }
-      if (!hasPassthroughMigration || !hasTranslationProviderSplit || hasLegacyHarmonyUiStyle) {
+      if (!hasPassthroughMigration || !hasTranslationProviderSplit || hasLegacyHarmonyUiStyle || !hasStoredUiStyle) {
         try {
           await prefs.put(VALUES_KEY, JSON.stringify(this.entries));
           await prefs.flush();
