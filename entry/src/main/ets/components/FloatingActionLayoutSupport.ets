@@ -3,6 +3,12 @@ export const FLOATING_ACTION_GAP: number = 8;
 export const FLOATING_ACTION_PRIMARY_SIZE: number = 54;
 export const FLOATING_ACTION_PRIMARY_GAP: number = 10;
 export const FLOATING_ACTION_DEFAULT_MAX_HEIGHT: number = 360;
+export const FLOATING_ACTION_SIDE_LEFT: string = 'Left';
+export const FLOATING_ACTION_SIDE_RIGHT: string = 'Right';
+
+export function normalizeFloatingActionSide(value: string): string {
+  return value === FLOATING_ACTION_SIDE_LEFT ? FLOATING_ACTION_SIDE_LEFT : FLOATING_ACTION_SIDE_RIGHT;
+}
 
 export function floatingActionAvailableHeight(viewportHeight: number, reservedTop: number,
   reservedBottom: number = 24): number {
@@ -50,10 +56,18 @@ export function floatingActionToolbarWidth(actionCount: number, maxExpandedHeigh
   return Math.max(FLOATING_ACTION_PRIMARY_SIZE, floatingActionGridWidth(actionCount, maxExpandedHeight));
 }
 
-export function floatingActionVisualColumns(actionCount: number, maxExpandedHeight: number): number[] {
+export function floatingActionVisualColumns(actionCount: number, maxExpandedHeight: number,
+  side: string = FLOATING_ACTION_SIDE_RIGHT): number[] {
   const columns: number[] = [];
-  for (let column = floatingActionColumnCount(actionCount, maxExpandedHeight) - 1; column >= 0; column--) {
-    columns.push(column);
+  const columnCount = floatingActionColumnCount(actionCount, maxExpandedHeight);
+  if (normalizeFloatingActionSide(side) === FLOATING_ACTION_SIDE_LEFT) {
+    for (let column = 0; column < columnCount; column++) {
+      columns.push(column);
+    }
+  } else {
+    for (let column = columnCount - 1; column >= 0; column--) {
+      columns.push(column);
+    }
   }
   return columns;
 }
@@ -71,13 +85,14 @@ export function floatingActionIndexesForColumn(column: number, actionCount: numb
 }
 
 export function floatingActionHitIndex(x: number, y: number, actionCount: number,
-  maxExpandedHeight: number): number {
+  maxExpandedHeight: number, side: string = FLOATING_ACTION_SIDE_RIGHT): number {
+  const leftAligned = normalizeFloatingActionSide(side) === FLOATING_ACTION_SIDE_LEFT;
   if (actionCount > 0) {
     const actionsHeight = floatingActionGridHeight(actionCount, maxExpandedHeight);
     const actionsWidth = floatingActionGridWidth(actionCount, maxExpandedHeight);
     const toolbarWidth = floatingActionToolbarWidth(actionCount, maxExpandedHeight);
-    const actionsLeft = toolbarWidth - actionsWidth;
-    if (x >= actionsLeft && x <= toolbarWidth && y >= 0 && y <= actionsHeight) {
+    const actionsLeft = leftAligned ? 0 : toolbarWidth - actionsWidth;
+    if (x >= actionsLeft && x <= actionsLeft + actionsWidth && y >= 0 && y <= actionsHeight) {
       const relativeX = x - actionsLeft;
       const visualColumn = Math.floor(relativeX / (FLOATING_ACTION_SIZE + FLOATING_ACTION_GAP));
       const columnLeft = visualColumn * (FLOATING_ACTION_SIZE + FLOATING_ACTION_GAP);
@@ -88,14 +103,14 @@ export function floatingActionHitIndex(x: number, y: number, actionCount: number
       if (visualColumn >= 0 && visualColumn < columnCount &&
         relativeX <= columnLeft + FLOATING_ACTION_SIZE &&
         row >= 0 && row < maxRows && y >= rowTop && y <= rowTop + FLOATING_ACTION_SIZE) {
-        const logicalColumn = columnCount - visualColumn - 1;
+        const logicalColumn = leftAligned ? visualColumn : columnCount - visualColumn - 1;
         const index = logicalColumn * maxRows + row;
         return index < actionCount ? index : -1;
       }
     }
     const primaryTop = actionsHeight + FLOATING_ACTION_PRIMARY_GAP;
-    const primaryLeft = toolbarWidth - FLOATING_ACTION_PRIMARY_SIZE;
-    if (x >= primaryLeft && x <= toolbarWidth &&
+    const primaryLeft = leftAligned ? 0 : toolbarWidth - FLOATING_ACTION_PRIMARY_SIZE;
+    if (x >= primaryLeft && x <= primaryLeft + FLOATING_ACTION_PRIMARY_SIZE &&
       y >= primaryTop && y <= primaryTop + FLOATING_ACTION_PRIMARY_SIZE) {
       return actionCount;
     }

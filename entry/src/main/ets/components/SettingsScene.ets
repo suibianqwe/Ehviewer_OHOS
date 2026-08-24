@@ -3047,6 +3047,7 @@ export struct SettingsHeaderRow {
       .width('100%')
       .padding(14)
       .backgroundColor(Color.Transparent)
+      .systemMaterial(uiSegmentMaterial())
       .onClick(() => {
         this.onTap();
       })
@@ -3445,7 +3446,8 @@ struct TranslationPromptPanel {
           .width('100%')
           .height(52)
           .padding({ left: 14, right: 14 })
-          .backgroundColor(themeSurface())
+          .backgroundColor(uiMaterialBackground(themeSurface()))
+          .systemMaterial(uiButtonMaterial())
           .borderRadius(uiRadius(6))
           .onClick(() => {
             this.profileSelectorVisible = true;
@@ -3801,7 +3803,8 @@ export struct SettingsActionRow {
     }
     .width('100%')
     .padding(14)
-    .backgroundColor(uiListItemBackground(themeSurface()))
+    .backgroundColor(uiMaterialBackground(uiListItemBackground(themeSurface())))
+    .systemMaterial(uiSegmentMaterial())
     .border({ width: { bottom: this.lastInGroup ? 0 : 0.5 }, color: themeDividerColor() })
     .borderRadius({
       topLeft: this.firstInGroup ? uiRadius(16) : 0,

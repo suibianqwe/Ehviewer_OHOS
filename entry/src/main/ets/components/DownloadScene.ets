@@ -14,7 +14,11 @@ import {
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { BrowsePosition, ehBrowsePositionStore } from '../services/EhBrowsePositionStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
-import { TRANSLATION_BUTTONS_VISIBLE_KEY, ehSettingsStore } from '../services/EhSettingsStore';
+import {
+  FLOATING_ACTION_SIDE_SETTING_KEY,
+  TRANSLATION_BUTTONS_VISIBLE_KEY,
+  ehSettingsStore
+} from '../services/EhSettingsStore';
 import {
   TRANSLATION_ENABLED_KEY,
   ehTranslationService,
@@ -135,13 +139,16 @@ import {
   FLOATING_ACTION_GAP,
   FLOATING_ACTION_PRIMARY_GAP,
   FLOATING_ACTION_SIZE,
+  FLOATING_ACTION_SIDE_LEFT,
+  FLOATING_ACTION_SIDE_RIGHT,
   floatingActionAvailableHeight,
   floatingActionGridHeight,
   floatingActionGridWidth,
   floatingActionHitIndex,
   floatingActionIndexesForColumn,
   floatingActionToolbarWidth,
-  floatingActionVisualColumns
+  floatingActionVisualColumns,
+  normalizeFloatingActionSide
 } from './FloatingActionLayoutSupport';
 import {
   areaDimensionToVp,
@@ -284,6 +291,7 @@ export struct DownloadScene {
   @State selectedDownloadGids: string = '';
   @State toolbarOffsetY: number = 0;
   @State downloadActionsExpanded: boolean = false;
+  @State floatingActionSide: string = FLOATING_ACTION_SIDE_RIGHT;
   @State statusHintText: string = '';
   @State statusHintVisible: boolean = false;
   @State blockingBusyVisible: boolean = false;
@@ -315,6 +323,8 @@ export struct DownloadScene {
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
+    this.floatingActionSide = normalizeFloatingActionSide(
+      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT));
     this.restoreNavigationCache();
     this.syncSceneContentWidthFromWindow();
     this.syncDownloadContentWidthFromWindow();
@@ -554,6 +564,25 @@ export struct DownloadScene {
   private downloadToolActionsMaxHeight(): number {
     const reservedTop = this.statusBarVp() + 56 + 8;
     return floatingActionAvailableHeight(this.viewportHeight, reservedTop);
+  }
+
+  private floatingActionsOnLeft(): boolean {
+    return this.floatingActionSide === FLOATING_ACTION_SIDE_LEFT;
+  }
+
+  private setFloatingActionSide(side: string): void {
+    const normalized = normalizeFloatingActionSide(side);
+    if (normalized === this.floatingActionSide) {
+      return;
+    }
+    this.getUIContext().animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
+      this.floatingActionSide = normalized;
+    });
+    ehSettingsStore.setValue(FLOATING_ACTION_SIDE_SETTING_KEY, normalized);
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSettingsStore.save(context).catch(() => {});
+    }
   }
 
   private updateToolbarForScrollFrame(scrollOffset: number): number {
@@ -2176,6 +2205,7 @@ export struct DownloadScene {
               symbolIcon: $r('sys.symbol.magnifyingglass'),
               isEnabled: true,
               primary: true,
+              side: this.floatingActionSide,
               directTap: true,
               onTapAction: () => {
                 this.applyDownloadSearch();
@@ -2191,6 +2221,7 @@ export struct DownloadScene {
               maxExpandedHeight: this.downloadToolActionsMaxHeight(),
               showTranslationButton: this.translationButtonsVisible,
               translationEnabled: this.translationEnabled,
+              side: this.floatingActionSide,
               onToggle: () => {
                 this.downloadActionsExpanded = !this.downloadActionsExpanded;
               },
@@ -2226,6 +2257,9 @@ export struct DownloadScene {
               },
               onLabel: () => {
                 this.openMoveSelectedDownloadLabel();
+              },
+              onSideChange: (side: string) => {
+                this.setFloatingActionSide(side);
               }
             })
           }
@@ -2233,8 +2267,12 @@ export struct DownloadScene {
         .width('100%')
         .height('100%')
         .justifyContent(FlexAlign.End)
-        .alignItems(HorizontalAlign.End)
-        .padding({ right: 16, bottom: 24 })
+        .alignItems(this.floatingActionsOnLeft() ? HorizontalAlign.Start : HorizontalAlign.End)
+        .padding({
+          left: this.floatingActionsOnLeft() ? 16 : 0,
+          right: this.floatingActionsOnLeft() ? 0 : 16,
+          bottom: 24
+        })
         .hitTestBehavior(HitTestMode.Transparent)
 
         if (this.statusHintVisible) {
@@ -2743,6 +2781,7 @@ struct DownloadToolColumn {
   @Prop maxExpandedHeight: number = 360;
   @Prop showTranslationButton: boolean = true;
   @Prop translationEnabled: boolean = false;
+  @Prop side: string = FLOATING_ACTION_SIDE_RIGHT;
   @State activeActionIndex: number = -1;
   onToggle: () => void = () => {};
   onStatus: () => void = () => {};
@@ -2756,6 +2795,14 @@ struct DownloadToolColumn {
   onLabel: () => void = () => {};
   onDelete: () => void = () => {};
   onExportZip: () => void = () => {};
+  onSideChange: (side: string) => void = (_side: string) => {};
+  private touchStartX: number = 0;
+  private touchStartY: number = 0;
+  private sideDragDetected: boolean = false;
+
+  private isLeftSide(): boolean {
+    return normalizeFloatingActionSide(this.side) === FLOATING_ACTION_SIDE_LEFT;
+  }
 
   private toggleExpanded(): void {
     this.getUIContext().animateTo({ duration: 180, curve: Curve.EaseOut }, () => {
@@ -2790,7 +2837,7 @@ struct DownloadToolColumn {
   }
 
   private visualActionColumns(): number[] {
-    return floatingActionVisualColumns(this.actionCount(), this.maxExpandedHeight);
+    return floatingActionVisualColumns(this.actionCount(), this.maxExpandedHeight, this.side);
   }
 
   private actionIndexesForColumn(column: number): number[] {
@@ -2868,7 +2915,7 @@ struct DownloadToolColumn {
   }
 
   private hitActionIndex(x: number, y: number): number {
-    return floatingActionHitIndex(x, y, this.actionCount(), this.maxExpandedHeight);
+    return floatingActionHitIndex(x, y, this.actionCount(), this.maxExpandedHeight, this.side);
   }
 
   private touchX(event: TouchEvent): number {
@@ -2935,14 +2982,34 @@ struct DownloadToolColumn {
   }
 
   private handleToolbarTouch(event: TouchEvent): void {
-    if (event.type === TouchType.Down || event.type === TouchType.Move) {
+    if (event.type === TouchType.Down) {
+      this.touchStartX = this.touchX(event);
+      this.touchStartY = this.touchY(event);
+      this.sideDragDetected = false;
       this.updateActiveAction(event);
+    } else if (event.type === TouchType.Move) {
+      const offsetX = this.touchX(event) - this.touchStartX;
+      const offsetY = this.touchY(event) - this.touchStartY;
+      if (Math.abs(offsetX) >= 32 && Math.abs(offsetX) > Math.abs(offsetY) * 1.2) {
+        this.sideDragDetected = true;
+        this.activeActionIndex = -1;
+      } else if (!this.sideDragDetected) {
+        this.updateActiveAction(event);
+      }
     } else if (event.type === TouchType.Up) {
+      if (this.sideDragDetected) {
+        const offsetX = this.touchX(event) - this.touchStartX;
+        this.sideDragDetected = false;
+        this.activeActionIndex = -1;
+        this.onSideChange(offsetX < 0 ? FLOATING_ACTION_SIDE_LEFT : FLOATING_ACTION_SIDE_RIGHT);
+        return;
+      }
       const index = this.hitActionIndex(this.touchX(event), this.touchY(event));
       const fallbackIndex = index >= 0 ? index : this.activeActionIndex;
       this.activeActionIndex = -1;
       this.triggerAction(fallbackIndex);
     } else if (event.type === TouchType.Cancel) {
+      this.sideDragDetected = false;
       this.activeActionIndex = -1;
     }
   }
@@ -2955,6 +3022,7 @@ struct DownloadToolColumn {
       isEnabled: this.actionEnabled(index),
       checked: this.actionKind(index) === 'translate' && this.translationEnabled,
       active: this.activeActionIndex === index,
+      side: this.side,
       directTap: false
     })
   }
@@ -2971,12 +3039,12 @@ struct DownloadToolColumn {
                 }
                 .width(FLOATING_ACTION_SIZE)
                 .height(FLOATING_ACTION_SIZE)
-                .justifyContent(FlexAlign.End)
+                .justifyContent(this.isLeftSide() ? FlexAlign.Start : FlexAlign.End)
                 .clip(false)
               }, (index: number) => index.toString())
             }
             .width(FLOATING_ACTION_SIZE)
-            .alignItems(HorizontalAlign.End)
+            .alignItems(this.isLeftSide() ? HorizontalAlign.Start : HorizontalAlign.End)
           }, (column: number) => column.toString())
         }
         .width(this.expandedActionsWidth())
@@ -2994,11 +3062,12 @@ struct DownloadToolColumn {
         isEnabled: true,
         primary: true,
         active: this.activeActionIndex === this.primaryIndex(),
+        side: this.side,
         directTap: false
       })
     }
     .width(this.toolbarWidth())
-    .alignItems(HorizontalAlign.End)
+    .alignItems(this.isLeftSide() ? HorizontalAlign.Start : HorizontalAlign.End)
     .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
     .onTouch((event: TouchEvent) => {
       this.handleToolbarTouch(event);

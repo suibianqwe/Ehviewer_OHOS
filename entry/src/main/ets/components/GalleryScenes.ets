@@ -20,6 +20,7 @@ import { DownloadLabel, ehDownloadStore } from '../services/EhDownloadStore';
 import {
   DEFAULT_FAVORITE_SLOT_ASK,
   DEFAULT_FAVORITE_SLOT_SETTING_KEY,
+  FLOATING_ACTION_SIDE_SETTING_KEY,
   TRANSLATION_BUTTONS_VISIBLE_KEY,
   defaultFavoriteSlotSettingValue,
   ehSettingsStore,
@@ -149,7 +150,12 @@ import {
   searchTagTokens,
   recordSearchHistory
 } from './GallerySearchScenes';
-import { floatingActionAvailableHeight } from './FloatingActionLayoutSupport';
+import {
+  FLOATING_ACTION_SIDE_LEFT,
+  FLOATING_ACTION_SIDE_RIGHT,
+  floatingActionAvailableHeight,
+  normalizeFloatingActionSide
+} from './FloatingActionLayoutSupport';
 import {
   uiText,
   uiStatusText,
@@ -4110,6 +4116,7 @@ export struct GalleryListContent {
   @State toolbarOffsetY: number = 0;
   @State translationVisibleStart: number = -1;
   @State translationVisibleEnd: number = -1;
+  @State floatingActionSide: string = FLOATING_ACTION_SIDE_RIGHT;
   @State favoriteDrawerVisible: boolean = false;
   @State favoriteDrawerOffsetX: number = 288;
   @State favoriteDrawerOverlayOpacity: number = 0;
@@ -4265,6 +4272,8 @@ export struct GalleryListContent {
     this.unregisterActiveBackHandler();
     this.unregisterActiveBackHandler = pushActiveBackHandler(() => this.handleContentBack());
     this.onLayoutWidthHintChanged();
+    this.floatingActionSide = normalizeFloatingActionSide(
+      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT));
     this.syncContentWidthFromWindow();
     this.syncPageJumpDraft();
     this.searchTagTokenCount = this.selectedSearchTagTokens().length;
@@ -4468,6 +4477,25 @@ export struct GalleryListContent {
 
   private quickActionsMaxHeight(): number {
     return floatingActionAvailableHeight(this.viewportHeight, this.statusBarVp() + this.barHeight() + 8);
+  }
+
+  private floatingActionsOnLeft(): boolean {
+    return this.floatingActionSide === FLOATING_ACTION_SIDE_LEFT;
+  }
+
+  private setFloatingActionSide(side: string): void {
+    const normalized = normalizeFloatingActionSide(side);
+    if (normalized === this.floatingActionSide) {
+      return;
+    }
+    this.getUIContext().animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
+      this.floatingActionSide = normalized;
+    });
+    ehSettingsStore.setValue(FLOATING_ACTION_SIDE_SETTING_KEY, normalized);
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSettingsStore.save(context).catch(() => {});
+    }
   }
 
   private visibleBarHeight(): number {
@@ -5391,6 +5419,7 @@ export struct GalleryListContent {
               symbolIcon: $r('sys.symbol.translate'),
               isEnabled: true,
               checked: this.translationEnabled,
+              side: this.floatingActionSide,
               directTap: true,
               onTapAction: () => {
                 ehTranslationService.setEnabled(!this.translationEnabled);
@@ -5403,6 +5432,7 @@ export struct GalleryListContent {
             symbolIcon: $r('sys.symbol.magnifyingglass'),
             isEnabled: true,
             primary: true,
+            side: this.floatingActionSide,
             directTap: true,
             onTapAction: () => {
               this.onSearch();
@@ -5420,6 +5450,7 @@ export struct GalleryListContent {
             showTranslationButton: this.shouldShowTranslationAction(),
             translationEnabled: this.translationEnabled,
             maxExpandedHeight: this.quickActionsMaxHeight(),
+            side: this.floatingActionSide,
             onToggle: this.onToggleActions,
             onFilter: this.onFilter,
             onJump: () => {
@@ -5435,6 +5466,9 @@ export struct GalleryListContent {
             },
             onBookmark: () => {
               this.onAddBookmark();
+            },
+            onSideChange: (side: string) => {
+              this.setFloatingActionSide(side);
             }
           })
         }
@@ -5442,8 +5476,12 @@ export struct GalleryListContent {
       .width('100%')
       .height('100%')
       .justifyContent(FlexAlign.End)
-      .alignItems(HorizontalAlign.End)
-      .padding({ right: 16, bottom: 24 })
+      .alignItems(this.floatingActionsOnLeft() ? HorizontalAlign.Start : HorizontalAlign.End)
+      .padding({
+        left: this.floatingActionsOnLeft() ? 16 : 0,
+        right: this.floatingActionsOnLeft() ? 0 : 16,
+        bottom: 24
+      })
       .hitTestBehavior(HitTestMode.Transparent)
 
       if (this.advancedPanelVisible) {

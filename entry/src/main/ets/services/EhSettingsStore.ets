@@ -17,6 +17,7 @@ export const DEFAULT_FAVORITE_SLOT_SETTING_KEY: string = 'default_fav_slot';
 export const DEFAULT_FAVORITE_SLOT_ASK: string = 'Ask';
 export const DEFAULT_DOWNLOAD_LABEL_SETTING_KEY: string = 'default_download_label';
 export const DEFAULT_DOWNLOAD_LABEL_ASK: string = '__ask__';
+export const FLOATING_ACTION_SIDE_SETTING_KEY: string = 'floating_action_side';
 const HISTORY_INFO_SIZE_OPTIONS: string[] = ['100', '500', '1000', '5000', '10000', '20000'];
 const DEVICE_LOCAL_SETTING_KEYS: string[] = ['download_location', 'download_public_root_path'];
 
@@ -61,6 +62,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'split_screen_ratio', value: '0.42' },
     { key: 'show_eh_limits', value: 'On' },
     { key: 'translation_buttons_enabled', value: 'On' },
+    { key: FLOATING_ACTION_SIDE_SETTING_KEY, value: 'Right' },
     { key: 'reader_translation_enabled', value: 'Off' },
     { key: 'reader_ocr_debug_log', value: 'Off' },
     { key: 'reader_translation_button_side', value: 'Right' },

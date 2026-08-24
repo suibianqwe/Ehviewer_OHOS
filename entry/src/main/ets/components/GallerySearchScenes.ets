@@ -34,12 +34,15 @@ import {
   FLOATING_ACTION_GAP,
   FLOATING_ACTION_PRIMARY_GAP,
   FLOATING_ACTION_SIZE,
+  FLOATING_ACTION_SIDE_LEFT,
+  FLOATING_ACTION_SIDE_RIGHT,
   floatingActionGridHeight,
   floatingActionGridWidth,
   floatingActionHitIndex,
   floatingActionIndexesForColumn,
   floatingActionToolbarWidth,
-  floatingActionVisualColumns
+  floatingActionVisualColumns,
+  normalizeFloatingActionSide
 } from './FloatingActionLayoutSupport';
 
 export interface SearchSuggestionItem {
@@ -982,6 +985,7 @@ export struct QuickActionColumn {
   @Prop showTranslationButton: boolean = true;
   @Prop translationEnabled: boolean = false;
   @Prop maxExpandedHeight: number = 360;
+  @Prop side: string = FLOATING_ACTION_SIDE_RIGHT;
   onToggle: () => void = () => {};
   onFilter: () => void = () => {};
   onJump: () => void = () => {};
@@ -990,7 +994,15 @@ export struct QuickActionColumn {
   onImageSearch: () => void = () => {};
   onBookmark: () => void = () => {};
   onTranslate: () => void = () => {};
+  onSideChange: (side: string) => void = (_side: string) => {};
   @State activeActionIndex: number = -1;
+  private touchStartX: number = 0;
+  private touchStartY: number = 0;
+  private sideDragDetected: boolean = false;
+
+  private isLeftSide(): boolean {
+    return normalizeFloatingActionSide(this.side) === FLOATING_ACTION_SIDE_LEFT;
+  }
 
   private toggleExpanded(): void {
     this.getUIContext().animateTo({ duration: 180, curve: Curve.EaseOut }, () => {
@@ -1022,7 +1034,7 @@ export struct QuickActionColumn {
   }
 
   private visualActionColumns(): number[] {
-    return floatingActionVisualColumns(this.actionCount(), this.maxExpandedHeight);
+    return floatingActionVisualColumns(this.actionCount(), this.maxExpandedHeight, this.side);
   }
 
   private actionIndexesForColumn(column: number): number[] {
@@ -1050,7 +1062,7 @@ export struct QuickActionColumn {
   }
 
   private hitActionIndex(x: number, y: number): number {
-    return floatingActionHitIndex(x, y, this.actionCount(), this.maxExpandedHeight);
+    return floatingActionHitIndex(x, y, this.actionCount(), this.maxExpandedHeight, this.side);
   }
 
   private touchX(event: TouchEvent): number {
@@ -1108,14 +1120,34 @@ export struct QuickActionColumn {
   }
 
   private handleToolbarTouch(event: TouchEvent): void {
-    if (event.type === TouchType.Down || event.type === TouchType.Move) {
+    if (event.type === TouchType.Down) {
+      this.touchStartX = this.touchX(event);
+      this.touchStartY = this.touchY(event);
+      this.sideDragDetected = false;
       this.updateActiveAction(event);
+    } else if (event.type === TouchType.Move) {
+      const offsetX = this.touchX(event) - this.touchStartX;
+      const offsetY = this.touchY(event) - this.touchStartY;
+      if (Math.abs(offsetX) >= 32 && Math.abs(offsetX) > Math.abs(offsetY) * 1.2) {
+        this.sideDragDetected = true;
+        this.activeActionIndex = -1;
+      } else if (!this.sideDragDetected) {
+        this.updateActiveAction(event);
+      }
     } else if (event.type === TouchType.Up) {
+      if (this.sideDragDetected) {
+        const offsetX = this.touchX(event) - this.touchStartX;
+        this.sideDragDetected = false;
+        this.activeActionIndex = -1;
+        this.onSideChange(offsetX < 0 ? FLOATING_ACTION_SIDE_LEFT : FLOATING_ACTION_SIDE_RIGHT);
+        return;
+      }
       const index = this.hitActionIndex(this.touchX(event), this.touchY(event));
       const fallbackIndex = index >= 0 ? index : this.activeActionIndex;
       this.activeActionIndex = -1;
       this.triggerAction(fallbackIndex);
     } else if (event.type === TouchType.Cancel) {
+      this.sideDragDetected = false;
       this.activeActionIndex = -1;
     }
   }
@@ -1159,6 +1191,7 @@ export struct QuickActionColumn {
       checked: (index === 0 && this.accountFilterEnabled) ||
         (index === this.translationActionIndex() && this.translationEnabled),
       active: this.activeActionIndex === index,
+      side: this.side,
       directTap: false
     })
   }
@@ -1175,12 +1208,12 @@ export struct QuickActionColumn {
                 }
                 .width(FLOATING_ACTION_SIZE)
                 .height(FLOATING_ACTION_SIZE)
-                .justifyContent(FlexAlign.End)
+                .justifyContent(this.isLeftSide() ? FlexAlign.Start : FlexAlign.End)
                 .clip(false)
               }, (index: number) => index.toString())
             }
             .width(FLOATING_ACTION_SIZE)
-            .alignItems(HorizontalAlign.End)
+            .alignItems(this.isLeftSide() ? HorizontalAlign.Start : HorizontalAlign.End)
           }, (column: number) => column.toString())
         }
         .width(this.expandedActionsWidth())
@@ -1198,11 +1231,12 @@ export struct QuickActionColumn {
         isEnabled: true,
         primary: true,
         active: this.activeActionIndex === this.primaryIndex(),
+        side: this.side,
         directTap: false
       })
     }
     .width(this.toolbarWidth())
-    .alignItems(HorizontalAlign.End)
+    .alignItems(this.isLeftSide() ? HorizontalAlign.Start : HorizontalAlign.End)
     .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
     .onTouch((event: TouchEvent) => {
       this.handleToolbarTouch(event);
@@ -1217,6 +1251,7 @@ export struct ActionBubble {
   @Prop isEnabled: boolean = true;
   @Prop active: boolean = false;
   @Prop checked: boolean = false;
+  @Prop side: string = FLOATING_ACTION_SIDE_RIGHT;
   primary: boolean = false;
   directTap: boolean = true;
   onTapAction: () => void = () => {};
@@ -1226,63 +1261,84 @@ export struct ActionBubble {
   }
 
   private bubbleWidth(): number {
-    return this.active && this.label.length > 0 ? 220 : this.buttonSize();
+    return this.buttonSize() + 8 + 214;
   }
 
   private bubbleOffsetX(): number {
-    if (this.primary || !this.active || this.label.length === 0) {
-      return 0;
+    return this.isLeftSide() ? 0 : this.buttonSize() - this.bubbleWidth();
+  }
+
+  private isLeftSide(): boolean {
+    return normalizeFloatingActionSide(this.side) === FLOATING_ACTION_SIDE_LEFT;
+  }
+
+  @Builder
+  private labelBubble() {
+    Text(this.label)
+      .fontSize(12)
+      .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+      .backgroundColor(uiMaterialBackground(themeSurface()))
+      .systemMaterial(uiFloatingMaterial())
+      .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+      .borderRadius(uiRadius(15))
+      .constraintSize({ maxWidth: 214 })
+      .maxLines(1)
+      .textOverflow({ overflow: TextOverflow.Ellipsis })
+      .transition(TransitionEffect.OPACITY
+        .combine(TransitionEffect.translate({ x: this.isLeftSide() ? -10 : 10 }))
+        .animation({ duration: 160, curve: Curve.EaseOut }))
+  }
+
+  @Builder
+  private buttonBubble() {
+    Column() {
+      SymbolGlyph(this.symbolIcon)
+        .fontSize(this.primary ? 26 : 20)
+        .fontColor([this.isEnabled ? floatingActionForeground() : themeInactiveActionText()])
     }
-    return this.buttonSize() - this.bubbleWidth();
+    .width(this.buttonSize())
+    .height(this.buttonSize())
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .borderRadius(uiRadius(this.primary ? 27 : 22))
+    .backgroundColor(floatingActionBackground(this.isEnabled ?
+      (this.primary || this.checked ? themePrimaryColor() : themeControlNeutralBackground()) :
+      themeControlMutedBackground()))
+    .systemMaterial(uiButtonMaterial())
+    .scale({ x: this.active ? 0.92 : 1, y: this.active ? 0.92 : 1 })
+    .animation({ duration: 120, curve: Curve.EaseOut })
+    .onClick(() => {
+      if (this.directTap && this.isEnabled) {
+        this.onTapAction();
+      }
+    })
   }
 
   build() {
-    Row({ space: 8 }) {
-      if (this.active && this.label.length > 0) {
-        Text(this.label)
-          .fontSize(12)
-          .fontColor(themePrimaryText())
-          .backgroundColor(uiMaterialBackground(themeSurface()))
-          .systemMaterial(uiFloatingMaterial())
-          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-          .borderRadius(uiRadius(14))
-          .shadow({ radius: 8, color: themeShadowColor(), offsetX: 0, offsetY: 2 })
-          .constraintSize({ maxWidth: 158 })
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .transition(TransitionEffect.OPACITY
-            .combine(TransitionEffect.translate({ x: 8 }))
-            .animation({ duration: 140, curve: Curve.EaseOut }))
-      }
-
-      Column() {
-        SymbolGlyph(this.symbolIcon)
-          .fontSize(this.primary ? 26 : 20)
-          .fontColor([this.isEnabled ? floatingActionForeground() : themeInactiveActionText()])
-      }
-      .width(this.buttonSize())
-      .height(this.buttonSize())
-      .justifyContent(FlexAlign.Center)
-      .alignItems(HorizontalAlign.Center)
-      .borderRadius(uiRadius(this.primary ? 27 : 22))
-      .backgroundColor(floatingActionBackground(this.isEnabled ?
-        (this.primary || this.checked ? themePrimaryColor() : themeControlNeutralBackground()) :
-        themeControlMutedBackground()))
-      .systemMaterial(uiButtonMaterial())
-      .shadow({ radius: this.primary ? 14 : 8, color: themeShadowColor(), offsetX: 0, offsetY: 3 })
-      .scale({ x: this.active ? 0.92 : 1, y: this.active ? 0.92 : 1 })
-      .animation({ duration: 120, curve: Curve.EaseOut })
-      .onClick(() => {
-        if (this.directTap && this.isEnabled) {
-          this.onTapAction();
+    Stack({ alignContent: Alignment.TopStart }) {
+      Row({ space: 8 }) {
+        if (this.isLeftSide()) {
+          this.buttonBubble()
+          if (this.active && this.label.length > 0) {
+            this.labelBubble()
+          }
+        } else {
+          if (this.active && this.label.length > 0) {
+            this.labelBubble()
+          }
+          this.buttonBubble()
         }
-      })
-
+      }
+      .width(this.bubbleWidth())
+      .height(this.buttonSize())
+      .position({ x: this.bubbleOffsetX(), y: 0 })
+      .alignItems(VerticalAlign.Center)
+      .justifyContent(this.isLeftSide() ? FlexAlign.Start : FlexAlign.End)
+      .hitTestBehavior(HitTestMode.Transparent)
     }
-    .width(this.bubbleWidth())
-    .translate({ x: this.bubbleOffsetX() })
-    .alignItems(VerticalAlign.Center)
-    .justifyContent(FlexAlign.End)
+    .width(this.buttonSize())
+    .height(this.buttonSize())
+    .clip(false)
     .hitTestBehavior(HitTestMode.Transparent)
     .transition(TransitionEffect.OPACITY
       .combine(TransitionEffect.translate({ y: 12 }))
