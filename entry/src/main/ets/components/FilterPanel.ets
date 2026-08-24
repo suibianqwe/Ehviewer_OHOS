@@ -22,7 +22,17 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
+import {
+  uiButtonMaterial,
+  uiListItemBackground,
+  uiListItemBorderColor,
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiRadius,
+  uiSearchMaterial,
+  uiSegmentMaterial,
+  uiTabHeight
+} from '../shared/EhUiStyle';
 import {
   buildSearchSuggestions,
   RatingStarBar,
@@ -231,8 +241,9 @@ export struct FilterPanel {
           .fontSize(15)
           .fontColor(themePrimaryText())
           .placeholderColor(themeTertiaryText())
-          .backgroundColor(themeFieldBackground())
-          .borderRadius(uiRadius(8))
+          .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+          .systemMaterial(uiSearchMaterial())
+          .borderRadius(uiRadius(22))
           .padding({ left: 12, right: 12 })
           .onChange((value: string) => {
             this.updateDraftText(value);
@@ -315,8 +326,9 @@ export struct FilterPanel {
     }
     .width('100%')
     .padding(14)
-    .backgroundColor(themeSurface())
-    .borderRadius(uiRadius(8))
+    .backgroundColor(uiListItemBackground(themeSurface()))
+    .borderRadius(uiRadius(16))
+    .border({ width: 1, color: uiListItemBorderColor(themeDividerColor()) })
   }
 
   @Builder
@@ -386,11 +398,12 @@ struct FilterModeTab {
     Text(this.label)
       .fontSize(13)
       .fontWeight(this.selected ? FontWeight.Bold : FontWeight.Medium)
-      .fontColor(this.selected ? Color.White : themePrimaryText())
-      .height(34)
+      .fontColor(uiMaterialForegroundColor(this.selected ? Color.White : themePrimaryText()))
+      .height(uiTabHeight())
       .padding({ left: 14, right: 14 })
-      .backgroundColor(this.selected ? themePrimaryColor() : themeSurfaceVariant())
-      .borderRadius(uiRadius(17))
+      .backgroundColor(uiMaterialBackground(this.selected ? themePrimaryColor() : themeSurfaceVariant()))
+      .systemMaterial(uiSegmentMaterial())
+      .borderRadius(uiRadius(uiTabHeight() / 2))
       .onClick(() => {
         this.onTap();
       })
@@ -462,9 +475,9 @@ struct FilterRuleCard {
     }
     .width('100%')
     .padding(14)
-    .backgroundColor(themeSurface())
-    .borderRadius(uiRadius(8))
-    .border({ width: 1, color: themeDividerColor() })
+    .backgroundColor(uiListItemBackground(themeSurface()))
+    .borderRadius(uiRadius(16))
+    .border({ width: 1, color: uiListItemBorderColor(themeDividerColor()) })
   }
 }
 

@@ -12,7 +12,13 @@ import {
   uiDialogMaterial,
   uiMaterialBackground,
   uiMaterialForegroundColor,
-  uiRadius
+  uiMaterialSecondaryForegroundColor,
+  uiPopupBlurStyle,
+  uiRadius,
+  uiSearchMaterial,
+  uiSelectorHeight,
+  uiSwitchHeight,
+  uiSwitchWidth
 } from '../../../shared/EhUiStyle';
 
 const READER_MENU_SURFACE = '#EE111827';
@@ -68,8 +74,8 @@ export struct ReaderImageActionDialog {
         .backgroundColor(Color.Transparent)
         .borderRadius(0)
         .fontSize(15)
-        .fontColor(READER_MENU_ITEM_TEXT)
-        .iconColor(READER_MENU_ITEM_ICON)
+        .fontColor(uiMaterialForegroundColor(READER_MENU_ITEM_TEXT))
+        .iconColor(uiMaterialForegroundColor(READER_MENU_ITEM_ICON))
         .iconSize(20)
         .layoutDirection(SecurityComponentLayoutDirection.HORIZONTAL)
         .onClick((_event: ClickEvent, result: SaveButtonOnClickResult) => {
@@ -132,7 +138,7 @@ export struct ReaderMenuDivider {
   build() {
     Divider()
       .height(1)
-      .color(READER_MENU_DIVIDER)
+      .color(uiMaterialSecondaryForegroundColor(READER_MENU_DIVIDER))
       .margin({ left: 16, right: 16 })
   }
 }
@@ -148,34 +154,35 @@ export struct ReaderMenuSelect {
     Row() {
       Text(this.label)
         .fontSize(14)
-        .fontColor('#E5E7EB')
+        .fontColor(uiMaterialForegroundColor(READER_MENU_ITEM_TEXT))
         .layoutWeight(1)
       Select(this.options.map((option: string) => ({ value: uiValue(option) } as SelectOption)))
         .id('reader-menu-select-' + this.label + '-' + this.value)
         .selected(readerMenuOptionIndex(this.options, this.value))
         .value(uiValue(this.value))
         .font({ size: 13 })
-        .fontColor(readerSelectColors().buttonText)
+        .fontColor(uiMaterialForegroundColor(readerSelectColors().buttonText))
         .backgroundColor(readerSelectColors().buttonBackground)
+        .systemMaterial(uiSearchMaterial())
         .menuBackgroundColor(readerSelectColors().menuBackground)
-        .menuBackgroundBlurStyle(BlurStyle.NONE)
+        .menuBackgroundBlurStyle(uiPopupBlurStyle())
         .optionBgColor(readerSelectColors().optionBackground)
         .optionFontColor(readerSelectColors().optionText)
         .optionFont({ size: 13 })
         .selectedOptionBgColor(readerSelectColors().selectedOptionBackground)
         .selectedOptionFontColor(readerSelectColors().selectedOptionText)
         .menuOutline({ width: 1, color: readerSelectColors().outline })
-        .arrowModifier(selectArrowModifier(readerSelectColors().arrow))
+        .arrowModifier(selectArrowModifier(uiMaterialSecondaryForegroundColor(readerSelectColors().arrow)))
         .onSelect((index: number) => {
           if (index >= 0 && index < this.options.length) {
             this.onChange(this.options[index]);
           }
         })
-        .height(32)
-        .constraintSize({ minWidth: 136, maxWidth: 188 })
+        .height(uiSelectorHeight())
+        .constraintSize({ minWidth: 148, maxWidth: 220 })
     }
     .width('100%')
-    .height(44)
+    .height(52)
     .padding({ left: 16, right: 16, top: 6, bottom: 6 })
     .alignItems(VerticalAlign.Center)
   }
@@ -205,11 +212,11 @@ export struct ReaderMenuSlider {
       Row() {
         Text(this.label)
           .fontSize(14)
-          .fontColor('#E5E7EB')
+          .fontColor(uiMaterialForegroundColor(READER_MENU_ITEM_TEXT))
           .layoutWeight(1)
         Text(this.valueText(this.liveValue))
           .fontSize(13)
-          .fontColor('#CBD5E1')
+          .fontColor(uiMaterialSecondaryForegroundColor('#CBD5E1'))
           .width(54)
           .textAlign(TextAlign.End)
       }
@@ -285,14 +292,16 @@ export struct ReaderMenuToggle {
     Row() {
       Text(this.label)
         .fontSize(14)
-        .fontColor('#E5E7EB')
+        .fontColor(uiMaterialForegroundColor(READER_MENU_ITEM_TEXT))
         .layoutWeight(1)
       Toggle({ type: ToggleType.Switch, isOn: this.value })
+        .width(uiSwitchWidth())
+        .height(uiSwitchHeight())
         .onChange((v: boolean) => { this.onChange(v); })
         .selectedColor('#2F6F8F')
     }
     .width('100%')
-    .height(44)
+    .height(52)
     .padding({ left: 16, right: 16, top: 6, bottom: 6 })
     .alignItems(VerticalAlign.Center)
   }

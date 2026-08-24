@@ -3,6 +3,7 @@ import { ehCookieStore } from '../services/EhCookieStore';
 import { DownloadInfo, ehDownloadStore } from '../services/EhDownloadStore';
 import { EhHomeLimits, EhHomeLimitsResult, ehHomeLimitsService } from '../services/EhHomeLimitsService';
 import { ehSettingsStore } from '../services/EhSettingsStore';
+import { MAIN_CONTENT_WIDTH_VP_KEY } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, downloadQueueSummary, getAbilityContext, uiText, uiStatusText, DrawerItem, DRAWER_ITEMS } from '../shared/EhShared';
 import {
   themeDividerColor,
@@ -29,11 +30,18 @@ import {
 } from '../shared/EhTheme';
 import {
   isHarmonyOs7UiStyle,
+  uiAdaptiveTitleSize,
+  uiAdaptiveToolbarHeight,
   uiButtonMaterial,
   uiCardRadius,
+  uiChromeMaterial,
   uiControlRadius,
   uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiMaterialSecondaryForegroundColor,
   uiPillRadius,
+  uiSearchFieldHeight,
+  uiSearchMaterial,
   uiTitleBarBlurStyle
 } from '../shared/EhUiStyle';
 import { TranslationText } from './TranslationComponents';
@@ -449,9 +457,14 @@ export struct EhNavBar {
   onRefresh: () => void = () => {};
   onClear: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+  @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
 
   private barBodyHeight(): number {
-    return 56;
+    return uiAdaptiveToolbarHeight(this.contentWidth);
+  }
+
+  private actionSize(): number {
+    return this.contentWidth >= 600 ? 44 : 42;
   }
 
   private totalBarHeight(): number {
@@ -468,7 +481,7 @@ export struct EhNavBar {
       Column()
         .height(this.statusBarHeight)
         .width('100%')
-        .backgroundColor(navigationBarBackground())
+        .backgroundColor(Color.Transparent)
 
       // Main bar row
       Row() {
@@ -478,8 +491,8 @@ export struct EhNavBar {
             .fontSize(22)
             .fontColor([navigationTitleText()])
         }
-        .width(40)
-        .height(40)
+        .width(this.actionSize())
+        .height(this.actionSize())
         .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
         .systemMaterial(uiButtonMaterial())
         .flexShrink(0)
@@ -499,12 +512,13 @@ export struct EhNavBar {
               placeholder: this.searchPlaceholder.length > 0 ? uiText(this.searchPlaceholder) :
                 (this.title.length === 0 ? uiText('Search galleries') : uiText(this.title))
             })
-              .height(38)
+              .height(uiSearchFieldHeight())
               .width('100%')
-              .backgroundColor(themeFieldBackground())
-              .borderRadius(uiPillRadius(19))
-              .placeholderColor(themeSecondaryText())
-              .fontColor(themePrimaryText())
+              .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+              .systemMaterial(uiSearchMaterial())
+              .borderRadius(uiPillRadius(uiSearchFieldHeight() / 2))
+              .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
+              .fontColor(uiMaterialForegroundColor(themePrimaryText()))
               .caretColor(themePrimaryColor())
               .padding({ left: 16, right: 42 })
               .onFocus(() => { this.onSearchFocus(); })
@@ -521,7 +535,7 @@ export struct EhNavBar {
                 .margin({ left: 10, bottom: 5 })
             }
           }
-          .height(38)
+          .height(uiSearchFieldHeight())
           .layoutWeight(1)
           .margin({ left: 10 })
 
@@ -531,8 +545,8 @@ export struct EhNavBar {
               .fontSize(this.searchShowsAdvancedButton ? 22 : 20)
               .fontColor([navigationTitleText()])
           }
-          .width(40)
-          .height(40)
+          .width(this.actionSize())
+          .height(this.actionSize())
           .backgroundColor(navigationActionBackground(this.searchShowsAdvancedButton && this.filterActive ?
             themeOnPrimaryActionStrongBackground() : themeOnPrimaryActionBackground()))
           .systemMaterial(uiButtonMaterial())
@@ -550,7 +564,7 @@ export struct EhNavBar {
           // Title text
           Column() {
             Text(uiText(this.title))
-              .fontSize(19)
+              .fontSize(uiAdaptiveTitleSize(this.contentWidth))
               .fontWeight(FontWeight.Medium)
               .fontColor(navigationTitleText())
               .maxLines(1)
@@ -575,8 +589,8 @@ export struct EhNavBar {
                 .fontSize(20)
                 .fontColor([navigationTitleText()])
             }
-            .width(40)
-            .height(40)
+            .width(this.actionSize())
+            .height(this.actionSize())
             .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
             .systemMaterial(uiButtonMaterial())
             .flexShrink(0)
@@ -590,8 +604,8 @@ export struct EhNavBar {
                 .fontSize(20)
                 .fontColor([navigationTitleText()])
             }
-            .width(40)
-            .height(40)
+            .width(this.actionSize())
+            .height(this.actionSize())
             .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
             .systemMaterial(uiButtonMaterial())
             .flexShrink(0)
@@ -605,8 +619,8 @@ export struct EhNavBar {
                 .fontSize(20)
                 .fontColor([navigationTitleText()])
             }
-            .width(40)
-            .height(40)
+            .width(this.actionSize())
+            .height(this.actionSize())
             .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
             .systemMaterial(uiButtonMaterial())
             .flexShrink(0)
@@ -620,8 +634,8 @@ export struct EhNavBar {
                 .fontSize(20)
                 .fontColor([navigationTitleText()])
             }
-            .width(40)
-            .height(40)
+            .width(this.actionSize())
+            .height(this.actionSize())
             .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
             .systemMaterial(uiButtonMaterial())
             .flexShrink(0)
@@ -636,8 +650,8 @@ export struct EhNavBar {
                 .fontSize(19)
                 .fontColor([navigationTitleText()])
             }
-            .width(40)
-            .height(40)
+            .width(this.actionSize())
+            .height(this.actionSize())
             .enabled(this.canClear)
             .backgroundColor(navigationActionBackground(this.canClear ? themeOnPrimaryDangerBackground() :
               themeOnPrimaryActionDisabledBackground()))
@@ -652,13 +666,15 @@ export struct EhNavBar {
       .height(this.barBodyHeight())
       .padding({ left: 12, right: 12 })
       .alignItems(VerticalAlign.Center)
-      .backgroundColor(navigationBarBackground())
+      .backgroundColor(Color.Transparent)
     }
     .width('100%')
     .translate({ y: this.translateY })
     .opacity(1)
     .visibility(this.barVisible() ? Visibility.Visible : Visibility.Hidden)
     .animation({ duration: 200, curve: Curve.EaseOut })
+    .backgroundColor(navigationBarBackground())
+    .systemMaterial(uiChromeMaterial())
     .backgroundBlurStyle(uiTitleBarBlurStyle())
     .zIndex(10)
   }
@@ -678,13 +694,22 @@ export struct EhSubNavBar {
   onBack: () => void = () => {};
   onAction: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+  @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
+
+  private barBodyHeight(): number {
+    return uiAdaptiveToolbarHeight(this.contentWidth);
+  }
+
+  private actionSize(): number {
+    return this.contentWidth >= 600 ? 44 : 42;
+  }
 
   build() {
     Column() {
       Column()
         .height(this.statusBarHeight)
         .width('100%')
-        .backgroundColor(navigationBarBackground())
+        .backgroundColor(Color.Transparent)
 
       Row() {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
@@ -692,8 +717,8 @@ export struct EhSubNavBar {
             .fontSize(22)
             .fontColor([navigationTitleText()])
         }
-        .width(40)
-        .height(40)
+        .width(this.actionSize())
+        .height(this.actionSize())
         .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
         .systemMaterial(uiButtonMaterial())
         .flexShrink(0)
@@ -702,7 +727,7 @@ export struct EhSubNavBar {
         TranslationText({
           sourceText: this.translateTitle ? this.title : uiText(this.title),
           translationEnabled: this.translateTitle,
-          fontSizeValue: 19,
+          fontSizeValue: uiAdaptiveTitleSize(this.contentWidth),
           fontWeightValue: FontWeight.Medium,
           fontColorValue: navigationTitleText(),
           lineHeightValue: 24,
@@ -717,8 +742,8 @@ export struct EhSubNavBar {
               .fontSize(22)
               .fontColor([navigationTitleText()])
           }
-          .width(40)
-          .height(40)
+          .width(this.actionSize())
+          .height(this.actionSize())
           .backgroundColor(navigationActionBackground(this.actionChecked ? themeOnPrimaryActionStrongBackground() :
             themeOnPrimaryActionBackground()))
           .systemMaterial(uiButtonMaterial())
@@ -730,12 +755,14 @@ export struct EhSubNavBar {
         }
       }
       .width('100%')
-      .height(56)
+      .height(this.barBodyHeight())
       .padding({ left: 12, right: 16 })
       .alignItems(VerticalAlign.Center)
-      .backgroundColor(navigationBarBackground())
+      .backgroundColor(Color.Transparent)
     }
     .width('100%')
+    .backgroundColor(navigationBarBackground())
+    .systemMaterial(uiChromeMaterial())
     .backgroundBlurStyle(uiTitleBarBlurStyle())
     .zIndex(10)
   }
@@ -880,13 +907,14 @@ export struct FloatingToolbarHost {
   onRefresh: () => void = () => {};
   onClear: () => void = () => {};
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
+  @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
 
   private statusBarVp(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx);
   }
 
   private totalToolbarHeight(): number {
-    return this.statusBarVp() + 56;
+    return this.statusBarVp() + uiAdaptiveToolbarHeight(this.contentWidth);
   }
 
   @Builder
@@ -951,13 +979,14 @@ struct LegacySearchBar {
       .onClick(() => { this.onMenu(); })
 
       TextInput({ text: this.keyword, placeholder: uiText(this.title.length > 0 ? this.title : 'Search') })
-        .height(38)
+        .height(uiSearchFieldHeight())
         .layoutWeight(1)
-        .backgroundColor(themeFieldBackground())
-        .borderRadius(uiPillRadius(19))
-        .fontColor(themePrimaryText())
+        .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+        .systemMaterial(uiSearchMaterial())
+        .borderRadius(uiPillRadius(uiSearchFieldHeight() / 2))
+        .fontColor(uiMaterialForegroundColor(themePrimaryText()))
         .caretColor(themePrimaryColor())
-        .placeholderColor(themeSecondaryText())
+        .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
         .padding({ left: 14, right: 14 })
         .margin({ left: 10 })
         .onChange((v: string) => { this.onKeywordChange(v); })

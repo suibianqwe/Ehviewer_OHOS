@@ -85,7 +85,21 @@ import {
   themeSurface,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
+import {
+  uiAdaptiveColumnCount,
+  uiAdaptiveToolbarHeight,
+  uiButtonMaterial,
+  uiDialogMaterial,
+  uiListGap,
+  uiListItemBackground,
+  uiListItemBorderColor,
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiPageHorizontalPadding,
+  uiRadius,
+  uiSearchFieldHeight,
+  uiSearchMaterial
+} from '../shared/EhUiStyle';
 import { FloatingToolbarHost } from './NavigationComponents';
 import { GalleryListRow, GalleryThumbCard } from './GalleryCards';
 import { ActionBubble, GalleryListScene } from './GalleryScenes';
@@ -511,7 +525,7 @@ export struct DownloadScene {
   }
 
   private floatingToolbarHeight(): number {
-    return this.statusBarVp() + 56;
+    return this.statusBarVp() + uiAdaptiveToolbarHeight(this.downloadContentWidth);
   }
 
   private toolbarVisibleHeight(): number {
@@ -1112,11 +1126,11 @@ export struct DownloadScene {
   }
 
   private downloadCardGap(): number {
-    return 8;
+    return uiListGap();
   }
 
   private downloadContentPadding(): number {
-    return 8;
+    return uiPageHorizontalPadding(this.downloadContentWidth);
   }
 
   private downloadColumnCount(): number {
@@ -1130,7 +1144,7 @@ export struct DownloadScene {
     }
     const preferred = this.downloadCardPreferredWidth();
     const gap = this.downloadCardGap();
-    return Math.max(1, Math.floor((availableWidth + gap) / (preferred + gap)));
+    return uiAdaptiveColumnCount(width, preferred, gap);
   }
 
   private downloadWaterFlowColumnsTemplate(): string {
@@ -2000,7 +2014,7 @@ export struct DownloadScene {
         showFavoriteButton: !this.searchBarVisible,
         searchShowsAdvancedButton: true,
         toolbarOffsetY: this.toolbarOffsetY,
-        toolbarHeight: 56,
+        toolbarHeight: uiAdaptiveToolbarHeight(this.downloadContentWidth),
             onMenu: () => {
               if (this.searchBarVisible) {
                 this.closeDownloadSearchBar();
@@ -2254,12 +2268,13 @@ export struct DownloadScene {
               .width('100%')
             Row({ space: 8 }) {
               TextInput({ text: this.downloadJumpDraft, placeholder: (this.downloadJumpPageIndex + 1).toString() })
-                .height(38)
+                .height(uiSearchFieldHeight())
                 .layoutWeight(1)
                 .type(InputType.Number)
-                .fontColor(themePrimaryText())
-                .backgroundColor(themeFieldBackground())
-                .borderRadius(uiRadius(4))
+                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .systemMaterial(uiSearchMaterial())
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 10, right: 10 })
                 .onChange((value: string) => {
                   this.downloadJumpDraft = value;
@@ -2647,7 +2662,7 @@ struct DownloadStatusFilterOverlay {
           .fontColor(themeSecondaryText())
           .width('100%')
 
-        List({ space: 6 }) {
+        List({ space: uiListGap() }) {
           ListItem() {
             DownloadStatusFilterOptionRow({
               selectedStatuses: $selectedStatuses,
@@ -2700,8 +2715,9 @@ struct DownloadStatusFilterOverlay {
       .height('72%')
       .constraintSize({ maxWidth: 380, maxHeight: 560 })
       .padding(16)
-      .backgroundColor(themeSurface())
-      .borderRadius(uiRadius(12))
+      .backgroundColor(uiMaterialBackground(themeSurface()))
+      .systemMaterial(uiDialogMaterial())
+      .borderRadius(uiRadius(20))
       .shadow({ radius: 18, color: themeShadowColor(), offsetY: 8 })
     }
     .width('100%')
@@ -3059,8 +3075,9 @@ struct DownloadCardStatus {
     }
     .width('100%')
     .padding({ left: 8, right: 8, top: 6, bottom: 6 })
-    .backgroundColor(themeSurface())
-    .borderRadius(uiRadius(6))
+    .backgroundColor(uiListItemBackground(themeSurface()))
+    .border({ width: 1, color: uiListItemBorderColor(themeDividerColor()) })
+    .borderRadius(uiRadius(16))
     .onClick(() => {
       this.onStatusTap(this.item);
     })

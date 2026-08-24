@@ -24,6 +24,7 @@ import {
   uiText
 } from '../shared/EhShared';
 import {
+  themeDividerColor,
   themePlaceholderColor,
   themePrimaryText,
   themeSecondaryText,
@@ -33,7 +34,13 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiCardRadius, uiControlRadius } from '../shared/EhUiStyle';
+import {
+  uiCardRadius,
+  uiControlRadius,
+  uiListItemBackground,
+  uiListItemBorderColor,
+  uiListItemSelectedBackground
+} from '../shared/EhUiStyle';
 import { TranslationText } from './TranslationComponents';
 
 const GALLERY_THUMB_LOCAL_SOURCE_CACHE: Map<string, string> = new Map<string, string>();
@@ -459,8 +466,10 @@ export struct GalleryListRow {
     }
     .width('100%')
     .height(this.cardHeight())
-    .backgroundColor(this.selected ? themeSelectedBackground() : themeSurface())
-    .borderRadius(uiCardRadius(6))
+    .backgroundColor(this.selected ? uiListItemSelectedBackground(themeSelectedBackground()) :
+      uiListItemBackground(themeSurface()))
+    .border({ width: 1, color: uiListItemBorderColor(themeDividerColor()) })
+    .borderRadius(uiCardRadius(16))
     .clip(true)
     .gesture(
       LongPressGesture({ repeat: false })
@@ -782,8 +791,10 @@ export struct GalleryThumbCard {
           .margin({ top: 6, left: 6 })
       }
     }
-    .backgroundColor(this.selected ? themeSelectedBackground() : themeSurface())
-    .borderRadius(uiCardRadius(6))
+    .backgroundColor(this.selected ? uiListItemSelectedBackground(themeSelectedBackground()) :
+      uiListItemBackground(themeSurface()))
+    .border({ width: 1, color: uiListItemBorderColor(themeDividerColor()) })
+    .borderRadius(uiCardRadius(16))
     .clip(true)
     .gesture(
       LongPressGesture({ repeat: false })

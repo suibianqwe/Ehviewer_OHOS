@@ -9,7 +9,12 @@ import {
   uiDialogMaterial,
   uiMaterialBackground,
   uiMaterialForegroundColor,
+  uiPopupBlurStyle,
   uiRadius,
+  uiSearchFieldHeight,
+  uiSearchMaterial,
+  uiSegmentMaterial,
+  uiTabHeight,
   uiTitleBarBlurStyle
 } from '../../../shared/EhUiStyle';
 import {
@@ -571,7 +576,7 @@ export struct ReaderSettingsMenuOverlay {
             (this.presetDialogMode === 'rename' ? 'Rename reading preset' : 'Delete reading preset')))
             .fontSize(17)
             .fontWeight(FontWeight.Medium)
-            .fontColor('#F8FAFC')
+            .fontColor(uiMaterialForegroundColor('#F8FAFC'))
             .layoutWeight(1)
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.xmark'))
@@ -597,13 +602,14 @@ export struct ReaderSettingsMenuOverlay {
           Column({ space: 5 }) {
             TextInput({ text: this.presetEditorName, placeholder: uiText('Preset name') })
               .width('100%')
-              .height(42)
+              .height(uiSearchFieldHeight())
               .fontSize(14)
-              .fontColor('#F8FAFC')
-              .placeholderColor('#94A3B8')
+              .fontColor(uiMaterialForegroundColor('#F8FAFC'))
+              .placeholderColor(uiMaterialForegroundColor('#94A3B8'))
               .caretColor('#38BDF8')
-              .backgroundColor('#1E293B')
-              .borderRadius(uiRadius(6))
+              .backgroundColor(uiMaterialBackground('#1E293B'))
+              .systemMaterial(uiSearchMaterial())
+              .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
               .border({ width: this.presetNameError ? 1 : 0, color: '#F87171' })
               .onChange((value: string) => {
                 this.presetEditorName = value;
@@ -670,7 +676,7 @@ export struct ReaderSettingsMenuOverlay {
       Text(label)
         .fontSize(13)
         .fontWeight(this.selectedTab === index ? FontWeight.Medium : FontWeight.Normal)
-        .fontColor(this.selectedTab === index ? '#FFFFFF' : '#94A3B8')
+        .fontColor(uiMaterialForegroundColor(this.selectedTab === index ? '#FFFFFF' : '#94A3B8'))
         .maxLines(1)
       Row()
         .width(this.selectedTab === index ? 28 : 0)
@@ -679,8 +685,11 @@ export struct ReaderSettingsMenuOverlay {
         .backgroundColor('#38BDF8')
     }
     .width('100%')
-    .height(40)
+    .height(uiTabHeight())
     .justifyContent(FlexAlign.Center)
+    .backgroundColor(uiMaterialBackground(this.selectedTab === index ? '#334155' : '#00000000'))
+    .systemMaterial(uiSegmentMaterial())
+    .borderRadius(uiRadius(uiTabHeight() / 2))
   }
 
   @Builder
@@ -1033,19 +1042,19 @@ export struct ReaderSettingsMenuOverlay {
           if (this.menuShowClock) {
             Text(readerClockText())
               .fontSize(12)
-              .fontColor('#E5E7EB')
+              .fontColor(uiMaterialForegroundColor('#E5E7EB'))
               .margin({ left: 8 })
           }
           if (this.menuShowProgress) {
             Text(this.progressText)
               .fontSize(12)
-              .fontColor('#E5E7EB')
+              .fontColor(uiMaterialForegroundColor('#E5E7EB'))
               .margin({ left: 8 })
           }
           if (this.menuShowBattery) {
             Text(this.batteryText)
               .fontSize(12)
-              .fontColor('#E5E7EB')
+              .fontColor(uiMaterialForegroundColor('#E5E7EB'))
               .margin({ left: 8 })
           }
         }
@@ -1077,8 +1086,10 @@ export struct ReaderSettingsMenuOverlay {
           .tabBar(this.ReaderSettingsTabBar(uiText('Image adjustment'), 3))
         }
         .barMode(BarMode.Fixed)
-        .barHeight(40)
-        .animationDuration(180)
+        .barHeight(uiTabHeight() + 8)
+        .barBackgroundColor(uiMaterialBackground('#CC111827'))
+        .barBackgroundBlurStyle(uiPopupBlurStyle())
+        .animationDuration(220)
         .divider({ strokeWidth: 1, color: '#334155' })
         .onChange((index: number) => {
           this.selectedTab = index;
@@ -1087,10 +1098,11 @@ export struct ReaderSettingsMenuOverlay {
         .width('100%')
         .layoutWeight(1)
       }
-      .width('70%')
-      .constraintSize({ maxWidth: 400, maxHeight: '70%' })
-      .backgroundColor('#EE111827')
-      .borderRadius(uiRadius(12))
+      .width('92%')
+      .constraintSize({ maxWidth: 560, maxHeight: '86%' })
+      .backgroundColor(uiMaterialBackground('#EE111827'))
+      .systemMaterial(uiDialogMaterial())
+      .borderRadius(uiRadius(20))
       .clip(true)
       .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
       .zIndex(1)

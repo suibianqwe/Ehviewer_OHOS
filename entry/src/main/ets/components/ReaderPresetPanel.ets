@@ -21,7 +21,14 @@ import {
   themeSurface,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
+import {
+  uiButtonMaterial,
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiRadius,
+  uiSearchFieldHeight,
+  uiSearchMaterial
+} from '../shared/EhUiStyle';
 import { AppSubToolbar } from './NavigationComponents';
 
 @Component
@@ -194,13 +201,15 @@ export struct ReaderPresetPanel {
             .width('100%')
           Row({ space: 8 }) {
             TextInput({ text: this.presetName, placeholder: uiText('Preset name') })
-              .height(42)
+              .height(uiSearchFieldHeight())
               .layoutWeight(1)
               .fontSize(14)
-              .fontColor(themePrimaryText())
+              .fontColor(uiMaterialForegroundColor(themePrimaryText()))
               .placeholderColor(themeSecondaryText())
               .caretColor(themePrimaryColor())
-              .backgroundColor(themeFieldBackground())
+              .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+              .systemMaterial(uiSearchMaterial())
+              .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
               .onChange((value: string) => {
                 this.presetName = value;
               })

@@ -23,7 +23,11 @@ import {
   uiFloatingMaterial,
   uiMaterialBackground,
   uiMaterialForegroundColor,
-  uiRadius
+  uiRadius,
+  uiSegmentMaterial,
+  uiSwitchHeight,
+  uiSwitchWidth,
+  uiTabHeight
 } from '../shared/EhUiStyle';
 import {
   FLOATING_ACTION_GAP,
@@ -841,6 +845,10 @@ export struct SearchAdvancedPanel {
             .fontColor(themePrimaryText())
             Blank()
             Toggle({ type: ToggleType.Switch, isOn: this.advancedEnabledDraft })
+              .width(uiSwitchWidth())
+              .height(uiSwitchHeight())
+              .selectedColor(themePrimaryColor())
+              .switchPointColor(Color.White)
               .onChange((isOn: boolean) => {
                 this.setAdvancedEnabledDraft(isOn);
               })
@@ -1264,18 +1272,18 @@ export struct SearchModeSegmentButton {
       Text(uiText(this.label))
         .fontSize(12)
         .fontWeight(FontWeight.Medium)
-        .fontColor(this.selected ? uiMaterialForegroundColor(themeOnPrimaryText()) : themeSecondaryText())
+        .fontColor(uiMaterialForegroundColor(this.selected ? themeOnPrimaryText() : themeSecondaryText()))
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .width('100%')
         .textAlign(TextAlign.Center)
     }
-    .height(34)
+    .height(uiTabHeight())
     .layoutWeight(1)
     .padding({ left: 4, right: 4 })
-    .backgroundColor(this.selected ? themePrimaryColor() : themeSurfaceVariant())
-    .systemMaterial(uiButtonMaterial())
-    .borderRadius(uiRadius(4))
+    .backgroundColor(uiMaterialBackground(this.selected ? themePrimaryColor() : themeSurfaceVariant()))
+    .systemMaterial(uiSegmentMaterial())
+    .borderRadius(uiRadius(uiTabHeight() / 2))
     .onClick(() => {
       this.onSelect();
     })
@@ -1291,13 +1299,13 @@ export struct SearchFlagChip {
 
   build() {
     Button(uiText(this.label))
-      .height(30)
+      .height(38)
       .fontSize(13)
-      .fontColor(this.isOn ? uiMaterialForegroundColor(themeOnPrimaryText()) :
-        (this.isEnabled ? themeSecondaryText() : themeInactiveActionText()))
-      .backgroundColor(this.isOn ? themePrimaryColor() : themeSurfaceVariant())
-      .systemMaterial(uiButtonMaterial())
-      .borderRadius(uiRadius(4))
+      .fontColor(uiMaterialForegroundColor(this.isOn ? themeOnPrimaryText() :
+        (this.isEnabled ? themeSecondaryText() : themeInactiveActionText())))
+      .backgroundColor(uiMaterialBackground(this.isOn ? themePrimaryColor() : themeSurfaceVariant()))
+      .systemMaterial(uiSegmentMaterial())
+      .borderRadius(uiRadius(19))
       .layoutWeight(1)
       .enabled(this.isEnabled)
       .opacity(this.isEnabled ? 1 : 0.72)
@@ -1343,13 +1351,13 @@ export struct SearchCategoryChip {
 
   build() {
     Button(this.label)
-      .height(32)
+      .height(40)
       .fontSize(14)
       .fontWeight(FontWeight.Bold)
-      .fontColor(this.selected ? uiMaterialForegroundColor(themeOnPrimaryText()) : categoryColor(this.category))
-      .backgroundColor(this.selected ? categoryColor(this.category) : this.softColor())
-      .systemMaterial(uiButtonMaterial())
-      .borderRadius(uiRadius(4))
+      .fontColor(uiMaterialForegroundColor(this.selected ? themeOnPrimaryText() : categoryColor(this.category)))
+      .backgroundColor(uiMaterialBackground(this.selected ? categoryColor(this.category) : this.softColor()))
+      .systemMaterial(uiSegmentMaterial())
+      .borderRadius(uiRadius(20))
       .layoutWeight(1)
       .onClick(() => {
         this.onToggle(this.category);

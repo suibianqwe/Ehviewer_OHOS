@@ -20,7 +20,14 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../../shared/EhTheme';
-import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../../shared/EhUiStyle';
+import {
+  uiButtonMaterial,
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiRadius,
+  uiSearchFieldHeight,
+  uiSearchMaterial
+} from '../../shared/EhUiStyle';
 import {
   buildSearchSuggestions,
   SearchSuggestionItem,
@@ -179,12 +186,13 @@ export struct DetailTags {
           Column({ space: 8 }) {
             Row({ space: 8 }) {
               TextInput({ text: this.addTagText, placeholder: uiText('Enter new tag') })
-                .height(38)
+                .height(uiSearchFieldHeight())
                 .fontSize(14)
-                .fontColor(themePrimaryText())
+                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .placeholderColor(themeTertiaryText())
-                .backgroundColor(themeFieldBackground())
-                .borderRadius(uiRadius(6))
+                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .systemMaterial(uiSearchMaterial())
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 10, right: 10 })
                 .layoutWeight(1)
                 .onChange((value: string) => {

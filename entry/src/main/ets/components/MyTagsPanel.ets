@@ -25,7 +25,13 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import {
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiRadius,
+  uiSearchFieldHeight,
+  uiSearchMaterial
+} from '../shared/EhUiStyle';
 
 @Component
 export struct MyTagsPanel {
@@ -310,12 +316,13 @@ struct MyTagsColumn {
 
       Column({ space: 8 }) {
         TextInput({ text: this.text, placeholder: uiText(this.placeholder) })
-          .height(38)
+          .height(uiSearchFieldHeight())
           .fontSize(14)
-          .fontColor(themePrimaryText())
+          .fontColor(uiMaterialForegroundColor(themePrimaryText()))
           .placeholderColor(themeTertiaryText())
-          .backgroundColor(themeFieldBackground())
-          .borderRadius(uiRadius(6))
+          .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+          .systemMaterial(uiSearchMaterial())
+          .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
           .padding({ left: 10, right: 10 })
           .onChange((value: string) => {
             this.onTextChange(value);

@@ -80,7 +80,12 @@ import {
   uiText
 } from '../shared/EhShared';
 import { ArrayDataSource } from '../shared/ListDataSource';
-import { uiButtonMaterial, uiMaterialBackground, uiMaterialForegroundColor } from '../shared/EhUiStyle';
+import {
+  isHarmonyOs7UiStyle,
+  uiButtonMaterial,
+  uiMaterialBackground,
+  uiMaterialForegroundColor
+} from '../shared/EhUiStyle';
 import {
   READER_BASE_SCALE,
   READER_INERTIA_DURATION,
@@ -3368,7 +3373,7 @@ export struct ReaderScene {
         .itemSpace(0)
         .prevMargin(0)
         .nextMargin(0)
-        .duration(180)
+        .duration(isHarmonyOs7UiStyle() ? 220 : 180)
         .curve(Curve.EaseOut)
         .effectMode(EdgeEffect.None)
         .disableSwipe(this.isDisableSwipe)

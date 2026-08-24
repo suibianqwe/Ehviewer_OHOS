@@ -17,7 +17,15 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
+import {
+  uiButtonMaterial,
+  uiListItemBackground,
+  uiListItemBorderColor,
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiRadius,
+  uiSearchMaterial
+} from '../shared/EhUiStyle';
 import { ConfirmActionOverlay } from './ConfirmActionOverlay';
 import { SettingsSubToolbar } from './SessionSettingsScenes';
 
@@ -92,15 +100,16 @@ export struct CommentBlacklistPanel {
       Text(uiText('Block comments by user name'))
         .fontSize(15)
         .fontWeight(FontWeight.Medium)
-        .fontColor(themePrimaryText())
+        .fontColor(uiMaterialForegroundColor(themePrimaryText()))
         .width('100%')
       TextInput({ text: this.draftUser, placeholder: uiText('User name') })
         .height(44)
         .fontSize(15)
         .fontColor(themePrimaryText())
         .placeholderColor(themeTertiaryText())
-        .backgroundColor(themeFieldBackground())
-        .borderRadius(uiRadius(8))
+        .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+        .systemMaterial(uiSearchMaterial())
+        .borderRadius(uiRadius(22))
         .padding({ left: 12, right: 12 })
         .onChange((value: string) => {
           this.draftUser = value;
@@ -110,10 +119,11 @@ export struct CommentBlacklistPanel {
           .layoutWeight(1)
           .height(44)
           .fontSize(14)
-          .fontColor(themePrimaryText())
+          .fontColor(uiMaterialForegroundColor(themePrimaryText()))
           .placeholderColor(themeTertiaryText())
-          .backgroundColor(themeFieldBackground())
-          .borderRadius(uiRadius(8))
+          .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+          .systemMaterial(uiSearchMaterial())
+          .borderRadius(uiRadius(22))
           .padding({ left: 12, right: 12 })
           .onChange((value: string) => {
             this.draftReason = value;
@@ -140,9 +150,9 @@ export struct CommentBlacklistPanel {
     }
     .width('100%')
     .padding(14)
-    .backgroundColor(themeSurface())
-    .borderRadius(uiRadius(8))
-    .border({ width: 1, color: themeDividerColor() })
+    .backgroundColor(uiListItemBackground(themeSurface()))
+    .borderRadius(uiRadius(16))
+    .border({ width: 1, color: uiListItemBorderColor(themeDividerColor()) })
   }
 
   @Builder

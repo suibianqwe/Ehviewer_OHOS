@@ -34,7 +34,14 @@ import {
   themeSurfaceVariant,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { uiRadius } from '../shared/EhUiStyle';
+import {
+  uiAdaptiveToolbarHeight,
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiRadius,
+  uiSegmentMaterial,
+  uiTabHeight
+} from '../shared/EhUiStyle';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, runDetailBackHandler, createEmptyDetail, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneGalleryDetail, cloneGalleryInfo, cloneTopListDetail, nextFloatingToolbarOffset, currentGallerySite, uiText } from '../shared/EhShared';
 import { ActionBubble, GalleryListScene, GalleryListStateView } from './GalleryScenes';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
@@ -552,7 +559,7 @@ export struct TopListScene {
   }
 
   private floatingToolbarHeight(): number {
-    return this.statusBarVp() + 56;
+    return this.statusBarVp() + uiAdaptiveToolbarHeight(this.sceneContentWidth);
   }
 
   private updateSceneContentWidth(width: number): void {
@@ -741,7 +748,7 @@ export struct TopListScene {
             requestUrl: '',
             showRefreshButton: false,
             toolbarOffsetY: this.toolbarOffsetY,
-            toolbarHeight: 56,
+            toolbarHeight: uiAdaptiveToolbarHeight(this.sceneContentWidth),
             onMenu: this.onMenu,
             onRefresh: () => {
               this.loadTopList();
@@ -861,15 +868,18 @@ export struct TopListTabs {
       Row({ space: 8 }) {
         ForEach(this.lists, (info: TopListInfo, index: number) => {
           Text(uiText(info.title))
-            .height(34)
-            .fontSize(12)
-            .fontColor(index === this.selectedIndex ? themeOnPrimaryText() : themeAccentTextColor())
+            .height(uiTabHeight())
+            .fontSize(13)
+            .fontWeight(index === this.selectedIndex ? FontWeight.Bold : FontWeight.Medium)
+            .fontColor(uiMaterialForegroundColor(index === this.selectedIndex ? themeOnPrimaryText() :
+              themeAccentTextColor()))
             .textAlign(TextAlign.Center)
             .textVerticalAlign(TextVerticalAlign.CENTER)
             .padding({ left: 12, right: 12 })
-            .backgroundColor(index === this.selectedIndex ? themePrimaryColor() : themeTransparentColor())
-            .border({ width: 1, color: index === this.selectedIndex ? themePrimaryColor() : themeSecondaryText() })
-            .borderRadius(uiRadius(6))
+            .backgroundColor(uiMaterialBackground(index === this.selectedIndex ? themePrimaryColor() :
+              themeSurfaceVariant()))
+            .systemMaterial(uiSegmentMaterial())
+            .borderRadius(uiRadius(uiTabHeight() / 2))
             .onClick(() => {
               this.onSelect(index);
             })

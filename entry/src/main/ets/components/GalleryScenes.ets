@@ -79,10 +79,20 @@ import {
 } from '../shared/EhTheme';
 import {
   isHarmonyOs7UiStyle,
+  uiAdaptiveColumnCount,
+  uiAdaptiveToolbarHeight,
   uiButtonMaterial,
+  uiChromeMaterial,
+  uiListGap,
   uiMaterialBackground,
   uiMaterialForegroundColor,
+  uiMaterialSecondaryForegroundColor,
+  uiPageHorizontalPadding,
   uiRadius,
+  uiSearchFieldHeight,
+  uiSearchMaterial,
+  uiSwitchHeight,
+  uiSwitchWidth,
   uiTitleBarBlurStyle
 } from '../shared/EhUiStyle';
 import { EhNavBar } from '../components/NavigationComponents';
@@ -3404,12 +3414,13 @@ export struct GalleryListScene {
                 .alignItems(VerticalAlign.Center)
 
                 TextInput({ text: this.addBookmarkName, placeholder: uiText('Bookmark name') })
-                  .height(42)
+                  .height(uiSearchFieldHeight())
                   .width('100%')
                   .fontSize(15)
-                  .fontColor(themePrimaryText())
-                  .backgroundColor(themeFieldBackground())
-                  .borderRadius(uiRadius(6))
+                  .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+                  .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                  .systemMaterial(uiSearchMaterial())
+                  .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                   .padding({ left: 12, right: 12 })
                   .onChange((value: string) => {
                     this.addBookmarkName = value;
@@ -3766,6 +3777,10 @@ struct ImageSearchPanel {
             .fontColor(themePrimaryText())
             .layoutWeight(1)
           Toggle({ type: ToggleType.Switch, isOn: this.uploadOriginalPhoto })
+            .width(uiSwitchWidth())
+            .height(uiSwitchHeight())
+            .selectedColor(themePrimaryColor())
+            .switchPointColor(Color.White)
             .onChange((isOn: boolean) => {
               this.uploadOriginalPhoto = isOn;
             })
@@ -3778,6 +3793,10 @@ struct ImageSearchPanel {
             .fontColor(themePrimaryText())
             .layoutWeight(1)
           Toggle({ type: ToggleType.Switch, isOn: this.useSimilarityScan })
+            .width(uiSwitchWidth())
+            .height(uiSwitchHeight())
+            .selectedColor(themePrimaryColor())
+            .switchPointColor(Color.White)
             .onChange((isOn: boolean) => {
               this.useSimilarityScan = isOn;
             })
@@ -3790,6 +3809,10 @@ struct ImageSearchPanel {
             .fontColor(themePrimaryText())
             .layoutWeight(1)
           Toggle({ type: ToggleType.Switch, isOn: this.onlySearchCovers })
+            .width(uiSwitchWidth())
+            .height(uiSwitchHeight())
+            .selectedColor(themePrimaryColor())
+            .switchPointColor(Color.White)
             .onChange((isOn: boolean) => {
               this.onlySearchCovers = isOn;
             })
@@ -4079,7 +4102,9 @@ export struct GalleryListContent {
   private toolbarRestoring: boolean = false;
   private translationVisibleItems: number[] = [];
   private unregisterActiveBackHandler: () => void = () => {};
-  private barHeight: number = 56; // matches EhNavBar body height
+  private barHeight(): number {
+    return uiAdaptiveToolbarHeight(this.effectiveContentWidth());
+  }
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
   @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
   @StorageProp(TRANSLATION_BUTTONS_VISIBLE_KEY) translationButtonsVisible: boolean = true;
@@ -4393,7 +4418,7 @@ export struct GalleryListContent {
   }
 
   private totalBarHeight(): number {
-    return this.statusBarVp() + this.barHeight;
+    return this.statusBarVp() + this.barHeight();
   }
 
   private imageSearchPanelWidth(): number {
@@ -4415,11 +4440,11 @@ export struct GalleryListContent {
     if (this.viewportHeight <= 0) {
       return 520;
     }
-    return Math.max(360, this.viewportHeight - this.statusBarVp() - this.barHeight - 28);
+    return Math.max(360, this.viewportHeight - this.statusBarVp() - this.barHeight() - 28);
   }
 
   private quickActionsMaxHeight(): number {
-    return floatingActionAvailableHeight(this.viewportHeight, this.statusBarVp() + this.barHeight + 8);
+    return floatingActionAvailableHeight(this.viewportHeight, this.statusBarVp() + this.barHeight() + 8);
   }
 
   private visibleBarHeight(): number {
@@ -4522,11 +4547,11 @@ export struct GalleryListContent {
   }
 
   private galleryCardGap(): number {
-    return 8;
+    return uiListGap();
   }
 
   private galleryContentPadding(): number {
-    return 8;
+    return uiPageHorizontalPadding(this.effectiveContentWidth());
   }
 
   private snapListToTop(): void {
@@ -4583,7 +4608,7 @@ export struct GalleryListContent {
     }
     const preferred = this.galleryCardPreferredWidth();
     const gap = this.galleryCardGap();
-    return Math.max(1, Math.floor((availableWidth + gap) / (preferred + gap)));
+    return uiAdaptiveColumnCount(width, preferred, gap);
   }
 
   private galleryCardMinWidth(): number {
@@ -4724,8 +4749,8 @@ export struct GalleryListContent {
         .layoutWeight(1)
         .constraintSize({ minWidth: 96 })
         .backgroundColor(themeTransparentColor())
-        .placeholderColor(themeSecondaryText())
-        .fontColor(themePrimaryText())
+        .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
+        .fontColor(uiMaterialForegroundColor(themePrimaryText()))
         .caretColor(themePrimaryColor())
         .padding({ left: this.selectedSearchTagTokens().length > 0 ? 4 : 8, right: 8 })
         .onFocus(() => {
@@ -4752,11 +4777,12 @@ export struct GalleryListContent {
           this.onSearch();
         })
     }
-    .height(38)
+    .height(uiSearchFieldHeight())
     .layoutWeight(1)
     .padding({ left: 8, right: 8 })
-    .backgroundColor(themeFieldBackground())
-    .borderRadius(uiRadius(19))
+    .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+    .systemMaterial(uiSearchMaterial())
+    .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
     .alignItems(VerticalAlign.Center)
   }
 
@@ -4774,7 +4800,7 @@ export struct GalleryListContent {
       Column()
         .height(this.statusBarVp())
         .width('100%')
-        .backgroundColor(galleryChromeBackground(themePrimaryColor()))
+        .backgroundColor(Color.Transparent)
 
       Row({ space: 8 }) {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
@@ -4810,16 +4836,18 @@ export struct GalleryListContent {
         })
       }
       .width('100%')
-      .height(this.barHeight)
+      .height(this.barHeight())
       .padding({ left: 12, right: 12 })
       .alignItems(VerticalAlign.Center)
-      .backgroundColor(galleryChromeBackground(themePrimaryColor()))
+      .backgroundColor(Color.Transparent)
     }
     .width('100%')
     .translate({ y: this.toolbarOffsetY })
     .opacity(1)
     .visibility(this.toolbarVisible() ? Visibility.Visible : Visibility.Hidden)
     .animation({ duration: 200, curve: Curve.EaseOut })
+    .backgroundColor(galleryChromeBackground(themePrimaryColor()))
+    .systemMaterial(uiChromeMaterial())
     .backgroundBlurStyle(uiTitleBarBlurStyle())
     .zIndex(10)
   }
@@ -5409,7 +5437,7 @@ export struct GalleryListContent {
         }
           .width('100%')
           .height('100%')
-          .padding({ top: this.statusBarVp() + this.barHeight + 8, left: 10, right: 10 })
+          .padding({ top: this.statusBarVp() + this.barHeight() + 8, left: 10, right: 10 })
           .hitTestBehavior(HitTestMode.Transparent)
           .zIndex(12)
       }
@@ -5491,34 +5519,37 @@ export struct GalleryListContent {
 
             Row({ space: 6 }) {
               TextInput({ text: this.seekYearDraft, placeholder: '2026' })
-                .height(36)
+                .height(uiSearchFieldHeight())
                 .layoutWeight(1.4)
                 .type(InputType.Number)
-                .fontColor(themePrimaryText())
-                .backgroundColor(themeFieldBackground())
-                .borderRadius(uiRadius(4))
+                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .systemMaterial(uiSearchMaterial())
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 8, right: 8 })
                 .onChange((value: string) => {
                   this.seekYearDraft = value;
                 })
               TextInput({ text: this.seekMonthDraft, placeholder: '6' })
-                .height(36)
+                .height(uiSearchFieldHeight())
                 .layoutWeight(1)
                 .type(InputType.Number)
-                .fontColor(themePrimaryText())
-                .backgroundColor(themeFieldBackground())
-                .borderRadius(uiRadius(4))
+                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .systemMaterial(uiSearchMaterial())
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 8, right: 8 })
                 .onChange((value: string) => {
                   this.seekMonthDraft = value;
                 })
               TextInput({ text: this.seekDayDraft, placeholder: '26' })
-                .height(36)
+                .height(uiSearchFieldHeight())
                 .layoutWeight(1)
                 .type(InputType.Number)
-                .fontColor(themePrimaryText())
-                .backgroundColor(themeFieldBackground())
-                .borderRadius(uiRadius(4))
+                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .systemMaterial(uiSearchMaterial())
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 8, right: 8 })
                 .onChange((value: string) => {
                   this.seekDayDraft = value;
@@ -5545,12 +5576,13 @@ export struct GalleryListContent {
               .width('100%')
             Row({ space: 8 }) {
               TextInput({ text: this.pageJumpDraft, placeholder: (this.pageIndex + 1).toString() })
-                .height(38)
+                .height(uiSearchFieldHeight())
                 .layoutWeight(1)
                 .type(InputType.Number)
-                .fontColor(themePrimaryText())
-                .backgroundColor(themeFieldBackground())
-                .borderRadius(uiRadius(4))
+                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .systemMaterial(uiSearchMaterial())
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 10, right: 10 })
                 .onChange((value: string) => {
                   this.pageJumpDraft = value;

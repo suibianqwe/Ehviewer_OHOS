@@ -16,7 +16,14 @@ import {
   themeTertiaryText,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
+import {
+  uiButtonMaterial,
+  uiDialogMaterial,
+  uiMaterialBackground,
+  uiMaterialForegroundColor,
+  uiRadius,
+  uiSearchMaterial
+} from '../shared/EhUiStyle';
 import {
   SidePanelEditableManagerRow,
   SidePanelHeader,
@@ -336,8 +343,10 @@ export struct DownloadLabelEditDialog {
           .width('100%')
           .height(48)
           .fontSize(16)
-          .fontColor(themePrimaryText())
-          .backgroundColor(themeFieldBackground())
+          .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+          .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+          .systemMaterial(uiSearchMaterial())
+          .borderRadius(uiRadius(24))
           .onChange((value: string) => {
             this.value = value;
           })
@@ -356,8 +365,9 @@ export struct DownloadLabelEditDialog {
       .width('78%')
       .constraintSize({ maxWidth: 380, minWidth: 280 })
       .padding(18)
-      .backgroundColor(themeSurface())
-      .borderRadius(uiRadius(12))
+      .backgroundColor(uiMaterialBackground(themeSurface()))
+      .systemMaterial(uiDialogMaterial())
+      .borderRadius(uiRadius(20))
       .shadow({ radius: 24, color: themeShadowColor(), offsetX: 0, offsetY: 8 })
     }
     .width('100%')

@@ -96,6 +96,7 @@ import { FilterRule, FILTER_MODE_RATING, FILTER_MODE_TITLE, ehFilterStore } from
 import { ehCommentBlacklistStore } from '../services/EhCommentBlacklistStore';
 import {
   applyAppChromeImmersiveMode,
+  MAIN_CONTENT_WIDTH_VP_KEY,
   mainContentWidthFallbackVp,
   rememberMainContentWidthVp
 } from '../services/EhWindowImmersive';
@@ -127,6 +128,7 @@ import {
 } from '../shared/EhShared';
 import {
   currentThemeName,
+  themeDividerColor,
   themeFieldBackground,
   themeDangerBackground,
   themeDangerText,
@@ -145,9 +147,19 @@ import {
 import {
   uiButtonMaterial,
   uiDialogMaterial,
+  uiListGap,
+  uiListItemBackground,
+  uiListItemBorderColor,
   uiMaterialBackground,
   uiMaterialForegroundColor,
-  uiRadius
+  uiRadius,
+  uiSearchFieldHeight,
+  uiSearchMaterial,
+  uiSegmentMaterial,
+  uiSelectorHeight,
+  uiSwitchHeight,
+  uiSwitchWidth,
+  uiPageHorizontalPadding
 } from '../shared/EhUiStyle';
 import { EhBackupBundle, SessionMode, SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, uiStatusText, setActiveBackHandler, padTwo, getAbilityContext, downloadSizeText, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, cloneStringOptions, isValidProxyHostText, isValidProxyPortText, normalizeProxyOption, formatNetworkDiagnostics, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption, normalizeIdentityAuthenticationOption, normalizeReaderCacheSizeOption } from '../shared/EhShared';
 import { FilterPanel } from './DownloadMigrationScenes';
@@ -2555,8 +2567,9 @@ struct ProxySettingsOverlay {
       .height(42)
       .layoutWeight(1)
       .fontSize(14)
-      .fontColor(this.draftType === type ? themeOnPrimaryText() : themePrimaryText())
-      .backgroundColor(this.draftType === type ? themePrimaryColor() : themeFieldBackground())
+      .fontColor(uiMaterialForegroundColor(this.draftType === type ? themeOnPrimaryText() : themePrimaryText()))
+      .backgroundColor(uiMaterialBackground(this.draftType === type ? themePrimaryColor() : themeFieldBackground()))
+      .systemMaterial(uiSegmentMaterial())
       .borderRadius(uiRadius(6))
       .opacity(type === 'SOCKS' && !this.socksSupported ? 0.45 : 1)
       .enabled(type !== 'SOCKS' || this.socksSupported)
@@ -2582,7 +2595,8 @@ struct ProxySettingsOverlay {
     }
     .height(58)
     .layoutWeight(1)
-    .backgroundColor(this.draftSocksDns === value ? themePrimaryColor() : themeFieldBackground())
+    .backgroundColor(uiMaterialBackground(this.draftSocksDns === value ? themePrimaryColor() : themeFieldBackground()))
+    .systemMaterial(uiSegmentMaterial())
     .borderRadius(uiRadius(6))
     .onClick(() => {
       this.draftSocksDns = value;
@@ -2650,8 +2664,10 @@ struct ProxySettingsOverlay {
               TextInput({ text: this.draftHost, placeholder: uiText('Host or IP address') })
                 .height(44)
                 .fontSize(14)
-                .fontColor(themePrimaryText())
-                .backgroundColor(themeFieldBackground())
+                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .systemMaterial(uiSearchMaterial())
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .onChange((value: string) => {
                   this.draftHost = value;
                 })
@@ -2662,8 +2678,10 @@ struct ProxySettingsOverlay {
               TextInput({ text: this.draftPort, placeholder: uiText('Proxy port') })
                 .height(44)
                 .fontSize(14)
-                .fontColor(themePrimaryText())
-                .backgroundColor(themeFieldBackground())
+                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .systemMaterial(uiSearchMaterial())
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .onChange((value: string) => {
                   this.draftPort = value;
                 })
@@ -2674,8 +2692,10 @@ struct ProxySettingsOverlay {
               TextInput({ text: this.draftUsername, placeholder: uiText('Optional authentication username') })
                 .height(44)
                 .fontSize(14)
-                .fontColor(themePrimaryText())
-                .backgroundColor(themeFieldBackground())
+                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .systemMaterial(uiSearchMaterial())
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .onChange((value: string) => {
                   this.draftUsername = value;
                 })
@@ -2687,8 +2707,10 @@ struct ProxySettingsOverlay {
                 .height(44)
                 .type(InputType.Password)
                 .fontSize(14)
-                .fontColor(themePrimaryText())
-                .backgroundColor(themeFieldBackground())
+                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .systemMaterial(uiSearchMaterial())
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .onChange((value: string) => {
                   this.draftPassword = value;
                 })
@@ -2700,8 +2722,10 @@ struct ProxySettingsOverlay {
                 placeholder: uiText('Comma-separated hosts that bypass the proxy') })
                 .height(44)
                 .fontSize(14)
-                .fontColor(themePrimaryText())
-                .backgroundColor(themeFieldBackground())
+                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .systemMaterial(uiSearchMaterial())
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .onChange((value: string) => {
                   this.draftExclusions = value;
                 })
@@ -2733,6 +2757,7 @@ struct ProxySettingsOverlay {
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(themeSurfaceVariant())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(6))
             .onClick(this.onCancel)
           Button(uiText('Save'), { type: ButtonType.Normal, stateEffect: true })
@@ -2741,6 +2766,7 @@ struct ProxySettingsOverlay {
             .fontSize(14)
             .fontColor(themeOnPrimaryText())
             .backgroundColor(themePrimaryColor())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(6))
             .onClick(() => {
               this.onSave(this.draftType, this.draftHost, this.draftPort, this.draftUsername,
@@ -2754,8 +2780,9 @@ struct ProxySettingsOverlay {
       .height('82%')
       .constraintSize({ maxWidth: 460, maxHeight: 650 })
       .padding(18)
-      .backgroundColor(themeSurface())
-      .borderRadius(uiRadius(8))
+      .backgroundColor(uiMaterialBackground(themeSurface()))
+      .systemMaterial(uiDialogMaterial())
+      .borderRadius(uiRadius(20))
       .shadow({ radius: 18, color: '#33000000', offsetX: 0, offsetY: 8 })
     }
     .width('100%')
@@ -2805,6 +2832,7 @@ struct DownloadMigrationConfirmOverlay {
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(themeSurfaceVariant())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(6))
             .layoutWeight(1)
             .onClick(this.onCancel)
@@ -2812,6 +2840,7 @@ struct DownloadMigrationConfirmOverlay {
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(themeSurfaceVariant())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(6))
             .layoutWeight(1)
             .onClick(this.onSwitchOnly)
@@ -2819,6 +2848,7 @@ struct DownloadMigrationConfirmOverlay {
             .fontSize(14)
             .fontColor(themeOnPrimaryText())
             .backgroundColor(themePrimaryColor())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(6))
             .layoutWeight(1)
             .onClick(this.onMigrate)
@@ -2829,8 +2859,9 @@ struct DownloadMigrationConfirmOverlay {
       .width('86%')
       .constraintSize({ maxWidth: 420 })
       .padding(18)
-      .backgroundColor(themeSurface())
-      .borderRadius(uiRadius(8))
+      .backgroundColor(uiMaterialBackground(themeSurface()))
+      .systemMaterial(uiDialogMaterial())
+      .borderRadius(uiRadius(20))
       .shadow({
         radius: 18,
         color: '#33000000',
@@ -2847,6 +2878,7 @@ struct DownloadMigrationConfirmOverlay {
 export struct SettingsHomePanel {
   onMenu: () => void = () => {};
   onOpen: (panel: SettingsPanel) => void = () => {};
+  @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
 
   build() {
     Column() {
@@ -2856,7 +2888,7 @@ export struct SettingsHomePanel {
         onMenu: this.onMenu
       })
 
-      List({ space: 8 }) {
+      List({ space: uiListGap() }) {
         ListItem() {
           Row()
             .height(0)
@@ -2880,7 +2912,8 @@ export struct SettingsHomePanel {
       .height('100%')
       .layoutWeight(1)
       .cachedCount(3)
-      .padding({ left: 12, right: 12, top: 0, bottom: 0 })
+      .padding({ left: uiPageHorizontalPadding(this.contentWidth),
+        right: uiPageHorizontalPadding(this.contentWidth), top: 0, bottom: 0 })
       .edgeEffect(EdgeEffect.None)
     }
     .width('100%')
@@ -2960,8 +2993,9 @@ export struct SettingsHeaderRow {
     }
     .width('100%')
     .padding(14)
-    .backgroundColor(themeSurface())
-    .borderRadius(uiRadius(6))
+    .backgroundColor(uiListItemBackground(themeSurface()))
+    .border({ width: 1, color: uiListItemBorderColor(themeDividerColor()) })
+    .borderRadius(uiRadius(16))
     .onClick(() => {
       this.onTap();
     })
@@ -3005,6 +3039,7 @@ export struct SettingsDetailPanel {
   onCycleSetting: (row: SettingsRowItem) => void = () => {};
   onSetSetting: (key: string, value: string) => void = () => {};
   onTextDraftChange: (key: string, value: string) => void = () => {};
+  @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
 
   build() {
     Column() {
@@ -3013,7 +3048,7 @@ export struct SettingsDetailPanel {
         onBack: this.onBack
       })
 
-      List({ space: 8 }) {
+      List({ space: uiListGap() }) {
         ListItem() {
           Row()
             .height(0)
@@ -3096,7 +3131,8 @@ export struct SettingsDetailPanel {
       .height('100%')
       .layoutWeight(1)
       .cachedCount(4)
-      .padding({ left: 12, right: 12, top: 0, bottom: 0 })
+      .padding({ left: uiPageHorizontalPadding(this.contentWidth),
+        right: uiPageHorizontalPadding(this.contentWidth), top: 0, bottom: 0 })
     }
     .width('100%')
     .height('100%')
@@ -3288,10 +3324,12 @@ struct TranslationPromptPanel {
             .height(44)
             .width('100%')
             .fontSize(14)
-            .fontColor(themePrimaryText())
+            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
             .placeholderColor(themeSecondaryText())
             .caretColor(themePrimaryColor())
-            .backgroundColor(themeFieldBackground())
+            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .systemMaterial(uiSearchMaterial())
+            .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
             .onChange((value: string) => {
               this.promptName = value;
             })
@@ -3306,10 +3344,12 @@ struct TranslationPromptPanel {
             .constraintSize({ minHeight: 80 })
             .width('100%')
             .fontSize(13)
-            .fontColor(themePrimaryText())
-            .placeholderColor(themeSecondaryText())
+            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+            .placeholderColor(uiMaterialForegroundColor(themeSecondaryText()))
             .caretColor(themePrimaryColor())
-            .backgroundColor(themeFieldBackground())
+            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .systemMaterial(uiSearchMaterial())
+            .borderRadius(uiRadius(18))
             .onChange((value: string) => {
               this.promptText = value;
             })
@@ -3321,6 +3361,7 @@ struct TranslationPromptPanel {
                 .fontSize(14)
                 .fontColor(themeDangerText())
                 .backgroundColor(themeDangerBackground())
+                .systemMaterial(uiButtonMaterial())
                 .borderRadius(uiRadius(6))
                 .onClick(() => {
                   this.deletePrompt();
@@ -3332,6 +3373,7 @@ struct TranslationPromptPanel {
               .fontSize(14)
               .fontColor(themeOnPrimaryText())
               .backgroundColor(themePrimaryColor())
+              .systemMaterial(uiButtonMaterial())
               .borderRadius(uiRadius(6))
               .onClick(() => {
                 this.savePrompt();
@@ -3523,11 +3565,13 @@ export struct SettingsOptionPanel {
         if (this.allowCustomInput) {
           Row({ space: 8 }) {
             TextInput({ text: this.customValue, placeholder: uiText('Enter a model name') })
-              .height(40)
+              .height(uiSearchFieldHeight())
               .layoutWeight(1)
               .fontSize(14)
-              .fontColor(themePrimaryText())
-              .backgroundColor(themeFieldBackground())
+              .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+              .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+              .systemMaterial(uiSearchMaterial())
+              .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
               .onChange((value: string) => {
                 this.customValue = value;
               })
@@ -3618,8 +3662,9 @@ export struct SettingsActionRow {
     }
     .width('100%')
     .padding(14)
-    .backgroundColor(themeSurface())
-    .borderRadius(uiRadius(6))
+    .backgroundColor(uiListItemBackground(themeSurface()))
+    .border({ width: 1, color: uiListItemBorderColor(themeDividerColor()) })
+    .borderRadius(uiRadius(16))
     .onClick(() => {
       if (this.isEnabled) {
         this.onTap();
@@ -3668,12 +3713,14 @@ export struct SettingsStaticRow {
         if (this.row.type === 'input') {
           TextInput({ text: this.inputValue, placeholder: uiText(this.row.summary) })
             .width(150)
-            .height(38)
+            .height(uiSearchFieldHeight())
             .type(isSecretSettingKey(this.row.key) ? InputType.Password : InputType.Normal)
             .fontSize(13)
-            .fontColor(themePrimaryText())
-            .placeholderColor(themeSecondaryText())
-            .backgroundColor(themeFieldBackground())
+            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+            .placeholderColor(uiMaterialForegroundColor(themeSecondaryText()))
+            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .systemMaterial(uiSearchMaterial())
+            .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
             .margin({ left: 12 })
             .onChange((value: string) => {
               this.inputValue = value;
@@ -3694,6 +3741,8 @@ export struct SettingsStaticRow {
               .fontColor(this.row.value === 'On' ? themeAccentTextColor() : themeTertiaryText())
               .margin({ right: 8 })
             Toggle({ type: ToggleType.Switch, isOn: this.row.value === 'On' })
+              .width(uiSwitchWidth())
+              .height(uiSwitchHeight())
               .selectedColor(themePrimaryColor())
               .switchPointColor(Color.White)
               .onChange((isOn: boolean) => {
@@ -3724,12 +3773,12 @@ export struct SettingsStaticRow {
                 .fontColor([uiMaterialForegroundColor(themeSecondaryText())])
             }
           }
-            .height(34)
+            .height(uiSelectorHeight())
             .constraintSize({ maxWidth: 190 })
             .padding({ left: 12, right: 10 })
             .backgroundColor(themeSurfaceVariant())
             .systemMaterial(uiButtonMaterial())
-            .borderRadius(uiRadius(17))
+            .borderRadius(uiRadius(uiSelectorHeight() / 2))
             .margin({ left: 8 })
             .onClick(() => {
               this.onTap();
@@ -3768,8 +3817,9 @@ export struct SettingsStaticRow {
     .width('100%')
     .padding(this.row.type === 'section' ? { left: 4, right: 4, top: 12, bottom: 2 } :
       { left: 14, right: 14, top: 14, bottom: 14 })
-    .backgroundColor(this.row.type === 'section' ? themePageBackground() : themeSurface())
-    .borderRadius(uiRadius(6))
+    .backgroundColor(this.row.type === 'section' ? themePageBackground() : uiListItemBackground(themeSurface()))
+    .border({ width: this.row.type === 'section' ? 0 : 1, color: uiListItemBorderColor(themeDividerColor()) })
+    .borderRadius(uiRadius(16))
     .onClick(() => {
       if (this.row.type !== 'input' && this.row.type !== 'switch' && this.row.type !== 'info' &&
         this.row.type !== 'slider' && this.row.type !== 'section' && this.row.key !== 'theme' &&

@@ -23,9 +23,12 @@ import {
   uiCardRadius,
   uiControlRadius,
   uiMaterialBackground,
+  uiMaterialForegroundColor,
   uiPanelMaterial,
   uiPanelRadius,
   uiPillRadius,
+  uiSearchFieldHeight,
+  uiSearchMaterial,
   uiTitleBarBlurStyle
 } from '../shared/EhUiStyle';
 
@@ -303,6 +306,7 @@ export struct SidePanelRow {
         .width(36)
         .height(36)
         .backgroundColor(themeTransparentColor())
+        .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.onDelete();
         })
@@ -385,12 +389,13 @@ export struct SidePanelEditableManagerRow {
             .onAppear(() => {
               focusControl.requestFocus(this.inputFocusId());
             })
-            .height(38)
+            .height(uiSearchFieldHeight())
             .layoutWeight(1)
             .fontSize(14)
-            .fontColor(themePrimaryText())
-            .backgroundColor(themeFieldBackground())
-            .borderRadius(uiControlRadius(8))
+            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .systemMaterial(uiSearchMaterial())
+            .borderRadius(uiPillRadius(uiSearchFieldHeight() / 2))
             .padding({ left: 10, right: 10 })
             .onChange((value: string) => {
               this.draftValue = value;
@@ -429,6 +434,7 @@ export struct SidePanelEditableManagerRow {
         .width(38)
         .height(38)
         .backgroundColor(themeSurfaceVariant())
+        .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.onDelete();
         })
