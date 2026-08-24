@@ -29,7 +29,6 @@ import {
 } from '../shared/EhShared';
 import {
   themePageBackground,
-  themePrimaryColor,
   themePrimaryText,
   themeScrimColor,
   themeSecondaryText,
@@ -238,12 +237,12 @@ struct Index {
       Column() {
         if (this.settingsReady) {
           Stack({ alignContent: Alignment.TopStart }) {
-            // Persistent nav bar background — behind the transitioning scenes so the
-            // primary-color strip stays solid while scene content fades in/out.
+            // Keep the transition underlay neutral. Material app bars are rendered by
+            // each scene; a primary-color underlay can flash through between frames.
             Column()
               .width('100%')
               .height(this.statusBarVp() + 56)
-              .backgroundColor(themePrimaryColor())
+              .backgroundColor(themePageBackground())
 
             if (this.themeRevision % 2 === 0) {
               this.RouteContent()

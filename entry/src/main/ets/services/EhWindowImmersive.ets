@@ -2,7 +2,7 @@ import { window } from '@kit.ArkUI';
 import { ehSettingsStore } from './EhSettingsStore';
 import {
   isDarkTheme,
-  themePrimaryColor,
+  themePageBackground,
   themeSystemBarContentColor,
   themeTransparentColor
 } from '../shared/EhTheme';
@@ -190,7 +190,7 @@ export function scheduleReaderFullscreenImmersiveMode(win: window.Window, delayM
 
 async function applyAppChromeImmersiveModeAsync(target: window.Window): Promise<void> {
   const useLightSystemBarIcons = isDarkTheme();
-  setWindowBackgroundColorQuietly(target, themePrimaryColor(), 'set app theme background');
+  setWindowBackgroundColorQuietly(target, themePageBackground(), 'set app theme background');
   await setWindowLayoutFullScreenQuietly(target, true, 'set app full-screen layout');
   await setWindowSystemBarEnableQuietly(target, VISIBLE_SYSTEM_BARS, 'show app system bars');
   await setSpecificSystemBarEnabledQuietly(target, 'status', true, 'show app status bar');
@@ -325,7 +325,7 @@ export async function restoreAppWindowState(target: window.Window): Promise<void
 
 async function restoreAppWindowChrome(target: window.Window): Promise<void> {
   const useLightSystemBarIcons = isDarkTheme();
-  setWindowBackgroundColorQuietly(target, themePrimaryColor(), 'restore app theme background');
+  setWindowBackgroundColorQuietly(target, themePageBackground(), 'restore app theme background');
   await setWindowSystemBarEnableQuietly(target, VISIBLE_SYSTEM_BARS, 'restore app system bar set');
   await setSpecificSystemBarEnabledQuietly(target, 'status', true, 'restore app status bar');
   await setSpecificSystemBarEnabledQuietly(target, 'navigationIndicator', false, 'restore app navigation indicator');

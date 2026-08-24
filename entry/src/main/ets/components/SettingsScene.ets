@@ -149,7 +149,6 @@ import {
   uiDialogMaterial,
   uiListGap,
   uiListItemBackground,
-  uiListItemBorderColor,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius,
@@ -2888,15 +2887,17 @@ export struct SettingsHomePanel {
         onMenu: this.onMenu
       })
 
-      List({ space: uiListGap() }) {
+      List({ space: 0 }) {
         ListItem() {
           Row()
             .height(0)
         }
-        ForEach(SETTINGS_HEADERS, (item: SettingsHeaderItem) => {
+        ForEach(SETTINGS_HEADERS, (item: SettingsHeaderItem, index: number) => {
           ListItem() {
             SettingsHeaderRow({
               item: item,
+              firstInGroup: index === 0,
+              lastInGroup: index === SETTINGS_HEADERS.length - 1,
               onTap: () => {
                 this.onOpen(item.panel);
               }
@@ -2913,7 +2914,7 @@ export struct SettingsHomePanel {
       .layoutWeight(1)
       .cachedCount(3)
       .padding({ left: uiPageHorizontalPadding(this.contentWidth),
-        right: uiPageHorizontalPadding(this.contentWidth), top: 0, bottom: 0 })
+        right: uiPageHorizontalPadding(this.contentWidth), top: 12, bottom: 12 })
       .edgeEffect(EdgeEffect.None)
     }
     .width('100%')
@@ -2978,27 +2979,44 @@ export struct SettingsSubToolbar {
 @Component
 export struct SettingsHeaderRow {
   item: SettingsHeaderItem = { panel: SettingsPanel.Eh, title: '', icon: '', summary: '' };
+  firstInGroup: boolean = false;
+  lastInGroup: boolean = false;
   onTap: () => void = () => {};
 
   build() {
-    Button({ type: ButtonType.Normal, stateEffect: true }) {
-      Row() {
-        SettingsTextBlock({ title: uiText(this.item.title), summary: uiText(this.item.summary) })
-        .layoutWeight(1)
-        SymbolGlyph($r('sys.symbol.chevron_right'))
-          .fontSize(16)
-          .fontColor([themeTertiaryText()])
+    Column() {
+      Button({ type: ButtonType.Normal, stateEffect: true }) {
+        Row() {
+          SettingsTextBlock({ title: uiText(this.item.title), summary: uiText(this.item.summary) })
+            .layoutWeight(1)
+          SymbolGlyph($r('sys.symbol.chevron_right'))
+            .fontSize(16)
+            .fontColor([themeTertiaryText()])
+        }
+        .width('100%')
       }
       .width('100%')
+      .padding(14)
+      .backgroundColor(Color.Transparent)
+      .onClick(() => {
+        this.onTap();
+      })
+      if (!this.lastInGroup) {
+        Divider()
+          .color(themeDividerColor())
+          .strokeWidth(0.5)
+          .margin({ left: 14, right: 14 })
+      }
     }
     .width('100%')
-    .padding(14)
     .backgroundColor(uiListItemBackground(themeSurface()))
-    .border({ width: 1, color: uiListItemBorderColor(themeDividerColor()) })
-    .borderRadius(uiRadius(16))
-    .onClick(() => {
-      this.onTap();
+    .borderRadius({
+      topLeft: this.firstInGroup ? uiRadius(16) : 0,
+      topRight: this.firstInGroup ? uiRadius(16) : 0,
+      bottomLeft: this.lastInGroup ? uiRadius(16) : 0,
+      bottomRight: this.lastInGroup ? uiRadius(16) : 0
     })
+    .clip(true)
   }
 }
 
@@ -3041,6 +3059,20 @@ export struct SettingsDetailPanel {
   onTextDraftChange: (key: string, value: string) => void = () => {};
   @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
 
+  private settingsRows(): SettingsRowItem[] {
+    return settingsRowsForPanel(this.panel, this.themeName, this.settingEntries);
+  }
+
+  private isFirstSettingsRow(index: number): boolean {
+    const rows = this.settingsRows();
+    return index === 0 || rows[index - 1].type === 'section';
+  }
+
+  private isLastSettingsRow(index: number): boolean {
+    const rows = this.settingsRows();
+    return index === rows.length - 1 || rows[index + 1].type === 'section';
+  }
+
   build() {
     Column() {
       AppSubToolbar({
@@ -3048,7 +3080,7 @@ export struct SettingsDetailPanel {
         onBack: this.onBack
       })
 
-      List({ space: uiListGap() }) {
+      List({ space: 0 }) {
         ListItem() {
           Row()
             .height(0)
@@ -3061,6 +3093,8 @@ export struct SettingsDetailPanel {
                 uiText('Open password, WebView or Cookie sign-in and manage the current session.'),
               value: this.signedIn ? uiText('Signed in') : uiText('Tourist'),
               navigation: true,
+              firstInGroup: true,
+              lastInGroup: false,
               onTap: this.onOpenSession
             })
           }
@@ -3071,15 +3105,19 @@ export struct SettingsDetailPanel {
               summary: uiText('Clear the persisted identity cookies'),
               value: this.signedIn ? uiText('Available') : uiText('No session'),
               isEnabled: this.signedIn,
+              firstInGroup: false,
+              lastInGroup: false,
               onTap: this.onSignOut
             })
           }
           .reuseId('settings-signout-action')
-          ForEach(settingsRowsForPanel(this.panel, this.themeName, this.settingEntries), (row: SettingsRowItem) => {
+          ForEach(this.settingsRows(), (row: SettingsRowItem, index: number) => {
             ListItem() {
               SettingsStaticRow({
                 row: row,
                 renderRevision: this.renderRevision,
+                firstInGroup: false,
+                lastInGroup: this.isLastSettingsRow(index),
                 onTextChange: (key: string, value: string) => {
                   this.onSetSetting(key, value);
                 },
@@ -3098,11 +3136,13 @@ export struct SettingsDetailPanel {
             .reuseId('settings-static-row')
           }, (row: SettingsRowItem) => settingsRowRenderKey(row))
         } else {
-          ForEach(settingsRowsForPanel(this.panel, this.themeName, this.settingEntries), (row: SettingsRowItem) => {
+          ForEach(this.settingsRows(), (row: SettingsRowItem, index: number) => {
             ListItem() {
               SettingsStaticRow({
                 row: row,
                 renderRevision: this.renderRevision,
+                firstInGroup: this.isFirstSettingsRow(index),
+                lastInGroup: this.isLastSettingsRow(index),
                 onTextChange: (key: string, value: string) => {
                   this.onSetSetting(key, value);
                 },
@@ -3132,7 +3172,7 @@ export struct SettingsDetailPanel {
       .layoutWeight(1)
       .cachedCount(4)
       .padding({ left: uiPageHorizontalPadding(this.contentWidth),
-        right: uiPageHorizontalPadding(this.contentWidth), top: 0, bottom: 0 })
+        right: uiPageHorizontalPadding(this.contentWidth), top: 12, bottom: 12 })
     }
     .width('100%')
     .height('100%')
@@ -3632,6 +3672,8 @@ export struct SettingsActionRow {
   value: string = '';
   isEnabled: boolean = true;
   navigation: boolean = false;
+  firstInGroup: boolean = false;
+  lastInGroup: boolean = false;
   onTap: () => void = () => {};
 
   build() {
@@ -3663,8 +3705,13 @@ export struct SettingsActionRow {
     .width('100%')
     .padding(14)
     .backgroundColor(uiListItemBackground(themeSurface()))
-    .border({ width: 1, color: uiListItemBorderColor(themeDividerColor()) })
-    .borderRadius(uiRadius(16))
+    .border({ width: { bottom: this.lastInGroup ? 0 : 0.5 }, color: themeDividerColor() })
+    .borderRadius({
+      topLeft: this.firstInGroup ? uiRadius(16) : 0,
+      topRight: this.firstInGroup ? uiRadius(16) : 0,
+      bottomLeft: this.lastInGroup ? uiRadius(16) : 0,
+      bottomRight: this.lastInGroup ? uiRadius(16) : 0
+    })
     .onClick(() => {
       if (this.isEnabled) {
         this.onTap();
@@ -3678,6 +3725,8 @@ export struct SettingsStaticRow {
   row: SettingsRowItem = { title: '', summary: '', value: '', type: '' };
   @Prop renderRevision: number = 0;
   @State inputValue: string = '';
+  firstInGroup: boolean = false;
+  lastInGroup: boolean = false;
   onTap: () => void = () => {};
   onTextChange: (key: string, value: string) => void = () => {};
   onTextDraftChange: (key: string, value: string) => void = () => {};
@@ -3735,24 +3784,17 @@ export struct SettingsStaticRow {
               this.commitInputValue();
             })
         } else if (this.row.type === 'switch') {
-          Row() {
-            Text(this.row.value === 'On' ? uiText('On') : uiText('Off'))
-              .fontSize(12)
-              .fontColor(this.row.value === 'On' ? themeAccentTextColor() : themeTertiaryText())
-              .margin({ right: 8 })
-            Toggle({ type: ToggleType.Switch, isOn: this.row.value === 'On' })
-              .width(uiSwitchWidth())
-              .height(uiSwitchHeight())
-              .selectedColor(themePrimaryColor())
-              .switchPointColor(Color.White)
-              .onChange((isOn: boolean) => {
-                if (this.row.key !== undefined) {
-                  this.onSwitchChange(this.row.key, isOn);
-                }
-              })
-          }
-          .alignItems(VerticalAlign.Center)
-          .margin({ left: 12 })
+          Toggle({ type: ToggleType.Switch, isOn: this.row.value === 'On' })
+            .width(uiSwitchWidth())
+            .height(uiSwitchHeight())
+            .selectedColor(themePrimaryColor())
+            .switchPointColor(Color.White)
+            .margin({ left: 12 })
+            .onChange((isOn: boolean) => {
+              if (this.row.key !== undefined) {
+                this.onSwitchChange(this.row.key, isOn);
+              }
+            })
         } else if (this.row.type === 'slider') {
           SettingsInlineSlider({
             row: this.row,
@@ -3818,8 +3860,14 @@ export struct SettingsStaticRow {
     .padding(this.row.type === 'section' ? { left: 4, right: 4, top: 12, bottom: 2 } :
       { left: 14, right: 14, top: 14, bottom: 14 })
     .backgroundColor(this.row.type === 'section' ? themePageBackground() : uiListItemBackground(themeSurface()))
-    .border({ width: this.row.type === 'section' ? 0 : 1, color: uiListItemBorderColor(themeDividerColor()) })
-    .borderRadius(uiRadius(16))
+    .border({ width: { bottom: this.row.type === 'section' || this.lastInGroup ? 0 : 0.5 },
+      color: themeDividerColor() })
+    .borderRadius({
+      topLeft: this.row.type !== 'section' && this.firstInGroup ? uiRadius(16) : 0,
+      topRight: this.row.type !== 'section' && this.firstInGroup ? uiRadius(16) : 0,
+      bottomLeft: this.row.type !== 'section' && this.lastInGroup ? uiRadius(16) : 0,
+      bottomRight: this.row.type !== 'section' && this.lastInGroup ? uiRadius(16) : 0
+    })
     .onClick(() => {
       if (this.row.type !== 'input' && this.row.type !== 'switch' && this.row.type !== 'info' &&
         this.row.type !== 'slider' && this.row.type !== 'section' && this.row.key !== 'theme' &&

@@ -831,8 +831,11 @@ export struct SearchBookmarkDrawer {
   private restoringScrollPosition: boolean = false;
   private positionLoaded: boolean = false;
   private firstVisibleIndex: number = 0;
+  private lastScrollOffset: number = 0;
+  private componentActive: boolean = false;
 
   aboutToAppear(): void {
+    this.componentActive = true;
     const context = getAbilityContext();
     if (context === undefined) {
       return;
@@ -844,7 +847,8 @@ export struct SearchBookmarkDrawer {
   }
 
   aboutToDisappear(): void {
-    this.rememberScrollPosition();
+    this.componentActive = false;
+    this.rememberCachedScrollPosition();
     ehBrowsePositionStore.flush();
   }
 
@@ -865,6 +869,7 @@ export struct SearchBookmarkDrawer {
       return;
     }
     const position: BrowsePosition = ehBrowsePositionStore.getBookmarkDrawerPosition();
+    this.lastScrollOffset = Math.max(0, position.offset);
     let targetIndex = this.bookmarkIndexById(position.anchorId);
     if (targetIndex < 0) {
       targetIndex = Math.min(position.anchorIndex, this.bookmarks.length - 1);
@@ -872,27 +877,41 @@ export struct SearchBookmarkDrawer {
     this.firstVisibleIndex = targetIndex;
     this.restoringScrollPosition = true;
     setTimeout(() => {
+      if (!this.componentActive) {
+        return;
+      }
       if (targetIndex === position.anchorIndex && position.offset > 0) {
         this.bookmarkScroller.scrollTo({ xOffset: 0, yOffset: position.offset });
       } else if (targetIndex > 0) {
         this.bookmarkScroller.scrollToIndex(targetIndex);
       }
       setTimeout(() => {
-        this.restoringScrollPosition = false;
+        if (this.componentActive) {
+          this.restoringScrollPosition = false;
+        }
       }, 80);
     }, 0);
   }
 
-  private rememberScrollPosition(): void {
-    if (this.restoringScrollPosition) {
+  private rememberCachedScrollPosition(): void {
+    if (this.restoringScrollPosition || this.bookmarks.length === 0) {
       return;
     }
-    const offset = this.bookmarkScroller.currentOffset().yOffset;
-    if (!Number.isNaN(offset)) {
-      const index = Math.max(0, Math.min(this.firstVisibleIndex, this.bookmarks.length - 1));
-      const anchorId = this.bookmarks.length > 0 ? this.bookmarks[index].id : '';
-      ehBrowsePositionStore.updateBookmarkDrawerPosition(anchorId, index, Math.max(0, offset));
+    const index = Math.max(0, Math.min(this.firstVisibleIndex, this.bookmarks.length - 1));
+    const anchorId = this.bookmarks[index].id;
+    ehBrowsePositionStore.updateBookmarkDrawerPosition(anchorId, index, this.lastScrollOffset);
+  }
+
+  private captureScrollPosition(): void {
+    if (this.restoringScrollPosition || !this.componentActive) {
+      return;
     }
+    const currentOffset = this.bookmarkScroller.currentOffset();
+    if (currentOffset === undefined || Number.isNaN(currentOffset.yOffset)) {
+      return;
+    }
+    this.lastScrollOffset = Math.max(0, currentOffset.yOffset);
+    this.rememberCachedScrollPosition();
   }
 
   build() {
@@ -956,13 +975,13 @@ export struct SearchBookmarkDrawer {
           this.restoreScrollPosition();
         })
         .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
-          this.rememberScrollPosition();
+          this.captureScrollPosition();
         })
         .onScrollIndex((first: number, _last: number) => {
           this.firstVisibleIndex = Math.max(0, first);
         })
         .onScrollStop(() => {
-          this.rememberScrollPosition();
+          this.captureScrollPosition();
         })
       }
     }
