@@ -28,8 +28,7 @@ import {
   readerPreloadCount,
   readerStartIndex,
   readerStartIndexAsync,
-  saveGalleryReadPosition,
-  setReaderActiveBackHandler
+  saveGalleryReadPosition
 } from '../shared/EhShared';
 import { ReaderPageState, ReaderScene } from './ReaderScenes';
 
@@ -71,9 +70,6 @@ export struct ReaderSessionScene {
 
   aboutToAppear(): void {
     this.readerSceneActive = true;
-    if (!this.restoreAppChromeOnExit) {
-      setReaderActiveBackHandler(() => this.handleSystemBack());
-    }
     const context = this.readerContext();
     if (context === undefined) {
       this.readerSettingsReady = true;
@@ -160,14 +156,6 @@ export struct ReaderSessionScene {
     cancelQueuedReaderImageRequests();
     this.cancelReaderTranslationScope();
     this.persistSession();
-    if (!this.restoreAppChromeOnExit) {
-      setReaderActiveBackHandler(null);
-    }
-  }
-
-  private handleSystemBack(): boolean {
-    this.closeReader();
-    return true;
   }
 
   private persistSession(): void {

@@ -75,6 +75,8 @@ import {
   normalizeAutoTransferTimeOption,
   normalizeBrightnessLevelOption,
   normalizeUltraDarkLightnessOption,
+  pushActiveBackHandler,
+  setReaderActiveBackHandler,
   BOTTOM_AVOID_HEIGHT_KEY,
   STATUS_BAR_HEIGHT_KEY,
   uiText
@@ -393,6 +395,8 @@ export struct ReaderScene {
   private volumeUpRegistered: boolean = false;
   private volumeDownRegistered: boolean = false;
   private transientDisappearCleanupTimer: number = -1;
+  private unregisterEmbeddedBackHandler: () => void = () => {};
+  private readerBackHandlerInstalled: boolean = false;
   private volumeUpCallback: (event: InputKeyEvent) => void = (event: InputKeyEvent) => {
     this.handleVolumePageKey(event);
   };
@@ -406,6 +410,7 @@ export struct ReaderScene {
       this.transientDisappearCleanupTimer = -1;
     }
     this.readerWindowActive = true;
+    this.installReaderBackHandler();
     setReaderTransientStatusBarVisible(false);
     this.adaptiveDualPage = ehSettingsStore.getValue('adaptive_dual_page', 'Off') === 'On';
     this.cropWhiteBorders = ehSettingsStore.getValue('reader_crop_white_borders', 'Off') === 'On';
@@ -510,6 +515,7 @@ export struct ReaderScene {
 
   private cleanupReaderScene(): void {
     this.readerWindowActive = false;
+    this.uninstallReaderBackHandler();
     this.imageProcessingPrefetchScope.clear();
     setReaderTransientStatusBarVisible(false);
     this.unregisterReaderAvoidAreaListener();
@@ -530,6 +536,36 @@ export struct ReaderScene {
     this.clearOverlayRefreshTimer();
     this.unregisterVolumePageKeys();
     this.resetReaderBrightness().catch(() => {});
+  }
+
+  private installReaderBackHandler(): void {
+    this.uninstallReaderBackHandler();
+    if (this.restoreAppChromeOnExit) {
+      this.unregisterEmbeddedBackHandler = pushActiveBackHandler(() => this.handleReaderSystemBack());
+    } else {
+      setReaderActiveBackHandler(() => this.handleReaderSystemBack());
+    }
+    this.readerBackHandlerInstalled = true;
+  }
+
+  private uninstallReaderBackHandler(): void {
+    if (!this.readerBackHandlerInstalled) {
+      return;
+    }
+    if (this.restoreAppChromeOnExit) {
+      this.unregisterEmbeddedBackHandler();
+      this.unregisterEmbeddedBackHandler = () => {};
+    } else {
+      setReaderActiveBackHandler(null);
+    }
+    this.readerBackHandlerInstalled = false;
+  }
+
+  private handleReaderSystemBack(): boolean {
+    if (!this.dismissReaderControlOverlay()) {
+      this.onBack();
+    }
+    return true;
   }
 
   private applyReaderWindowSettings(): void {
@@ -3558,7 +3594,7 @@ export struct ReaderScene {
             this.hideMenu();
           },
           onBack: () => {
-            this.onBack();
+            this.hideMenu();
           },
           onReaderPresetChange: (value: string) => {
             this.onMenuReaderPresetChange(value);
