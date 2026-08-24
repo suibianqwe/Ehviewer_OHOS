@@ -11,6 +11,7 @@ import {
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
+  themeShadowColor,
   themeSurface,
   themeSurfaceVariant,
   themeTransparentColor
@@ -33,7 +34,7 @@ export struct DetailActions {
   build() {
     Column() {
       Scroll() {
-        Row() {
+        Row({ space: 8 }) {
           DetailActionItem({
             symbolIcon: this.isFavorited ? $r('sys.symbol.heart_fill') : $r('sys.symbol.heart'),
             label: this.isFavorited ? uiText('Favorited') : uiText('Favorite'),
@@ -86,10 +87,12 @@ export struct DetailActions {
             onTap: this.onSearchCover
           })
         }
+        .padding({ left: 16, right: 16, top: 10, bottom: 10 })
       }
       .scrollable(ScrollDirection.Horizontal)
       .scrollBar(BarState.Off)
       .width('100%')
+      .clip(false)
 
       RatingSummary({
         rating: this.detail.rating,
@@ -226,12 +229,18 @@ export struct DetailActionItem {
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
     }
-    .width(72)
+    .width(68)
     .height(68)
     .justifyContent(FlexAlign.Center)
     .backgroundColor(this.pressed ? themeSurfaceVariant() : themeTransparentColor())
     .systemMaterial(uiButtonMaterial())
-    .borderRadius(uiRadius(6))
+    .borderRadius(34)
+    .shadow({
+      radius: this.pressed ? 2 : 8,
+      color: themeShadowColor(),
+      offsetX: 0,
+      offsetY: this.pressed ? 1 : 3
+    })
     .scale({ x: this.pressed ? 0.92 : 1, y: this.pressed ? 0.92 : 1 })
     .animation({ duration: 120, curve: Curve.EaseOut })
     .onTouch((event: TouchEvent) => {
