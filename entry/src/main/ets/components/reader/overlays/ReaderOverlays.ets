@@ -18,6 +18,7 @@ import {
 } from '../../../shared/EhTheme';
 import {
   isHarmonyMaterialEnabled,
+  isHarmonyUiStyle,
   uiButtonHighlightBorderColor,
   uiButtonMaterial,
   uiMaterialBackground,
@@ -147,7 +148,7 @@ struct ReaderSliderBubble {
     Text(this.displayText)
       .fontSize(14)
       .fontWeight(FontWeight.Medium)
-      .fontColor(Color.White)
+      .fontColor(isHarmonyUiStyle() ? themePrimaryText() : Color.White)
       .lineHeight(40)
       .textAlign(TextAlign.Center)
       .textVerticalAlign(TextVerticalAlign.CENTER)
@@ -157,7 +158,7 @@ struct ReaderSliderBubble {
       .backgroundEffect(uiReaderProgressBackgroundEffect())
       .borderRadius(uiRadius(20))
       .borderWidth(1)
-      .borderColor('#3F4756')
+      .borderColor(isHarmonyUiStyle() ? uiButtonHighlightBorderColor() : '#3F4756')
       .shadow({ radius: 8, color: 'rgba(0,0,0,0.45)', offsetX: 0, offsetY: 2 })
   }
 }
@@ -171,7 +172,7 @@ struct ReaderSliderPageText {
       ReaderProgressText({
         text: this.text,
         fontSize: 14,
-        fontColor: '#E5E7EB',
+        fontColor: isHarmonyUiStyle() ? themePrimaryText() : '#E5E7EB',
         textWidth: 54,
         textHeight: 50
       })
@@ -193,13 +194,17 @@ struct ReaderAutoTransferButton {
     Button({ type: ButtonType.Circle, stateEffect: true }) {
       SymbolGlyph(this.autoTransferPlaying ? $r('sys.symbol.pause_fill') : $r('sys.symbol.play_fill'))
         .fontSize(24)
-        .fontColor([uiMaterialForegroundColor(Color.White)])
+        .fontColor([uiMaterialForegroundColor(isHarmonyUiStyle() ? themePrimaryText() : Color.White)])
     }
     .width(50)
     .height(50)
     .enabled(this.autoTransferEnabled)
-    .backgroundColor(uiMaterialBackground(this.autoTransferEnabled ? '#334155' : '#1F2937'))
-    .systemMaterial(uiButtonMaterial())
+    .backgroundColor(uiReaderOptionControlBackground(this.autoTransferEnabled ? '#334155' : '#1F2937'))
+    .systemMaterial(uiReaderOptionButtonMaterial())
+    .border({
+      width: isHarmonyUiStyle() ? 1 : 0,
+      color: uiButtonHighlightBorderColor()
+    })
     .onClick(() => {
       this.onToggleAutoTransfer();
     })

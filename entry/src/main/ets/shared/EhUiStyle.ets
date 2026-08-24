@@ -341,18 +341,14 @@ export function uiReaderMenuBackgroundEffect(): BackgroundEffectOptions {
 }
 
 export function uiReaderProgressBackgroundEffect(): BackgroundEffectOptions {
-  const effectEnabled = isHarmonyUiStyle() && supportsBackgroundEffect();
-  return {
-    radius: effectEnabled ? 18 : 0,
-    saturation: effectEnabled ? 1.08 : 1,
-    brightness: effectEnabled ? 0.92 : 1,
-    color: effectEnabled ? 'rgba(11,16,25,0.22)' : Color.Transparent,
-    adaptiveColor: AdaptiveColor.DEFAULT
-  };
+  return uiPopupBackgroundEffect();
 }
 
 export function uiReaderProgressBackgroundColor(fallbackColor: string): string {
-  return isHarmonyUiStyle() && supportsBackgroundEffect() ? 'rgba(11,16,25,0.42)' : fallbackColor;
+  if (!isHarmonyUiStyle()) {
+    return fallbackColor;
+  }
+  return supportsBackgroundEffect() ? 'rgba(0,0,0,0)' : themeSurface();
 }
 
 export function uiPopupBlurStyle(): BlurStyle {

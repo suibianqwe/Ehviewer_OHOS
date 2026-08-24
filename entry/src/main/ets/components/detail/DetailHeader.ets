@@ -22,6 +22,7 @@ import {
   themeSurfaceVariant
 } from '../../shared/EhTheme';
 import {
+  uiButtonHighlightBorderColor,
   uiButtonMaterial,
   uiMaterialBackground,
   uiMaterialForegroundColor,
@@ -201,8 +202,8 @@ export struct HeaderActionButton {
     .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(23))
     .border({
-      width: this.accent ? 0 : 1,
-      color: this.accent ? themePrimaryColor() : themeDividerColor()
+      width: 1,
+      color: this.accent ? uiButtonHighlightBorderColor() : themeDividerColor()
     })
     .shadow({
       radius: this.pressed ? 2 : 6,
