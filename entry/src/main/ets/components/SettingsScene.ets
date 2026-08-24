@@ -156,7 +156,6 @@ import {
   uiSearchFieldHeight,
   uiSearchMaterial,
   uiSegmentMaterial,
-  uiSelectorHeight,
   uiSwitchHeight,
   uiSwitchWidth,
   uiPageHorizontalPadding
@@ -3034,20 +3033,16 @@ export struct SettingsHeaderRow {
 
   build() {
     Column() {
-      Button({ type: ButtonType.Normal, stateEffect: true }) {
-        Row() {
-          SettingsTextBlock({ title: uiText(this.item.title), summary: uiText(this.item.summary) })
-            .layoutWeight(1)
-          SymbolGlyph($r('sys.symbol.chevron_right'))
-            .fontSize(16)
-            .fontColor([themeTertiaryText()])
-        }
-        .width('100%')
+      Row() {
+        SettingsTextBlock({ title: uiText(this.item.title), summary: uiText(this.item.summary) })
+          .layoutWeight(1)
+        SymbolGlyph($r('sys.symbol.chevron_right'))
+          .fontSize(16)
+          .fontColor([themeTertiaryText()])
       }
       .width('100%')
       .padding(14)
       .backgroundColor(Color.Transparent)
-      .systemMaterial(uiSegmentMaterial())
       .onClick(() => {
         this.onTap();
       })
@@ -3568,17 +3563,14 @@ export struct SettingsOptionPanel {
     if (index < this.optionDescriptions.length && this.optionDescriptions[index].length > 0) {
       return 64;
     }
-    if (index < this.options.length && this.options[index] === this.value) {
-      return 52;
-    }
-    return 46;
+    return 52;
   }
 
   private optionListContentHeight(): number {
     if (this.options.length === 0) {
       return 64;
     }
-    let height = Math.max(0, this.options.length - 1) * 8;
+    let height = 0;
     for (let index = 0; index < this.options.length; index++) {
       height += this.estimatedOptionRowHeight(index);
     }
@@ -3608,6 +3600,49 @@ export struct SettingsOptionPanel {
 
   private optionListHeight(): number {
     return Math.max(64, this.panelHeight() - this.panelChromeHeight());
+  }
+
+  private optionListNeedsScroll(): boolean {
+    return this.optionListContentHeight() > this.optionListHeight() + 0.5;
+  }
+
+  @Builder
+  private optionRow(option: string, index: number) {
+    Row() {
+      Column() {
+        Text(uiValue(option))
+          .fontSize(15)
+          .fontWeight(option === this.value ? FontWeight.Medium : FontWeight.Regular)
+          .fontColor(option === this.value ? themeAccentTextColor() : themePrimaryText())
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        if (index < this.optionDescriptions.length && this.optionDescriptions[index].length > 0) {
+          Text(uiText(this.optionDescriptions[index]))
+            .fontSize(12)
+            .fontColor(themeSecondaryText())
+            .maxLines(2)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .margin({ top: 3 })
+        }
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+      if (option === this.value) {
+        SymbolGlyph($r('sys.symbol.checkmark'))
+          .fontSize(18)
+          .fontColor([themeAccentTextColor()])
+          .margin({ left: 12 })
+      }
+    }
+    .width('100%')
+    .height(this.estimatedOptionRowHeight(index))
+    .padding({ left: 14, right: 14 })
+    .backgroundColor(option === this.value ? themeSelectedBackground() : Color.Transparent)
+    .border({ width: { bottom: index === this.options.length - 1 ? 0 : 0.5 },
+      color: themeDividerColor() })
+    .onClick(() => {
+      this.onSelect(option);
+    })
   }
 
   build() {
@@ -3649,57 +3684,31 @@ export struct SettingsOptionPanel {
             .margin({ top: 6, bottom: 12 })
         }
 
-        List({ space: 8 }) {
-          ForEach(this.options, (option: string, index: number) => {
-            ListItem() {
-              Button({ type: ButtonType.Normal, stateEffect: true }) {
-                Row() {
-                  Text(uiValue(option))
-                    .fontSize(15)
-                    .fontWeight(option === this.value ? FontWeight.Medium : FontWeight.Regular)
-                    .fontColor(uiMaterialForegroundColor(option === this.value ? themeAccentTextColor() :
-                      themePrimaryText()))
-                    .maxLines(2)
-                    .textOverflow({ overflow: TextOverflow.Ellipsis })
-                    .layoutWeight(1)
-                  if (index < this.optionDescriptions.length && this.optionDescriptions[index].length > 0) {
-                    Text(uiText(this.optionDescriptions[index]))
-                      .fontSize(12)
-                      .fontColor(uiMaterialForegroundColor(themeSecondaryText()))
-                      .maxLines(2)
-                      .textAlign(TextAlign.End)
-                      .layoutWeight(1)
-                      .margin({ left: 8 })
-                  }
-                  if (option === this.value) {
-                    Text(uiText('Selected'))
-                      .fontSize(12)
-                      .fontColor(themeOnPrimaryText())
-                      .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-                      .backgroundColor(themePrimaryColor())
-                      .borderRadius(uiRadius(14))
-                      .margin({ left: 8 })
-                  }
+        Column() {
+          if (this.optionListNeedsScroll()) {
+            List({ space: 0 }) {
+              ForEach(this.options, (option: string, index: number) => {
+                ListItem() {
+                  this.optionRow(option, index)
                 }
-                .width('100%')
-              }
-              .width('100%')
-              .padding(14)
-              .backgroundColor(option === this.value ? themeSelectedBackground() : themeFieldBackground())
-              .systemMaterial(uiButtonMaterial())
-              .borderRadius(uiRadius(6))
-              .onClick(() => {
-                this.onSelect(option);
-              })
+                .reuseId('settings-option-row')
+              }, (option: string) => option)
             }
-            .reuseId('settings-option-row')
-          }, (option: string) => option)
+            .width('100%')
+            .height('100%')
+            .cachedCount(4)
+            .scrollBar(BarState.Auto)
+          } else {
+            ForEach(this.options, (option: string, index: number) => {
+              this.optionRow(option, index)
+            }, (option: string) => option)
+          }
         }
         .width('100%')
         .height(this.optionListHeight())
-        .constraintSize({ maxHeight: this.optionListContentHeight() })
-        .cachedCount(4)
-        .scrollBar(BarState.Auto)
+        .backgroundColor(uiListItemBackground(themeSurfaceVariant()))
+        .borderRadius(uiRadius(16))
+        .clip(true)
 
         if (this.allowCustomInput) {
           Row({ space: 8 }) {
@@ -3776,35 +3785,30 @@ export struct SettingsActionRow {
   onTap: () => void = () => {};
 
   build() {
-    Button({ type: ButtonType.Normal, stateEffect: this.isEnabled }) {
-      Row() {
-        SettingsTextBlock({
-          title: this.title,
-          summary: this.summary,
-          isEnabled: this.isEnabled
-        })
-        .layoutWeight(1)
-        if (this.navigation) {
-          SymbolGlyph($r('sys.symbol.chevron_right'))
-            .fontSize(16)
-            .fontColor([themeTertiaryText()])
-            .margin({ left: 12 })
-        } else {
-          Text(this.value)
-            .fontSize(12)
-            .fontColor(this.isEnabled ? themeOnPrimaryText() : themeTertiaryText())
-            .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-            .backgroundColor(this.isEnabled ? themePrimaryColor() : themeSurfaceVariant())
-            .borderRadius(uiRadius(14))
-            .margin({ left: 12 })
-        }
+    Row() {
+      SettingsTextBlock({
+        title: this.title,
+        summary: this.summary,
+        isEnabled: this.isEnabled
+      })
+      .layoutWeight(1)
+      if (this.navigation) {
+        SymbolGlyph($r('sys.symbol.chevron_right'))
+          .fontSize(16)
+          .fontColor([themeTertiaryText()])
+          .margin({ left: 12 })
+      } else {
+        Text(this.value)
+          .fontSize(13)
+          .fontColor(this.isEnabled ? themeSecondaryText() : themeTertiaryText())
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .margin({ left: 12 })
       }
-      .width('100%')
     }
     .width('100%')
     .padding(14)
-    .backgroundColor(uiMaterialBackground(uiListItemBackground(themeSurface())))
-    .systemMaterial(uiSegmentMaterial())
+    .backgroundColor(uiListItemBackground(themeSurface()))
     .border({ width: { bottom: this.lastInGroup ? 0 : 0.5 }, color: themeDividerColor() })
     .borderRadius({
       topLeft: this.firstInGroup ? uiRadius(16) : 0,
@@ -3903,28 +3907,19 @@ export struct SettingsStaticRow {
             .margin({ left: 12 })
         } else if ((this.row.type === 'list' && this.row.options !== undefined && this.row.options.length > 0) ||
           this.row.type === 'model' || this.row.type === 'dialog') {
-          Button({ type: ButtonType.Normal, stateEffect: true }) {
-            Row({ space: 6 }) {
-              Text(uiValue(this.row.value))
-                .fontSize(13)
-                .fontColor(uiMaterialForegroundColor(themeSecondaryText()))
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-              SymbolGlyph($r('sys.symbol.chevron_down'))
-                .fontSize(14)
-                .fontColor([uiMaterialForegroundColor(themeSecondaryText())])
-            }
+          Row({ space: 6 }) {
+            Text(uiValue(this.row.value))
+              .fontSize(13)
+              .fontColor(themeSecondaryText())
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+            SymbolGlyph($r('sys.symbol.chevron_right'))
+              .fontSize(14)
+              .fontColor([themeTertiaryText()])
           }
-            .height(uiSelectorHeight())
-            .constraintSize({ maxWidth: 190 })
-            .padding({ left: 12, right: 10 })
-            .backgroundColor(themeSurfaceVariant())
-            .systemMaterial(uiButtonMaterial())
-            .borderRadius(uiRadius(uiSelectorHeight() / 2))
-            .margin({ left: 8 })
-            .onClick(() => {
-              this.onTap();
-            })
+          .constraintSize({ maxWidth: 190 })
+          .margin({ left: 12 })
+          .hitTestBehavior(HitTestMode.None)
         } else if (this.row.type === 'navigation') {
           SymbolGlyph($r('sys.symbol.chevron_right'))
             .fontSize(16)
@@ -3941,17 +3936,18 @@ export struct SettingsStaticRow {
             .textAlign(TextAlign.End)
             .margin({ left: 12 })
         } else {
-          Button(settingsRowActionText(this.row), { type: ButtonType.Normal, stateEffect: true })
-            .height(34)
-            .fontSize(12)
-            .fontColor(themeSecondaryText())
-            .backgroundColor(themeSurfaceVariant())
-            .systemMaterial(uiButtonMaterial())
-            .borderRadius(uiRadius(17))
+          Row({ space: 6 }) {
+            Text(settingsRowActionText(this.row))
+              .fontSize(13)
+              .fontColor(themeAccentTextColor())
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+            SymbolGlyph($r('sys.symbol.chevron_right'))
+              .fontSize(14)
+              .fontColor([themeTertiaryText()])
+          }
             .margin({ left: 12 })
-            .onClick(() => {
-              this.onTap();
-            })
+            .hitTestBehavior(HitTestMode.None)
         }
       }
       .width('100%')
@@ -3970,8 +3966,7 @@ export struct SettingsStaticRow {
     })
     .onClick(() => {
       if (this.row.type !== 'input' && this.row.type !== 'switch' && this.row.type !== 'info' &&
-        this.row.type !== 'slider' && this.row.type !== 'section' && this.row.key !== 'theme' &&
-        this.row.key !== 'ui_style') {
+        this.row.type !== 'slider' && this.row.type !== 'section') {
         this.onTap();
       }
     })
