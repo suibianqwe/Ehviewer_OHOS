@@ -37,10 +37,7 @@ import {
   uiSearchFieldHeight,
   uiSearchMaterial,
   uiTitleBarBackgroundEffect,
-  uiTitleBarFadeHeight,
-  uiTitleBarFadeMiddleColor,
-  uiTitleBarFadeStartColor,
-  uiTitleBarFadeTailColor
+  uiTitleBarFadeHeight
 } from '../shared/EhUiStyle';
 import { TranslationText } from './TranslationComponents';
 
@@ -429,13 +426,21 @@ struct DrawerNavItem {
 export struct EhTitleBarBackdrop {
   @Prop barBackdropHeight: number = 0;
 
+  private blurFadeStart(): number {
+    if (this.barBackdropHeight <= 0) {
+      return 0;
+    }
+    return Math.max(0, Math.min(1,
+      (this.barBackdropHeight - uiTitleBarFadeHeight()) / this.barBackdropHeight));
+  }
+
+  private blurFadeStop(fraction: number): number {
+    const start = this.blurFadeStart();
+    return start + (1 - start) * fraction;
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Column()
-        .width('100%')
-        .height(Math.max(0, this.barBackdropHeight - uiTitleBarFadeHeight()))
-        .backgroundEffect(uiTitleBarBackgroundEffect())
-
       Stack({ alignContent: Alignment.TopStart }) {
         Column()
           .width('100%')
@@ -447,25 +452,16 @@ export struct EhTitleBarBackdrop {
           .height('100%')
           .linearGradient({
             angle: 180,
-            colors: [[Color.White, 0.0], [Color.White, 0.12], ['rgba(255,255,255,0.55)', 0.58],
+            colors: [[Color.White, 0.0], [Color.White, this.blurFadeStart()],
+              ['rgba(255,255,255,0.72)', this.blurFadeStop(0.24)],
+              ['rgba(255,255,255,0.20)', this.blurFadeStop(0.64)],
               [Color.Transparent, 1.0]]
           })
           .blendMode(BlendMode.DST_IN, BlendApplyType.OFFSCREEN)
       }
       .width('100%')
-      .height(uiTitleBarFadeHeight())
-      .position({ x: 0, y: Math.max(0, this.barBackdropHeight - uiTitleBarFadeHeight()) })
+      .height('100%')
       .blendMode(BlendMode.SRC_OVER, BlendApplyType.OFFSCREEN)
-
-      Column()
-        .width('100%')
-        .height(uiTitleBarFadeHeight())
-        .position({ x: 0, y: Math.max(0, this.barBackdropHeight - uiTitleBarFadeHeight()) })
-        .linearGradient({
-          angle: 180,
-          colors: [[uiTitleBarFadeStartColor(), 0.0], [uiTitleBarFadeMiddleColor(), 0.48],
-            [uiTitleBarFadeTailColor(), 0.82], [themeTransparentColor(), 1.0]]
-        })
     }
     .width('100%')
     .height(this.barBackdropHeight)

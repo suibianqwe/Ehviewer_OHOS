@@ -4081,6 +4081,7 @@ export struct GalleryListContent {
   };
   @State contentWidth: number = 0;
   @State refreshing: boolean = false;
+  @State refreshPullOffset: number = 0;
   @State advancedPanelVisible: boolean = false;
   @State pageJumpDraft: string = '';
   @State seekYearDraft: string = '';
@@ -4440,7 +4441,7 @@ export struct GalleryListContent {
   }
 
   private expandedTitleContentInset(): number {
-    return this.totalBarHeight() + uiTitleBarFadeHeight();
+    return this.totalBarHeight() + uiTitleBarFadeHeight() * 0.68;
   }
 
   private imageSearchPanelWidth(): number {
@@ -5033,6 +5034,17 @@ export struct GalleryListContent {
   }
 
   @Builder
+  private galleryRefreshIndicator() {
+    Row()
+      .width('100%')
+      .height(this.expandedTitleContentInset())
+  }
+
+  private refreshIndicatorTop(): number {
+    return this.expandedTitleContentInset() + Math.min(20, this.refreshPullOffset * 0.25);
+  }
+
+  @Builder
   private galleryItem(gallery: GalleryInfo, index: number) {
     ListItem() {
       if (galleryListMode() === 'Thumb') {
@@ -5103,7 +5115,7 @@ export struct GalleryListContent {
         })
     }
     .width('100%')
-    .margin({ top: addTopSpacing ? this.expandedTitleContentInset() + this.galleryCardGap() : 0 })
+    .margin({ top: addTopSpacing ? this.expandedTitleContentInset() : 0 })
     .reuseId('gallery-thumb-flow-item')
     .animation({ duration: 220, curve: Curve.EaseOut })
     .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
@@ -5113,7 +5125,7 @@ export struct GalleryListContent {
   private galleryListEdgeSpacer() {
     Row()
       .width('100%')
-      .height(this.expandedTitleContentInset() + this.galleryCardGap())
+      .height(this.expandedTitleContentInset())
   }
 
   @Builder
@@ -5265,7 +5277,7 @@ export struct GalleryListContent {
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
-        Refresh({ refreshing: this.refreshing }) {
+        Refresh({ refreshing: this.refreshing, builder: this.galleryRefreshIndicator }) {
           if (this.useThumbnailWaterFlow()) {
             this.galleryThumbnailWaterFlow()
           } else {
@@ -5274,6 +5286,9 @@ export struct GalleryListContent {
         }
         .refreshOffset(this.REFRESH_OFFSET)
         .pullToRefresh(true)
+        .onOffsetChange((offset: number) => {
+          this.refreshPullOffset = Math.max(0, offset);
+        })
         .onRefreshing(() => {
           this.startPullRefresh();
         })
@@ -5706,6 +5721,22 @@ export struct GalleryListContent {
         }
       }
       .hitTestBehavior(HitTestMode.Transparent)
+
+      if (this.refreshPullOffset > 0 || this.refreshing) {
+        Row() {
+          LoadingProgress()
+            .width(24)
+            .height(24)
+            .color(themePrimaryColor())
+        }
+        .width('100%')
+        .height(24)
+        .justifyContent(FlexAlign.Center)
+        .position({ x: 0, y: this.refreshIndicatorTop() })
+        .opacity(this.refreshing ? 1 : Math.min(1, this.refreshPullOffset / this.REFRESH_OFFSET))
+        .hitTestBehavior(HitTestMode.None)
+        .zIndex(16)
+      }
     }
     .width('100%')
     .height('100%')
