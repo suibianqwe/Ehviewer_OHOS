@@ -8,7 +8,8 @@ import {
 } from './EhTheme';
 
 export const EH_UI_STYLE_CLASSIC: string = 'Classic';
-export const EH_UI_STYLE_HARMONY_7: string = 'HarmonyOS 7';
+export const EH_UI_STYLE_HARMONY: string = 'Harmony';
+const EH_UI_STYLE_HARMONY_LEGACY: string = 'HarmonyOS 7';
 
 let harmony7FloatingMaterial: uiMaterial.Material | undefined;
 let harmony7ButtonMaterial: uiMaterial.Material | undefined;
@@ -18,21 +19,33 @@ let harmony7SegmentMaterial: uiMaterial.Material | undefined;
 let harmony7PanelMaterial: uiMaterial.Material | undefined;
 let harmony7DialogMaterial: uiMaterial.Material | undefined;
 
-function supportsHarmonyOs7Material(): boolean {
-  return deviceInfo.sdkApiVersion >= 26;
+function supportsImmersiveMaterial(): boolean {
+  return deviceInfo.apiAvailable('26.0.0');
 }
 
-export function isHarmonyOs7MaterialEnabled(): boolean {
-  return isHarmonyOs7UiStyle() && supportsHarmonyOs7Material();
+function supportsBackgroundBlur(): boolean {
+  return deviceInfo.apiAvailable(9);
+}
+
+function supportsBackgroundEffect(): boolean {
+  return deviceInfo.apiAvailable(11);
+}
+
+export function isHarmonyMaterialEnabled(): boolean {
+  return isHarmonyUiStyle() && supportsImmersiveMaterial();
+}
+
+export function normalizeUiStyleName(value: string): string {
+  return value === EH_UI_STYLE_HARMONY || value === EH_UI_STYLE_HARMONY_LEGACY ?
+    EH_UI_STYLE_HARMONY : EH_UI_STYLE_CLASSIC;
 }
 
 export function currentUiStyleName(): string {
-  return ehSettingsStore.getValue('ui_style', EH_UI_STYLE_CLASSIC) === EH_UI_STYLE_HARMONY_7 ?
-    EH_UI_STYLE_HARMONY_7 : EH_UI_STYLE_CLASSIC;
+  return normalizeUiStyleName(ehSettingsStore.getValue('ui_style', EH_UI_STYLE_CLASSIC));
 }
 
-export function isHarmonyOs7UiStyle(): boolean {
-  return currentUiStyleName() === EH_UI_STYLE_HARMONY_7;
+export function isHarmonyUiStyle(): boolean {
+  return currentUiStyleName() === EH_UI_STYLE_HARMONY;
 }
 
 export function uiControlRadius(classicRadius: number = 6): number {
@@ -62,7 +75,7 @@ export function uiRadius(classicRadius: number): number {
 }
 
 export function uiFloatingMaterial(): uiMaterial.Material | undefined {
-  if (!isHarmonyOs7MaterialEnabled()) {
+  if (!isHarmonyMaterialEnabled()) {
     return undefined;
   }
   if (harmony7FloatingMaterial === undefined) {
@@ -77,7 +90,7 @@ export function uiFloatingMaterial(): uiMaterial.Material | undefined {
 }
 
 export function uiButtonMaterial(): uiMaterial.Material | undefined {
-  if (!isHarmonyOs7MaterialEnabled()) {
+  if (!isHarmonyMaterialEnabled()) {
     return undefined;
   }
   if (harmony7ButtonMaterial === undefined) {
@@ -85,14 +98,14 @@ export function uiButtonMaterial(): uiMaterial.Material | undefined {
       style: uiMaterial.ImmersiveStyle.THIN,
       applyShadow: true,
       interactive: true,
-      lightEffect: { color: undefined }
+      lightEffect: { color: Color.White }
     });
   }
   return harmony7ButtonMaterial;
 }
 
 export function uiChromeMaterial(): uiMaterial.Material | undefined {
-  if (!isHarmonyOs7MaterialEnabled()) {
+  if (!isHarmonyMaterialEnabled()) {
     return undefined;
   }
   if (harmony7ChromeMaterial === undefined) {
@@ -106,7 +119,7 @@ export function uiChromeMaterial(): uiMaterial.Material | undefined {
 }
 
 export function uiSearchMaterial(): uiMaterial.Material | undefined {
-  if (!isHarmonyOs7MaterialEnabled()) {
+  if (!isHarmonyMaterialEnabled()) {
     return undefined;
   }
   if (harmony7SearchMaterial === undefined) {
@@ -114,14 +127,14 @@ export function uiSearchMaterial(): uiMaterial.Material | undefined {
       style: uiMaterial.ImmersiveStyle.THIN,
       applyShadow: true,
       interactive: true,
-      lightEffect: { color: undefined }
+      lightEffect: { color: Color.White }
     });
   }
   return harmony7SearchMaterial;
 }
 
 export function uiSegmentMaterial(): uiMaterial.Material | undefined {
-  if (!isHarmonyOs7MaterialEnabled()) {
+  if (!isHarmonyMaterialEnabled()) {
     return undefined;
   }
   if (harmony7SegmentMaterial === undefined) {
@@ -129,31 +142,31 @@ export function uiSegmentMaterial(): uiMaterial.Material | undefined {
       style: uiMaterial.ImmersiveStyle.ULTRA_THIN,
       applyShadow: false,
       interactive: true,
-      lightEffect: { color: undefined }
+      lightEffect: { color: Color.White }
     });
   }
   return harmony7SegmentMaterial;
 }
 
 export function uiMaterialBackground(solidColor: string): string {
-  return isHarmonyOs7MaterialEnabled() ? 'rgba(0,0,0,0)' : solidColor;
+  return isHarmonyMaterialEnabled() ? 'rgba(0,0,0,0)' : solidColor;
 }
 
 export function uiMaterialForegroundColor(fallbackColor: ResourceColor): ResourceColor {
-  return isHarmonyOs7MaterialEnabled() ? themeMaterialContentColor() : fallbackColor;
+  return isHarmonyMaterialEnabled() ? themeMaterialContentColor() : fallbackColor;
 }
 
 export function uiMaterialSecondaryForegroundColor(fallbackColor: ResourceColor): ResourceColor {
-  return isHarmonyOs7MaterialEnabled() ? themeMaterialSecondaryContentColor() : fallbackColor;
+  return isHarmonyMaterialEnabled() ? themeMaterialSecondaryContentColor() : fallbackColor;
 }
 
 export function uiTitleBarBlurStyle(): BlurStyle {
-  return isHarmonyOs7MaterialEnabled() ? BlurStyle.COMPONENT_ULTRA_THIN : BlurStyle.NONE;
+  return isHarmonyUiStyle() && supportsBackgroundBlur() ? BlurStyle.COMPONENT_ULTRA_THIN : BlurStyle.NONE;
 }
 
 export function uiTitleBarBackgroundEffect(): BackgroundEffectOptions {
   return {
-    radius: isHarmonyOs7MaterialEnabled() ? 8 : 0,
+    radius: isHarmonyUiStyle() && supportsBackgroundEffect() ? 8 : 0,
     saturation: 1,
     brightness: 1,
     color: Color.Transparent,
@@ -162,11 +175,11 @@ export function uiTitleBarBackgroundEffect(): BackgroundEffectOptions {
 }
 
 export function uiTitleBarFadeHeight(): number {
-  return isHarmonyOs7UiStyle() ? 36 : 8;
+  return isHarmonyUiStyle() ? 36 : 8;
 }
 
 export function uiTitleBarFadeStartColor(): string {
-  if (!isHarmonyOs7UiStyle()) {
+  if (!isHarmonyUiStyle()) {
     return 'rgba(0,0,0,0)';
   }
   return isDarkTheme() ? 'rgba(12,13,16,0.16)' : 'rgba(248,249,252,0.16)';
@@ -181,41 +194,57 @@ export function uiTitleBarFadeTailColor(): string {
 }
 
 export function uiReaderMenuBackgroundEffect(): BackgroundEffectOptions {
+  const effectEnabled = isHarmonyUiStyle() && supportsBackgroundEffect();
   return {
-    radius: isHarmonyOs7MaterialEnabled() ? 10 : 0,
+    radius: effectEnabled ? 10 : 0,
     saturation: 1.04,
     brightness: 0.98,
-    color: isHarmonyOs7MaterialEnabled() ? 'rgba(11,16,25,0.18)' : Color.Transparent,
+    color: effectEnabled ? 'rgba(11,16,25,0.18)' : Color.Transparent,
     adaptiveColor: AdaptiveColor.DEFAULT
   };
 }
 
+export function uiReaderProgressBackgroundEffect(): BackgroundEffectOptions {
+  const effectEnabled = isHarmonyUiStyle() && supportsBackgroundEffect();
+  return {
+    radius: effectEnabled ? 18 : 0,
+    saturation: effectEnabled ? 1.08 : 1,
+    brightness: effectEnabled ? 0.92 : 1,
+    color: effectEnabled ? 'rgba(11,16,25,0.22)' : Color.Transparent,
+    adaptiveColor: AdaptiveColor.DEFAULT
+  };
+}
+
+export function uiReaderProgressBackgroundColor(fallbackColor: string): string {
+  return isHarmonyUiStyle() && supportsBackgroundEffect() ? 'rgba(11,16,25,0.42)' : fallbackColor;
+}
+
 export function uiPopupBlurStyle(): BlurStyle {
-  return isHarmonyOs7MaterialEnabled() ? BlurStyle.COMPONENT_THICK : BlurStyle.NONE;
+  return isHarmonyUiStyle() && supportsBackgroundBlur() ? BlurStyle.COMPONENT_THICK : BlurStyle.NONE;
 }
 
 export function uiSearchFieldHeight(): number {
-  return isHarmonyOs7UiStyle() ? 44 : 40;
+  return isHarmonyUiStyle() ? 44 : 40;
 }
 
 export function uiSwitchWidth(): number {
-  return isHarmonyOs7UiStyle() ? 56 : 52;
+  return isHarmonyUiStyle() ? 56 : 52;
 }
 
 export function uiSwitchHeight(): number {
-  return isHarmonyOs7UiStyle() ? 34 : 32;
+  return isHarmonyUiStyle() ? 34 : 32;
 }
 
 export function uiSelectorHeight(): number {
-  return isHarmonyOs7UiStyle() ? 42 : 38;
+  return isHarmonyUiStyle() ? 42 : 38;
 }
 
 export function uiTabHeight(): number {
-  return isHarmonyOs7UiStyle() ? 42 : 38;
+  return isHarmonyUiStyle() ? 42 : 38;
 }
 
 export function uiListGap(): number {
-  return isHarmonyOs7UiStyle() ? 12 : 8;
+  return isHarmonyUiStyle() ? 12 : 8;
 }
 
 export function uiPageHorizontalPadding(contentWidth: number): number {
@@ -237,21 +266,21 @@ export function uiAdaptiveColumnCount(contentWidth: number, preferredWidth: numb
 }
 
 export function uiListItemBackground(fallbackColor: string): string {
-  if (!isHarmonyOs7UiStyle()) {
+  if (!isHarmonyUiStyle()) {
     return fallbackColor;
   }
   return isDarkTheme() ? 'rgba(255,255,255,0.055)' : 'rgba(255,255,255,0.78)';
 }
 
 export function uiListItemSelectedBackground(fallbackColor: string): string {
-  if (!isHarmonyOs7UiStyle()) {
+  if (!isHarmonyUiStyle()) {
     return fallbackColor;
   }
   return isDarkTheme() ? 'rgba(86,192,235,0.18)' : 'rgba(45,134,168,0.14)';
 }
 
 export function uiListItemBorderColor(fallbackColor: ResourceColor): ResourceColor {
-  if (!isHarmonyOs7UiStyle()) {
+  if (!isHarmonyUiStyle()) {
     return fallbackColor;
   }
   return isDarkTheme() ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)';
@@ -266,7 +295,7 @@ export function uiAdaptiveToolbarHeight(contentWidth: number): number {
 }
 
 export function uiPanelMaterial(): uiMaterial.Material | undefined {
-  if (!isHarmonyOs7MaterialEnabled()) {
+  if (!isHarmonyMaterialEnabled()) {
     return undefined;
   }
   if (harmony7PanelMaterial === undefined) {
@@ -280,7 +309,7 @@ export function uiPanelMaterial(): uiMaterial.Material | undefined {
 }
 
 export function uiDialogMaterial(): uiMaterial.Material | undefined {
-  if (!isHarmonyOs7MaterialEnabled()) {
+  if (!isHarmonyMaterialEnabled()) {
     return undefined;
   }
   if (harmony7DialogMaterial === undefined) {

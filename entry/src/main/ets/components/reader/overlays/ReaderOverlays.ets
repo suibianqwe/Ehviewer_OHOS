@@ -10,6 +10,8 @@ import {
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiReaderMenuBackgroundEffect,
+  uiReaderProgressBackgroundColor,
+  uiReaderProgressBackgroundEffect,
   uiRadius,
   uiSearchFieldHeight,
   uiSearchMaterial,
@@ -131,7 +133,8 @@ struct ReaderSliderBubble {
       .textVerticalAlign(TextVerticalAlign.CENTER)
       .width(40)
       .height(40)
-      .backgroundColor('#1F2937')
+      .backgroundColor(uiReaderProgressBackgroundColor('#1F2937'))
+      .backgroundEffect(uiReaderProgressBackgroundEffect())
       .borderRadius(uiRadius(20))
       .borderWidth(1)
       .borderColor('#3F4756')
@@ -330,7 +333,10 @@ export struct ReaderSliderPanel {
       .width('100%')
       .height(this.panelHeight())
       .padding({ left: 10, right: 10, top: 10, bottom: 20 + Math.max(0, this.bottomInset) })
-      .backgroundColor('#CC111827')
+      .backgroundColor(uiReaderProgressBackgroundColor('#CC111827'))
+      .backgroundEffect(uiReaderProgressBackgroundEffect())
+      .borderRadius({ topLeft: uiRadius(24), topRight: uiRadius(24) })
+      .clip(true)
       .zIndex(1)
     }
     .width('100%')
@@ -1026,12 +1032,12 @@ export struct ReaderSettingsMenuOverlay {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r('sys.symbol.chevron_left'))
               .fontSize(20)
-              .fontColor([Color.White])
+              .fontColor([uiMaterialForegroundColor(Color.White)])
           }
           .width(36)
           .height(36)
-          .backgroundColor('rgba(255,255,255,0.14)')
-          .border({ width: 1, color: 'rgba(255,255,255,0.10)' })
+          .backgroundColor(uiMaterialBackground('rgba(255,255,255,0.14)'))
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onBack();
           })

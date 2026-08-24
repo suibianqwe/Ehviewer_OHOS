@@ -83,7 +83,7 @@ import {
 } from '../shared/EhShared';
 import { ArrayDataSource } from '../shared/ListDataSource';
 import {
-  isHarmonyOs7UiStyle,
+  isHarmonyUiStyle,
   uiButtonMaterial,
   uiMaterialBackground,
   uiMaterialForegroundColor
@@ -3409,7 +3409,7 @@ export struct ReaderScene {
         .itemSpace(0)
         .prevMargin(0)
         .nextMargin(0)
-        .duration(isHarmonyOs7UiStyle() ? 220 : 180)
+        .duration(isHarmonyUiStyle() ? 220 : 180)
         .curve(Curve.EaseOut)
         .effectMode(EdgeEffect.None)
         .disableSwipe(this.isDisableSwipe)

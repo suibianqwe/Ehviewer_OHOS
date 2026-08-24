@@ -230,14 +230,15 @@ export class EhSettingsStore {
   }
 
   setValue(key: string, value: string): void {
+    const storedValue = key === 'ui_style' && value === 'HarmonyOS 7' ? 'Harmony' : value;
     const index = this.indexByKey.get(key);
     if (index === undefined) {
-      this.entries.push({ key: key, value: value });
+      this.entries.push({ key: key, value: storedValue });
       this.indexByKey.set(key, this.entries.length - 1);
     } else {
-      this.entries[index].value = value;
+      this.entries[index].value = storedValue;
     }
-    this.valueByKey.set(key, value);
+    this.valueByKey.set(key, storedValue);
     this.enforceAdaptiveDualPageConstraints();
     if (key === 'translation_buttons_enabled') {
       this.syncTranslationButtonVisibility();
@@ -328,6 +329,7 @@ export class EhSettingsStore {
       let hasProxyApi24Migration = false;
       let hasPassthroughMigration = false;
       let hasTranslationProviderSplit = false;
+      let hasLegacyHarmonyUiStyle = false;
       for (let i = 0; i < parsed.length; i++) {
         const item = parsed[i];
         if (typeof item.key === 'string' && typeof item.value === 'string') {
@@ -348,6 +350,9 @@ export class EhSettingsStore {
           }
           if (item.key === 'translation_provider_split_20260714') {
             hasTranslationProviderSplit = true;
+          }
+          if (item.key === 'ui_style' && item.value === 'HarmonyOS 7') {
+            hasLegacyHarmonyUiStyle = true;
           }
           this.setValue(item.key, item.value);
         }
@@ -401,7 +406,7 @@ export class EhSettingsStore {
       if (!hasTranslationProviderSplit) {
         this.migrateTranslationProviderSplit();
       }
-      if (!hasPassthroughMigration || !hasTranslationProviderSplit) {
+      if (!hasPassthroughMigration || !hasTranslationProviderSplit || hasLegacyHarmonyUiStyle) {
         try {
           await prefs.put(VALUES_KEY, JSON.stringify(this.entries));
           await prefs.flush();
@@ -500,6 +505,9 @@ export function normalizeHistoryInfoSizeOption(value: string): string {
 }
 
 export function normalizeImportedSettingValue(key: string, value: string): string {
+  if (key === 'ui_style') {
+    return value === 'Harmony' || value === 'HarmonyOS 7' ? 'Harmony' : 'Classic';
+  }
   if (key === 'read_cache_size') {
     if (value === '40 MB' || value === '80 MB') {
       return '160 MB';

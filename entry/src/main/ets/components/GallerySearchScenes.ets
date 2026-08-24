@@ -18,7 +18,7 @@ import {
 } from '../shared/EhShared';
 import { themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
 import {
-  isHarmonyOs7UiStyle,
+  isHarmonyUiStyle,
   uiButtonMaterial,
   uiFloatingMaterial,
   uiMaterialBackground,

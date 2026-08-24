@@ -18,7 +18,7 @@ import {
   themeTransparentColor
 } from '../shared/EhTheme';
 import {
-  isHarmonyOs7UiStyle,
+  isHarmonyUiStyle,
   uiButtonMaterial,
   uiCardRadius,
   uiControlRadius,
@@ -33,7 +33,7 @@ import {
 } from '../shared/EhUiStyle';
 
 function sidePanelChromeText(): string {
-  return isHarmonyOs7UiStyle() ? themeMaterialContentColor() : themeOnPrimaryText();
+  return isHarmonyUiStyle() ? themeMaterialContentColor() : themeOnPrimaryText();
 }
 
 function sidePanelChromeBackground(solidColor: string): string {

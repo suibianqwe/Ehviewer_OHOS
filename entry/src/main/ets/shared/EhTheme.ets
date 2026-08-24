@@ -290,7 +290,7 @@ function mixThemeColor(from: string, to: string, amount: number): string {
   return '#' + colorChannelHex(red) + colorChannelHex(green) + colorChannelHex(blue);
 }
 
-function harmonyOs7Palette(base: EhColorPalette, themeName: string): EhColorPalette {
+function harmonyPalette(base: EhColorPalette, themeName: string): EhColorPalette {
   const black = themeName === 'Black';
   const dark = themeName === 'Dark' || black;
   return {
@@ -369,7 +369,7 @@ function themeRuntime(): EhThemeRuntime {
       (storedThemeName === 'Black' ? 'Black' : 'Dark') : 'Light';
   }
   const basePalette = themeName === 'Black' ? BLACK_PALETTE : (themeName === 'Dark' ? DARK_PALETTE : LIGHT_PALETTE);
-  const palette = harmonyOs7Palette(basePalette, themeName);
+  const palette = harmonyPalette(basePalette, themeName);
   const colorName = normalizeThemeColorName(colorSetting);
   let accent = THEME_ACCENTS[0];
   for (let i = 0; i < THEME_ACCENTS.length; i++) {

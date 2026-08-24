@@ -1449,9 +1449,10 @@ export function zhText(text: string): string {
     case 'No session': return '无会话';
     case 'Theme': return '主题';
     case 'Interface style': return '界面风格';
-    case 'Choose the modern base layout without materials or the HarmonyOS 7 native material style': return '选择不使用材质的现代基础界面或 HarmonyOS 7 原生材质风格';
+    case 'Choose the base layout or the Harmony native material style': return '选择基础界面或鸿蒙原生材质风格';
     case 'Classic': return '基础';
-    case 'HarmonyOS 7': return 'HarmonyOS 7';
+    case 'Harmony': return '鸿蒙';
+    case 'HarmonyOS 7': return '鸿蒙';
     case 'Light': return '亮色';
     case 'Dark': return '暗色';
     case 'Black': return '黑色';
@@ -3204,8 +3205,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
         'Choose the accent color used by app bars, buttons and selected items', entries,
         ['Blue', 'Sky Blue', 'Teal', 'Green', 'Purple', 'Orange', 'Rose']),
       optionSettingsRow('ui_style', 'Interface style',
-        'Choose the modern base layout without materials or the HarmonyOS 7 native material style', entries,
-        ['Classic', 'HarmonyOS 7']),
+        'Choose the base layout or the Harmony native material style', entries,
+        ['Classic', 'Harmony']),
       staticSettingsRow('filter', 'Filter', 'Keyword/gallery filtering rules', '', 'navigation'),
       staticSettingsRow('comment_blacklist', 'Comment blacklist',
         'Block comments from selected user names', '', 'navigation'),
@@ -3505,6 +3506,9 @@ function optionSettingsRow(key: string, title: string, summary: string, entries:
   let rawValue = settingEntryValue(entries, key, options.length > 0 ? options[0] : '');
   if (key === 'theme' && options.length > 0 && options.indexOf(rawValue) < 0) {
     rawValue = options[0];
+  }
+  if (key === 'ui_style' && rawValue === 'HarmonyOS 7') {
+    rawValue = 'Harmony';
   }
   const sliderRow = key === 'start_transfer_time' || key === 'screen_lightness' || key === 'ultra_dark_lightness';
   return {
