@@ -148,7 +148,18 @@ export function uiMaterialSecondaryForegroundColor(fallbackColor: ResourceColor)
 }
 
 export function uiTitleBarBlurStyle(): BlurStyle {
-  return isHarmonyOs7MaterialEnabled() ? BlurStyle.COMPONENT_ULTRA_THICK : BlurStyle.NONE;
+  return isHarmonyOs7MaterialEnabled() ? BlurStyle.COMPONENT_ULTRA_THIN : BlurStyle.NONE;
+}
+
+export function uiTitleBarFadeHeight(): number {
+  return isHarmonyOs7UiStyle() ? 6 : 3;
+}
+
+export function uiTitleBarFadeStartColor(): string {
+  if (!isHarmonyOs7UiStyle()) {
+    return 'rgba(0,0,0,0)';
+  }
+  return isDarkTheme() ? 'rgba(12,13,16,0.12)' : 'rgba(248,249,252,0.16)';
 }
 
 export function uiPopupBlurStyle(): BlurStyle {

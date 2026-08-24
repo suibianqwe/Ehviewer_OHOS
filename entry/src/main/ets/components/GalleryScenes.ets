@@ -63,7 +63,6 @@ import {
   themePageBackground,
   themePlaceholderColor,
   themeAccentTextColor,
-  themeMaterialContentColor,
   themePrimaryColor,
   themePrimaryText,
   themeScrimColor,
@@ -78,11 +77,9 @@ import {
   themeTransparentColor
 } from '../shared/EhTheme';
 import {
-  isHarmonyOs7UiStyle,
   uiAdaptiveColumnCount,
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
-  uiChromeMaterial,
   uiListGap,
   uiMaterialBackground,
   uiMaterialForegroundColor,
@@ -93,7 +90,9 @@ import {
   uiSearchMaterial,
   uiSwitchHeight,
   uiSwitchWidth,
-  uiTitleBarBlurStyle
+  uiTitleBarBlurStyle,
+  uiTitleBarFadeHeight,
+  uiTitleBarFadeStartColor
 } from '../shared/EhUiStyle';
 import { EhNavBar } from '../components/NavigationComponents';
 import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard, galleryThumbnailAspectRatio } from './GalleryCards';
@@ -205,7 +204,7 @@ export { CommentsScene,
   ReaderToolButton } from './ReaderScenes';
 
 function galleryChromeForeground(): string {
-  return isHarmonyOs7UiStyle() ? themeMaterialContentColor() : themeOnPrimaryText();
+  return themePrimaryText();
 }
 
 function galleryChromeBackground(solidColor: string): string {
@@ -3125,28 +3124,7 @@ export struct GalleryListScene {
           .height('100%')
       } else {
         Stack({ alignContent: Alignment.TopStart }) {
-          if (!this.isSearchResultScene && this.showSearchResultScene) {
-            Column() {
-              this.searchResultSceneContent()
-            }
-              .width(this.shouldShowSearchResultInLeftPane() ? this.splitListPaneWidth() : '100%')
-              .height('100%')
-              .onTouch((event: TouchEvent) => {
-                if (shouldUpdateSplitPaneFocus(event)) {
-                  this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
-                }
-              })
-              .animation({
-                duration: this.splitDragging ? 0 : 220,
-                curve: Curve.EaseOut
-              })
-              .transition(this.shouldShowSearchResultInLeftPane() ?
-                TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
-                TransitionEffect.asymmetric(
-                  TransitionEffect.move(TransitionEdge.END).animation({ duration: 260, curve: Curve.EaseOut }),
-                  TransitionEffect.move(TransitionEdge.END).animation({ duration: 220, curve: Curve.EaseIn })))
-          } else {
-            GalleryListContent({
+          GalleryListContent({
             sceneTitle: this.sceneTitle,
             listMode: this.listMode,
             keyword: this.keyword,
@@ -3366,6 +3344,29 @@ export struct GalleryListScene {
               duration: this.splitDragging ? 0 : 220,
               curve: Curve.EaseOut
             })
+
+          if (!this.isSearchResultScene && this.showSearchResultScene) {
+            Column() {
+              this.searchResultSceneContent()
+            }
+              .width(this.shouldShowSearchResultInLeftPane() ? this.splitListPaneWidth() : '100%')
+              .height('100%')
+              .backgroundColor(themePageBackground())
+              .onTouch((event: TouchEvent) => {
+                if (shouldUpdateSplitPaneFocus(event)) {
+                  this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
+                }
+              })
+              .animation({
+                duration: this.splitDragging ? 0 : 220,
+                curve: Curve.EaseOut
+              })
+              .transition(this.shouldShowSearchResultInLeftPane() ?
+                TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
+                TransitionEffect.asymmetric(
+                  TransitionEffect.move(TransitionEdge.END).animation({ duration: 260, curve: Curve.EaseOut }),
+                  TransitionEffect.move(TransitionEdge.END).animation({ duration: 220, curve: Curve.EaseIn })))
+              .zIndex(4)
           }
 
           if (this.showBookmarkManager) {
@@ -4859,14 +4860,22 @@ export struct GalleryListContent {
       .padding({ left: 12, right: 12 })
       .alignItems(VerticalAlign.Center)
       .backgroundColor(Color.Transparent)
+
+      Column()
+        .width('100%')
+        .height(uiTitleBarFadeHeight())
+        .linearGradient({
+          angle: 180,
+          colors: [[uiTitleBarFadeStartColor(), 0.0], [themeTransparentColor(), 1.0]]
+        })
+        .hitTestBehavior(HitTestMode.None)
     }
     .width('100%')
     .translate({ y: this.toolbarOffsetY })
     .opacity(1)
     .visibility(this.toolbarVisible() ? Visibility.Visible : Visibility.Hidden)
     .animation({ duration: 200, curve: Curve.EaseOut })
-    .backgroundColor(galleryChromeBackground(themePrimaryColor()))
-    .systemMaterial(uiChromeMaterial())
+    .backgroundColor(Color.Transparent)
     .backgroundBlurStyle(uiTitleBarBlurStyle())
     .zIndex(10)
   }

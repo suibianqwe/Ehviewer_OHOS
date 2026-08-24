@@ -10,6 +10,7 @@ import {
   STATUS_BAR_HEIGHT_KEY,
   createEmptyDetail,
   galleryDisplayTitle,
+  nextFloatingToolbarOffset,
   pushDetailBackHandler,
   shouldShowTagTranslations,
   uiStatusText,
@@ -25,7 +26,8 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../shared/EhTheme';
-import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
+import { uiAdaptiveToolbarHeight, uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
+import { MAIN_CONTENT_WIDTH_VP_KEY } from '../services/EhWindowImmersive';
 import { EhSubNavBar } from './NavigationComponents';
 import { CommentsScene } from './ReaderScenes';
 import { DetailHeader } from './detail/DetailHeader';
@@ -235,7 +237,10 @@ export struct GalleryDetailScene {
   @State detailRefreshing: boolean = false;
   @State tagVotePanelVisible: boolean = false;
   @State tagVoteTarget: GalleryTagInfo = createEmptyTagInfo();
+  @State toolbarOffsetY: number = 0;
+  @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
   private unregisterTransientBackHandler: () => void = () => {};
+  private toolbarRestoring: boolean = false;
 
   aboutToAppear(): void {
     this.unregisterTransientBackHandler = pushDetailBackHandler(() => this.handleTransientSystemBack());
@@ -246,6 +251,7 @@ export struct GalleryDetailScene {
   }
 
   onDetailScrollReset(): void {
+    this.toolbarOffsetY = 0;
     this.detailScroller.scrollTo({ xOffset: 0, yOffset: 0 });
     this.onDetailScrollUpdate(0);
     setTimeout(() => {
@@ -278,6 +284,47 @@ export struct GalleryDetailScene {
 
   private statusBarVp(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx);
+  }
+
+  private totalBarHeight(): number {
+    return this.statusBarVp() + uiAdaptiveToolbarHeight(this.contentWidth);
+  }
+
+  private visibleBarHeight(): number {
+    return Math.max(0, Math.min(this.totalBarHeight(), this.totalBarHeight() + this.toolbarOffsetY));
+  }
+
+  private handleScrollFrame(scrollOffset: number): number {
+    const yOffset = Math.max(0, this.detailScroller.currentOffset().yOffset);
+    if (yOffset <= 4) {
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = 0;
+      return scrollOffset;
+    }
+    if (scrollOffset > 0 && this.visibleBarHeight() > 0) {
+      const previousOffsetY = this.toolbarOffsetY;
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, yOffset,
+        this.totalBarHeight());
+      return Math.max(0, scrollOffset - Math.max(0, previousOffsetY - this.toolbarOffsetY));
+    }
+    if (scrollOffset < 0 && this.toolbarOffsetY < 0) {
+      this.restoreToolbarOnReverseScroll();
+    }
+    return scrollOffset;
+  }
+
+  private restoreToolbarOnReverseScroll(): void {
+    if (this.toolbarRestoring) {
+      return;
+    }
+    this.toolbarRestoring = true;
+    this.getUIContext().animateTo({ duration: 260, curve: Curve.EaseOut }, () => {
+      this.toolbarOffsetY = 0;
+    });
+    setTimeout(() => {
+      this.toolbarRestoring = false;
+    }, 280);
   }
 
   private startRating(): void {
@@ -367,20 +414,7 @@ export struct GalleryDetailScene {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column() {
-        EhSubNavBar({
-          statusBarHeight: this.statusBarVp(),
-          title: galleryDisplayTitle(this.detail),
-          translateTitle: this.translationEnabled,
-          showAction: this.translationButtonsVisible,
-          actionChecked: this.translationEnabled,
-          actionIcon: $r('sys.symbol.translate'),
-          onBack: this.onBack,
-          onAction: () => {
-            ehTranslationService.setEnabled(!this.translationEnabled);
-          }
-        })
-
+      Stack({ alignContent: Alignment.TopStart }) {
         Refresh({ refreshing: this.detailRefreshing }) {
           List({ space: 0, scroller: this.detailScroller }) {
             ListItem() {
@@ -466,8 +500,12 @@ export struct GalleryDetailScene {
           .cachedCount(3)
           .onAppear(() => {
             if (this.initialDetailScrollOffset > 0) {
+              this.toolbarOffsetY = -this.totalBarHeight();
               this.detailScroller.scrollTo({ xOffset: 0, yOffset: this.initialDetailScrollOffset });
             }
+          })
+          .onScrollFrameBegin((offset: number, _state: ScrollState) => {
+            return { offsetRemain: this.handleScrollFrame(offset) };
           })
           .onScrollStop(() => {
             this.onDetailScrollUpdate(this.detailScroller.currentOffset().yOffset);
@@ -478,12 +516,26 @@ export struct GalleryDetailScene {
         }
         .width('100%')
         .height('100%')
-        .layoutWeight(1)
+        .padding({ top: this.visibleBarHeight() })
         .backgroundColor(themePageBackground())
         .refreshOffset(64)
         .pullToRefresh(true)
         .onRefreshing(() => {
           this.startDetailPullRefresh();
+        })
+
+        EhSubNavBar({
+          statusBarHeight: this.statusBarVp(),
+          title: galleryDisplayTitle(this.detail),
+          translateTitle: this.translationEnabled,
+          showAction: this.translationButtonsVisible,
+          actionChecked: this.translationEnabled,
+          actionIcon: $r('sys.symbol.translate'),
+          translateY: this.toolbarOffsetY,
+          onBack: this.onBack,
+          onAction: () => {
+            ehTranslationService.setEnabled(!this.translationEnabled);
+          }
         })
       }
       .width('100%')

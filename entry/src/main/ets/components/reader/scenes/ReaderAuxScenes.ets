@@ -5,7 +5,7 @@ import {
   translationPriorityForIndex
 } from '../../../services/EhTranslationService';
 import { TRANSLATION_BUTTONS_VISIBLE_KEY } from '../../../services/EhSettingsStore';
-import { uiText } from '../../../shared/EhShared';
+import { nextFloatingToolbarOffset, uiText } from '../../../shared/EhShared';
 import {
   themeDividerColor,
   themePageBackground,
@@ -14,6 +14,8 @@ import {
   themeSurface
 } from '../../../shared/EhTheme';
 import { EhSubNavBar } from '../../NavigationComponents';
+import { MAIN_CONTENT_WIDTH_VP_KEY } from '../../../services/EhWindowImmersive';
+import { uiAdaptiveToolbarHeight } from '../../../shared/EhUiStyle';
 import { GalleryCommentRow } from '../../detail/CommentComponents';
 import { TranslationText } from '../../TranslationComponents';
 import {
@@ -36,6 +38,10 @@ export struct CommentsScene {
   @State translationVisibleStart: number = -1;
   @State translationVisibleEnd: number = -1;
   @State visibleCommentItems: GalleryComment[] = [];
+  @State toolbarOffsetY: number = 0;
+  @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
+  private commentsScroller: Scroller = new Scroller();
+  private toolbarRestoring: boolean = false;
 
   aboutToAppear(): void {
     this.refreshVisibleComments();
@@ -52,49 +58,87 @@ export struct CommentsScene {
     return this.getUIContext().px2vp(this.statusBarHeightPx);
   }
 
+  private totalBarHeight(): number {
+    return this.statusBarVp() + uiAdaptiveToolbarHeight(this.contentWidth);
+  }
+
+  private visibleBarHeight(): number {
+    return Math.max(0, Math.min(this.totalBarHeight(), this.totalBarHeight() + this.toolbarOffsetY));
+  }
+
+  private handleScrollFrame(scrollOffset: number): number {
+    const yOffset = Math.max(0, this.commentsScroller.currentOffset().yOffset);
+    if (yOffset <= 4) {
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = 0;
+      return scrollOffset;
+    }
+    if (scrollOffset > 0 && this.visibleBarHeight() > 0) {
+      const previousOffsetY = this.toolbarOffsetY;
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, yOffset,
+        this.totalBarHeight());
+      return Math.max(0, scrollOffset - Math.max(0, previousOffsetY - this.toolbarOffsetY));
+    }
+    if (scrollOffset < 0 && this.toolbarOffsetY < 0) {
+      this.restoreToolbarOnReverseScroll();
+    }
+    return scrollOffset;
+  }
+
+  private restoreToolbarOnReverseScroll(): void {
+    if (this.toolbarRestoring) {
+      return;
+    }
+    this.toolbarRestoring = true;
+    this.getUIContext().animateTo({ duration: 260, curve: Curve.EaseOut }, () => {
+      this.toolbarOffsetY = 0;
+    });
+    setTimeout(() => {
+      this.toolbarRestoring = false;
+    }, 280);
+  }
+
   private refreshVisibleComments(): void {
     this.visibleCommentItems = ehCommentBlacklistStore.filterComments(this.comments);
   }
 
   build() {
-    Column() {
-      EhSubNavBar({
-        statusBarHeight: this.statusBarVp(),
-        title: uiText('Comments'),
-        showAction: this.translationButtonsVisible,
-        actionChecked: this.translationEnabled,
-        actionIcon: $r('sys.symbol.translate'),
-        onBack: this.onBack,
-        onAction: () => {
-          ehTranslationService.setEnabled(!this.translationEnabled);
-        }
-      })
-      Row() {
-        TranslationText({
-          sourceText: this.galleryTitle,
-          translationEnabled: this.translationEnabled,
-          fontSizeValue: 12,
-          lineHeightValue: 18,
-          fontColorValue: themeSecondaryText(),
-          maxLinesValue: 1
-        })
-          .layoutWeight(1)
-        Text(this.visibleCommentItems.length.toString() + ' ' + uiText('total'))
-          .fontSize(12)
-          .fontColor(themeSecondaryText())
-          .margin({ left: 12 })
-      }
-      .width('100%')
-      .padding({ left: 16, right: 16, top: 8, bottom: 8 })
-      .backgroundColor(themeSurface())
-
+    Stack({ alignContent: Alignment.TopStart }) {
       if (this.visibleCommentItems.length === 0) {
-        PlaceholderScene({
-          title: 'Comments',
-          detail: 'No comments for this gallery.'
-        })
+        Column() {
+          PlaceholderScene({
+            title: 'Comments',
+            detail: 'No comments for this gallery.'
+          })
+        }
+        .width('100%')
+        .height('100%')
+        .padding({ top: this.visibleBarHeight() })
       } else {
-        List({ space: 0 }) {
+        List({ space: 0, scroller: this.commentsScroller }) {
+          ListItem() {
+            Row() {
+              TranslationText({
+                sourceText: this.galleryTitle,
+                translationEnabled: this.translationEnabled,
+                fontSizeValue: 12,
+                lineHeightValue: 18,
+                fontColorValue: themeSecondaryText(),
+                maxLinesValue: 1
+              })
+                .layoutWeight(1)
+              Text(this.visibleCommentItems.length.toString() + ' ' + uiText('total'))
+                .fontSize(12)
+                .fontColor(themeSecondaryText())
+                .margin({ left: 12 })
+            }
+            .width('100%')
+            .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+            .backgroundColor(themeSurface())
+          }
+          .reuseId('comments-summary')
+
           ForEach(this.visibleCommentItems, (comment: GalleryComment, index: number) => {
             ListItem() {
               GalleryCommentRow({
@@ -123,13 +167,29 @@ export struct CommentsScene {
         .divider({ strokeWidth: 1, color: themeDividerColor() })
         .width('100%')
         .height('100%')
-        .layoutWeight(1)
+        .padding({ top: this.visibleBarHeight() })
         .cachedCount(4)
+        .onScrollFrameBegin((offset: number, _state: ScrollState) => {
+          return { offsetRemain: this.handleScrollFrame(offset) };
+        })
         .onScrollIndex((first: number, last: number) => {
-          this.translationVisibleStart = first;
-          this.translationVisibleEnd = Math.min(last, this.visibleCommentItems.length - 1);
+          this.translationVisibleStart = Math.max(0, first - 1);
+          this.translationVisibleEnd = Math.min(Math.max(0, last - 1), this.visibleCommentItems.length - 1);
         })
       }
+
+      EhSubNavBar({
+        statusBarHeight: this.statusBarVp(),
+        title: uiText('Comments'),
+        showAction: this.translationButtonsVisible,
+        actionChecked: this.translationEnabled,
+        actionIcon: $r('sys.symbol.translate'),
+        translateY: this.toolbarOffsetY,
+        onBack: this.onBack,
+        onAction: () => {
+          ehTranslationService.setEnabled(!this.translationEnabled);
+        }
+      })
     }
     .width('100%')
     .height('100%')

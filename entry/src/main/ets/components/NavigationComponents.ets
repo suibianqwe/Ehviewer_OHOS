@@ -12,11 +12,7 @@ import {
   themeOnPrimaryActionDisabledBackground,
   themeOnPrimaryActionStrongBackground,
   themeOnPrimaryDangerBackground,
-  themeOnPrimarySecondaryText,
-  themeOnPrimaryText,
   themeAccentTextColor,
-  themeMaterialContentColor,
-  themeMaterialSecondaryContentColor,
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
@@ -29,12 +25,10 @@ import {
   themeTransparentColor
 } from '../shared/EhTheme';
 import {
-  isHarmonyOs7UiStyle,
   uiAdaptiveTitleSize,
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
   uiCardRadius,
-  uiChromeMaterial,
   uiControlRadius,
   uiMaterialBackground,
   uiMaterialForegroundColor,
@@ -42,20 +36,22 @@ import {
   uiPillRadius,
   uiSearchFieldHeight,
   uiSearchMaterial,
-  uiTitleBarBlurStyle
+  uiTitleBarBlurStyle,
+  uiTitleBarFadeHeight,
+  uiTitleBarFadeStartColor
 } from '../shared/EhUiStyle';
 import { TranslationText } from './TranslationComponents';
 
 function navigationBarBackground(): string {
-  return uiMaterialBackground(themePrimaryColor());
+  return themeTransparentColor();
 }
 
 function navigationTitleText(): string {
-  return isHarmonyOs7UiStyle() ? themeMaterialContentColor() : themeOnPrimaryText();
+  return themePrimaryText();
 }
 
 function navigationSecondaryText(): string {
-  return isHarmonyOs7UiStyle() ? themeMaterialSecondaryContentColor() : themeOnPrimarySecondaryText();
+  return themeSecondaryText();
 }
 
 function navigationActionBackground(color: string): string {
@@ -667,14 +663,22 @@ export struct EhNavBar {
       .padding({ left: 12, right: 12 })
       .alignItems(VerticalAlign.Center)
       .backgroundColor(Color.Transparent)
+
+      Column()
+        .width('100%')
+        .height(uiTitleBarFadeHeight())
+        .linearGradient({
+          angle: 180,
+          colors: [[uiTitleBarFadeStartColor(), 0.0], [themeTransparentColor(), 1.0]]
+        })
+        .hitTestBehavior(HitTestMode.None)
     }
     .width('100%')
     .translate({ y: this.translateY })
     .opacity(1)
     .visibility(this.barVisible() ? Visibility.Visible : Visibility.Hidden)
     .animation({ duration: 200, curve: Curve.EaseOut })
-    .backgroundColor(navigationBarBackground())
-    .systemMaterial(uiChromeMaterial())
+    .backgroundColor(Color.Transparent)
     .backgroundBlurStyle(uiTitleBarBlurStyle())
     .zIndex(10)
   }
@@ -691,6 +695,7 @@ export struct EhSubNavBar {
   @Prop translateTitle: boolean = false;
   @Prop actionChecked: boolean = false;
   @Prop actionIcon: Resource = $r('sys.symbol.share');
+  @Prop translateY: number = 0;
   onBack: () => void = () => {};
   onAction: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
@@ -702,6 +707,14 @@ export struct EhSubNavBar {
 
   private actionSize(): number {
     return this.contentWidth >= 600 ? 44 : 42;
+  }
+
+  private totalBarHeight(): number {
+    return this.statusBarHeight + this.barBodyHeight();
+  }
+
+  private barVisible(): boolean {
+    return this.translateY > -this.totalBarHeight();
   }
 
   build() {
@@ -759,10 +772,21 @@ export struct EhSubNavBar {
       .padding({ left: 12, right: 16 })
       .alignItems(VerticalAlign.Center)
       .backgroundColor(Color.Transparent)
+
+      Column()
+        .width('100%')
+        .height(uiTitleBarFadeHeight())
+        .linearGradient({
+          angle: 180,
+          colors: [[uiTitleBarFadeStartColor(), 0.0], [themeTransparentColor(), 1.0]]
+        })
+        .hitTestBehavior(HitTestMode.None)
     }
     .width('100%')
-    .backgroundColor(navigationBarBackground())
-    .systemMaterial(uiChromeMaterial())
+    .translate({ y: this.translateY })
+    .visibility(this.barVisible() ? Visibility.Visible : Visibility.Hidden)
+    .animation({ duration: 200, curve: Curve.EaseOut })
+    .backgroundColor(Color.Transparent)
     .backgroundBlurStyle(uiTitleBarBlurStyle())
     .zIndex(10)
   }
@@ -776,6 +800,7 @@ export struct EhSubNavBar {
 export struct AppToolbar {
   title: string = '';
   subtitle: string = '';
+  @Prop translateY: number = 0;
   onMenu: () => void = () => {};
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeight: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
@@ -789,6 +814,7 @@ export struct AppToolbar {
       statusBarHeight: this.statusBarVp(),
       title: this.title,
       subtitle: this.subtitle,
+      translateY: this.translateY,
       showRefreshButton: false,
       onMenu: this.onMenu,
       onRefresh: () => {}
@@ -803,6 +829,7 @@ export struct AppSubToolbar {
   @Prop translateTitle: boolean = false;
   @Prop actionChecked: boolean = false;
   @Prop actionIcon: Resource = $r('sys.symbol.share');
+  @Prop translateY: number = 0;
   onBack: () => void = () => {};
   onAction: () => void = () => {};
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeight: number = 0;
@@ -820,6 +847,7 @@ export struct AppSubToolbar {
       translateTitle: this.translateTitle,
       actionChecked: this.actionChecked,
       actionIcon: this.actionIcon,
+      translateY: this.translateY,
       onBack: this.onBack,
       onAction: this.onAction
     })
