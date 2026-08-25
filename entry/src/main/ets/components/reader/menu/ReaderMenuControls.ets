@@ -23,12 +23,11 @@ import {
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
   uiDialogSurfaceShadow,
-  uiPopupBackgroundEffect,
   uiPopupBlurStyle,
-  uiReaderOptionControlBackground,
   uiReaderOptionRowHeight,
+  uiReaderSelectControlBackground,
+  uiReaderSelectPopupBackground,
   uiReaderOptionSegmentMaterial,
-  uiSelectPopupBackground,
   uiSelectorHeight,
   uiSwitchHeight,
   uiSwitchWidth
@@ -171,13 +170,12 @@ export struct ReaderMenuSelect {
         .value(uiValue(this.value))
         .font({ size: 15 })
         .fontColor(readerSelectColors().buttonText)
-        .backgroundColor(uiReaderOptionControlBackground(readerSelectColors().buttonBackground))
+        .backgroundColor(uiReaderSelectControlBackground(readerSelectColors().buttonBackground))
         .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
         .systemMaterial(uiReaderOptionSegmentMaterial())
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
-        .menuBackgroundColor(uiSelectPopupBackground(readerSelectColors().menuBackground))
-        .menuBackgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
-        .menuBackgroundEffect(isHarmonyMaterialEnabled() ? uiPopupBackgroundEffect() : undefined)
+        .menuBackgroundColor(uiReaderSelectPopupBackground(readerSelectColors().menuBackground))
+        .menuBackgroundBlurStyle(uiPopupBlurStyle())
         .optionBgColor(readerSelectColors().optionBackground)
         .optionFontColor(readerSelectColors().optionText)
         .optionFont({ size: 14 })

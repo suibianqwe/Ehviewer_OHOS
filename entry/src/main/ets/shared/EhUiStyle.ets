@@ -376,6 +376,16 @@ export function uiReaderOptionControlBackground(
   return 'rgba(255,255,255,0.22)';
 }
 
+export function uiReaderSelectControlBackground(fallbackColor: ResourceColor): ResourceColor {
+  if (!isHarmonyUiStyle()) {
+    return fallbackColor;
+  }
+  if (isDarkTheme() || isHarmonyMaterialEnabled()) {
+    return Color.Transparent;
+  }
+  return 'rgba(255,255,255,0.58)';
+}
+
 export function uiPopupEffectBackground(solidColor: string): string {
   return isHarmonyUiStyle() && (supportsBackgroundEffect() || supportsBackgroundBlur()) ?
     'rgba(0,0,0,0)' : solidColor;
@@ -387,6 +397,16 @@ export function uiSelectPopupBackground(solidColor: string): string {
   }
   if (!isDarkTheme() && (supportsBackgroundEffect() || supportsBackgroundBlur())) {
     return 'rgba(255,255,255,0.82)';
+  }
+  return uiPopupEffectBackground(solidColor);
+}
+
+export function uiReaderSelectPopupBackground(solidColor: string): string {
+  if (!isHarmonyUiStyle()) {
+    return solidColor;
+  }
+  if (!isDarkTheme() && (supportsBackgroundEffect() || supportsBackgroundBlur())) {
+    return 'rgba(255,255,255,0.90)';
   }
   return uiPopupEffectBackground(solidColor);
 }
