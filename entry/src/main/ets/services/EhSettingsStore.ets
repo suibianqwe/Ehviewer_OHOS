@@ -46,6 +46,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'theme', value: 'Light' },
     { key: 'theme_color', value: 'Blue' },
     { key: 'ui_style', value: 'Harmony' },
+    { key: 'ui_style_default_harmony_20260826', value: 'Applied' },
     { key: 'launch_page', value: 'Homepage' },
     { key: 'list_mode', value: 'Detail' },
     { key: 'detail_size', value: 'Medium' },
@@ -332,7 +333,7 @@ export class EhSettingsStore {
       let hasPassthroughMigration = false;
       let hasTranslationProviderSplit = false;
       let hasLegacyHarmonyUiStyle = false;
-      let hasStoredUiStyle = false;
+      let hasHarmonyUiDefaultMigration = false;
       for (let i = 0; i < parsed.length; i++) {
         const item = parsed[i];
         if (typeof item.key === 'string' && typeof item.value === 'string') {
@@ -357,15 +358,16 @@ export class EhSettingsStore {
           if (item.key === 'ui_style' && item.value === 'HarmonyOS 7') {
             hasLegacyHarmonyUiStyle = true;
           }
-          if (item.key === 'ui_style') {
-            hasStoredUiStyle = true;
+          if (item.key === 'ui_style_default_harmony_20260826') {
+            hasHarmonyUiDefaultMigration = true;
           }
           this.setValue(item.key, item.value);
         }
       }
 
-      if (!hasStoredUiStyle) {
-        this.setValue('ui_style', 'Classic');
+      if (!hasHarmonyUiDefaultMigration) {
+        this.setValue('ui_style', 'Harmony');
+        this.setValue('ui_style_default_harmony_20260826', 'Applied');
       }
 
       if (!hasNetworkMigration) {
@@ -416,7 +418,8 @@ export class EhSettingsStore {
       if (!hasTranslationProviderSplit) {
         this.migrateTranslationProviderSplit();
       }
-      if (!hasPassthroughMigration || !hasTranslationProviderSplit || hasLegacyHarmonyUiStyle || !hasStoredUiStyle) {
+      if (!hasPassthroughMigration || !hasTranslationProviderSplit || hasLegacyHarmonyUiStyle ||
+        !hasHarmonyUiDefaultMigration) {
         try {
           await prefs.put(VALUES_KEY, JSON.stringify(this.entries));
           await prefs.flush();
