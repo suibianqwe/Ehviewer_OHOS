@@ -999,7 +999,7 @@ export struct SearchBookmarkDrawer {
     }
     .width(288)
     .height('100%')
-    .backgroundColor(uiMaterialBackground(themeSurface()))
+    .backgroundColor(Color.Transparent)
   }
 }
 

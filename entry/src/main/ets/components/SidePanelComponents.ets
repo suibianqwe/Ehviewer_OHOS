@@ -2,10 +2,7 @@ import { LANGUAGE_REVISION_KEY, THEME_REVISION_KEY, uiText } from '../shared/EhS
 import {
   themeDangerText,
   themeFieldBackground,
-  themeOnPrimaryActionBackground,
-  themeOnPrimaryText,
   themeMaterialContentColor,
-  themePrimaryColor,
   themePrimaryText,
   themeScrimColor,
   themeSecondaryText,
@@ -18,7 +15,6 @@ import {
   themeTransparentColor
 } from '../shared/EhTheme';
 import {
-  isHarmonyUiStyle,
   uiButtonMaterial,
   uiButtonHighlightBorderColor,
   uiCardRadius,
@@ -35,11 +31,11 @@ import {
 } from '../shared/EhUiStyle';
 
 function sidePanelChromeText(): string {
-  return isHarmonyUiStyle() ? themeMaterialContentColor() : themeOnPrimaryText();
+  return themeMaterialContentColor();
 }
 
-function sidePanelChromeBackground(solidColor: string): string {
-  return uiMaterialBackground(solidColor);
+function sidePanelChromeBackground(): ResourceColor {
+  return Color.Transparent;
 }
 
 export const SIDE_PANEL_WIDTH: number = 288;
@@ -128,7 +124,7 @@ export struct SidePanelManagerHeader {
       Column()
         .width('100%')
         .height(this.statusBarHeight)
-        .backgroundColor(sidePanelChromeBackground(themePrimaryColor()))
+        .backgroundColor(sidePanelChromeBackground())
 
       Row() {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
@@ -138,7 +134,7 @@ export struct SidePanelManagerHeader {
         }
         .width(40)
         .height(40)
-        .backgroundColor(sidePanelChromeBackground(themeOnPrimaryActionBackground()))
+        .backgroundColor(sidePanelChromeBackground())
         .systemMaterial(uiButtonMaterial())
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .onClick(() => {
@@ -162,7 +158,7 @@ export struct SidePanelManagerHeader {
           }
           .width(40)
           .height(40)
-          .backgroundColor(sidePanelChromeBackground(themeOnPrimaryActionBackground()))
+          .backgroundColor(sidePanelChromeBackground())
           .systemMaterial(uiButtonMaterial())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(() => {
@@ -173,7 +169,7 @@ export struct SidePanelManagerHeader {
       .width('100%')
       .height(56)
       .padding({ left: 12, right: 12 })
-      .backgroundColor(sidePanelChromeBackground(themePrimaryColor()))
+      .backgroundColor(sidePanelChromeBackground())
       .alignItems(VerticalAlign.Center)
     }
     .width('100%')
@@ -197,7 +193,7 @@ export struct SidePanelHeader {
       Column()
         .width('100%')
         .height(this.statusBarHeight)
-        .backgroundColor(sidePanelChromeBackground(themePrimaryColor()))
+        .backgroundColor(sidePanelChromeBackground())
 
       Row() {
         Text(uiText(this.title))
@@ -216,7 +212,7 @@ export struct SidePanelHeader {
           }
           .width(40)
           .height(40)
-          .backgroundColor(sidePanelChromeBackground(themeOnPrimaryActionBackground()))
+          .backgroundColor(sidePanelChromeBackground())
           .systemMaterial(uiButtonMaterial())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .margin({ right: this.showSecondAction ? 6 : 0 })
@@ -233,7 +229,7 @@ export struct SidePanelHeader {
           }
           .width(40)
           .height(40)
-          .backgroundColor(sidePanelChromeBackground(themeOnPrimaryActionBackground()))
+          .backgroundColor(sidePanelChromeBackground())
           .systemMaterial(uiButtonMaterial())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(() => {
@@ -244,7 +240,7 @@ export struct SidePanelHeader {
       .width('100%')
       .height(56)
       .padding({ left: 18, right: 12 })
-      .backgroundColor(sidePanelChromeBackground(themePrimaryColor()))
+      .backgroundColor(sidePanelChromeBackground())
       .alignItems(VerticalAlign.Center)
     }
     .width('100%')
