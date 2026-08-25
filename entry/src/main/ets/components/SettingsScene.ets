@@ -2997,6 +2997,7 @@ export struct SettingsSubToolbar {
       showAction: this.showAction,
       actionIcon: this.actionIcon,
       translateY: 0,
+      showBottomFade: false,
       onBack: this.onBack,
       onAction: this.onAction
     })
