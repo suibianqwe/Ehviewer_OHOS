@@ -6,7 +6,8 @@ import {
   FILTER_MODE_UPLOADER
 } from '../services/EhFilterStore';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
-import { shouldShowTagTranslations, uiText } from '../shared/EhShared';
+import { MAIN_CONTENT_WIDTH_VP_KEY } from '../services/EhWindowImmersive';
+import { shouldShowTagTranslations, STATUS_BAR_HEIGHT_KEY, uiText } from '../shared/EhShared';
 import { sortedStringKey, toggleStringValue } from '../shared/StringCollectionSupport';
 import {
   themeAccentTextColor,
@@ -24,6 +25,7 @@ import {
   themeTertiaryText
 } from '../shared/EhTheme';
 import {
+  uiAdaptiveToolbarHeight,
   uiButtonMaterial,
   uiListItemBackground,
   uiListItemBorderColor,
@@ -31,7 +33,6 @@ import {
   uiMaterialForegroundColor,
   uiRadius,
   uiSearchMaterial,
-  uiSegmentMaterial,
   uiTabHeight
 } from '../shared/EhUiStyle';
 import {
@@ -54,6 +55,8 @@ export struct FilterPanel {
   @State tagSuggestions: SearchSuggestionItem[] = [];
   @State selectedTagNamespaces: string[] = [];
   @State suggestionRevision: number = 0;
+  @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
+  @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   onBack: () => void = () => {};
   onNewModeChange: (mode: number) => void = () => {};
   onAddText: (mode: number, text: string) => boolean = (_mode: number, _text: string) => false;
@@ -88,6 +91,10 @@ export struct FilterPanel {
     this.refreshTagSuggestions();
   }
 
+  private totalToolbarHeight(): number {
+    return this.getUIContext().px2vp(this.statusBarHeightPx) + uiAdaptiveToolbarHeight(this.contentWidth);
+  }
+
   private filterModeName(mode: number): string {
     if (mode === FILTER_MODE_UPLOADER) {
       return uiText('Uploader');
@@ -111,8 +118,50 @@ export struct FilterPanel {
     return uiText('Title');
   }
 
-  private modeValues(): number[] {
-    return [FILTER_MODE_TITLE, FILTER_MODE_UPLOADER, FILTER_MODE_TAG, FILTER_MODE_RATING];
+  private modeTabIndex(): number {
+    if (this.draftMode === FILTER_MODE_UPLOADER) {
+      return 1;
+    }
+    if (this.draftMode === FILTER_MODE_TAG) {
+      return 2;
+    }
+    if (this.draftMode === FILTER_MODE_RATING) {
+      return 3;
+    }
+    return 0;
+  }
+
+  private modeForTabIndex(index: number): number {
+    if (index === 1) {
+      return FILTER_MODE_UPLOADER;
+    }
+    if (index === 2) {
+      return FILTER_MODE_TAG;
+    }
+    if (index === 3) {
+      return FILTER_MODE_RATING;
+    }
+    return FILTER_MODE_TITLE;
+  }
+
+  private modeTabStyle(mode: number): SubTabBarStyle {
+    return SubTabBarStyle.of(this.filterModeName(mode))
+      .selectedMode(SelectedMode.INDICATOR)
+      .indicator({
+        color: themeAccentTextColor(),
+        height: 2,
+        width: 28,
+        borderRadius: 1,
+        marginTop: 4
+      })
+      .labelStyle({
+        font: { size: 14, weight: FontWeight.Medium },
+        selectedColor: themeAccentTextColor(),
+        unselectedColor: themePrimaryText(),
+        maxLines: 1,
+        overflow: TextOverflow.Ellipsis
+      })
+      .padding({ left: 2, right: 2, top: 6, bottom: 6 });
   }
 
   private tagModeActive(): boolean {
@@ -213,23 +262,42 @@ export struct FilterPanel {
 
   @Builder
   private modeTabs() {
-    Scroll() {
-      Row({ space: 8 }) {
-        ForEach(this.modeValues(), (mode: number) => {
-          FilterModeTab({
-            label: this.filterModeName(mode),
-            selected: this.draftMode === mode,
-            onTap: () => {
-              this.updateDraftMode(mode);
-            }
-          })
-        }, (mode: number) => mode.toString())
+    Tabs({ barPosition: BarPosition.Start, index: this.modeTabIndex() }) {
+      TabContent() {
+        Column()
+          .height(0)
       }
-      .padding({ left: 2, right: 2 })
+      .tabBar(this.modeTabStyle(FILTER_MODE_TITLE))
+
+      TabContent() {
+        Column()
+          .height(0)
+      }
+      .tabBar(this.modeTabStyle(FILTER_MODE_UPLOADER))
+
+      TabContent() {
+        Column()
+          .height(0)
+      }
+      .tabBar(this.modeTabStyle(FILTER_MODE_TAG))
+
+      TabContent() {
+        Column()
+          .height(0)
+      }
+      .tabBar(this.modeTabStyle(FILTER_MODE_RATING))
     }
-    .scrollable(ScrollDirection.Horizontal)
-    .scrollBar(BarState.Off)
+    .barMode(BarMode.Fixed)
+    .barHeight(uiTabHeight() + 4)
+    .barBackgroundColor(Color.Transparent)
+    .barBackgroundBlurStyle(BlurStyle.NONE)
+    .animationDuration(180)
+    .divider({ strokeWidth: 0, color: Color.Transparent })
+    .onChange((index: number) => {
+      this.updateDraftMode(this.modeForTabIndex(index));
+    })
     .width('100%')
+    .height(uiTabHeight() + 4)
   }
 
   @Builder
@@ -357,57 +425,32 @@ export struct FilterPanel {
   }
 
   build() {
-    Column() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      Scroll() {
+        Column({ space: 10 }) {
+          Row()
+            .width('100%')
+            .height(this.totalToolbarHeight())
+          this.editorCard()
+          this.rulesContent()
+        }
+        .width('100%')
+        .alignItems(HorizontalAlign.Start)
+        .padding({ left: 14, right: 14, top: 6, bottom: 24 })
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor(themePageBackground())
+
       SettingsSubToolbar({
         title: uiText('Filter rules'),
         onBack: this.onBack
       })
-
-      Column() {
-        this.editorCard()
-      }
-      .width('100%')
-      .padding({ left: 14, right: 14, top: 14, bottom: 10 })
-      .backgroundColor(themePageBackground())
-
-      Scroll() {
-        Column() {
-          this.rulesContent()
-        }
-        .width('100%')
-        .height('100%')
-        .alignItems(HorizontalAlign.Start)
-        .padding({ left: 14, right: 14, top: 4, bottom: 24 })
-      }
-      .layoutWeight(1)
-      .width('100%')
-      .backgroundColor(themePageBackground())
+      .zIndex(1)
     }
     .width('100%')
     .height('100%')
     .backgroundColor(themePageBackground())
-  }
-}
-
-@Component
-struct FilterModeTab {
-  @Prop label: string = '';
-  @Prop selected: boolean = false;
-  onTap: () => void = () => {};
-
-  build() {
-    Text(this.label)
-      .fontSize(13)
-      .fontWeight(this.selected ? FontWeight.Bold : FontWeight.Medium)
-      .fontColor(uiMaterialForegroundColor(this.selected ? Color.White : themePrimaryText()))
-      .height(uiTabHeight())
-      .padding({ left: 14, right: 14 })
-      .backgroundColor(uiMaterialBackground(this.selected ? themePrimaryColor() : themeSurfaceVariant()))
-      .systemMaterial(uiSegmentMaterial())
-      .borderRadius(uiRadius(uiTabHeight() / 2))
-      .onClick(() => {
-        this.onTap();
-      })
   }
 }
 
