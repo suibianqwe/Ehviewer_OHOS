@@ -24,6 +24,7 @@ const harmony7ReaderOptionButtonMaterials: Map<string, uiMaterial.Material> = ne
 const harmony7ReaderOptionSegmentMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 const harmony7PanelMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 const harmony7DialogMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
+const harmony7SelectDialogMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 
 function supportsImmersiveMaterial(): boolean {
   return deviceInfo.apiAvailable('26.0.0');
@@ -414,7 +415,7 @@ export function uiSelectPopupBackground(solidColor: string): string {
     return solidColor;
   }
   if (!isDarkTheme() && (supportsBackgroundEffect() || supportsBackgroundBlur())) {
-    return 'rgba(255,255,255,0.52)';
+    return 'rgba(255,255,255,0.82)';
   }
   return uiPopupEffectBackground(solidColor);
 }
@@ -529,6 +530,25 @@ export function uiDialogMaterial(): uiMaterial.Material | undefined {
     interactive: false
   });
   harmony7DialogMaterials.set(materialColor, material);
+  return material;
+}
+
+export function uiSelectDialogMaterial(): uiMaterial.Material | undefined {
+  if (!isHarmonyMaterialEnabled()) {
+    return undefined;
+  }
+  const materialColor = isDarkTheme() ? 'transparent' : 'rgba(255,255,255,0.82)';
+  const cached = harmony7SelectDialogMaterials.get(materialColor);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const material = new uiMaterial.ImmersiveMaterial({
+    style: uiMaterial.ImmersiveStyle.ULTRA_THIN,
+    materialColor: materialColor,
+    applyShadow: false,
+    interactive: false
+  });
+  harmony7SelectDialogMaterials.set(materialColor, material);
   return material;
 }
 
