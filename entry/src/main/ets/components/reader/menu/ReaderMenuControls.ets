@@ -28,6 +28,7 @@ import {
   uiReaderOptionControlBackground,
   uiReaderOptionRowHeight,
   uiReaderOptionSegmentMaterial,
+  uiSelectPopupBackground,
   uiSelectorHeight,
   uiSwitchHeight,
   uiSwitchWidth
@@ -174,7 +175,7 @@ export struct ReaderMenuSelect {
         .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
         .systemMaterial(uiReaderOptionSegmentMaterial())
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
-        .menuBackgroundColor(isHarmonyMaterialEnabled() ? Color.Transparent : readerSelectColors().menuBackground)
+        .menuBackgroundColor(uiSelectPopupBackground(readerSelectColors().menuBackground))
         .menuBackgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
         .menuBackgroundEffect(isHarmonyMaterialEnabled() ? uiPopupBackgroundEffect() : undefined)
         .optionBgColor(readerSelectColors().optionBackground)

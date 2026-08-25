@@ -1140,7 +1140,7 @@ export struct ReaderSettingsMenuOverlay {
         .layoutWeight(1)
       }
       .width('92%')
-      .constraintSize({ maxWidth: 560, maxHeight: '86%' })
+      .constraintSize({ maxWidth: 520, maxHeight: 640 })
       .backgroundColor(uiPopupEffectBackground(themeSurface()))
       .backgroundEffect(uiReaderMenuBackgroundEffect())
       .borderRadius(uiRadius(20))

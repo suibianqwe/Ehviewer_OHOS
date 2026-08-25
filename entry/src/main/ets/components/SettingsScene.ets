@@ -163,6 +163,7 @@ import {
   uiRadius,
   uiSearchFieldHeight,
   uiSearchMaterial,
+  uiSelectPopupBackground,
   uiSegmentMaterial,
   uiTintedSegmentMaterial,
   uiSwitchHeight,
@@ -3692,7 +3693,7 @@ export struct SettingsOptionPanel {
       .height(this.panelHeight())
       .constraintSize({ maxWidth: 420 })
       .padding({ left: 18, right: 18, top: 18, bottom: 8 })
-      .backgroundColor(uiDialogSurfaceBackground())
+      .backgroundColor(uiSelectPopupBackground(themeSurface()))
       .systemMaterial(uiDialogMaterial())
       .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())

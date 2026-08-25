@@ -409,6 +409,16 @@ export function uiPopupEffectBackground(solidColor: string): string {
     'rgba(0,0,0,0)' : solidColor;
 }
 
+export function uiSelectPopupBackground(solidColor: string): string {
+  if (!isHarmonyUiStyle()) {
+    return solidColor;
+  }
+  if (!isDarkTheme() && (supportsBackgroundEffect() || supportsBackgroundBlur())) {
+    return 'rgba(255,255,255,0.52)';
+  }
+  return uiPopupEffectBackground(solidColor);
+}
+
 export function uiSearchFieldHeight(): number {
   return isHarmonyUiStyle() ? 44 : 40;
 }
