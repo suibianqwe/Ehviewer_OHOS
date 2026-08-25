@@ -28,7 +28,6 @@ import {
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
   uiListItemBackground,
-  uiListItemBorderColor,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius,
@@ -394,10 +393,6 @@ export struct FilterPanel {
       }
     }
     .width('100%')
-    .padding(14)
-    .backgroundColor(uiListItemBackground(themeSurface()))
-    .borderRadius(uiRadius(16))
-    .border({ width: 1, color: uiListItemBorderColor(themeDividerColor()) })
   }
 
   build() {
