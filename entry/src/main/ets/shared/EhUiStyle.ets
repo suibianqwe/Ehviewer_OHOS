@@ -91,7 +91,7 @@ export function uiFloatingMaterial(): uiMaterial.Material | undefined {
     return cached;
   }
   const material = new uiMaterial.ImmersiveMaterial({
-    style: uiMaterial.ImmersiveStyle.THICK,
+    style: uiMaterial.ImmersiveStyle.ULTRA_THICK,
     materialColor: Color.Transparent,
     applyShadow: true,
     interactive: false,
@@ -111,7 +111,7 @@ export function uiButtonMaterial(): uiMaterial.Material | undefined {
     return cached;
   }
   const material = new uiMaterial.ImmersiveMaterial({
-    style: uiMaterial.ImmersiveStyle.THICK,
+    style: uiMaterial.ImmersiveStyle.ULTRA_THICK,
     materialColor: Color.Transparent,
     applyShadow: true,
     interactive: true,
