@@ -25,6 +25,7 @@ import {
   uiMaterialLayerBackground,
   uiPopupBackgroundEffect,
   uiPopupEffectBackground,
+  uiReaderMenuBackgroundEffect,
   uiReaderProgressBackgroundColor,
   uiReaderProgressBackgroundEffect,
   uiReaderOptionControlBackground,
@@ -1141,7 +1142,7 @@ export struct ReaderSettingsMenuOverlay {
       .width('92%')
       .constraintSize({ maxWidth: 560, maxHeight: '86%' })
       .backgroundColor(uiPopupEffectBackground(themeSurface()))
-      .backgroundEffect(uiPopupBackgroundEffect())
+      .backgroundEffect(uiReaderMenuBackgroundEffect())
       .borderRadius(uiRadius(20))
       .clip(true)
       .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))

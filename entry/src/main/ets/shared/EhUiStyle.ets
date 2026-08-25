@@ -335,8 +335,9 @@ export function uiReaderMenuBackgroundEffect(): BackgroundEffectOptions {
   return {
     radius: effectEnabled ? 10 : 0,
     saturation: 1.04,
-    brightness: 0.98,
-    color: effectEnabled ? 'rgba(11,16,25,0.18)' : Color.Transparent,
+    brightness: effectEnabled ? (isDarkTheme() ? 0.98 : 1.04) : 1,
+    color: effectEnabled ?
+      (isDarkTheme() ? 'rgba(11,16,25,0.18)' : 'rgba(255,255,255,0.52)') : Color.Transparent,
     adaptiveColor: AdaptiveColor.DEFAULT
   };
 }
