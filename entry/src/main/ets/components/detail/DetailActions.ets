@@ -17,7 +17,7 @@ import {
   themeTransparentColor
 } from '../../shared/EhTheme';
 import {
-  uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -188,7 +188,7 @@ export struct RatingPanel {
           .fontSize(13)
           .fontColor(uiMaterialForegroundColor(themeSecondaryText()))
           .backgroundColor(themeSurfaceVariant())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .borderRadius(uiRadius(4))
           .layoutWeight(1)
           .onClick(() => {
@@ -200,7 +200,7 @@ export struct RatingPanel {
           .fontSize(13)
           .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
           .backgroundColor(themePrimaryColor())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .borderRadius(uiRadius(4))
           .layoutWeight(1)
           .onClick(() => {
@@ -246,7 +246,7 @@ export struct DetailActionItem {
     .height(68)
     .justifyContent(FlexAlign.Center)
     .backgroundColor(this.pressed ? themeSurfaceVariant() : themeTransparentColor())
-    .systemMaterial(uiButtonMaterial())
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
     .borderRadius(34)
     .shadow({
       radius: this.pressed ? 2 : 8,

@@ -13,8 +13,6 @@ export const EH_UI_STYLE_CLASSIC: string = 'Classic';
 export const EH_UI_STYLE_HARMONY: string = 'Harmony';
 const EH_UI_STYLE_HARMONY_LEGACY: string = 'HarmonyOS 7';
 
-const harmony7FloatingMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
-const harmony7ButtonMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 const harmony7TintedButtonMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 let harmony7ChromeMaterial: uiMaterial.Material | undefined;
 let harmony7SearchMaterial: uiMaterial.Material | undefined;
@@ -79,46 +77,6 @@ export function uiRadius(classicRadius: number): number {
     return uiCardRadius(classicRadius);
   }
   return uiControlRadius(classicRadius);
-}
-
-export function uiFloatingMaterial(): uiMaterial.Material | undefined {
-  if (!isHarmonyMaterialEnabled()) {
-    return undefined;
-  }
-  const materialColor = 'transparent';
-  const cached = harmony7FloatingMaterials.get(materialColor);
-  if (cached !== undefined) {
-    return cached;
-  }
-  const material = new uiMaterial.ImmersiveMaterial({
-    style: uiMaterial.ImmersiveStyle.ULTRA_THICK,
-    materialColor: Color.Transparent,
-    applyShadow: true,
-    interactive: false,
-    lightEffect: { color: Color.White }
-  });
-  harmony7FloatingMaterials.set(materialColor, material);
-  return material;
-}
-
-export function uiButtonMaterial(): uiMaterial.Material | undefined {
-  if (!isHarmonyMaterialEnabled()) {
-    return undefined;
-  }
-  const materialColor = 'transparent';
-  const cached = harmony7ButtonMaterials.get(materialColor);
-  if (cached !== undefined) {
-    return cached;
-  }
-  const material = new uiMaterial.ImmersiveMaterial({
-    style: uiMaterial.ImmersiveStyle.ULTRA_THICK,
-    materialColor: Color.Transparent,
-    applyShadow: true,
-    interactive: true,
-    lightEffect: { color: Color.White }
-  });
-  harmony7ButtonMaterials.set(materialColor, material);
-  return material;
 }
 
 export function uiTintedButtonMaterial(solidColor: string): uiMaterial.Material | undefined {
@@ -312,6 +270,17 @@ export function uiTitleBarBackgroundEffect(): BackgroundEffectOptions {
   };
 }
 
+export function uiTransparentButtonBackgroundEffect(): BackgroundEffectOptions {
+  const effectEnabled = isHarmonyUiStyle() && supportsBackgroundEffect();
+  return {
+    radius: effectEnabled ? 40 : 0,
+    saturation: 1,
+    brightness: 1,
+    color: Color.Transparent,
+    adaptiveColor: AdaptiveColor.DEFAULT
+  };
+}
+
 export function uiTitleBarFadeHeight(): number {
   return isHarmonyUiStyle() ? 36 : 8;
 }
@@ -378,11 +347,13 @@ export function uiPopupBackgroundEffect(): BackgroundEffectOptions {
 }
 
 export function uiFloatingButtonBackgroundEffect(tintColor: string = ''): BackgroundEffectOptions {
+  if (tintColor.length === 0) {
+    return uiTransparentButtonBackgroundEffect();
+  }
   const effectEnabled = isHarmonyUiStyle() && supportsBackgroundEffect();
   let effectColor: ResourceColor = Color.Transparent;
   if (effectEnabled) {
-    effectColor = tintColor.length > 0 ? materialColorWithAlpha(tintColor, '34') :
-      (isDarkTheme() ? 'rgba(10,15,24,0.28)' : 'rgba(255,255,255,0.24)');
+    effectColor = materialColorWithAlpha(tintColor, '34');
   }
   return {
     radius: effectEnabled ? 22 : 0,

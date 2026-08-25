@@ -94,7 +94,7 @@ import {
 import {
   uiAdaptiveColumnCount,
   uiAdaptiveToolbarHeight,
-  uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -2367,7 +2367,7 @@ export struct DownloadScene {
               .fontSize(13)
               .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
               .backgroundColor(themePrimaryColor())
-              .systemMaterial(uiButtonMaterial())
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
               .borderRadius(uiRadius(4))
               .onClick(() => {
                 this.submitDownloadJump();
@@ -2699,7 +2699,7 @@ struct DownloadStatusFilterOptionRow {
     .width('100%')
     .height(46)
     .backgroundColor(this.isSelected() ? themeSelectedBackground() : Color.Transparent)
-    .systemMaterial(uiButtonMaterial())
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
     .borderRadius(uiRadius(8))
     .onClick(() => {
       this.toggle();
@@ -2764,7 +2764,7 @@ struct DownloadStatusFilterOverlay {
             .fontSize(14)
             .fontColor(uiMaterialForegroundColor(themePrimaryText()))
             .backgroundColor(themeFieldBackground())
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .borderRadius(uiRadius(8))
             .onClick(() => {
               this.onCancel();
@@ -2776,7 +2776,7 @@ struct DownloadStatusFilterOverlay {
             .fontSize(14)
             .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
             .backgroundColor(themePrimaryColor())
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .borderRadius(uiRadius(8))
             .onClick(() => {
               this.onApply();

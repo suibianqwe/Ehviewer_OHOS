@@ -18,7 +18,7 @@ import {
   themeSurfaceVariant
 } from '../../shared/EhTheme';
 import {
-  uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -219,7 +219,7 @@ export struct DetailPreviewJumpOverlay {
           .fontSize(14)
           .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
           .backgroundColor(themePrimaryColor())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .borderRadius(uiRadius(6))
           .width('100%')
           .margin({ top: 16 })

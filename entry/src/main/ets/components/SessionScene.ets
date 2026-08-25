@@ -14,7 +14,7 @@ import { applyAppChromeImmersiveMode } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, setActiveBackHandler } from '../shared/EhShared';
 import { themeAccentTextColor, themeFieldBackground, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSuccessText, themeSurface, themeTransparentColor } from '../shared/EhTheme';
 import {
-  uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiMaterialSecondaryForegroundColor,
@@ -560,7 +560,7 @@ export struct SessionScene {
               .type(ButtonType.Normal)
               .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
               .backgroundColor(themeTransparentColor())
-              .systemMaterial(uiButtonMaterial())
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
               .onClick(() => {
                 this.failPasswordWebSignIn('Sign in cancelled');
               })

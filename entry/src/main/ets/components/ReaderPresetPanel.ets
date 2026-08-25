@@ -23,7 +23,7 @@ import {
   themeTertiaryText
 } from '../shared/EhTheme';
 import {
-  uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius,
@@ -148,7 +148,7 @@ export struct ReaderPresetPanel {
         .width(38)
         .height(38)
         .backgroundColor(themeDangerBackground())
-        .systemMaterial(uiButtonMaterial())
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
         .onClick(() => {
           this.deleteProfile(profile);
         })
@@ -219,7 +219,7 @@ export struct ReaderPresetPanel {
               .fontSize(14)
               .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
               .backgroundColor(themePrimaryColor())
-              .systemMaterial(uiButtonMaterial())
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
               .borderRadius(uiRadius(6))
               .onClick(() => {
                 this.saveCurrentPreset();

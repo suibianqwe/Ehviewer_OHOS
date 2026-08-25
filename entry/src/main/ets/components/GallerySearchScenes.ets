@@ -21,9 +21,8 @@ import { themeAccentTextColor, themeControlMutedBackground, themeControlNeutralB
 import {
   isHarmonyMaterialEnabled,
   isHarmonyUiStyle,
-  uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiButtonHighlightBorderColor,
-  uiFloatingMaterial,
   uiFloatingButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
@@ -1301,7 +1300,6 @@ export struct ActionBubble {
       .fontSize(12)
       .fontColor(themePrimaryText())
       .backgroundColor(uiMaterialBackground(themeSurface()))
-      .systemMaterial(uiFloatingMaterial())
       .backgroundEffect(uiFloatingButtonBackgroundEffect())
       .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .padding({ left: 12, right: 12, top: 6, bottom: 6 })
@@ -1329,7 +1327,6 @@ export struct ActionBubble {
     .backgroundColor(floatingActionBackground(this.isEnabled ?
       (this.primary || this.checked ? themePrimaryColor() : themeControlNeutralBackground()) :
       themeControlMutedBackground()))
-    .systemMaterial(uiButtonMaterial())
     .backgroundEffect(uiFloatingButtonBackgroundEffect(this.primary || this.checked ? themePrimaryColor() : ''))
     .border({ width: 1, color: uiButtonHighlightBorderColor() })
     .scale({ x: this.active ? 0.92 : 1, y: this.active ? 0.92 : 1 })
@@ -1509,7 +1506,7 @@ export struct RatingStarBar {
           .width(36)
           .height(36)
           .backgroundColor(this.starActive(index) ? '#6E521F' : themeSurfaceVariant())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(() => {
             this.onSelect(index);

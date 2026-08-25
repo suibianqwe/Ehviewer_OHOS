@@ -20,7 +20,7 @@ import {
   themeSurface,
   themeSurfaceVariant
 } from '../../shared/EhTheme';
-import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../../shared/EhUiStyle';
+import { uiTransparentButtonBackgroundEffect, uiMaterialForegroundColor, uiRadius } from '../../shared/EhUiStyle';
 
 interface CommentTextSegment {
   text: string;
@@ -255,7 +255,7 @@ export struct CommentVoteButton {
       .height(36)
       .width(46)
       .backgroundColor(this.selected ? themePrimaryColor() : themeSurfaceVariant())
-      .systemMaterial(uiButtonMaterial())
+      .backgroundEffect(uiTransparentButtonBackgroundEffect())
       .borderRadius(uiRadius(5))
       .padding(0)
       .enabled(this.enabledValue)
@@ -350,7 +350,7 @@ export struct GalleryCommentRow {
           .padding(0)
           .borderRadius(uiRadius(5))
           .backgroundColor(themeSurfaceVariant())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .accessibilityDescription(uiText('Block user'))
           .onClick(() => {
             this.blockCommentUser();

@@ -19,7 +19,7 @@ import {
   isHarmonyMaterialEnabled,
   isHarmonyUiStyle,
   uiButtonHighlightBorderColor,
-  uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiMaterialLayerBackground,
@@ -623,7 +623,7 @@ export struct ReaderSettingsMenuOverlay {
           .width(32)
           .height(32)
           .backgroundColor(Color.Transparent)
-          .systemMaterial(uiButtonMaterial())
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(() => {
             this.closePresetDialog();
@@ -670,7 +670,7 @@ export struct ReaderSettingsMenuOverlay {
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(Color.Transparent)
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .borderRadius(uiRadius(6))
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .onClick(() => {

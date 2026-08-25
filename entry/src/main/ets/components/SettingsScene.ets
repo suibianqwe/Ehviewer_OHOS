@@ -146,7 +146,7 @@ import {
 } from '../shared/EhTheme';
 import {
   uiAdaptiveToolbarHeight,
-  uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -2642,7 +2642,7 @@ struct ProxySettingsOverlay {
           .width(40)
           .height(40)
           .backgroundColor(themeSurfaceVariant())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(this.onCancel)
         }
@@ -2774,7 +2774,7 @@ struct ProxySettingsOverlay {
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(themeSurfaceVariant())
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .borderRadius(uiRadius(6))
             .onClick(this.onCancel)
@@ -2784,7 +2784,7 @@ struct ProxySettingsOverlay {
             .fontSize(14)
             .fontColor(themeOnPrimaryText())
             .backgroundColor(themePrimaryColor())
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .borderRadius(uiRadius(6))
             .onClick(() => {
@@ -2852,7 +2852,7 @@ struct DownloadMigrationConfirmOverlay {
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(themeSurfaceVariant())
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .borderRadius(uiRadius(6))
             .layoutWeight(1)
@@ -2861,7 +2861,7 @@ struct DownloadMigrationConfirmOverlay {
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(themeSurfaceVariant())
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .borderRadius(uiRadius(6))
             .layoutWeight(1)
@@ -2870,7 +2870,7 @@ struct DownloadMigrationConfirmOverlay {
             .fontSize(14)
             .fontColor(themeOnPrimaryText())
             .backgroundColor(themePrimaryColor())
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .borderRadius(uiRadius(6))
             .layoutWeight(1)
@@ -3380,7 +3380,7 @@ struct TranslationPromptPanel {
           .height(52)
           .padding({ left: 14, right: 14 })
           .backgroundColor(uiMaterialBackground(themeSurface()))
-          .systemMaterial(uiButtonMaterial())
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .borderRadius(uiRadius(6))
           .onClick(() => {
@@ -3434,7 +3434,7 @@ struct TranslationPromptPanel {
                 .fontSize(14)
                 .fontColor(themeDangerText())
                 .backgroundColor(themeDangerBackground())
-                .systemMaterial(uiButtonMaterial())
+                .backgroundEffect(uiTransparentButtonBackgroundEffect())
                 .border({ width: 1, color: uiButtonHighlightBorderColor() })
                 .borderRadius(uiRadius(6))
                 .onClick(() => {
@@ -3447,7 +3447,7 @@ struct TranslationPromptPanel {
               .fontSize(14)
               .fontColor(themeOnPrimaryText())
               .backgroundColor(themePrimaryColor())
-              .systemMaterial(uiButtonMaterial())
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
               .border({ width: 1, color: uiButtonHighlightBorderColor() })
               .borderRadius(uiRadius(6))
               .onClick(() => {
@@ -3612,7 +3612,7 @@ export struct SettingsOptionPanel {
           .width(40)
           .height(40)
           .backgroundColor(themeSurfaceVariant())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(this.onBack)
         }
@@ -3677,7 +3677,7 @@ export struct SettingsOptionPanel {
               .fontSize(13)
               .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
               .backgroundColor(themePrimaryColor())
-              .systemMaterial(uiButtonMaterial())
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
               .border({ width: 1, color: uiButtonHighlightBorderColor() })
               .onClick(() => {
                 const value = this.customValue.trim();

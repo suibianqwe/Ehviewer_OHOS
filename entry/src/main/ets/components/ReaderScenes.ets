@@ -84,7 +84,7 @@ import {
 import { ArrayDataSource } from '../shared/ListDataSource';
 import {
   isHarmonyUiStyle,
-  uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor
 } from '../shared/EhUiStyle';
@@ -3778,7 +3778,7 @@ export struct ReaderScene {
         .width(READER_TRANSLATION_BUTTON_SIZE)
         .height(READER_TRANSLATION_BUTTON_SIZE)
         .backgroundColor(uiMaterialBackground(this.comicTranslationActive ? '#167A9A' : '#34454D'))
-        .systemMaterial(uiButtonMaterial())
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
         .opacity(0.46)
         .shadow({ radius: 8, color: 'rgba(0,0,0,0.28)', offsetX: 0, offsetY: 2 })
         .position({ x: this.comicTranslationButtonX, y: this.comicTranslationButtonY })

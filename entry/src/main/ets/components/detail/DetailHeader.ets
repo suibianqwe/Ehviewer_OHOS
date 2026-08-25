@@ -23,7 +23,7 @@ import {
 } from '../../shared/EhTheme';
 import {
   uiButtonHighlightBorderColor,
-  uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius
@@ -199,7 +199,7 @@ export struct HeaderActionButton {
     .height(46)
     .width('100%')
     .backgroundColor(uiMaterialBackground(this.buttonBackground()))
-    .systemMaterial(uiButtonMaterial())
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
     .borderRadius(uiRadius(23))
     .border({
       width: 1,

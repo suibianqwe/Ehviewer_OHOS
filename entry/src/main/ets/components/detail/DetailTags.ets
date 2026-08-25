@@ -22,7 +22,7 @@ import {
   themeTertiaryText
 } from '../../shared/EhTheme';
 import {
-  uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius,
@@ -148,7 +148,7 @@ export struct DetailTags {
           .borderRadius(uiRadius(17))
           .padding(0)
           .backgroundColor(this.editMode ? themePrimaryColor() : themeSurfaceVariant())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .enabled(this.isDetailLoaded)
           .onClick(() => {
             this.setEditMode(!this.editMode);
@@ -213,7 +213,7 @@ export struct DetailTags {
               .borderRadius(uiRadius(6))
               .padding(0)
               .backgroundColor(themePrimaryColor())
-              .systemMaterial(uiButtonMaterial())
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
               .onClick(() => {
                 this.submitCurrentTag();
               })
@@ -333,7 +333,7 @@ export struct TagGroupRow {
           }
           .height(26)
           .backgroundColor(this.tagBackgroundColor())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .borderRadius(uiRadius(4))
           .padding({ left: 8, right: 8 })
           .margin({ right: 6, bottom: 6 })

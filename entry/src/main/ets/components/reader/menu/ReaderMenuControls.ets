@@ -16,7 +16,7 @@ import {
 import {
   isHarmonyMaterialEnabled,
   uiButtonHighlightBorderColor,
-  uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -134,7 +134,7 @@ struct ReaderImageActionButton {
     .width('100%')
     .height(48)
     .backgroundColor(Color.Transparent)
-    .systemMaterial(uiButtonMaterial())
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
     .borderRadius(0)
     .onClick(() => {
       this.onTap();

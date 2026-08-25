@@ -9,7 +9,7 @@ import {
   themeSurfaceVariant
 } from '../shared/EhTheme';
 import {
-  uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiControlRadius,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
@@ -55,7 +55,7 @@ export struct ConfirmActionOverlay {
             .fontSize(14)
             .fontColor(uiMaterialForegroundColor(themePrimaryText()))
             .backgroundColor(themeSurfaceVariant())
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .borderRadius(uiControlRadius(6))
             .layoutWeight(1)
             .onClick(this.onCancel)
@@ -63,7 +63,7 @@ export struct ConfirmActionOverlay {
             .fontSize(14)
             .fontColor(this.danger ? themeDangerText() : uiMaterialForegroundColor(themeOnPrimaryText()))
             .backgroundColor(this.danger ? themeDangerBackground() : themeSurfaceVariant())
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .borderRadius(uiControlRadius(6))
             .layoutWeight(1)
             .onClick(this.onConfirm)

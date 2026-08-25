@@ -27,7 +27,7 @@ import {
 import {
   uiAdaptiveTitleSize,
   uiAdaptiveToolbarHeight,
-  uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiButtonHighlightBorderColor,
   uiCardRadius,
   uiControlRadius,
@@ -555,7 +555,7 @@ export struct EhNavBar {
         .width(this.actionSize())
         .height(this.actionSize())
         .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
-        .systemMaterial(uiButtonMaterial())
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .flexShrink(0)
         .onClick(() => {
@@ -613,7 +613,7 @@ export struct EhNavBar {
           .height(this.actionSize())
           .backgroundColor(navigationActionBackground(this.searchShowsAdvancedButton && this.filterActive ?
             themeOnPrimaryActionStrongBackground() : themeOnPrimaryActionBackground()))
-          .systemMaterial(uiButtonMaterial())
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .flexShrink(0)
           .margin({ left: 8 })
@@ -657,7 +657,7 @@ export struct EhNavBar {
             .width(this.actionSize())
             .height(this.actionSize())
             .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .flexShrink(0)
             .margin({ left: 6 })
@@ -673,7 +673,7 @@ export struct EhNavBar {
             .width(this.actionSize())
             .height(this.actionSize())
             .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .flexShrink(0)
             .margin({ left: 6 })
@@ -689,7 +689,7 @@ export struct EhNavBar {
             .width(this.actionSize())
             .height(this.actionSize())
             .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .flexShrink(0)
             .margin({ left: 6 })
@@ -705,7 +705,7 @@ export struct EhNavBar {
             .width(this.actionSize())
             .height(this.actionSize())
             .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .flexShrink(0)
             .margin({ left: 6 })
@@ -724,7 +724,7 @@ export struct EhNavBar {
             .enabled(this.canClear)
             .backgroundColor(navigationActionBackground(this.canClear ? themeOnPrimaryDangerBackground() :
               themeOnPrimaryActionDisabledBackground()))
-            .systemMaterial(uiButtonMaterial())
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .flexShrink(0)
             .margin({ left: 6 })
@@ -812,7 +812,7 @@ export struct EhSubNavBar {
         .width(this.actionSize())
         .height(this.actionSize())
         .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
-        .systemMaterial(uiButtonMaterial())
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .flexShrink(0)
         .onClick(() => { this.onBack(); })
@@ -839,7 +839,7 @@ export struct EhSubNavBar {
           .height(this.actionSize())
           .backgroundColor(navigationActionBackground(this.actionChecked ? themeOnPrimaryActionStrongBackground() :
             themeOnPrimaryActionBackground()))
-          .systemMaterial(uiButtonMaterial())
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .flexShrink(0)
           .margin({ left: 8 })
@@ -1079,7 +1079,7 @@ struct LegacySearchBar {
       }
       .width(40).height(40)
       .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
-      .systemMaterial(uiButtonMaterial())
+      .backgroundEffect(uiTransparentButtonBackgroundEffect())
       .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .flexShrink(0)
       .onClick(() => { this.onMenu(); })
@@ -1105,7 +1105,7 @@ struct LegacySearchBar {
       }
       .width(40).height(40)
       .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
-      .systemMaterial(uiButtonMaterial())
+      .backgroundEffect(uiTransparentButtonBackgroundEffect())
       .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .flexShrink(0)
       .margin({ left: 8 })
@@ -1139,7 +1139,7 @@ struct LegacyActionBar {
       }
       .width(40).height(40)
       .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
-      .systemMaterial(uiButtonMaterial())
+      .backgroundEffect(uiTransparentButtonBackgroundEffect())
       .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .flexShrink(0)
       .onClick(() => { this.onMenu(); })
@@ -1159,7 +1159,7 @@ struct LegacyActionBar {
       }
       .width(40).height(40)
       .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
-      .systemMaterial(uiButtonMaterial())
+      .backgroundEffect(uiTransparentButtonBackgroundEffect())
       .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .flexShrink(0)
       .margin({ left: 6 })
@@ -1174,7 +1174,7 @@ struct LegacyActionBar {
         .enabled(this.canClear)
         .backgroundColor(navigationActionBackground(this.canClear ? themeOnPrimaryDangerBackground() :
           themeOnPrimaryActionDisabledBackground()))
-        .systemMaterial(uiButtonMaterial())
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .flexShrink(0)
         .margin({ left: 6 })
@@ -1252,7 +1252,7 @@ export struct AppTopBar {
       }
       .width(40).height(40)
       .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
-      .systemMaterial(uiButtonMaterial())
+      .backgroundEffect(uiTransparentButtonBackgroundEffect())
       .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .onClick(() => { this.onAction(); })
 
