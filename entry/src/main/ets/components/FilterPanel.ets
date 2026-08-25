@@ -400,43 +400,54 @@ export struct FilterPanel {
     .border({ width: 1, color: uiListItemBorderColor(themeDividerColor()) })
   }
 
-  @Builder
-  private rulesContent() {
-    if (this.displayRules.length === 0) {
-      EmptyFilterCard()
-    } else {
-      Column({ space: 10 }) {
-        ForEach(this.displayRules, (rule: FilterRule) => {
-          FilterRuleCard({
-            rule: rule,
-            modeLabel: this.filterModeName(rule.mode),
-            displayText: this.ruleDisplayText(rule),
-            onToggle: () => {
-              this.onToggle(rule.id);
-            },
-            onRemove: () => {
-              this.onRemove(rule.id);
-            }
-          })
-        }, (rule: FilterRule) => rule.id.toString() + ':' + rule.enabled.toString() + ':' + rule.text)
-      }
-      .width('100%')
-    }
-  }
-
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Scroll() {
-        Column({ space: 10 }) {
-          Row()
-            .width('100%')
-            .height(this.totalToolbarHeight())
+      Column() {
+        Row()
+          .width('100%')
+          .height(this.totalToolbarHeight())
+
+        Column() {
           this.editorCard()
-          this.rulesContent()
         }
         .width('100%')
-        .alignItems(HorizontalAlign.Start)
-        .padding({ left: 14, right: 14, top: 6, bottom: 24 })
+        .padding({ left: 14, right: 14, top: 6, bottom: 10 })
+
+        List({ space: 0 }) {
+          if (this.displayRules.length === 0) {
+            ListItem() {
+              EmptyFilterCard()
+            }
+          } else {
+            ForEach(this.displayRules, (rule: FilterRule, index: number) => {
+              ListItem() {
+                FilterRuleCard({
+                  rule: rule,
+                  modeLabel: this.filterModeName(rule.mode),
+                  displayText: this.ruleDisplayText(rule),
+                  firstInGroup: index === 0,
+                  lastInGroup: index === this.displayRules.length - 1,
+                  onToggle: () => {
+                    this.onToggle(rule.id);
+                  },
+                  onRemove: () => {
+                    this.onRemove(rule.id);
+                  }
+                })
+              }
+              .reuseId('filter-rule-row')
+            }, (rule: FilterRule) => rule.id.toString() + ':' + rule.enabled.toString() + ':' + rule.text)
+          }
+          ListItem() {
+            Row()
+              .height(24)
+          }
+        }
+        .layoutWeight(1)
+        .width('100%')
+        .edgeEffect(EdgeEffect.None)
+        .cachedCount(8)
+        .padding({ left: 14, right: 14 })
       }
       .width('100%')
       .height('100%')
@@ -459,69 +470,86 @@ struct FilterRuleCard {
   @Prop rule: FilterRule = { id: 0, mode: FILTER_MODE_TITLE, text: '', enabled: true };
   @Prop modeLabel: string = '';
   @Prop displayText: string = '';
+  @Prop firstInGroup: boolean = false;
+  @Prop lastInGroup: boolean = false;
   onToggle: () => void = () => {};
   onRemove: () => void = () => {};
 
   build() {
-    Row({ space: 10 }) {
-      Column({ space: 5 }) {
-        Text(this.displayText.length > 0 ? this.displayText : this.rule.text)
-          .fontSize(15)
-          .fontWeight(this.rule.enabled ? FontWeight.Medium : FontWeight.Normal)
-          .fontColor(this.rule.enabled ? themePrimaryText() : themeMutedText())
-          .maxLines(2)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .width('100%')
-        Row({ space: 8 }) {
-          Text(this.modeLabel)
-            .fontSize(11)
-            .fontColor(themeSecondaryText())
-            .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-            .backgroundColor(themeFieldBackground())
-            .borderRadius(uiRadius(10))
-          Text(this.rule.enabled ? uiText('On') : uiText('Off'))
-            .fontSize(11)
-            .fontColor(this.rule.enabled ? themeAccentTextColor() : themeMutedText())
+    Column() {
+      Row({ space: 10 }) {
+        Column({ space: 5 }) {
+          Text(this.displayText.length > 0 ? this.displayText : this.rule.text)
+            .fontSize(15)
+            .fontWeight(this.rule.enabled ? FontWeight.Medium : FontWeight.Normal)
+            .fontColor(this.rule.enabled ? themePrimaryText() : themeMutedText())
+            .maxLines(2)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .width('100%')
+          Row({ space: 8 }) {
+            Text(this.modeLabel)
+              .fontSize(11)
+              .fontColor(themeSecondaryText())
+              .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+              .backgroundColor(themeFieldBackground())
+              .borderRadius(uiRadius(10))
+            Text(this.rule.enabled ? uiText('On') : uiText('Off'))
+              .fontSize(11)
+              .fontColor(this.rule.enabled ? themeAccentTextColor() : themeMutedText())
+          }
         }
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
 
-      Button({ type: ButtonType.Normal, stateEffect: true }) {
-        SymbolGlyph(this.rule.enabled ? $r('sys.symbol.checkmark_circle') : $r('sys.symbol.xmark'))
-          .fontSize(21)
-          .fontColor([uiMaterialForegroundColor(this.rule.enabled ? themeAccentTextColor() : themeMutedText())])
-      }
-      .width(38)
-      .height(38)
-      .padding(0)
-      .borderRadius(uiRadius(19))
-      .backgroundColor(this.rule.enabled ? themeSelectedBackgroundLight() : themeSurfaceVariant())
-      .systemMaterial(uiButtonMaterial())
-      .onClick(() => {
-        this.onToggle();
-      })
+        Button({ type: ButtonType.Normal, stateEffect: true }) {
+          SymbolGlyph(this.rule.enabled ? $r('sys.symbol.checkmark_circle') : $r('sys.symbol.xmark'))
+            .fontSize(21)
+            .fontColor([uiMaterialForegroundColor(this.rule.enabled ? themeAccentTextColor() : themeMutedText())])
+        }
+        .width(38)
+        .height(38)
+        .padding(0)
+        .borderRadius(uiRadius(19))
+        .backgroundColor(this.rule.enabled ? themeSelectedBackgroundLight() : themeSurfaceVariant())
+        .systemMaterial(uiButtonMaterial())
+        .onClick(() => {
+          this.onToggle();
+        })
 
-      Button({ type: ButtonType.Normal, stateEffect: true }) {
-        SymbolGlyph($r('sys.symbol.trash'))
-          .fontSize(20)
-          .fontColor([uiMaterialForegroundColor(themeDangerText())])
+        Button({ type: ButtonType.Normal, stateEffect: true }) {
+          SymbolGlyph($r('sys.symbol.trash'))
+            .fontSize(20)
+            .fontColor([uiMaterialForegroundColor(themeDangerText())])
+        }
+        .width(38)
+        .height(38)
+        .padding(0)
+        .borderRadius(uiRadius(19))
+        .backgroundColor(themeSurfaceVariant())
+        .systemMaterial(uiButtonMaterial())
+        .onClick(() => {
+          this.onRemove();
+        })
       }
-      .width(38)
-      .height(38)
-      .padding(0)
-      .borderRadius(uiRadius(19))
-      .backgroundColor(themeSurfaceVariant())
-      .systemMaterial(uiButtonMaterial())
-      .onClick(() => {
-        this.onRemove();
-      })
+      .width('100%')
+      .padding(14)
+
+      if (!this.lastInGroup) {
+        Divider()
+          .color(themeDividerColor())
+          .strokeWidth(0.5)
+          .margin({ left: 14, right: 14 })
+      }
     }
     .width('100%')
-    .padding(14)
     .backgroundColor(uiListItemBackground(themeSurface()))
-    .borderRadius(uiRadius(16))
-    .border({ width: 1, color: uiListItemBorderColor(themeDividerColor()) })
+    .borderRadius({
+      topLeft: this.firstInGroup ? uiRadius(16) : 0,
+      topRight: this.firstInGroup ? uiRadius(16) : 0,
+      bottomLeft: this.lastInGroup ? uiRadius(16) : 0,
+      bottomRight: this.lastInGroup ? uiRadius(16) : 0
+    })
+    .clip(true)
   }
 }
 
@@ -541,9 +569,8 @@ struct EmptyFilterCard {
     }
     .width('100%')
     .padding({ left: 20, right: 20, top: 28, bottom: 28 })
-    .backgroundColor(themeSurface())
-    .borderRadius(uiRadius(8))
-    .border({ width: 1, color: themeDividerColor() })
+    .backgroundColor(uiListItemBackground(themeSurface()))
+    .borderRadius(uiRadius(16))
   }
 }
 
