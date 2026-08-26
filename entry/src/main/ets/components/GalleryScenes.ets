@@ -5342,28 +5342,43 @@ export struct GalleryListContent {
     }
   }
 
+  @Builder
+  private galleryListContent() {
+    if (this.useThumbnailWaterFlow()) {
+      this.galleryThumbnailWaterFlow()
+    } else {
+      this.galleryStandardList()
+    }
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
-        Refresh({ refreshing: this.refreshing, builder: this.galleryRefreshIndicator }) {
-          if (this.useThumbnailWaterFlow()) {
-            this.galleryThumbnailWaterFlow()
-          } else {
-            this.galleryStandardList()
+        if (this.isInitialLoadingState()) {
+          Stack({ alignContent: Alignment.TopStart }) {
+            this.galleryListContent()
           }
+          .width('100%')
+          .height(this.listViewportHeight())
+          .translate({ y: this.contentStartOffset() })
+          .backgroundColor(themePageBackground())
+        } else {
+          Refresh({ refreshing: this.refreshing, builder: this.galleryRefreshIndicator }) {
+            this.galleryListContent()
+          }
+          .refreshOffset(this.REFRESH_OFFSET)
+          .pullToRefresh(true)
+          .onOffsetChange((offset: number) => {
+            this.refreshPullOffset = Math.max(0, offset);
+          })
+          .onRefreshing(() => {
+            this.startPullRefresh();
+          })
+          .width('100%')
+          .height(this.listViewportHeight())
+          .translate({ y: this.contentStartOffset() })
+          .backgroundColor(themePageBackground())
         }
-        .refreshOffset(this.REFRESH_OFFSET)
-        .pullToRefresh(!this.isInitialLoadingState())
-        .onOffsetChange((offset: number) => {
-          this.refreshPullOffset = Math.max(0, offset);
-        })
-        .onRefreshing(() => {
-          this.startPullRefresh();
-        })
-        .width('100%')
-        .height(this.listViewportHeight())
-        .translate({ y: this.contentStartOffset() })
-        .backgroundColor(themePageBackground())
       }
       .width('100%')
       .height('100%')
@@ -5800,7 +5815,7 @@ export struct GalleryListContent {
       }
       .hitTestBehavior(HitTestMode.Transparent)
 
-      if (this.refreshPullOffset > 0 || this.refreshing) {
+      if (!this.isInitialLoadingState() && (this.refreshPullOffset > 0 || this.refreshing)) {
         Row() {
           LoadingProgress()
             .width(24)
