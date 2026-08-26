@@ -1153,15 +1153,16 @@ export struct DownloadScene {
     return selected;
   }
 
-  private selectAllFinishedDownloads(): void {
+  private selectAllVisibleFinishedDownloads(): void {
     let selected = '';
     let count = 0;
-    for (let i = 0; i < this.items.length; i++) {
-      if (this.items[i].state === DownloadState.Finish) {
+    for (let i = 0; i < this.visibleItems.length; i++) {
+      const item = this.visibleItems[i];
+      if (item.state === DownloadState.Finish) {
         if (selected.length === 0) {
-          selected = this.selectedKey(this.items[i].gid);
+          selected = this.selectedKey(item.gid);
         } else {
-          selected += this.items[i].gid.toString() + '|';
+          selected += item.gid.toString() + '|';
         }
         count++;
       }
@@ -2274,7 +2275,7 @@ export struct DownloadScene {
                 ehTranslationService.setEnabled(!this.translationEnabled);
               },
               onSelectAll: () => {
-                this.selectAllFinishedDownloads();
+                this.selectAllVisibleFinishedDownloads();
               },
               onDelete: () => {
                 this.deleteSelectedDownloads();
