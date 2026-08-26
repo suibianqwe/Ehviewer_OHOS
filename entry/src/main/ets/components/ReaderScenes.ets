@@ -75,6 +75,8 @@ import {
   normalizeAutoTransferTimeOption,
   normalizeBrightnessLevelOption,
   normalizeUltraDarkLightnessOption,
+  currentThemeName,
+  notifyThemeChanged,
   pushActiveBackHandler,
   setReaderActiveBackHandler,
   BOTTOM_AVOID_HEIGHT_KEY,
@@ -344,6 +346,8 @@ export struct ReaderScene {
   @State menuSettingsTab: number = 0;
   @State menuReadingDirection: string = 'Right to left';
   @State menuPageScaling: string = 'Fit screen';
+  @State menuTheme: string = 'Light';
+  @State menuReaderBackground: string = 'Deep gray';
   @State menuAdaptiveDualPage: boolean = false;
   @State menuCropWhiteBorders: boolean = false;
   @State menuImageSuperResolutionEnabled: boolean = false;
@@ -431,6 +435,8 @@ export struct ReaderScene {
     }
     this.fitMode = normalizePageScalingOption(ehSettingsStore.getValue('page_scaling', 'Fit screen'));
     this.startPosition = normalizeStartPositionOption(ehSettingsStore.getValue('start_position', 'Center'));
+    this.menuTheme = currentThemeName();
+    this.menuReaderBackground = ehSettingsStore.getValue('reader_background', 'Deep gray');
     this.menuVisible = false;
     this.imageActionsVisible = false;
     this.sliderVisible = false;
@@ -1419,6 +1425,8 @@ export struct ReaderScene {
     this.menuScreenRotation = readerScreenRotationSetting();
     this.menuReadingDirection = normalizeReadingDirectionOption(ehSettingsStore.getValue('reading_direction', 'Right to left'));
     this.menuPageScaling = normalizePageScalingOption(ehSettingsStore.getValue('page_scaling', 'Fit screen'));
+    this.menuTheme = currentThemeName();
+    this.menuReaderBackground = ehSettingsStore.getValue('reader_background', 'Deep gray');
     this.menuAdaptiveDualPage = ehSettingsStore.getValue('adaptive_dual_page', 'Off') === 'On';
     this.menuCropWhiteBorders = ehSettingsStore.getValue('reader_crop_white_borders', 'Off') === 'On';
     this.menuImageSuperResolutionEnabled =
@@ -1451,6 +1459,32 @@ export struct ReaderScene {
   private readerSettingsTabFromStore(): number {
     const parsed = Number.parseInt(ehSettingsStore.getValue('reader_settings_tab', '0'));
     return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(3, parsed));
+  }
+
+  private applyMenuTheme(value: string): void {
+    const normalized = value === 'Black' ? 'Black' : (value === 'Dark' ? 'Dark' : 'Light');
+    this.menuTheme = normalized;
+    ehSettingsStore.setValue('follow_system_dark_mode', 'Off');
+    ehSettingsStore.setValue('theme', normalized);
+    notifyThemeChanged();
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSettingsStore.save(context).catch(() => {});
+    }
+  }
+
+  private applyMenuReaderBackground(value: string): void {
+    const normalized = value === 'Black' ? 'Black' : (value === 'White' ? 'White' : 'Deep gray');
+    this.menuReaderBackground = normalized;
+    ehSettingsStore.setValue('reader_background', normalized);
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSettingsStore.save(context).catch(() => {});
+    }
+  }
+
+  private currentReaderBackgroundColor(): string {
+    return readerBackgroundColor(this.menuReaderBackground);
   }
 
   private applyMenuSettings(): void {
@@ -3109,6 +3143,7 @@ export struct ReaderScene {
         this.readerTranslationForPage(index) : null,
       allowEdgeSwipe: !this.swiperVertical,
       interactive: interactive,
+      readerBackgroundColorValue: this.currentReaderBackgroundColor(),
       command: this.viewportCommand,
       commandVersion: this.viewportCommandVersion,
       onTap: (x: number, y: number, w: number, h: number) => {
@@ -3302,7 +3337,7 @@ export struct ReaderScene {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(readerBackgroundColor())
+    .backgroundColor(this.currentReaderBackgroundColor())
   }
 
   build() {
@@ -3337,6 +3372,7 @@ export struct ReaderScene {
                   Math.abs(item.index - this.currentIndex) <= this.readerContinuousCacheCount(),
                 hdrPriority: Math.abs(item.index - this.currentIndex),
                 translation: item.index === this.currentIndex ? this.readerTranslationForPage(item.index) : null,
+                readerBackgroundColorValue: this.currentReaderBackgroundColor(),
                 onTap: () => {},
                 onRetry: () => {
                   this.onJump(item.index);
@@ -3385,7 +3421,7 @@ export struct ReaderScene {
         }
         .width('100%')
         .height('100%')
-        .backgroundColor(readerBackgroundColor())
+        .backgroundColor(this.currentReaderBackgroundColor())
         .scrollBar(BarState.Off)
         .cachedCount(this.readerContinuousCacheCount())
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
@@ -3427,7 +3463,7 @@ export struct ReaderScene {
         })
         .width('100%')
         .height('100%')
-        .backgroundColor(readerBackgroundColor())
+        .backgroundColor(this.currentReaderBackgroundColor())
       }
 
       if (this.menuUltraDarkMode) {
@@ -3553,6 +3589,8 @@ export struct ReaderScene {
           menuScreenRotation: this.menuScreenRotation,
           menuReadingDirection: this.menuReadingDirection,
           menuPageScaling: this.menuPageScaling,
+          menuTheme: this.menuTheme,
+          menuReaderBackground: this.menuReaderBackground,
           menuAdaptiveDualPage: this.menuAdaptiveDualPage,
           menuCropWhiteBorders: this.menuCropWhiteBorders,
           menuImageSuperResolution: this.menuImageSuperResolutionEnabled,
@@ -3625,6 +3663,12 @@ export struct ReaderScene {
           onPageScalingChange: (value: string) => {
             this.menuPageScaling = value;
             this.markMenuReaderPresetCustom();
+          },
+          onThemeChange: (value: string) => {
+            this.applyMenuTheme(value);
+          },
+          onReaderBackgroundChange: (value: string) => {
+            this.applyMenuReaderBackground(value);
           },
           onAdaptiveDualPageChange: (value: boolean) => {
             this.onMenuAdaptiveDualPageChange(value);
@@ -3869,7 +3913,7 @@ export struct ReaderScene {
         this.syncPairedViewport(this.currentIndex);
       }
     })
-    .backgroundColor(readerBackgroundColor())
+    .backgroundColor(this.currentReaderBackgroundColor())
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 

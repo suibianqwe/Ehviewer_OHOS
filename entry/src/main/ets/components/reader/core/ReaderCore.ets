@@ -29,8 +29,7 @@ export interface ReaderSourceImageSize {
 const readerSourceImageSizeCache: Map<string, ReaderSourceImageSize> = new Map<string, ReaderSourceImageSize>();
 const readerCompletedImageCache: Map<string, boolean> = new Map<string, boolean>();
 
-export function readerBackgroundColor(): string {
-  const value = ehSettingsStore.getValue('reader_background', 'Deep gray');
+export function readerBackgroundColor(value: string = ehSettingsStore.getValue('reader_background', 'Deep gray')): string {
   if (value === 'Black') {
     return '#000000';
   }

@@ -420,6 +420,8 @@ export struct ReaderSettingsMenuOverlay {
   @Prop menuScreenRotation: string = 'Default';
   @Prop menuReadingDirection: string = 'Right to left';
   @Prop menuPageScaling: string = 'Fit screen';
+  @Prop menuTheme: string = 'Light';
+  @Prop menuReaderBackground: string = 'Deep gray';
   @Prop menuAdaptiveDualPage: boolean = false;
   @Prop menuCropWhiteBorders: boolean = false;
   @Prop menuImageSuperResolution: boolean = false;
@@ -472,6 +474,8 @@ export struct ReaderSettingsMenuOverlay {
   onScreenRotationChange: (value: string) => void = (_value: string) => {};
   onReadingDirectionChange: (value: string) => void = (_value: string) => {};
   onPageScalingChange: (value: string) => void = (_value: string) => {};
+  onThemeChange: (value: string) => void = (_value: string) => {};
+  onReaderBackgroundChange: (value: string) => void = (_value: string) => {};
   onAdaptiveDualPageChange: (value: boolean) => void = (_value: boolean) => {};
   onCropWhiteBordersChange: (value: boolean) => void = (_value: boolean) => {};
   onImageSuperResolutionChange: (value: boolean) => void = (_value: boolean) => {};
@@ -790,6 +794,20 @@ export struct ReaderSettingsMenuOverlay {
   private DisplaySettingsTab() {
     Scroll() {
       Column({ space: 0 }) {
+        ReaderMenuSelect({
+          label: uiText('Theme'),
+          options: ['Light', 'Dark', 'Black'],
+          value: this.menuTheme,
+          onChange: this.onThemeChange
+        })
+        ReaderMenuDivider()
+        ReaderMenuSelect({
+          label: uiText('Reader background'),
+          options: ['Black', 'White', 'Deep gray'],
+          value: this.menuReaderBackground,
+          onChange: this.onReaderBackgroundChange
+        })
+        ReaderMenuDivider()
         ReaderMenuSelect({
           label: uiText('Screen rotation'),
           options: this.screenRotationOptions,

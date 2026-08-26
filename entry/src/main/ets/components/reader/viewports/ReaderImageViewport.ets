@@ -40,7 +40,6 @@ import {
   forgetReaderImageRuntimeState,
   isReaderImageComplete,
   readReaderSourceImageSize,
-  readerBackgroundColor,
   readerLocalSourceImagePath
 } from '../core/ReaderCore';
 import { ReaderStatusView } from '../status/ReaderStatusView';
@@ -68,6 +67,7 @@ export struct ReaderImageViewport {
   @Prop translation: ReaderPageTranslation | null = null;
   @Prop allowEdgeSwipe: boolean = true;
   @Prop interactive: boolean = true;
+  @Prop readerBackgroundColorValue: string = '#050608';
   @Prop command: string = '';
   @Prop @Watch('onCommandChange') commandVersion: number = 0;
   onTap: (x: number, y: number, w: number, h: number) => void = () => {};
@@ -829,7 +829,7 @@ export struct ReaderImageViewport {
               .hdrBrightness(this.hdrPixelMap === undefined ? 0 : 1)
               .syncLoad(this.shouldSyncLoadImage())
               .draggable(false)
-              .backgroundColor(readerBackgroundColor())
+              .backgroundColor(this.readerBackgroundColorValue)
               .opacity(this.failedImageUrl === this.imageUrl() ? 0 : 1)
               .position({ x: this.cropOffsetX(), y: this.cropOffsetY() })
               .onComplete((event?: ReaderImageCompleteEvent) => {
@@ -914,7 +914,7 @@ export struct ReaderImageViewport {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(readerBackgroundColor())
+    .backgroundColor(this.readerBackgroundColorValue)
     .clip(true)
     .onAreaChange((_oldValue: Area, newValue: Area) => {
       this.updateComponentSize(this.readAreaSize(newValue.width), this.readAreaSize(newValue.height));

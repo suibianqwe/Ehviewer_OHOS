@@ -38,7 +38,6 @@ import {
   forgetReaderImageRuntimeState,
   isReaderImageComplete,
   readReaderSourceImageSize,
-  readerBackgroundColor,
   readerLocalSourceImagePath
 } from '../core/ReaderCore';
 import { ReaderStatusView } from '../status/ReaderStatusView';
@@ -66,6 +65,7 @@ export struct ReaderContinuousImageItem {
   @Prop @Watch('onHdrPriorityChange') hdrPriority: number = 0;
   @Prop @Watch('onCropWhiteBordersChange') cropWhiteBorders: boolean = false;
   @Prop translation: ReaderPageTranslation | null = null;
+  @Prop readerBackgroundColorValue: string = '#050608';
   onTap: (x: number, y: number, w: number, h: number) => void =
     (_x: number, _y: number, _w: number, _h: number) => {};
   onRetry: () => void = () => {};
@@ -719,7 +719,7 @@ export struct ReaderContinuousImageItem {
             .hdrBrightness(this.hdrPixelMap === undefined ? 0 : 1)
             .syncLoad(this.shouldSyncLoadImage())
             .draggable(false)
-            .backgroundColor(readerBackgroundColor())
+            .backgroundColor(this.readerBackgroundColorValue)
             .opacity(this.failedImageUrl === this.imageUrl() ? 0 : 1)
             .position({ x: this.cropOffsetX(), y: this.cropOffsetY() })
             .onComplete((event?: ReaderImageCompleteEvent) => {
@@ -789,7 +789,7 @@ export struct ReaderContinuousImageItem {
     }
     .width('100%')
     .height(this.itemHeight())
-    .backgroundColor(readerBackgroundColor())
+    .backgroundColor(this.readerBackgroundColorValue)
     .clip(true)
     .onAreaChange((_oldValue: Area, newValue: Area) => {
       const width = Number.parseFloat(newValue.width.toString());
