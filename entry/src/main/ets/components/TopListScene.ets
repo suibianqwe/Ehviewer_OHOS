@@ -23,11 +23,9 @@ import {
   rememberMainContentWidthVp
 } from '../services/EhWindowImmersive';
 import {
-  themeOnPrimaryText,
   themeDividerColor,
   themePageBackground,
   themeAccentTextColor,
-  themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
   themeSurface,
@@ -36,10 +34,7 @@ import {
 } from '../shared/EhTheme';
 import {
   uiAdaptiveToolbarHeight,
-  uiMaterialBackground,
-  uiMaterialForegroundColor,
   uiRadius,
-  uiSegmentMaterial,
   uiTabHeight
 } from '../shared/EhUiStyle';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, setActiveBackHandler, runDetailBackHandler, createEmptyDetail, createEmptyTopListDetail, createEmptyTopListInfo, createEmptyTopListBucket, createEmptyTopListItem, cloneGalleryDetail, cloneGalleryInfo, cloneTopListDetail, nextFloatingToolbarOffset, currentGallerySite, uiText } from '../shared/EhShared';
@@ -649,7 +644,7 @@ export struct TopListScene {
             selectedIndex: this.selectedIndex,
             info: this.currentInfo(),
             toolbarOffsetY: this.toolbarOffsetY,
-            topPadding: this.floatingToolbarHeight() + 4,
+            topPadding: this.floatingToolbarHeight(),
             statusBarHeight: this.statusBarVp(),
             renderVersion: this.renderVersion,
             translateTitles: this.translationEnabled,
@@ -864,32 +859,26 @@ export struct TopListTabs {
   onSelect: (index: number) => void = () => {};
 
   build() {
-    Scroll() {
-      Row({ space: 8 }) {
-        ForEach(this.lists, (info: TopListInfo, index: number) => {
-          Button(uiText(info.title))
-            .height(uiTabHeight())
-            .fontSize(13)
-            .fontWeight(index === this.selectedIndex ? FontWeight.Bold : FontWeight.Medium)
-            .fontColor(uiMaterialForegroundColor(index === this.selectedIndex ? themeOnPrimaryText() :
-              themeAccentTextColor()))
-            .padding({ left: 12, right: 12 })
-            .backgroundColor(uiMaterialBackground(index === this.selectedIndex ? themePrimaryColor() :
-              themeSurfaceVariant()))
-            .systemMaterial(uiSegmentMaterial())
-            .borderRadius(uiRadius(uiTabHeight() / 2))
-            .flexShrink(0)
-            .onClick(() => {
-              this.onSelect(index);
-            })
-        }, (info: TopListInfo, index: number) => info.kind.toString() + ':' + index.toString() + ':' + this.selectedIndex.toString())
-      }
-      .padding({ left: 2, right: 2 })
+    Tabs({ barPosition: BarPosition.Start, index: this.selectedIndex }) {
+      ForEach(this.lists, (info: TopListInfo, index: number) => {
+        TabContent() {
+          Column()
+            .height(0)
+        }
+        .tabBar(uiText(info.title))
+      }, (info: TopListInfo, index: number) => info.kind.toString() + ':' + index.toString())
     }
-    .scrollable(ScrollDirection.Horizontal)
-    .scrollBar(BarState.Off)
+    .barMode(BarMode.Scrollable)
+    .barHeight(uiTabHeight() + 4)
+    .barBackgroundColor(Color.Transparent)
+    .barBackgroundBlurStyle(BlurStyle.NONE)
+    .animationDuration(180)
+    .divider({ strokeWidth: 0, color: Color.Transparent })
+    .onChange((index: number) => {
+      this.onSelect(index);
+    })
     .width('100%')
-    .height(uiTabHeight())
+    .height(uiTabHeight() + 4)
   }
 }
 
@@ -916,7 +905,7 @@ export struct TopListBoard {
   private boardScroller: Scroller = new Scroller();
 
   private tabsBarHeight(): number {
-    return uiTabHeight() + 8;
+    return uiTabHeight() + 4;
   }
 
   private translationPriorityFor(index: number): number {
@@ -927,11 +916,11 @@ export struct TopListBoard {
   }
 
   private tabsVisualTop(): number {
-    return Math.max(0, this.topPadding + this.toolbarOffsetY);
+    return Math.max(this.statusBarHeight, this.topPadding + this.toolbarOffsetY);
   }
 
   private contentTopPadding(): number {
-    return this.tabsVisualTop() + this.tabsBarHeight() + 5;
+    return this.tabsVisualTop() + this.tabsBarHeight() + 2;
   }
 
   private bucketContentWidth(): number {
@@ -950,7 +939,6 @@ export struct TopListBoard {
         }
       })
         .width('100%')
-        .padding({ top: 4, bottom: 4 })
         .backgroundColor(themeTransparentColor())
     }
       .width('100%')
