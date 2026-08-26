@@ -36,6 +36,7 @@ import {
   uiTabHeight,
   uiTintedButtonMaterial,
 } from '../../../shared/EhUiStyle';
+import { PopupScrim } from '../../PopupScrim';
 import {
   readerAutoTransferSliderValue,
   readerAutoTransferValue,
@@ -456,6 +457,8 @@ export struct ReaderSettingsMenuOverlay {
   @State customBrightnessVisible: boolean = false;
   @State ultraDarkVisible: boolean = false;
   @State presetDialogMode: string = '';
+  @State presetPopupWidth: number = 0;
+  @State presetPopupHeight: number = 0;
   @State presetEditorName: string = '';
   @State presetNameError: boolean = false;
   @State panelWidth: number = 0;
@@ -605,13 +608,16 @@ export struct ReaderSettingsMenuOverlay {
   @Builder
   private PresetDialog() {
     Stack({ alignContent: Alignment.Center }) {
-      Stack() {}
-        .width('100%')
-        .height('100%')
-        .backgroundColor('#99000000')
-        .onClick(() => {
+      PopupScrim({
+        showCutout: this.presetPopupWidth > 0 && this.presetPopupHeight > 0,
+        cutoutWidth: this.presetPopupWidth,
+        cutoutHeight: this.presetPopupHeight,
+        cutoutRadius: uiRadius(12),
+        scrimColor: '#99000000',
+        onDismiss: () => {
           this.closePresetDialog();
-        })
+        }
+      })
 
       Column({ space: 14 }) {
         Row() {
@@ -711,6 +717,10 @@ export struct ReaderSettingsMenuOverlay {
       .backgroundEffect(uiPopupBackgroundEffect())
       .borderRadius(uiRadius(12))
       .shadow({ radius: 18, color: '#66000000', offsetY: 8 })
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.presetPopupWidth = Number.parseFloat(newArea.width.toString());
+        this.presetPopupHeight = Number.parseFloat(newArea.height.toString());
+      })
     }
     .width('100%')
     .height('100%')

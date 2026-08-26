@@ -7,7 +7,6 @@ import {
   themePageBackground,
   themePrimaryColor,
   themePrimaryText,
-  themeScrimColor,
   themeSecondaryText,
   themeSelectedBackground,
   themeSelectedText,
@@ -34,6 +33,7 @@ import {
   SidePanelManagerHeader,
   SidePanelRow
 } from './SidePanelComponents';
+import { PopupScrim } from './PopupScrim';
 
 export const DOWNLOAD_LABEL_FILTER_ALL: string = '__all__';
 export const DOWNLOAD_LABEL_OPTION_ASK: string = '__ask__';
@@ -132,6 +132,8 @@ export struct DownloadLabelDrawer {
 
 @Component
 export struct DownloadLabelSelectionDialog {
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   @Prop title: string = 'Download labels';
   @Prop labels: DownloadLabel[] = [];
   @Prop selectedLabel: string = '';
@@ -195,13 +197,15 @@ export struct DownloadLabelSelectionDialog {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(() => {
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: () => {
           this.onClose();
-        })
+        }
+      })
 
       Column() {
         Row() {
@@ -299,6 +303,10 @@ export struct DownloadLabelSelectionDialog {
       .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
     }
     .width('100%')
     .height('100%')
@@ -307,6 +315,8 @@ export struct DownloadLabelSelectionDialog {
 
 @Component
 export struct DownloadLabelEditDialog {
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   @Prop title: string = 'New label';
   @Link value: string;
   onConfirm: () => void = () => {};
@@ -315,13 +325,15 @@ export struct DownloadLabelEditDialog {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(() => {
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: () => {
           this.onClose();
-        })
+        }
+      })
 
       Column({ space: 14 }) {
         Row() {
@@ -377,6 +389,10 @@ export struct DownloadLabelEditDialog {
       .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
     }
     .width('100%')
     .height('100%')

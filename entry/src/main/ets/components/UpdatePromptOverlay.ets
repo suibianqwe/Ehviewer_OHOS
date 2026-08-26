@@ -4,7 +4,6 @@ import {
   themeOnPrimaryText,
   themePrimaryColor,
   themePrimaryText,
-  themeScrimColor,
   themeSecondaryText,
   themeSurfaceVariant,
   themeTertiaryText
@@ -20,9 +19,12 @@ import {
   uiDialogSurfaceShadow,
   uiMaterialForegroundColor
 } from '../shared/EhUiStyle';
+import { PopupScrim } from './PopupScrim';
 
 @Component
 export struct UpdatePromptOverlay {
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   release: ReleaseInfo | null = null;
   currentVersion: string = '';
   onCancel: () => void = () => {};
@@ -44,11 +46,13 @@ export struct UpdatePromptOverlay {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(this.onCancel)
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: this.onCancel
+      })
 
       Column() {
         Text(uiText('New version available'))
@@ -110,6 +114,10 @@ export struct UpdatePromptOverlay {
       .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
     }
     .width('100%')
     .height('100%')

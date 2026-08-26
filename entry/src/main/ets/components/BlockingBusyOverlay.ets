@@ -1,7 +1,6 @@
 import { uiText } from '../shared/EhShared';
 import {
   themePrimaryText,
-  themeScrimColor,
   themeSecondaryText
 } from '../shared/EhTheme';
 import {
@@ -12,9 +11,12 @@ import {
   uiDialogSurfaceRadius,
   uiDialogSurfaceShadow
 } from '../shared/EhUiStyle';
+import { PopupScrim } from './PopupScrim';
 
 @Component
 export struct BlockingBusyOverlay {
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   @Prop message: string = 'Loading...';
   @Prop progressText: string = '';
   @Prop progressCurrent: number = -1;
@@ -33,10 +35,12 @@ export struct BlockingBusyOverlay {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius()
+      })
 
       Column({ space: 12 }) {
         LoadingProgress()
@@ -78,6 +82,10 @@ export struct BlockingBusyOverlay {
       .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
     }
     .width('100%')
     .height('100%')

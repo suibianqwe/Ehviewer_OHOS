@@ -13,7 +13,6 @@ import {
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
-  themeScrimColor,
   themeSurface,
   themeSurfaceVariant
 } from '../../shared/EhTheme';
@@ -29,6 +28,7 @@ import {
   uiRadius
 } from '../../shared/EhUiStyle';
 import { GalleryThumb } from '../GalleryCards';
+import { PopupScrim } from '../PopupScrim';
 
 const PREVIEW_THUMB_LOCAL_SOURCE_CACHE: Map<string, string> = new Map<string, string>();
 
@@ -159,6 +159,8 @@ export struct DetailPreviews {
 
 @Component
 export struct DetailPreviewJumpOverlay {
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   @Prop totalPages: number = 0;
   @Prop initialPageIndex: number = 0;
   @State draftPageIndex: number = 0;
@@ -180,13 +182,15 @@ export struct DetailPreviewJumpOverlay {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(() => {
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: () => {
           this.closeWithSelection();
-        })
+        }
+      })
 
       Column() {
         Text(uiText('Jump'))
@@ -235,6 +239,10 @@ export struct DetailPreviewJumpOverlay {
       .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
     }
     .width('100%')
     .height('100%')

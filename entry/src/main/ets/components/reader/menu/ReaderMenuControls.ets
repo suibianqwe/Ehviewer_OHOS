@@ -10,9 +10,9 @@ import {
   themeDividerColor,
   themePrimaryColor,
   themePrimaryText,
-  themeScrimColor,
   themeSecondaryText
 } from '../../../shared/EhTheme';
+import { PopupScrim } from '../../PopupScrim';
 import {
   isHarmonyMaterialEnabled,
   uiButtonHighlightBorderColor,
@@ -52,26 +52,14 @@ export struct ReaderPopupBackdrop {
   onDismiss: () => void = () => {};
 
   build() {
-    Stack({ alignContent: Alignment.Center }) {
-      Stack() {}
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-
-      if (this.cutoutWidth > 0 && this.cutoutHeight > 0) {
-        Stack() {}
-          .width(this.cutoutWidth)
-          .height(this.cutoutHeight)
-          .backgroundColor(Color.Black)
-          .borderRadius(this.cutoutRadius)
-          .blendMode(BlendMode.DST_OUT)
+    PopupScrim({
+      showCutout: this.cutoutWidth > 0 && this.cutoutHeight > 0,
+      cutoutWidth: this.cutoutWidth,
+      cutoutHeight: this.cutoutHeight,
+      cutoutRadius: this.cutoutRadius,
+      onDismiss: () => {
+        this.onDismiss();
       }
-    }
-    .width('100%')
-    .height('100%')
-    .blendMode(BlendMode.SRC_OVER, BlendApplyType.OFFSCREEN)
-    .onClick(() => {
-      this.onDismiss();
     })
     .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
   }

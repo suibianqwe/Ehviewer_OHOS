@@ -86,7 +86,6 @@ import {
   themeAccentTextColor,
   themePrimaryColor,
   themePrimaryText,
-  themeScrimColor,
   themeSecondaryText,
   themeSurfaceVariant
 } from '../shared/EhTheme';
@@ -101,6 +100,7 @@ import {
   uiMaterialForegroundColor,
   uiRadius
 } from '../shared/EhUiStyle';
+import { PopupScrim } from './PopupScrim';
 import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
 import {
   DOWNLOAD_LABEL_OPTION_ASK,
@@ -132,6 +132,8 @@ function favoriteSlotOptions(): FavoriteSlotOption[] {
 
 @Component
 struct AddFavoriteDialog {
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   @Prop remember: boolean = false;
   @Prop panelMaxHeight: number = 680;
   onRememberChange: (remember: boolean) => void = (_remember: boolean) => {};
@@ -150,13 +152,15 @@ struct AddFavoriteDialog {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(() => {
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: () => {
           this.onClose();
-        })
+        }
+      })
 
       Column() {
         Row() {
@@ -252,6 +256,10 @@ struct AddFavoriteDialog {
       .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
     }
     .width('100%')
     .height('100%')

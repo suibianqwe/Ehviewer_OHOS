@@ -138,12 +138,12 @@ import {
   themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
-  themeScrimColor,
   themeSelectedBackground,
   themeSurface,
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
+import { PopupScrim } from './PopupScrim';
 import {
   uiAdaptiveToolbarHeight,
   uiTransparentButtonBackgroundEffect,
@@ -2538,6 +2538,8 @@ export struct SettingsScene {
 
 @Component
 struct ProxySettingsOverlay {
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   initialType: string = 'System';
   initialHost: string = '';
   initialPort: string = '';
@@ -2621,11 +2623,13 @@ struct ProxySettingsOverlay {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(this.onCancel)
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: this.onCancel
+      })
 
       Column() {
         Row() {
@@ -2804,6 +2808,10 @@ struct ProxySettingsOverlay {
       .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
     }
     .width('100%')
     .height('100%')
@@ -2813,6 +2821,8 @@ struct ProxySettingsOverlay {
 
 @Component
 struct DownloadMigrationConfirmOverlay {
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   current: string = DOWNLOAD_LOCATION_APP_FILES;
   target: string = DOWNLOAD_LOCATION_APP_FILES;
   onCancel: () => void = () => {};
@@ -2821,11 +2831,13 @@ struct DownloadMigrationConfirmOverlay {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(this.onCancel)
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: this.onCancel
+      })
 
       Column() {
         Text(uiText('Download location'))
@@ -2887,6 +2899,10 @@ struct DownloadMigrationConfirmOverlay {
       .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
     }
     .width('100%')
     .height('100%')
@@ -3497,6 +3513,8 @@ export struct SettingsOptionPanel {
   @Prop allowCustomInput: boolean = false;
   @State customValue: string = '';
   @State viewportHeight: number = 640;
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   onBack: () => void = () => {};
   onSelect: (value: string) => void = () => {};
@@ -3590,11 +3608,13 @@ export struct SettingsOptionPanel {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(this.onBack)
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: this.onBack
+      })
 
       Column() {
         Row() {
@@ -3701,6 +3721,10 @@ export struct SettingsOptionPanel {
       .borderRadius(uiDialogSurfaceRadius())
       .clip(true)
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
     }
     .width('100%')
     .height('100%')

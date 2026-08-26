@@ -4,7 +4,6 @@ import {
   themeFieldBackground,
   themeMaterialContentColor,
   themePrimaryText,
-  themeScrimColor,
   themeSecondaryText,
   themeSelectedBackground,
   themeSelectedBackgroundLight,
@@ -29,6 +28,7 @@ import {
   uiSearchFieldHeight,
   uiSearchMaterial
 } from '../shared/EhUiStyle';
+import { PopupScrim } from './PopupScrim';
 
 function sidePanelChromeText(): string {
   return themeMaterialContentColor();
@@ -71,14 +71,19 @@ export struct RightSidePanelLayer {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .opacity(this.overlayOpacity)
-        .onClick(() => {
+      PopupScrim({
+        showCutout: true,
+        positionedCutout: true,
+        cutoutX: this.drawerLeft + this.drawerOffsetX,
+        cutoutY: 0,
+        cutoutWidth: SIDE_PANEL_WIDTH,
+        cutoutHeight: '100%',
+        cutoutRadius: 0,
+        scrimOpacity: this.overlayOpacity,
+        onDismiss: () => {
           this.onClose();
-        })
+        }
+      })
         .gesture(
           PanGesture({ fingers: 1, direction: PanDirection.Right, distance: 28 })
             .onActionEnd(() => {

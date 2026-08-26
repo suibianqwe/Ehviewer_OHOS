@@ -16,7 +16,7 @@ import {
   uiStatusText,
   uiText
 } from '../shared/EhShared';
-import { themePageBackground, themeScrimColor } from '../shared/EhTheme';
+import { themePageBackground } from '../shared/EhTheme';
 import {
   themeDividerColor,
   themeInactiveActionText,
@@ -46,6 +46,7 @@ import { DetailActions, RatingPanel } from './detail/DetailActions';
 import { DetailTags } from './detail/DetailTags';
 import { DetailPreviews, DetailPreviewJumpOverlay } from './detail/DetailPreviews';
 import { DetailComments } from './detail/DetailComments';
+import { PopupScrim } from './PopupScrim';
 
 @Component
 export struct GalleryDetailOverlayScene {
@@ -242,6 +243,8 @@ export struct GalleryDetailScene {
   private detailScroller: Scroller = new Scroller();
   @State showRatingDialog: boolean = false;
   @State pendingRating: number = 0;
+  @State ratingPopupWidth: number = 0;
+  @State ratingPopupHeight: number = 0;
   @State previewJumpPanelVisible: boolean = false;
   @State previewJumpPageIndex: number = 0;
   @State detailRefreshing: boolean = false;
@@ -553,27 +556,43 @@ export struct GalleryDetailScene {
       .backgroundColor(themePageBackground())
 
       if (this.showRatingDialog) {
-        Column() {
-          RatingPanel({
-            rating: this.pendingRating,
-            onChange: (rating: number) => {
-              this.pendingRating = rating;
-            },
-            onCancel: () => {
+        Stack({ alignContent: Alignment.Center }) {
+          PopupScrim({
+            showCutout: this.ratingPopupWidth > 0 && this.ratingPopupHeight > 0,
+            cutoutWidth: this.ratingPopupWidth,
+            cutoutHeight: this.ratingPopupHeight,
+            cutoutRadius: uiDialogSurfaceRadius(),
+            onDismiss: () => {
               this.showRatingDialog = false;
-            },
-            onSubmit: () => {
-              this.showRatingDialog = false;
-              this.onRate(this.pendingRating);
             }
           })
+          Column() {
+            RatingPanel({
+              rating: this.pendingRating,
+              onChange: (rating: number) => {
+                this.pendingRating = rating;
+              },
+              onCancel: () => {
+                this.showRatingDialog = false;
+              },
+              onSubmit: () => {
+                this.showRatingDialog = false;
+                this.onRate(this.pendingRating);
+              }
+            })
+            .onAreaChange((_oldArea: Area, newArea: Area) => {
+              this.ratingPopupWidth = Number.parseFloat(newArea.width.toString());
+              this.ratingPopupHeight = Number.parseFloat(newArea.height.toString());
+            })
+          }
+          .width('100%')
+          .height('100%')
+          .padding(24)
+          .justifyContent(FlexAlign.Center)
+          .hitTestBehavior(HitTestMode.Transparent)
         }
         .width('100%')
         .height('100%')
-        .justifyContent(FlexAlign.Center)
-        .alignItems(HorizontalAlign.Center)
-        .padding(24)
-        .backgroundColor(themeScrimColor())
         .zIndex(10)
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
       }
@@ -632,6 +651,8 @@ export struct GalleryDetailScene {
 
 @Component
 struct TagVoteOverlay {
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   tag: GalleryTagInfo = createEmptyTagInfo();
   onDismiss: () => void = () => {};
   onVote: (vote: number) => void = (_vote: number) => {};
@@ -650,13 +671,15 @@ struct TagVoteOverlay {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column() {}
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(() => {
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: () => {
           this.onDismiss();
-        })
+        }
+      })
 
       Column({ space: 14 }) {
         Row() {
@@ -744,6 +767,10 @@ struct TagVoteOverlay {
       .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
       .transition(TransitionEffect.OPACITY
         .combine(TransitionEffect.scale({ x: 0.96, y: 0.96 }))
         .animation({ duration: 180, curve: Curve.EaseOut }))
@@ -855,6 +882,8 @@ function translatedTagLabel(info: GalleryTagInfo): string {
 
 @Component
 struct ArchiveOptionsOverlay {
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   @Prop mode: string = '';
   @Prop statusText: string = '';
   @Prop busy: boolean = false;
@@ -898,13 +927,15 @@ struct ArchiveOptionsOverlay {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column() {}
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(() => {
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: () => {
           this.onDismiss();
-        })
+        }
+      })
 
       Column({ space: 0 }) {
         Row() {
@@ -998,6 +1029,10 @@ struct ArchiveOptionsOverlay {
       .borderRadius(uiDialogSurfaceRadius())
       .clip(true)
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
       .transition(TransitionEffect.OPACITY
         .combine(TransitionEffect.scale({ x: 0.96, y: 0.96 }))
         .animation({ duration: 180, curve: Curve.EaseOut }))

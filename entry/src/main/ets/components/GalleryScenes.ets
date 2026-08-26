@@ -67,7 +67,6 @@ import {
   themeAccentTextColor,
   themePrimaryColor,
   themePrimaryText,
-  themeScrimColor,
   themeSecondaryText,
   themeSelectedBackground,
   themeSelectedBackgroundLight,
@@ -103,6 +102,7 @@ import {
 import { EhNavBar, EhTitleBarBackdrop } from '../components/NavigationComponents';
 import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard, galleryThumbnailAspectRatio } from './GalleryCards';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
+import { PopupScrim } from './PopupScrim';
 import { ReaderSessionScene } from './ReaderHostScene';
 import {
   RightSidePanelLayer,
@@ -634,6 +634,8 @@ export struct FavoriteCategoryDrawer {
 
 @Component
 struct DefaultFavoriteSlotDialog {
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   @Prop selectedSlot: number | null = null;
   @Prop categories: FavoriteCategoryInfo[] = [];
   @Prop panelMaxHeight: number = 680;
@@ -660,13 +662,15 @@ struct DefaultFavoriteSlotDialog {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(() => {
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: () => {
           this.onClose();
-        })
+        }
+      })
 
       Column() {
         Row() {
@@ -754,6 +758,10 @@ struct DefaultFavoriteSlotDialog {
       .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
     }
     .width('100%')
     .height('100%')
@@ -1241,6 +1249,8 @@ export struct GalleryListScene {
   @State rememberDownloadLabel: boolean = false;
   @State searchBookmarks: SearchBookmarkInfo[] = [];
   @State addBookmarkDialogVisible: boolean = false;
+  @State addBookmarkPopupWidth: number = 0;
+  @State addBookmarkPopupHeight: number = 0;
   @State showBookmarkManager: boolean = false;
   @State addBookmarkName: string = '';
   @State addBookmarkDraft: SearchBookmarkInfo = {
@@ -3415,13 +3425,15 @@ export struct GalleryListScene {
 
           if (this.addBookmarkDialogVisible) {
             Stack({ alignContent: Alignment.Center }) {
-              Column()
-                .width('100%')
-                .height('100%')
-                .backgroundColor(themeScrimColor())
-                .onClick(() => {
+              PopupScrim({
+                showCutout: this.addBookmarkPopupWidth > 0 && this.addBookmarkPopupHeight > 0,
+                cutoutWidth: this.addBookmarkPopupWidth,
+                cutoutHeight: this.addBookmarkPopupHeight,
+                cutoutRadius: uiDialogSurfaceRadius(),
+                onDismiss: () => {
                   this.addBookmarkDialogVisible = false;
-                })
+                }
+              })
 
               Column({ space: 12 }) {
                 Row() {
@@ -3503,6 +3515,10 @@ export struct GalleryListScene {
               .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
               .borderRadius(uiDialogSurfaceRadius())
               .shadow(uiDialogSurfaceShadow())
+              .onAreaChange((_oldArea: Area, newArea: Area) => {
+                this.addBookmarkPopupWidth = Number.parseFloat(newArea.width.toString());
+                this.addBookmarkPopupHeight = Number.parseFloat(newArea.height.toString());
+              })
               .onClick(() => {})
             }
               .width('100%')
@@ -3886,6 +3902,8 @@ struct ImageSearchPanel {
 
 @Component
 export struct GalleryCardActionOverlay {
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   @Prop gallery: GalleryInfo = createEmptyGallery();
   @Prop isHistory: boolean = false;
   @Prop isFavorite: boolean = false;
@@ -3935,13 +3953,15 @@ export struct GalleryCardActionOverlay {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(() => {
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: () => {
           this.onDismiss();
-        })
+        }
+      })
 
       Column({ space: 0 }) {
         Text(galleryDisplayTitle(this.gallery))
@@ -3990,6 +4010,10 @@ export struct GalleryCardActionOverlay {
       .borderRadius(uiDialogSurfaceRadius())
       .clip(true)
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
     }
     .width('100%')
     .height('100%')
@@ -4102,12 +4126,16 @@ export struct GalleryListContent {
   @State refreshing: boolean = false;
   @State refreshPullOffset: number = 0;
   @State advancedPanelVisible: boolean = false;
+  @State advancedPopupHeight: number = 0;
   @State pageJumpDraft: string = '';
   @State seekYearDraft: string = '';
   @State seekMonthDraft: string = '';
   @State seekDayDraft: string = '';
   @State jumpPanelVisible: boolean = false;
+  @State jumpPopupHeight: number = 0;
   @State imageSearchPanelVisible: boolean = false;
+  @State imageSearchPopupWidth: number = 0;
+  @State imageSearchPopupHeight: number = 0;
   @State selectedTagNamespaces: string[] = [];
   @State searchSuggestionItems: SearchSuggestionItem[] = [];
   @State searchSuggestionRevision: number = 0;
@@ -5541,13 +5569,18 @@ export struct GalleryListContent {
       .hitTestBehavior(HitTestMode.Transparent)
 
       if (this.advancedPanelVisible) {
-        Column()
-          .width('100%')
-          .height('100%')
-          .backgroundColor(themeScrimColor())
-          .onClick(() => {
+        PopupScrim({
+          showCutout: this.effectiveContentWidth() > 20 && this.advancedPopupHeight > 0,
+          positionedCutout: true,
+          cutoutX: 10,
+          cutoutY: this.statusBarVp() + this.barHeight() + 8,
+          cutoutWidth: Math.max(0, this.effectiveContentWidth() - 20),
+          cutoutHeight: this.advancedPopupHeight,
+          cutoutRadius: uiRadius(8),
+          onDismiss: () => {
             this.closeAdvancedPanel();
-          })
+          }
+        })
           .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
           .zIndex(11)
 
@@ -5576,6 +5609,9 @@ export struct GalleryListContent {
             }
           })
             .constraintSize({ maxHeight: this.advancedPanelMaxHeight() })
+            .onAreaChange((_oldArea: Area, newArea: Area) => {
+              this.advancedPopupHeight = Number.parseFloat(newArea.height.toString());
+            })
             .transition(TransitionEffect.move(TransitionEdge.TOP)
               .animation({ duration: 180, curve: Curve.EaseOut }))
         }
@@ -5588,13 +5624,15 @@ export struct GalleryListContent {
 
       if (this.imageSearchPanelVisible) {
         Stack({ alignContent: Alignment.Center }) {
-          Column()
-            .width('100%')
-            .height('100%')
-            .backgroundColor(themeScrimColor())
-            .onClick(() => {
+          PopupScrim({
+            showCutout: this.imageSearchPopupWidth > 0 && this.imageSearchPopupHeight > 0,
+            cutoutWidth: this.imageSearchPopupWidth,
+            cutoutHeight: this.imageSearchPopupHeight,
+            cutoutRadius: uiRadius(8),
+            onDismiss: () => {
               this.closeImageSearchPanel();
-            })
+            }
+          })
 
           ImageSearchPanel({
             panelWidth: this.imageSearchPanelWidth(),
@@ -5607,6 +5645,10 @@ export struct GalleryListContent {
               this.onImageSearch(path, useSimilarityScan, onlySearchCovers);
             }
           })
+          .onAreaChange((_oldArea: Area, newArea: Area) => {
+            this.imageSearchPopupWidth = Number.parseFloat(newArea.width.toString());
+            this.imageSearchPopupHeight = Number.parseFloat(newArea.height.toString());
+          })
         }
           .width('100%')
           .height('100%')
@@ -5615,13 +5657,20 @@ export struct GalleryListContent {
       }
 
       if (this.jumpPanelVisible) {
-        Column()
-          .width('100%')
-          .height('100%')
-          .backgroundColor(themeScrimColor())
-          .onClick(() => {
+        PopupScrim({
+          showCutout: this.jumpPopupHeight > 0,
+          positionedCutout: true,
+          cutoutX: this.effectiveContentWidth() > 0 ? Math.max(12,
+            this.effectiveContentWidth() - (this.useSeekJumpPanel() ? 304 : 244)) : 100,
+          cutoutY: this.viewportHeight > 0 ? Math.max(96,
+            this.viewportHeight - (this.useSeekJumpPanel() ? 310 : 210)) : 360,
+          cutoutWidth: this.useSeekJumpPanel() ? 280 : 220,
+          cutoutHeight: this.jumpPopupHeight,
+          cutoutRadius: uiRadius(8),
+          onDismiss: () => {
             this.closeJumpPanel();
-          })
+          }
+        })
           .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
           .zIndex(13)
 
@@ -5768,6 +5817,9 @@ export struct GalleryListContent {
           x: this.effectiveContentWidth() > 0 ? Math.max(12,
             this.effectiveContentWidth() - (this.useSeekJumpPanel() ? 304 : 244)) : 100,
           y: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - (this.useSeekJumpPanel() ? 310 : 210)) : 360
+        })
+        .onAreaChange((_oldArea: Area, newArea: Area) => {
+          this.jumpPopupHeight = Number.parseFloat(newArea.height.toString());
         })
         .zIndex(14)
       }

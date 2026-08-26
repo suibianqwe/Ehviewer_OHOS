@@ -83,7 +83,6 @@ import {
   themePageBackground,
   themePrimaryColor,
   themePrimaryText,
-  themeScrimColor,
   themeSecondaryText,
   themeSelectedBackground,
   themeSelectedText,
@@ -112,6 +111,7 @@ import {
   uiSearchMaterial
 } from '../shared/EhUiStyle';
 import { FloatingToolbarHost } from './NavigationComponents';
+import { PopupScrim } from './PopupScrim';
 import { GalleryListRow, GalleryThumbCard } from './GalleryCards';
 import { ActionBubble, GalleryListScene } from './GalleryScenes';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
@@ -264,6 +264,7 @@ export struct DownloadScene {
   @State searchSubmitted: boolean = true;
   @State searchBarVisible: boolean = false;
   @State advancedPanelVisible: boolean = false;
+  @State advancedPopupHeight: number = 0;
   @State searchSuggestionItems: SearchSuggestionItem[] = [];
   @State searchSuggestionRevision: number = 0;
   @State selectedTagNamespaces: string[] = [];
@@ -303,6 +304,7 @@ export struct DownloadScene {
   @State blockingBusyVisible: boolean = false;
   @State blockingBusyMessage: string = 'Loading...';
   @State downloadJumpPanelVisible: boolean = false;
+  @State downloadJumpPopupHeight: number = 0;
   @State downloadJumpDraft: string = '1';
   @State downloadJumpPageIndex: number = 0;
   @State viewportHeight: number = 0;
@@ -2162,13 +2164,18 @@ export struct DownloadScene {
         })
 
         if (this.advancedPanelVisible) {
-          Column()
-            .width('100%')
-            .height('100%')
-            .backgroundColor(themeScrimColor())
-            .onClick(() => {
+          PopupScrim({
+            showCutout: this.downloadContentWidth > 20 && this.advancedPopupHeight > 0,
+            positionedCutout: true,
+            cutoutX: 10,
+            cutoutY: this.statusBarVp() + 64,
+            cutoutWidth: Math.max(0, this.downloadContentWidth - 20),
+            cutoutHeight: this.advancedPopupHeight,
+            cutoutRadius: uiRadius(8),
+            onDismiss: () => {
               this.closeAdvancedPanel();
-            })
+            }
+          })
             .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
             .zIndex(15)
 
@@ -2217,6 +2224,9 @@ export struct DownloadScene {
               }
             })
               .constraintSize({ maxHeight: this.advancedPanelMaxHeight() })
+              .onAreaChange((_oldArea: Area, newArea: Area) => {
+                this.advancedPopupHeight = Number.parseFloat(newArea.height.toString());
+              })
               .transition(TransitionEffect.move(TransitionEdge.TOP)
                 .animation({ duration: 180, curve: Curve.EaseOut }))
           }
@@ -2325,13 +2335,18 @@ export struct DownloadScene {
         }
 
         if (this.downloadJumpPanelVisible) {
-          Column()
-            .width('100%')
-            .height('100%')
-            .backgroundColor(themeScrimColor())
-            .onClick(() => {
+          PopupScrim({
+            showCutout: this.downloadJumpPopupHeight > 0,
+            positionedCutout: true,
+            cutoutX: this.downloadContentWidth > 0 ? Math.max(12, this.downloadContentWidth - 244) : 100,
+            cutoutY: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - 210) : 360,
+            cutoutWidth: 220,
+            cutoutHeight: this.downloadJumpPopupHeight,
+            cutoutRadius: uiRadius(8),
+            onDismiss: () => {
               this.closeDownloadJumpPanel();
-            })
+            }
+          })
             .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
             .zIndex(20)
 
@@ -2389,6 +2404,9 @@ export struct DownloadScene {
           .position({
             x: this.downloadContentWidth > 0 ? Math.max(12, this.downloadContentWidth - 244) : 100,
             y: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - 210) : 360
+          })
+          .onAreaChange((_oldArea: Area, newArea: Area) => {
+            this.downloadJumpPopupHeight = Number.parseFloat(newArea.height.toString());
           })
           .zIndex(21)
         }
@@ -2711,19 +2729,23 @@ struct DownloadStatusFilterOptionRow {
 
 @Component
 struct DownloadStatusFilterOverlay {
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   @Link selectedStatuses: string[];
   onCancel: () => void = () => {};
   onApply: () => void = () => {};
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(() => {
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: () => {
           this.onCancel();
-        })
+        }
+      })
 
       Column({ space: 10 }) {
         Text(uiText('Download status'))
@@ -2795,6 +2817,10 @@ struct DownloadStatusFilterOverlay {
       .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
     }
     .width('100%')
     .height('100%')

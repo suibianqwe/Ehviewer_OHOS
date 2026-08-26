@@ -4,7 +4,6 @@ import {
   themeDangerText,
   themeOnPrimaryText,
   themePrimaryText,
-  themeScrimColor,
   themeSecondaryText,
   themeSurfaceVariant
 } from '../shared/EhTheme';
@@ -19,9 +18,12 @@ import {
   uiDialogSurfaceShadow,
   uiMaterialForegroundColor
 } from '../shared/EhUiStyle';
+import { PopupScrim } from './PopupScrim';
 
 @Component
 export struct ConfirmActionOverlay {
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
   title: string = '';
   message: string = '';
   confirmLabel: string = 'OK';
@@ -31,11 +33,13 @@ export struct ConfirmActionOverlay {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themeScrimColor())
-        .onClick(this.onCancel)
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: this.onCancel
+      })
 
       Column() {
         Text(uiText(this.title))
@@ -79,6 +83,10 @@ export struct ConfirmActionOverlay {
       .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
     }
     .width('100%')
     .height('100%')

@@ -10,6 +10,7 @@ import { ehUpdateChecker, ReleaseInfo, UpdateCheckResult } from '../services/EhU
 import { TRANSLATION_ERROR_MESSAGE_KEY, TRANSLATION_ERROR_REVISION_KEY } from '../services/EhTranslationService';
 import { EhDrawer } from '../components/NavigationComponents';
 import { UpdatePromptOverlay } from '../components/UpdatePromptOverlay';
+import { PopupScrim } from '../components/PopupScrim';
 import { applyAppChromeImmersiveMode, isEmbeddedReaderActive } from '../services/EhWindowImmersive';
 import { prepareSplitPaneRouteTransition, SPLIT_PANE_MODAL_Z_INDEX } from '../components/SplitPaneSupport';
 import { FavoriteGalleryScene, HomeGalleryScene, HotGalleryScene, SubscriptionGalleryScene } from '../components/GalleryScenes';
@@ -30,7 +31,6 @@ import {
 import {
   themePageBackground,
   themePrimaryText,
-  themeScrimColor,
   themeSecondaryText,
   themeShadowColor
 } from '../shared/EhTheme';
@@ -261,12 +261,17 @@ struct Index {
 
       // ---- Scrim + drawer ----
       if (this.drawerVisible) {
-        Column()
-          .width('100%')
-          .height('100%')
-          .backgroundColor(themeScrimColor())
-          .opacity(this.drawerOverlayOpacity)
-          .onClick(() => { this.closeDrawer(); })
+        PopupScrim({
+          showCutout: true,
+          positionedCutout: true,
+          cutoutX: this.drawerOffsetX,
+          cutoutY: 0,
+          cutoutWidth: 264,
+          cutoutHeight: '100%',
+          cutoutRadius: 0,
+          scrimOpacity: this.drawerOverlayOpacity,
+          onDismiss: () => { this.closeDrawer(); }
+        })
           .zIndex(8)
 
         EhDrawer({
