@@ -46,17 +46,34 @@ const READER_SELECT_MENU_EFFECT_MODIFIER: ReaderSelectMenuEffectModifier = new R
 
 @Component
 export struct ReaderPopupBackdrop {
+  @Prop cutoutWidth: number = 0;
+  @Prop cutoutHeight: number = 0;
+  @Prop cutoutRadius: number = 0;
   onDismiss: () => void = () => {};
 
   build() {
-    Stack() {}
-      .width('100%')
-      .height('100%')
-      .backgroundColor(themeScrimColor())
-      .onClick(() => {
-        this.onDismiss();
-      })
-      .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+    Stack({ alignContent: Alignment.Center }) {
+      Stack() {}
+        .width('100%')
+        .height('100%')
+        .backgroundColor(themeScrimColor())
+
+      if (this.cutoutWidth > 0 && this.cutoutHeight > 0) {
+        Stack() {}
+          .width(this.cutoutWidth)
+          .height(this.cutoutHeight)
+          .backgroundColor(Color.Black)
+          .borderRadius(this.cutoutRadius)
+          .blendMode(BlendMode.DST_OUT)
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .blendMode(BlendMode.SRC_OVER, BlendApplyType.OFFSCREEN)
+    .onClick(() => {
+      this.onDismiss();
+    })
+    .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
   }
 }
 
