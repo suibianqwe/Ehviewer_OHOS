@@ -84,7 +84,7 @@ import {
 import { ArrayDataSource } from '../shared/ListDataSource';
 import {
   isHarmonyUiStyle,
-  uiTransparentButtonBackgroundEffect,
+  uiFloatingButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor
 } from '../shared/EhUiStyle';
@@ -3771,15 +3771,33 @@ export struct ReaderScene {
       }
       if (this.comicTranslationButtonVisible) {
         Button({ type: ButtonType.Circle }) {
-          SymbolGlyph($r('sys.symbol.translate'))
-            .fontSize(25)
-            .fontColor([uiMaterialForegroundColor(Color.White)])
+          Stack({ alignContent: Alignment.Center }) {
+            SymbolGlyph($r('sys.symbol.translate'))
+              .fontSize(25)
+              .fontColor([uiMaterialForegroundColor(Color.White)])
+            if (this.comicTranslationActive) {
+              SymbolGlyph($r('sys.symbol.checkmark'))
+                .fontSize(10)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(['#167A9A'])
+                .width(16)
+                .height(16)
+                .backgroundColor(Color.White)
+                .borderRadius(8)
+                .position({ x: 34, y: 34 })
+                .transition(TransitionEffect.OPACITY
+                  .combine(TransitionEffect.scale({ x: 0.72, y: 0.72 }))
+                  .animation({ duration: 160, curve: Curve.EaseOut }))
+            }
+          }
+          .width(READER_TRANSLATION_BUTTON_SIZE)
+          .height(READER_TRANSLATION_BUTTON_SIZE)
         }
         .width(READER_TRANSLATION_BUTTON_SIZE)
         .height(READER_TRANSLATION_BUTTON_SIZE)
         .backgroundColor(uiMaterialBackground(this.comicTranslationActive ? '#167A9A' : '#34454D'))
-        .backgroundEffect(uiTransparentButtonBackgroundEffect())
-        .opacity(0.46)
+        .backgroundEffect(uiFloatingButtonBackgroundEffect(this.comicTranslationActive ? '#167A9A' : '#34454D'))
+        .opacity(this.comicTranslationActive ? 0.92 : 0.48)
         .shadow({ radius: 8, color: 'rgba(0,0,0,0.28)', offsetX: 0, offsetY: 2 })
         .position({ x: this.comicTranslationButtonX, y: this.comicTranslationButtonY })
         .accessibilityText(uiText('Comic translation'))

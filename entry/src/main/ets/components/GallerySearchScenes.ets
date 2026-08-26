@@ -1314,21 +1314,39 @@ export struct ActionBubble {
 
   @Builder
   private buttonBubble() {
-    Column() {
+    Stack({ alignContent: Alignment.Center }) {
       SymbolGlyph(this.symbolIcon)
         .fontSize(this.primary ? 26 : 20)
         .fontColor([this.isEnabled ? floatingActionForeground() : themeInactiveActionText()])
+      if (this.checked && this.isEnabled) {
+        SymbolGlyph($r('sys.symbol.checkmark'))
+          .fontSize(this.primary ? 10 : 9)
+          .fontWeight(FontWeight.Bold)
+          .fontColor([themePrimaryColor()])
+          .width(this.primary ? 16 : 14)
+          .height(this.primary ? 16 : 14)
+          .backgroundColor(themeOnPrimaryText())
+          .borderRadius(this.primary ? 8 : 7)
+          .position({
+            x: this.primary ? 35 : 28,
+            y: this.primary ? 35 : 28
+          })
+          .transition(TransitionEffect.OPACITY
+            .combine(TransitionEffect.scale({ x: 0.72, y: 0.72 }))
+            .animation({ duration: 160, curve: Curve.EaseOut }))
+      }
     }
     .width(this.buttonSize())
     .height(this.buttonSize())
-    .justifyContent(FlexAlign.Center)
-    .alignItems(HorizontalAlign.Center)
     .borderRadius(uiRadius(this.primary ? 27 : 22))
     .backgroundColor(floatingActionBackground(this.isEnabled ?
       (this.primary || this.checked ? themePrimaryColor() : themeControlNeutralBackground()) :
       themeControlMutedBackground()))
     .backgroundEffect(uiFloatingButtonBackgroundEffect(this.primary || this.checked ? themePrimaryColor() : ''))
-    .border({ width: 1, color: uiButtonHighlightBorderColor() })
+    .border({
+      width: this.checked ? 2 : 1,
+      color: this.checked ? themeOnPrimaryText() : uiButtonHighlightBorderColor()
+    })
     .scale({ x: this.active ? 0.92 : 1, y: this.active ? 0.92 : 1 })
     .animation({ duration: 120, curve: Curve.EaseOut })
     .onClick(() => {
