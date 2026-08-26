@@ -4540,6 +4540,11 @@ export struct GalleryListContent {
     return this.visibleBarHeight() > 0;
   }
 
+  private isInitialLoadingState(): boolean {
+    return this.galleries.length === 0 && !this.shouldShowSearchSuggestions() &&
+      this.statusText.toLowerCase().indexOf('loading') >= 0;
+  }
+
   private titleBarBackdropHeight(): number {
     const fadeHeight = uiTitleBarFadeHeight();
     const minimumHeight = this.statusBarVp() + fadeHeight;
@@ -5246,7 +5251,9 @@ export struct GalleryListContent {
     }
     .scrollBar(BarState.Auto)
     .lanes(this.galleryListLanes(), this.galleryCardGap())
-    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
+    .enableScrollInteraction(!this.isInitialLoadingState())
+    .edgeEffect(this.isInitialLoadingState() ? EdgeEffect.None : EdgeEffect.Spring,
+      { alwaysEnabled: !this.isInitialLoadingState(), effectEdge: EffectEdge.START | EffectEdge.END })
     .cachedCount(10)
     .padding({
       left: this.galleries.length > 0 ? this.galleryContentPadding() : 0,
@@ -5346,7 +5353,7 @@ export struct GalleryListContent {
           }
         }
         .refreshOffset(this.REFRESH_OFFSET)
-        .pullToRefresh(true)
+        .pullToRefresh(!this.isInitialLoadingState())
         .onOffsetChange((offset: number) => {
           this.refreshPullOffset = Math.max(0, offset);
         })

@@ -2080,6 +2080,7 @@ export struct DownloadScene {
         searchShowsAdvancedButton: true,
         toolbarOffsetY: this.toolbarOffsetY,
         toolbarHeight: uiAdaptiveToolbarHeight(this.downloadContentWidth),
+        retainCollapsedBackdrop: true,
             onMenu: () => {
               if (this.searchBarVisible) {
                 this.closeDownloadSearchBar();

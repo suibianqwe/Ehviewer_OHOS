@@ -1001,6 +1001,7 @@ export struct FloatingToolbarHost {
   @Prop showFavoriteButton: boolean = false;
   @Prop toolbarOffsetY: number = 0;
   @Prop toolbarHeight: number = 62;
+  @Prop retainCollapsedBackdrop: boolean = false;
   @BuilderParam content: () => void = this.EmptyContent;
   onKeywordChange: (value: string) => void = () => {};
   onMenu: () => void = () => {};
@@ -1025,34 +1026,44 @@ export struct FloatingToolbarHost {
   @Builder
   private EmptyContent() {}
 
+  @Builder
+  private navigationBar(translateY: number) {
+    EhNavBar({
+      statusBarHeight: this.statusBarVp(),
+      title: this.title,
+      searchMode: this.kind === 'search',
+      keyword: this.keyword,
+      searchPlaceholder: this.searchPlaceholder,
+      filterActive: this.filterActive,
+      showClear: this.showClear,
+      canClear: this.canClear,
+      showSearchButton: this.showSearchButton,
+      showRefreshButton: this.showRefreshButton,
+      showBackButton: this.showBackButton,
+      searchShowsAdvancedButton: this.searchShowsAdvancedButton,
+      showFavoriteButton: this.showFavoriteButton,
+      translateY: translateY,
+      onKeywordChange: this.onKeywordChange,
+      onSearchFocus: this.onSearchFocus,
+      onAdvanced: this.onAdvanced,
+      onFavoriteButton: this.onFavoriteButton,
+      onMenu: this.onMenu,
+      onBack: this.onBack,
+      onSearch: this.onSearch,
+      onRefresh: this.onRefresh,
+      onClear: this.onClear
+    })
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       this.content()
-      FloatingToolbar({ offsetY: this.toolbarOffsetY, barHeight: this.totalToolbarHeight() }) {
-        EhNavBar({
-          statusBarHeight: this.statusBarVp(),
-          title: this.title,
-          searchMode: this.kind === 'search',
-          keyword: this.keyword,
-          searchPlaceholder: this.searchPlaceholder,
-          filterActive: this.filterActive,
-          showClear: this.showClear,
-          canClear: this.canClear,
-          showSearchButton: this.showSearchButton,
-          showRefreshButton: this.showRefreshButton,
-          showBackButton: this.showBackButton,
-          searchShowsAdvancedButton: this.searchShowsAdvancedButton,
-          showFavoriteButton: this.showFavoriteButton,
-          onKeywordChange: this.onKeywordChange,
-          onSearchFocus: this.onSearchFocus,
-          onAdvanced: this.onAdvanced,
-          onFavoriteButton: this.onFavoriteButton,
-          onMenu: this.onMenu,
-          onBack: this.onBack,
-          onSearch: this.onSearch,
-          onRefresh: this.onRefresh,
-          onClear: this.onClear
-        })
+      if (this.retainCollapsedBackdrop) {
+        this.navigationBar(this.toolbarOffsetY)
+      } else {
+        FloatingToolbar({ offsetY: this.toolbarOffsetY, barHeight: this.totalToolbarHeight() }) {
+          this.navigationBar(0)
+        }
       }
     }
     .width('100%')
