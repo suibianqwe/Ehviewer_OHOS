@@ -3819,8 +3819,6 @@ export struct ReaderScene {
           SymbolGlyph($r('sys.symbol.translate'))
             .fontSize(25)
             .fontColor([uiMaterialForegroundColor(Color.White)])
-          .width(READER_TRANSLATION_BUTTON_SIZE)
-          .height(READER_TRANSLATION_BUTTON_SIZE)
         }
         .width(READER_TRANSLATION_BUTTON_SIZE)
         .height(READER_TRANSLATION_BUTTON_SIZE)
