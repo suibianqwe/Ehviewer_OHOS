@@ -1,7 +1,9 @@
 import { common } from '@kit.AbilityKit';
 import { GalleryRoute } from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
+import { ehDailyCheckInService, EhDailyCheckInResult } from '../services/EhDailyCheckInService';
 import { ehDownloadStore } from '../services/EhDownloadStore';
+import { ehAppLog } from '../services/EhAppLog';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
@@ -9,6 +11,7 @@ import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
 import { ehUpdateChecker, ReleaseInfo, UpdateCheckResult } from '../services/EhUpdateChecker';
 import { TRANSLATION_ERROR_MESSAGE_KEY, TRANSLATION_ERROR_REVISION_KEY } from '../services/EhTranslationService';
 import { EhDrawer } from '../components/NavigationComponents';
+import { ConfirmActionOverlay } from '../components/ConfirmActionOverlay';
 import { UpdatePromptOverlay } from '../components/UpdatePromptOverlay';
 import { PopupScrim } from '../components/PopupScrim';
 import { applyAppChromeImmersiveMode, isEmbeddedReaderActive } from '../services/EhWindowImmersive';
@@ -62,11 +65,14 @@ struct Index {
   @State updateDialogVisible: boolean = false;
   @State updateCurrentVersion: string = '';
   @State updateRelease: ReleaseInfo | null = null;
+  @State dailyCheckInDialogVisible: boolean = false;
+  @State dailyCheckInMessage: string = '';
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeight: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
   @StorageProp(IDENTITY_AUTH_LOCKED_KEY) identityAuthLocked: boolean = false;
   @StorageProp(TRANSLATION_ERROR_REVISION_KEY) @Watch('onTranslationErrorRevision') translationErrorRevision: number = 0;
+  private dailyCheckInRequested: boolean = false;
 
   onTranslationErrorRevision(): void {
     const message = AppStorage.get<string>(TRANSLATION_ERROR_MESSAGE_KEY);
@@ -169,9 +175,34 @@ struct Index {
   private loadSessionRoute(ctx: common.UIAbilityContext): void {
     ehCookieStore.ensureLoaded(ctx).then(() => {
       this.applyInitialRoute();
+      this.checkInOnStartup();
     }).catch(() => {
       this.applyInitialRoute();
+      this.checkInOnStartup();
     });
+  }
+
+  private checkInOnStartup(): void {
+    if (this.dailyCheckInRequested || !ehCookieStore.hasCookies() ||
+      ehSettingsStore.getValue('show_eh_events', 'On') !== 'On') {
+      return;
+    }
+    this.dailyCheckInRequested = true;
+    ehDailyCheckInService.check().then((result: EhDailyCheckInResult) => {
+      if (!result.ok) {
+        ehAppLog.warn(getAbilityContext(), 'DailyCheckIn', 'Automatic check-in failed: ' + result.message);
+        return;
+      }
+      if (result.event !== null) {
+        this.dailyCheckInMessage = result.event.message;
+        this.dailyCheckInDialogVisible = true;
+      }
+    }).catch(() => {});
+  }
+
+  private handleSignedIn(): void {
+    this.setRootRoute(this.routeAfterSignIn());
+    this.checkInOnStartup();
   }
 
   private restoreRootRoute(): void {
@@ -303,6 +334,20 @@ struct Index {
           .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
       }
 
+      if (this.dailyCheckInDialogVisible) {
+        ConfirmActionOverlay({
+          title: 'Daily check-in',
+          message: this.dailyCheckInMessage,
+          confirmLabel: 'OK',
+          danger: false,
+          showCancel: false,
+          onCancel: () => { this.dailyCheckInDialogVisible = false; },
+          onConfirm: () => { this.dailyCheckInDialogVisible = false; }
+        })
+          .zIndex(SPLIT_PANE_MODAL_Z_INDEX + 1)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
+      }
+
       if (this.identityAuthLocked) {
         Column() {
           Text(uiText('Identity authentication required'))
@@ -360,7 +405,7 @@ struct Index {
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.Session) {
       SessionScene({
-        onSignedIn: () => { this.setRootRoute(this.routeAfterSignIn()); }
+        onSignedIn: () => { this.handleSignedIn(); }
       })
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.Migration) {
@@ -370,7 +415,7 @@ struct Index {
       SettingsScene({
         resetVersion: this.routeResetVersion,
         onMenu: () => { this.openDrawer(); },
-        onSignedIn: () => { this.setRootRoute(this.routeAfterSignIn()); }
+        onSignedIn: () => { this.handleSignedIn(); }
       })
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     }

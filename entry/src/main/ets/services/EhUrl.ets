@@ -52,6 +52,11 @@ export class EhUrl {
     return EhUrl.HOST_E + 'home.php';
   }
 
+  static getNewsUrl(): string {
+    // Daily account events are granted by the E-Hentai news page for both gallery sites.
+    return EhUrl.HOST_E + 'news.php';
+  }
+
   static getFavoritesUrl(site: GallerySite = GallerySite.E): string {
     return EhUrl.getHost(site) + 'favorites.php';
   }

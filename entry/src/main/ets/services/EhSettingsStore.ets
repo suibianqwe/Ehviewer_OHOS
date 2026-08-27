@@ -61,6 +61,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'show_tag_translations', value: 'On' },
     { key: 'split_screen_mode', value: 'On' },
     { key: 'split_screen_ratio', value: '0.42' },
+    { key: 'show_eh_events', value: 'On' },
     { key: 'show_eh_limits', value: 'On' },
     { key: 'translation_buttons_enabled', value: 'On' },
     { key: FLOATING_ACTION_SIDE_SETTING_KEY, value: 'Right' },

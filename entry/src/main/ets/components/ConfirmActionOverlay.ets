@@ -3,6 +3,7 @@ import {
   themeDangerBackground,
   themeDangerText,
   themeOnPrimaryText,
+  themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
   themeSurfaceVariant
@@ -28,6 +29,7 @@ export struct ConfirmActionOverlay {
   message: string = '';
   confirmLabel: string = 'OK';
   danger: boolean = true;
+  showCancel: boolean = true;
   onCancel: () => void = () => {};
   onConfirm: () => void = () => {};
 
@@ -55,18 +57,20 @@ export struct ConfirmActionOverlay {
           .margin({ top: 10 })
 
         Row({ space: 8 }) {
-          Button(uiText('Cancel'), { type: ButtonType.Normal, stateEffect: true })
-            .fontSize(14)
-            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-            .backgroundColor(themeSurfaceVariant())
-            .backgroundEffect(uiTransparentButtonBackgroundEffect())
-            .borderRadius(uiControlRadius(6))
-            .layoutWeight(1)
-            .onClick(this.onCancel)
+          if (this.showCancel) {
+            Button(uiText('Cancel'), { type: ButtonType.Normal, stateEffect: true })
+              .fontSize(14)
+              .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+              .backgroundColor(themeSurfaceVariant())
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
+              .borderRadius(uiControlRadius(6))
+              .layoutWeight(1)
+              .onClick(this.onCancel)
+          }
           Button(uiText(this.confirmLabel), { type: ButtonType.Normal, stateEffect: true })
             .fontSize(14)
             .fontColor(this.danger ? themeDangerText() : uiMaterialForegroundColor(themeOnPrimaryText()))
-            .backgroundColor(this.danger ? themeDangerBackground() : themeSurfaceVariant())
+            .backgroundColor(this.danger ? themeDangerBackground() : themePrimaryColor())
             .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .borderRadius(uiControlRadius(6))
             .layoutWeight(1)

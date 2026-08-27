@@ -1559,6 +1559,9 @@ export function zhText(text: string): string {
     case 'Choose Dark or Black when the system enters dark mode': return '系统进入深色模式时使用暗色或黑色主题';
     case 'Keyword/gallery filtering rules': return '关键字/画廊过滤规则';
     case 'Hide matching galleries': return '隐藏匹配的画廊';
+    case 'Automatic check-in': return '自动签到';
+    case 'Visit E-Hentai on app startup to claim the daily account reward': return '应用启动时访问 E-Hentai，领取每日账号奖励';
+    case 'Daily check-in': return '每日签到';
     case 'Show EH limits': return '显示 EH 限制';
     case 'Display account and image limits in the drawer': return '在抽屉中显示账号和图片限制';
     case 'Loading EH limits': return '正在加载 EH 配额';
@@ -3210,6 +3213,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       staticSettingsRow('filter', 'Filter', 'Keyword/gallery filtering rules', '', 'navigation'),
       staticSettingsRow('comment_blacklist', 'Comment blacklist',
         'Block comments from selected user names', '', 'navigation'),
+      optionSettingsRow('show_eh_events', 'Automatic check-in',
+        'Visit E-Hentai on app startup to claim the daily account reward', entries, ON_OFF_OPTIONS),
       optionSettingsRow('show_eh_limits', 'Show EH limits', 'Display account and image limits in the drawer', entries, ON_OFF_OPTIONS),
       optionSettingsRow('cellular_network_warning', 'Cellular network warning', 'Warn before network-heavy operations on mobile data', entries, ON_OFF_OPTIONS)
     );
