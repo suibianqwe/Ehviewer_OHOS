@@ -1326,8 +1326,8 @@ export struct ActionBubble {
     .backgroundColor(floatingActionBackground(this.isEnabled ?
       (this.primary || this.checked ? themePrimaryColor() : themeControlNeutralBackground()) :
       themeControlMutedBackground()))
-    .systemMaterial(uiTintedButtonMaterial(this.primary || this.checked ?
-      themePrimaryColor() : themeControlNeutralBackground()))
+    .systemMaterial(this.primary || this.checked ?
+      uiTintedButtonMaterial(themePrimaryColor()) : uiButtonMaterial())
     .border({
       width: this.checked ? 2 : 1,
       color: this.checked ? themeOnPrimaryText() : uiButtonHighlightBorderColor()

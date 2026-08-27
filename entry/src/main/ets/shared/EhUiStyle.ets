@@ -90,7 +90,7 @@ export function uiButtonMaterial(): uiMaterial.Material | undefined {
     return cached;
   }
   const material = new uiMaterial.ImmersiveMaterial({
-    style: uiMaterial.ImmersiveStyle.ULTRA_THICK,
+    style: uiMaterial.ImmersiveStyle.THIN,
     materialColor: Color.Transparent,
     applyShadow: true,
     interactive: true,
