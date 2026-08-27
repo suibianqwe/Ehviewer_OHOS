@@ -183,21 +183,50 @@ struct Index {
   }
 
   private checkInOnStartup(): void {
-    if (this.dailyCheckInRequested || !ehCookieStore.hasCookies() ||
-      ehSettingsStore.getValue('show_eh_events', 'On') !== 'On') {
+    if (this.dailyCheckInRequested) {
+      return;
+    }
+    if (!ehCookieStore.hasCookies()) {
+      this.logDailyCheckInInfo('Skipped: no login session');
+      return;
+    }
+    if (ehSettingsStore.getValue('show_eh_events', 'On') !== 'On') {
+      this.logDailyCheckInInfo('Skipped: automatic check-in is disabled');
       return;
     }
     this.dailyCheckInRequested = true;
+    const startedAt = Date.now();
+    this.logDailyCheckInInfo('Request started');
     ehDailyCheckInService.check().then((result: EhDailyCheckInResult) => {
+      const elapsedMs = Date.now() - startedAt;
       if (!result.ok) {
-        ehAppLog.warn(getAbilityContext(), 'DailyCheckIn', 'Automatic check-in failed: ' + result.message);
+        this.logDailyCheckInWarn('Request failed, status=' + result.statusCode.toString() +
+          ', elapsedMs=' + elapsedMs.toString() + ', message=' + result.message);
         return;
       }
       if (result.event !== null) {
+        this.logDailyCheckInInfo('Request succeeded, status=' + result.statusCode.toString() +
+          ', elapsedMs=' + elapsedMs.toString() + ', dailyEvent=present');
         this.dailyCheckInMessage = result.event.message;
         this.dailyCheckInDialogVisible = true;
+      } else {
+        this.logDailyCheckInInfo('Request succeeded, status=' + result.statusCode.toString() +
+          ', elapsedMs=' + elapsedMs.toString() + ', dailyEvent=absent (already claimed or no daily event)');
       }
-    }).catch(() => {});
+    }).catch((error: Error) => {
+      this.logDailyCheckInWarn('Request rejected, elapsedMs=' + (Date.now() - startedAt).toString() +
+        ', message=' + error.message);
+    });
+  }
+
+  private logDailyCheckInInfo(message: string): void {
+    console.info('DailyCheckIn: ' + message);
+    ehAppLog.info(getAbilityContext(), 'DailyCheckIn', message);
+  }
+
+  private logDailyCheckInWarn(message: string): void {
+    console.warn('DailyCheckIn: ' + message);
+    ehAppLog.warn(getAbilityContext(), 'DailyCheckIn', message);
   }
 
   private handleSignedIn(): void {
