@@ -321,6 +321,15 @@ class ReaderSuperResolutionService {
     };
   }
 
+  private async detachCoreVisionResult(outputPixelMap: image.PixelMap,
+    plan: ReaderSuperResolutionPlan): Promise<image.PixelMap> {
+    const outputInfo = outputPixelMap.getImageInfoSync();
+    if (outputInfo.size.width === plan.width && outputInfo.size.height === plan.height) {
+      return readerHdr.createCompatibleSdrPixelMap(outputPixelMap);
+    }
+    return readerHdr.createScaledCompatibleSdrPixelMap(outputPixelMap, plan.width, plan.height);
+  }
+
   private async runCoreVisionEnhancement(source: image.ImageSource, sourceWidth: number, sourceHeight: number,
     plan: ReaderSuperResolutionPlan, entry: ReaderSuperResolutionEntry): Promise<image.PixelMap | undefined> {
     const aspectRatio = Math.max(sourceWidth / Math.max(1, sourceHeight),
@@ -367,14 +376,10 @@ class ReaderSuperResolutionService {
       if (outputInfo.size.width <= 0 || outputInfo.size.height <= 0) {
         return undefined;
       }
-      if (outputInfo.size.width !== plan.width || outputInfo.size.height !== plan.height) {
-        await outputPixelMap.scale(plan.width / outputInfo.size.width,
-          plan.height / outputInfo.size.height, image.AntiAliasingLevel.HIGH);
-      }
       // Core Vision returns a PixelMap backed by the remote AI service. The backing buffer can be
       // reused by the next queued request, so keeping it in the reader cache may turn an earlier
-      // page black. Copy the scaled result into an app-owned DMA PixelMap before caching it.
-      const result = readerHdr.createCompatibleSdrPixelMap(outputPixelMap);
+      // page black. Create an independent scaled result, then copy it into an app-owned DMA PixelMap.
+      const result = await this.detachCoreVisionResult(outputPixelMap, plan);
       hilog.info(DOMAIN, TAG,
         `Core Vision AI super-resolution succeeded: input=${inputSize.width}x${inputSize.height}, ` +
         `output=${plan.width}x${plan.height}`);
@@ -430,12 +435,8 @@ class ReaderSuperResolutionService {
       if (outputInfo.size.width <= 0 || outputInfo.size.height <= 0) {
         return undefined;
       }
-      if (outputInfo.size.width !== plan.width || outputInfo.size.height !== plan.height) {
-        await outputPixelMap.scale(plan.width / outputInfo.size.width,
-          plan.height / outputInfo.size.height, image.AntiAliasingLevel.HIGH);
-      }
       // Detach the cached result from Core Vision's reusable remote backing buffer.
-      const result = readerHdr.createCompatibleSdrPixelMap(outputPixelMap);
+      const result = await this.detachCoreVisionResult(outputPixelMap, plan);
       hilog.info(DOMAIN, TAG,
         `Core Vision AI super-resolution succeeded: input=${inputSize.width}x${inputSize.height}, ` +
         `output=${plan.width}x${plan.height}`);

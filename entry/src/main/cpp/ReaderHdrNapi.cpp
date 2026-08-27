@@ -743,6 +743,91 @@ napi_value CreateCompatibleSdrPixelMap(napi_env env, napi_callback_info info)
     return destination;
 }
 
+napi_value CreateScaledCompatibleSdrPixelMap(napi_env env, napi_callback_info info)
+{
+    size_t argc = 3;
+    napi_value argv[3] = { nullptr, nullptr, nullptr };
+    uint32_t targetWidth = 0;
+    uint32_t targetHeight = 0;
+    if (napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) != napi_ok || argc < 3 || argv[0] == nullptr ||
+        napi_get_value_uint32(env, argv[1], &targetWidth) != napi_ok ||
+        napi_get_value_uint32(env, argv[2], &targetHeight) != napi_ok ||
+        targetWidth < 32 || targetHeight < 32) {
+        napi_throw_type_error(env, nullptr, "source PixelMap and valid target size are required");
+        return nullptr;
+    }
+
+    NativePixelMap *source = OH_PixelMap_InitNativePixelMap(env, argv[0]);
+    OhosPixelMapInfos sourceInfo {};
+    void *sourcePixels = nullptr;
+    if (source == nullptr || OH_PixelMap_GetImageInfo(source, &sourceInfo) != IMAGE_RESULT_SUCCESS ||
+        sourceInfo.width < 32 || sourceInfo.height < 32 || sourceInfo.pixelFormat != PIXEL_FORMAT_RGBA_8888 ||
+        sourceInfo.rowSize < sourceInfo.width * 4 || OH_PixelMap_AccessPixels(source, &sourcePixels) != IMAGE_RESULT_SUCCESS ||
+        sourcePixels == nullptr) {
+        napi_throw_error(env, nullptr, "failed to access SDR PixelMap");
+        return nullptr;
+    }
+    PixelMapAccessGuard sourceGuard(source);
+
+    const uint32_t targetRowStride = targetWidth * 4;
+    std::vector<uint8_t> targetPixels(static_cast<size_t>(targetRowStride) * targetHeight);
+    const auto *sourceBytes = static_cast<const uint8_t *>(sourcePixels);
+    const double scaleX = static_cast<double>(sourceInfo.width) / static_cast<double>(targetWidth);
+    const double scaleY = static_cast<double>(sourceInfo.height) / static_cast<double>(targetHeight);
+    for (uint32_t y = 0; y < targetHeight; ++y) {
+        const double sourceY = std::max(0.0, (static_cast<double>(y) + 0.5) * scaleY - 0.5);
+        const uint32_t y0 = std::min(sourceInfo.height - 1, static_cast<uint32_t>(sourceY));
+        const uint32_t y1 = std::min(sourceInfo.height - 1, y0 + 1);
+        const double fy = sourceY - static_cast<double>(y0);
+        const auto *sourceRow0 = sourceBytes + static_cast<size_t>(y0) * sourceInfo.rowSize;
+        const auto *sourceRow1 = sourceBytes + static_cast<size_t>(y1) * sourceInfo.rowSize;
+        auto *targetRow = targetPixels.data() + static_cast<size_t>(y) * targetRowStride;
+        for (uint32_t x = 0; x < targetWidth; ++x) {
+            const double sourceX = std::max(0.0, (static_cast<double>(x) + 0.5) * scaleX - 0.5);
+            const uint32_t x0 = std::min(sourceInfo.width - 1, static_cast<uint32_t>(sourceX));
+            const uint32_t x1 = std::min(sourceInfo.width - 1, x0 + 1);
+            const double fx = sourceX - static_cast<double>(x0);
+            const auto *pixel00 = sourceRow0 + static_cast<size_t>(x0) * 4;
+            const auto *pixel01 = sourceRow0 + static_cast<size_t>(x1) * 4;
+            const auto *pixel10 = sourceRow1 + static_cast<size_t>(x0) * 4;
+            const auto *pixel11 = sourceRow1 + static_cast<size_t>(x1) * 4;
+            auto *targetPixel = targetRow + static_cast<size_t>(x) * 4;
+            for (uint32_t channel = 0; channel < 4; ++channel) {
+                const double top = pixel00[channel] + (pixel01[channel] - pixel00[channel]) * fx;
+                const double bottom = pixel10[channel] + (pixel11[channel] - pixel10[channel]) * fx;
+                targetPixel[channel] = static_cast<uint8_t>(std::round(top + (bottom - top) * fy));
+            }
+        }
+    }
+
+    OH_Pixelmap_InitializationOptions *options = nullptr;
+    OH_PixelmapNative *nativeDestination = nullptr;
+    Image_ErrorCode result = OH_PixelmapInitializationOptions_Create(&options);
+    if (result == IMAGE_SUCCESS && ConfigurePixelMapOptions(options, targetWidth, targetHeight,
+        PIXEL_FORMAT_RGBA_8888, static_cast<int32_t>(targetRowStride), false)) {
+        result = OH_PixelmapNative_CreatePixelmapUsingAllocator(targetPixels.data(), targetPixels.size(), options,
+            IMAGE_ALLOCATOR_MODE_DMA, &nativeDestination);
+    } else if (result == IMAGE_SUCCESS) {
+        result = IMAGE_BAD_PARAMETER;
+    }
+    if (options != nullptr) {
+        OH_PixelmapInitializationOptions_Release(options);
+    }
+    napi_value destination = nullptr;
+    if (result == IMAGE_SUCCESS && nativeDestination != nullptr) {
+        destination = ConvertNativePixelMapToNapi(env, nativeDestination, "scaled SDR input");
+    }
+    if (nativeDestination != nullptr) {
+        OH_PixelmapNative_Release(nativeDestination);
+    }
+    if (result != IMAGE_SUCCESS || destination == nullptr) {
+        OH_LOG_ERROR(LOG_APP, "Create scaled compatible SDR PixelMap failed: %{public}d", result);
+        napi_throw_error(env, nullptr, "failed to create scaled compatible SDR PixelMap");
+        return nullptr;
+    }
+    return destination;
+}
+
 napi_value CreateDmaHdrPixelMap(napi_env env, napi_callback_info info)
 {
     size_t argc = 2;
@@ -836,6 +921,8 @@ napi_value Init(napi_env env, napi_value exports)
     napi_property_descriptor descriptors[] = {
         { "isSdrToHdrSupported", nullptr, IsSupported, nullptr, nullptr, nullptr, napi_default, nullptr },
         { "createCompatibleSdrPixelMap", nullptr, CreateCompatibleSdrPixelMap, nullptr, nullptr, nullptr,
+            napi_default, nullptr },
+        { "createScaledCompatibleSdrPixelMap", nullptr, CreateScaledCompatibleSdrPixelMap, nullptr, nullptr, nullptr,
             napi_default, nullptr },
         { "createDmaHdrPixelMap", nullptr, CreateDmaHdrPixelMap, nullptr, nullptr, nullptr, napi_default, nullptr },
         { "convertSdrToHdr", nullptr, ConvertSdrToHdr, nullptr, nullptr, nullptr, napi_default, nullptr },

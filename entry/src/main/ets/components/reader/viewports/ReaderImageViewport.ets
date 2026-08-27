@@ -94,6 +94,7 @@ export struct ReaderImageViewport {
   @State hdrPixelMap: image.PixelMap | undefined = undefined;
   @State hdrFromSuperResolution: boolean = false;
   @State superResolutionPixelMap: image.PixelMap | undefined = undefined;
+  @State processedImageVersion: number = 0;
   @State adjustedPixelMap: image.PixelMap | undefined = undefined;
   @State cropRect: ReaderCropRect = new ReaderCropRect();
   private lastCommandVersion: number = -1;
@@ -177,7 +178,7 @@ export struct ReaderImageViewport {
       (this.superResolutionPixelMap !== undefined ? 'sr-' :
         (this.adjustedPixelMap !== undefined ? 'adjusted-' : 'sdr-'));
     return 'reader-image-' + this.imageRetryVersion.toString() + '-' +
-      processingMode + sourceKey;
+      this.processedImageVersion.toString() + '-' + processingMode + sourceKey;
   }
 
   private displayPixelMap(): image.PixelMap | undefined {
@@ -452,6 +453,7 @@ export struct ReaderImageViewport {
         }
         this.superResolutionCompleted = true;
         this.superResolutionPixelMap = pixelMap;
+        this.processedImageVersion++;
         this.loadHdrPixelMap();
       }).catch(() => {
         if (requestId === this.superResolutionRequestId && key === this.retainedSuperResolutionKey &&
@@ -465,7 +467,11 @@ export struct ReaderImageViewport {
   private releaseSuperResolutionPixelMap(): void {
     this.superResolutionRequestId++;
     this.superResolutionCompleted = false;
+    const hadPixelMap = this.superResolutionPixelMap !== undefined;
     this.superResolutionPixelMap = undefined;
+    if (hadPixelMap) {
+      this.processedImageVersion++;
+    }
     if (this.retainedSuperResolutionKey.length > 0) {
       readerSuperResolutionService.release(this.retainedSuperResolutionKey);
       this.retainedSuperResolutionKey = '';

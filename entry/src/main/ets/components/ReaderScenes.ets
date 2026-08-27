@@ -276,6 +276,7 @@ export struct ReaderScene {
   @State continuousOffsetX: number = 0;
   @State viewportCommand: string = '';
   @State viewportCommandVersion: number = 0;
+  @State readerPageImageSizeRevision: number = 0;
   @State pairedImageModel: ReaderPreviewModel = new ReaderPreviewModel();
   @State comicTranslationButtonX: number = 0;
   @State comicTranslationButtonY: number = 160;
@@ -987,11 +988,13 @@ export struct ReaderScene {
         }
         this.readerPageImageSizes[i].width = width;
         this.readerPageImageSizes[i].height = height;
+        this.readerPageImageSizeRevision++;
         this.schedulePageGroupRefresh();
         return;
       }
     }
     this.readerPageImageSizes.push({ index: index, width: width, height: height });
+    this.readerPageImageSizeRevision++;
     this.schedulePageGroupRefresh();
   }
 
@@ -1165,6 +1168,9 @@ export struct ReaderScene {
   }
 
   private superResolutionDisplayTarget(index: number): ReaderSuperResolutionDisplayTarget {
+    // The size cache itself is intentionally kept outside ArkUI observation. Reading this revision
+    // makes the computed child props refresh as soon as the first decoded image reports its size.
+    this.readerPageImageSizeRevision;
     const empty: ReaderSuperResolutionDisplayTarget = { width: 0, height: 0 };
     if (this.readerLayoutWidth <= 0 || this.readerLayoutHeight <= 0) {
       return empty;
