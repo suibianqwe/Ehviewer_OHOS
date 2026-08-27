@@ -371,8 +371,10 @@ class ReaderSuperResolutionService {
         await outputPixelMap.scale(plan.width / outputInfo.size.width,
           plan.height / outputInfo.size.height, image.AntiAliasingLevel.HIGH);
       }
-      const result = outputPixelMap;
-      outputPixelMap = undefined;
+      // Core Vision returns a PixelMap backed by the remote AI service. The backing buffer can be
+      // reused by the next queued request, so keeping it in the reader cache may turn an earlier
+      // page black. Copy the scaled result into an app-owned DMA PixelMap before caching it.
+      const result = readerHdr.createCompatibleSdrPixelMap(outputPixelMap);
       hilog.info(DOMAIN, TAG,
         `Core Vision AI super-resolution succeeded: input=${inputSize.width}x${inputSize.height}, ` +
         `output=${plan.width}x${plan.height}`);
@@ -432,8 +434,8 @@ class ReaderSuperResolutionService {
         await outputPixelMap.scale(plan.width / outputInfo.size.width,
           plan.height / outputInfo.size.height, image.AntiAliasingLevel.HIGH);
       }
-      const result = outputPixelMap;
-      outputPixelMap = undefined;
+      // Detach the cached result from Core Vision's reusable remote backing buffer.
+      const result = readerHdr.createCompatibleSdrPixelMap(outputPixelMap);
       hilog.info(DOMAIN, TAG,
         `Core Vision AI super-resolution succeeded: input=${inputSize.width}x${inputSize.height}, ` +
         `output=${plan.width}x${plan.height}`);
