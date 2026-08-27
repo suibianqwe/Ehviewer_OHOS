@@ -21,7 +21,7 @@ import { themeAccentTextColor, themeControlMutedBackground, themeControlNeutralB
 import {
   isHarmonyMaterialEnabled,
   isHarmonyUiStyle,
-  uiTransparentButtonBackgroundEffect,
+  uiButtonMaterial,
   uiButtonHighlightBorderColor,
   uiFloatingButtonBackgroundEffect,
   uiMaterialBackground,
@@ -35,6 +35,7 @@ import {
   uiSwitchHeight,
   uiSwitchWidth,
   uiTabHeight,
+  uiTintedButtonMaterial,
   uiTintedSegmentMaterial
 } from '../shared/EhUiStyle';
 import {
@@ -1318,23 +1319,6 @@ export struct ActionBubble {
       SymbolGlyph(this.symbolIcon)
         .fontSize(this.primary ? 26 : 20)
         .fontColor([this.isEnabled ? floatingActionForeground() : themeInactiveActionText()])
-      if (this.checked && this.isEnabled) {
-        SymbolGlyph($r('sys.symbol.checkmark'))
-          .fontSize(this.primary ? 10 : 9)
-          .fontWeight(FontWeight.Bold)
-          .fontColor([themePrimaryColor()])
-          .width(this.primary ? 16 : 14)
-          .height(this.primary ? 16 : 14)
-          .backgroundColor(themeOnPrimaryText())
-          .borderRadius(this.primary ? 8 : 7)
-          .position({
-            x: this.primary ? 35 : 28,
-            y: this.primary ? 35 : 28
-          })
-          .transition(TransitionEffect.OPACITY
-            .combine(TransitionEffect.scale({ x: 0.72, y: 0.72 }))
-            .animation({ duration: 160, curve: Curve.EaseOut }))
-      }
     }
     .width(this.buttonSize())
     .height(this.buttonSize())
@@ -1342,7 +1326,8 @@ export struct ActionBubble {
     .backgroundColor(floatingActionBackground(this.isEnabled ?
       (this.primary || this.checked ? themePrimaryColor() : themeControlNeutralBackground()) :
       themeControlMutedBackground()))
-    .backgroundEffect(uiFloatingButtonBackgroundEffect(this.primary || this.checked ? themePrimaryColor() : ''))
+    .systemMaterial(uiTintedButtonMaterial(this.primary || this.checked ?
+      themePrimaryColor() : themeControlNeutralBackground()))
     .border({
       width: this.checked ? 2 : 1,
       color: this.checked ? themeOnPrimaryText() : uiButtonHighlightBorderColor()
@@ -1524,7 +1509,7 @@ export struct RatingStarBar {
           .width(36)
           .height(36)
           .backgroundColor(this.starActive(index) ? '#6E521F' : themeSurfaceVariant())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(() => {
             this.onSelect(index);

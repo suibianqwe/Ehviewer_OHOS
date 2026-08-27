@@ -16,7 +16,7 @@ import { PopupScrim } from '../../PopupScrim';
 import {
   isHarmonyMaterialEnabled,
   uiButtonHighlightBorderColor,
-  uiTransparentButtonBackgroundEffect,
+  uiButtonMaterial,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -149,7 +149,7 @@ struct ReaderImageActionButton {
     .width('100%')
     .height(48)
     .backgroundColor(Color.Transparent)
-    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(0)
     .onClick(() => {
       this.onTap();

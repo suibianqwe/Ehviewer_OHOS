@@ -15,7 +15,7 @@ import {
   themeTransparentColor
 } from '../shared/EhTheme';
 import {
-  uiTransparentButtonBackgroundEffect,
+  uiButtonMaterial,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -227,7 +227,7 @@ export struct DownloadLabelSelectionDialog {
             .height(40)
             .margin({ right: 8 })
             .backgroundColor(themeFieldBackground())
-            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .accessibilityText(uiText('New label'))
             .onClick(() => {
               this.onAdd();
@@ -242,7 +242,7 @@ export struct DownloadLabelSelectionDialog {
           .width(40)
           .height(40)
           .backgroundColor(themeFieldBackground())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
           })
@@ -351,7 +351,7 @@ export struct DownloadLabelEditDialog {
           .width(40)
           .height(40)
           .backgroundColor(themeFieldBackground())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
           })
@@ -376,7 +376,7 @@ export struct DownloadLabelEditDialog {
           .fontSize(16)
           .fontColor(uiMaterialForegroundColor(themeSelectedText()))
           .backgroundColor(themeSelectedBackground())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onConfirm();
           })

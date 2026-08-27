@@ -27,7 +27,7 @@ import {
 } from '../shared/EhTheme';
 import {
   uiAdaptiveToolbarHeight,
-  uiTransparentButtonBackgroundEffect,
+  uiButtonMaterial,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -712,7 +712,7 @@ struct TagVoteOverlay {
           .padding(0)
           .borderRadius(uiRadius(17))
           .backgroundColor(themeSurfaceVariant())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onDismiss();
           })
@@ -810,7 +810,7 @@ struct TagVoteWideButton {
     .height(44)
     .padding(0)
     .backgroundColor(this.selected ? this.selectedBackground : themeSurfaceVariant())
-    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .border({
       width: this.selected ? 1.2 : 0,
       color: this.selected ? this.accentColor : Color.Transparent
@@ -849,7 +849,7 @@ struct TagActionButton {
     .height(40)
     .padding({ left: 10, right: 10 })
     .backgroundColor(themeSurfaceVariant())
-    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(6))
     .onClick(() => {
       this.onTap();
@@ -950,7 +950,7 @@ struct ArchiveOptionsOverlay {
             .fontSize(13)
             .fontColor(uiMaterialForegroundColor(themeSecondaryText()))
             .backgroundColor(themeSurfaceVariant())
-            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(6))
             .onClick(() => {
               this.onDismiss();

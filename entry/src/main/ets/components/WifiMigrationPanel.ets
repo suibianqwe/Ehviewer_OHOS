@@ -29,7 +29,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiTransparentButtonBackgroundEffect, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
+import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
 import { AppSubToolbar } from './NavigationComponents';
 
 @Component
@@ -262,7 +262,7 @@ export struct WifiMigrationPanel {
     .layoutWeight(1)
     .padding({ left: 14, right: 14 })
     .backgroundColor(this.role === role ? themePrimaryColor() : themeSurfaceVariant())
-    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(8))
     .onClick(() => {
       this.switchRole(role);
@@ -309,7 +309,7 @@ export struct WifiMigrationPanel {
     .height(72)
     .padding({ left: 12, right: 12 })
     .backgroundColor(this.isDataKindSelected(kind) ? themeSelectedBackground() : themeSurface())
-    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(8))
     .onClick(() => {
       if (!this.active()) {
@@ -359,7 +359,7 @@ export struct WifiMigrationPanel {
     .height(66)
     .padding({ left: 12, right: 12 })
     .backgroundColor(themeSurface())
-    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(uiRadius(8))
     .onClick(() => {
       this.connectPeer(peer);
@@ -549,7 +549,7 @@ export struct WifiMigrationPanel {
             .fontWeight(FontWeight.Medium)
             .fontColor(this.active() ? themeDangerText() : uiMaterialForegroundColor(themeOnPrimaryText()))
             .backgroundColor(this.active() ? themeDangerBackground() : themePrimaryColor())
-            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiRadius(8))
             .onClick(() => {
               this.runPrimaryAction();

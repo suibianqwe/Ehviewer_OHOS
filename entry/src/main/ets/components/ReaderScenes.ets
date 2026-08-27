@@ -86,9 +86,9 @@ import {
 import { ArrayDataSource } from '../shared/ListDataSource';
 import {
   isHarmonyUiStyle,
-  uiFloatingButtonBackgroundEffect,
   uiMaterialBackground,
-  uiMaterialForegroundColor
+  uiMaterialForegroundColor,
+  uiTintedButtonMaterial
 } from '../shared/EhUiStyle';
 import {
   READER_BASE_SCALE,
@@ -3815,32 +3815,20 @@ export struct ReaderScene {
       }
       if (this.comicTranslationButtonVisible) {
         Button({ type: ButtonType.Circle }) {
-          Stack({ alignContent: Alignment.Center }) {
-            SymbolGlyph($r('sys.symbol.translate'))
-              .fontSize(25)
-              .fontColor([uiMaterialForegroundColor(Color.White)])
-            if (this.comicTranslationActive) {
-              SymbolGlyph($r('sys.symbol.checkmark'))
-                .fontSize(10)
-                .fontWeight(FontWeight.Bold)
-                .fontColor(['#167A9A'])
-                .width(16)
-                .height(16)
-                .backgroundColor(Color.White)
-                .borderRadius(8)
-                .position({ x: 34, y: 34 })
-                .transition(TransitionEffect.OPACITY
-                  .combine(TransitionEffect.scale({ x: 0.72, y: 0.72 }))
-                  .animation({ duration: 160, curve: Curve.EaseOut }))
-            }
-          }
+          SymbolGlyph($r('sys.symbol.translate'))
+            .fontSize(25)
+            .fontColor([uiMaterialForegroundColor(Color.White)])
           .width(READER_TRANSLATION_BUTTON_SIZE)
           .height(READER_TRANSLATION_BUTTON_SIZE)
         }
         .width(READER_TRANSLATION_BUTTON_SIZE)
         .height(READER_TRANSLATION_BUTTON_SIZE)
         .backgroundColor(uiMaterialBackground(this.comicTranslationActive ? '#167A9A' : '#34454D'))
-        .backgroundEffect(uiFloatingButtonBackgroundEffect(this.comicTranslationActive ? '#167A9A' : '#34454D'))
+        .systemMaterial(uiTintedButtonMaterial(this.comicTranslationActive ? '#167A9A' : '#34454D'))
+        .border({
+          width: this.comicTranslationActive ? 2 : 1,
+          color: this.comicTranslationActive ? Color.White : 'rgba(255,255,255,0.42)'
+        })
         .opacity(this.comicTranslationActive ? 0.92 : 0.48)
         .shadow({ radius: 8, color: 'rgba(0,0,0,0.28)', offsetX: 0, offsetY: 2 })
         .position({ x: this.comicTranslationButtonX, y: this.comicTranslationButtonY })

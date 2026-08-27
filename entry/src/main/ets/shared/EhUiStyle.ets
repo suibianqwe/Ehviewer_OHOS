@@ -13,6 +13,7 @@ export const EH_UI_STYLE_CLASSIC: string = 'Classic';
 export const EH_UI_STYLE_HARMONY: string = 'Harmony';
 const EH_UI_STYLE_HARMONY_LEGACY: string = 'HarmonyOS 7';
 
+const harmony7ButtonMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 const harmony7TintedButtonMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 let harmony7ChromeMaterial: uiMaterial.Material | undefined;
 let harmony7SearchMaterial: uiMaterial.Material | undefined;
@@ -77,6 +78,26 @@ export function uiRadius(classicRadius: number): number {
     return uiCardRadius(classicRadius);
   }
   return uiControlRadius(classicRadius);
+}
+
+export function uiButtonMaterial(): uiMaterial.Material | undefined {
+  if (!isHarmonyMaterialEnabled()) {
+    return undefined;
+  }
+  const materialColor = 'transparent';
+  const cached = harmony7ButtonMaterials.get(materialColor);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const material = new uiMaterial.ImmersiveMaterial({
+    style: uiMaterial.ImmersiveStyle.ULTRA_THICK,
+    materialColor: Color.Transparent,
+    applyShadow: true,
+    interactive: true,
+    lightEffect: { color: Color.White }
+  });
+  harmony7ButtonMaterials.set(materialColor, material);
+  return material;
 }
 
 export function uiTintedButtonMaterial(solidColor: string): uiMaterial.Material | undefined {

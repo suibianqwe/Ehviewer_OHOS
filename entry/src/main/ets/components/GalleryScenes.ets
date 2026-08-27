@@ -80,7 +80,7 @@ import {
 import {
   uiAdaptiveColumnCount,
   uiAdaptiveToolbarHeight,
-  uiTransparentButtonBackgroundEffect,
+  uiButtonMaterial,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -690,7 +690,7 @@ struct DefaultFavoriteSlotDialog {
           .width(40)
           .height(40)
           .backgroundColor(themeFieldBackground())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
           })
@@ -3450,7 +3450,7 @@ export struct GalleryListScene {
                   .width(38)
                   .height(38)
                   .backgroundColor(themeSurfaceVariant())
-                  .backgroundEffect(uiTransparentButtonBackgroundEffect())
+                  .systemMaterial(uiButtonMaterial())
                   .onClick(() => {
                     this.addBookmarkDialogVisible = false;
                   })
@@ -3488,7 +3488,7 @@ export struct GalleryListScene {
                     .fontSize(14)
                     .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                     .backgroundColor(themeSurfaceVariant())
-                    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+                    .systemMaterial(uiButtonMaterial())
                     .borderRadius(uiRadius(20))
                     .onClick(() => {
                       this.addBookmarkDialogVisible = false;
@@ -3499,7 +3499,7 @@ export struct GalleryListScene {
                     .fontSize(14)
                     .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
                     .backgroundColor(themePrimaryColor())
-                    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+                    .systemMaterial(uiButtonMaterial())
                     .borderRadius(uiRadius(20))
                     .onClick(() => {
                       this.confirmAddBookmark();
@@ -3751,7 +3751,7 @@ struct ImageSearchPanel {
           .width(34)
           .height(34)
           .backgroundColor(themeFieldBackground())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
           })
@@ -3776,7 +3776,7 @@ struct ImageSearchPanel {
           .layoutWeight(1)
           .borderRadius(uiRadius(6))
           .backgroundColor(themePrimaryColor())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .enabled(!this.busy)
           .onClick(() => {
             this.chooseFromAlbum();
@@ -3799,7 +3799,7 @@ struct ImageSearchPanel {
           .layoutWeight(1)
           .borderRadius(uiRadius(6))
           .backgroundColor(themeFieldBackground())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .enabled(!this.busy)
           .onClick(() => {
             this.chooseFromFile();
@@ -3882,7 +3882,7 @@ struct ImageSearchPanel {
           .fontSize(14)
           .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
           .backgroundColor(themePrimaryColor())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .borderRadius(uiRadius(6))
           .enabled(this.selectedPath.length > 0 && !this.busy)
           .onClick(() => {
@@ -3938,7 +3938,7 @@ export struct GalleryCardActionOverlay {
     .width('100%')
     .height(48)
     .backgroundColor(Color.Transparent)
-    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .borderRadius(0)
     .onClick(onTap)
   }
@@ -4939,7 +4939,7 @@ export struct GalleryListContent {
         .width(40)
         .height(40)
         .backgroundColor(galleryChromeBackground(themeOnPrimaryActionBackground()))
-        .backgroundEffect(uiTransparentButtonBackgroundEffect())
+        .systemMaterial(uiButtonMaterial())
         .flexShrink(0)
         .onClick(() => {
           this.onBack();
@@ -4957,7 +4957,7 @@ export struct GalleryListContent {
         .backgroundColor(galleryChromeBackground(
           this.advancedPanelVisible || this.advancedSearchEnabled ? themeOnPrimaryActionStrongBackground() :
             themeOnPrimaryActionBackground()))
-        .backgroundEffect(uiTransparentButtonBackgroundEffect())
+        .systemMaterial(uiButtonMaterial())
         .flexShrink(0)
         .onClick(() => {
           this.toggleAdvancedPanel();
@@ -5696,7 +5696,7 @@ export struct GalleryListContent {
                     .fontSize(12)
                     .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
                     .backgroundColor(themeFieldBackground())
-                    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+                    .systemMaterial(uiButtonMaterial())
                     .borderRadius(uiRadius(4))
                     .onClick(() => {
                       this.onSeekJump('jump=' + preset);
@@ -5755,7 +5755,7 @@ export struct GalleryListContent {
               .fontSize(13)
               .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
               .backgroundColor(themePrimaryColor())
-              .backgroundEffect(uiTransparentButtonBackgroundEffect())
+              .systemMaterial(uiButtonMaterial())
               .borderRadius(uiRadius(4))
               .onClick(() => {
                 this.submitSeekDate();
@@ -5795,7 +5795,7 @@ export struct GalleryListContent {
               .fontSize(13)
               .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
               .backgroundColor(themePrimaryColor())
-              .backgroundEffect(uiTransparentButtonBackgroundEffect())
+              .systemMaterial(uiButtonMaterial())
               .borderRadius(uiRadius(4))
               .onClick(() => {
                 this.submitPageJump();
@@ -5975,7 +5975,7 @@ export struct GalleryListStateView {
           .fontSize(13)
           .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
           .backgroundColor(themePrimaryColor())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .margin({ top: 16 })
           .onClick(() => {
             this.onRefresh();

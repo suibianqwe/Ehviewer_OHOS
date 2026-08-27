@@ -90,7 +90,7 @@ import {
   themeSurfaceVariant
 } from '../shared/EhTheme';
 import {
-  uiTransparentButtonBackgroundEffect,
+  uiButtonMaterial,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -178,7 +178,7 @@ struct AddFavoriteDialog {
           .width(40)
           .height(40)
           .backgroundColor(themeFieldBackground())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
           })

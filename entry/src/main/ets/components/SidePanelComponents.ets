@@ -14,7 +14,7 @@ import {
   themeTransparentColor
 } from '../shared/EhTheme';
 import {
-  uiTransparentButtonBackgroundEffect,
+  uiButtonMaterial,
   uiButtonHighlightBorderColor,
   uiCardRadius,
   uiControlRadius,
@@ -140,7 +140,7 @@ export struct SidePanelManagerHeader {
         .width(40)
         .height(40)
         .backgroundColor(sidePanelChromeBackground())
-        .backgroundEffect(uiTransparentButtonBackgroundEffect())
+        .systemMaterial(uiButtonMaterial())
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .onClick(() => {
           this.onBack();
@@ -164,7 +164,7 @@ export struct SidePanelManagerHeader {
           .width(40)
           .height(40)
           .backgroundColor(sidePanelChromeBackground())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(() => {
             this.onAdd();
@@ -218,7 +218,7 @@ export struct SidePanelHeader {
           .width(40)
           .height(40)
           .backgroundColor(sidePanelChromeBackground())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .margin({ right: this.showSecondAction ? 6 : 0 })
           .onClick(() => {
@@ -235,7 +235,7 @@ export struct SidePanelHeader {
           .width(40)
           .height(40)
           .backgroundColor(sidePanelChromeBackground())
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(() => {
             this.onSecondAction();
@@ -312,7 +312,7 @@ export struct SidePanelRow {
         .width(36)
         .height(36)
         .backgroundColor(themeTransparentColor())
-        .backgroundEffect(uiTransparentButtonBackgroundEffect())
+        .systemMaterial(uiButtonMaterial())
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .onClick(() => {
           this.onDelete();
@@ -441,7 +441,7 @@ export struct SidePanelEditableManagerRow {
         .width(38)
         .height(38)
         .backgroundColor(themeSurfaceVariant())
-        .backgroundEffect(uiTransparentButtonBackgroundEffect())
+        .systemMaterial(uiButtonMaterial())
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .onClick(() => {
           this.onDelete();

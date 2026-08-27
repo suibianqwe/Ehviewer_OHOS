@@ -9,7 +9,7 @@ import {
   themeTertiaryText
 } from '../shared/EhTheme';
 import {
-  uiTransparentButtonBackgroundEffect,
+  uiButtonMaterial,
   uiControlRadius,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
@@ -89,7 +89,7 @@ export struct UpdatePromptOverlay {
             .fontSize(14)
             .fontColor(uiMaterialForegroundColor(themePrimaryText()))
             .backgroundColor(themeSurfaceVariant())
-            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiControlRadius(6))
             .layoutWeight(1)
             .onClick(this.onCancel)
@@ -98,7 +98,7 @@ export struct UpdatePromptOverlay {
             .fontSize(14)
             .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
             .backgroundColor(themePrimaryColor())
-            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .borderRadius(uiControlRadius(6))
             .layoutWeight(1)
             .onClick(this.onUpdate)
