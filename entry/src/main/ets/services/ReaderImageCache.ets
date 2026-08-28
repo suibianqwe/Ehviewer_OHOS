@@ -63,6 +63,8 @@ const MAX_BACKGROUND_IMAGE_DOWNLOADS: number = 8;
 const MAX_DOH_HATH_IMAGE_DOWNLOADS: number = 4;
 const BACKGROUND_IMAGE_SETTLE_DELAY_MS: number = 32;
 const BACKGROUND_IMAGE_RESUME_DELAY_MS: number = 750;
+const RUNTIME_CACHE_PRUNE_DELAY_MS: number = 250;
+const RUNTIME_CACHE_TARGET_RATIO: number = 0.9;
 let activeImageDownloads: number = 0;
 let activeBackgroundImageDownloads: number = 0;
 let activeHathImageDownloads: number = 0;
@@ -122,6 +124,12 @@ interface ImageRequestHeader {
 }
 
 export class ReaderImageCache {
+  private runtimeCacheKey: string = '';
+  private runtimeCacheFiles: CachedImageFile[] = [];
+  private runtimeCacheBytes: number = 0;
+  private runtimePruneTimer: number = -1;
+  private runtimeProtectedPath: string = '';
+
   async ensureCached(context: common.UIAbilityContext, imageUrl: string, referer: string,
     priority: number = IMAGE_DOWNLOAD_PRIORITY_BACKGROUND, onProgress?: ImageDownloadProgressCallback,
     cacheKey: string = '',
@@ -221,12 +229,16 @@ export class ReaderImageCache {
         removed = candidates[i];
       }
     }
+    if (removed.length > 0) {
+      this.invalidateRuntimeCacheIndex();
+    }
     return removed;
   }
 
   clear(context: common.UIAbilityContext): CacheClearResult {
     const result = clearImageCacheDirectory(readerImageCacheDirectory(context));
     const legacy = clearImageCacheDirectory(legacyReaderImageCacheDirectory(context));
+    this.invalidateRuntimeCacheIndex();
     return { files: result.files + legacy.files, bytes: result.bytes + legacy.bytes };
   }
 
@@ -235,10 +247,13 @@ export class ReaderImageCache {
   }
 
   prune(context: common.UIAbilityContext, protectedPath: string = ''): CachePruneResult {
-    return pruneImageCache([
+    const directories = [
       readerImageCacheDirectory(context),
       legacyReaderImageCacheDirectory(context)
-    ], readerImageCacheLimitBytes(), protectedPath);
+    ];
+    const result = pruneImageCache(directories, readerImageCacheLimitBytes(), protectedPath);
+    this.rebuildRuntimeCacheIndex(directories);
+    return result;
   }
 
   private async download(context: common.UIAbilityContext, imageUrl: string, referer: string, path: string,
@@ -363,6 +378,7 @@ export class ReaderImageCache {
       if (onProgress !== undefined) {
         onProgress({ receivedBytes: size, totalBytes: size });
       }
+      this.recordRuntimeCacheWrite(context, savedPath, size);
       return savedPath;
     } catch (error) {
       if (activeRequest !== null && activeRequest.cancelRequested) {
@@ -440,6 +456,89 @@ export class ReaderImageCache {
       return candidate;
     }
     return '';
+  }
+
+  private recordRuntimeCacheWrite(context: common.UIAbilityContext, path: string, size: number): void {
+    if (size <= 0 || path.length === 0) {
+      return;
+    }
+    const directories = [readerImageCacheDirectory(context), legacyReaderImageCacheDirectory(context)];
+    this.ensureRuntimeCacheIndex(directories);
+    for (let i = this.runtimeCacheFiles.length - 1; i >= 0; i--) {
+      if (this.runtimeCacheFiles[i].path === path) {
+        this.runtimeCacheBytes = Math.max(0, this.runtimeCacheBytes - this.runtimeCacheFiles[i].size);
+        this.runtimeCacheFiles.splice(i, 1);
+      }
+    }
+    this.runtimeCacheFiles.push({ path: path, size: size, modifiedAt: Date.now() });
+    this.runtimeCacheBytes += size;
+    if (this.runtimeCacheBytes > readerImageCacheLimitBytes()) {
+      this.runtimeProtectedPath = path;
+      this.scheduleRuntimeCachePrune();
+    }
+  }
+
+  private scheduleRuntimeCachePrune(): void {
+    if (this.runtimePruneTimer >= 0) {
+      return;
+    }
+    this.runtimePruneTimer = setTimeout(() => {
+      this.runtimePruneTimer = -1;
+      this.pruneRuntimeCacheIndex();
+    }, RUNTIME_CACHE_PRUNE_DELAY_MS) as number;
+  }
+
+  private pruneRuntimeCacheIndex(): void {
+    const maxBytes = readerImageCacheLimitBytes();
+    if (this.runtimeCacheBytes <= maxBytes) {
+      this.runtimeProtectedPath = '';
+      return;
+    }
+    const targetBytes = Math.max(0, Math.floor(maxBytes * RUNTIME_CACHE_TARGET_RATIO));
+    this.runtimeCacheFiles.sort((left: CachedImageFile, right: CachedImageFile) =>
+      left.modifiedAt - right.modifiedAt);
+    for (let i = 0; i < this.runtimeCacheFiles.length && this.runtimeCacheBytes > targetBytes;) {
+      const file = this.runtimeCacheFiles[i];
+      if (file.path === this.runtimeProtectedPath) {
+        i++;
+        continue;
+      }
+      if (!exists(file.path) || removeFile(file.path)) {
+        this.runtimeCacheBytes = Math.max(0, this.runtimeCacheBytes - file.size);
+        this.runtimeCacheFiles.splice(i, 1);
+        continue;
+      }
+      i++;
+    }
+    this.runtimeProtectedPath = '';
+  }
+
+  private ensureRuntimeCacheIndex(directories: string[]): void {
+    const key = directories.join('|');
+    if (this.runtimeCacheKey === key) {
+      return;
+    }
+    this.runtimeCacheKey = key;
+    this.rebuildRuntimeCacheIndex(directories);
+  }
+
+  private rebuildRuntimeCacheIndex(directories: string[]): void {
+    this.runtimeCacheFiles = scanImageCacheFiles(directories);
+    this.runtimeCacheBytes = 0;
+    for (let i = 0; i < this.runtimeCacheFiles.length; i++) {
+      this.runtimeCacheBytes += this.runtimeCacheFiles[i].size;
+    }
+  }
+
+  private invalidateRuntimeCacheIndex(): void {
+    if (this.runtimePruneTimer >= 0) {
+      clearTimeout(this.runtimePruneTimer);
+      this.runtimePruneTimer = -1;
+    }
+    this.runtimeCacheKey = '';
+    this.runtimeCacheFiles = [];
+    this.runtimeCacheBytes = 0;
+    this.runtimeProtectedPath = '';
   }
 }
 

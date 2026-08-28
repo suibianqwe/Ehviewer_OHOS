@@ -6,7 +6,7 @@ const PREFERENCES_NAME: string = 'ehviewer_downloads';
 const VALUES_KEY: string = 'items';
 const LABELS_KEY: string = 'labels';
 const DOWNLOAD_NOTIFY_DEBOUNCE_MS: number = 50;
-const DOWNLOAD_SAVE_DEBOUNCE_MS: number = 500;
+const DOWNLOAD_SAVE_CHECKPOINT_MS: number = 5000;
 
 export enum DownloadState {
   Invalid = 'invalid',
@@ -92,6 +92,8 @@ export class EhDownloadStore {
   private notifyTimer: number = -1;
   private saveRevision: number = 0;
   private savePromise: Promise<void> | null = null;
+  private saveTimer: number = -1;
+  private saveContext: common.UIAbilityContext | undefined = undefined;
 
   subscribe(listener: DownloadStoreListener): () => void {
     this.listeners.push(listener);
@@ -489,7 +491,31 @@ export class EhDownloadStore {
   }
 
   async save(context: common.UIAbilityContext): Promise<void> {
+    this.saveContext = context;
     this.saveRevision++;
+    if (this.saveTimer >= 0) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = -1;
+    }
+    await this.flushPendingSave(context);
+  }
+
+  scheduleSave(context: common.UIAbilityContext): void {
+    this.saveContext = context;
+    this.saveRevision++;
+    if (this.saveTimer >= 0) {
+      return;
+    }
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = -1;
+      const target = this.saveContext;
+      if (target !== undefined) {
+        this.flushPendingSave(target).catch(() => {});
+      }
+    }, DOWNLOAD_SAVE_CHECKPOINT_MS) as number;
+  }
+
+  private async flushPendingSave(context: common.UIAbilityContext): Promise<void> {
     if (this.savePromise === null) {
       this.savePromise = this.saveLatest(context);
     }
@@ -508,7 +534,6 @@ export class EhDownloadStore {
   private async saveLatest(context: common.UIAbilityContext): Promise<void> {
     let savedRevision = -1;
     while (savedRevision !== this.saveRevision) {
-      await delay(DOWNLOAD_SAVE_DEBOUNCE_MS);
       const targetRevision = this.saveRevision;
       const values = JSON.stringify(this.items);
       const labels = JSON.stringify(this.labels);
@@ -574,12 +599,6 @@ export class EhDownloadStore {
       this.listeners[i](items, labels);
     }
   }
-}
-
-function delay(milliseconds: number): Promise<void> {
-  return new Promise<void>((resolve: () => void) => {
-    setTimeout(resolve, milliseconds);
-  });
 }
 
 function galleryToDownloadInfo(gallery: GalleryInfo, label: string): DownloadInfo {

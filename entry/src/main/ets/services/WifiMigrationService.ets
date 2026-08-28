@@ -28,6 +28,7 @@ const PACKET_ACK: string = 'ack';
 const FILE_CHUNK_SIZE: number = 256 * 1024;
 const MAX_HEADER_BYTES: number = 64 * 1024;
 const MAX_PACKET_PAYLOAD_BYTES: number = 32 * 1024 * 1024;
+const MAX_RECEIVE_BUFFER_BYTES: number = MAX_PACKET_PAYLOAD_BYTES + MAX_HEADER_BYTES + FILE_CHUNK_SIZE;
 const ACK_TIMEOUT_MS: number = 60000;
 const P2P_READY_TIMEOUT_MS: number = 30000;
 const P2P_READY_POLL_INTERVAL_MS: number = 500;
@@ -159,8 +160,10 @@ export class WifiMigrationSession {
   private client: socket.TCPSocket | null = null;
   private outgoingPackets: OutgoingTransferPacket[] = [];
   private outgoingIndex: number = 0;
+  private outgoingFileHandles: Map<string, number> = new Map<string, number>();
   private awaitingAck: boolean = false;
   private receiveBuffer: Uint8Array = new Uint8Array(0);
+  private receiveBufferOffset: number = 0;
   private receiveChain: Promise<void> = Promise.resolve();
   private encoder: util.TextEncoder = util.TextEncoder.create('utf-8');
   private decoder: util.TextDecoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
@@ -170,6 +173,7 @@ export class WifiMigrationSession {
   private listenersRegistered: boolean = false;
   private incomingMetadata: WifiTransferMetadata | null = null;
   private incomingDirectories: Map<number, string> = new Map<number, string>();
+  private incomingFileHandles: Map<string, number> = new Map<string, number>();
   private senderItemCount: number = 0;
   private senderProgressCount: number = 0;
   private dataChannelVersion: number = -1;
@@ -559,12 +563,15 @@ export class WifiMigrationSession {
     }
     this.serverConnection = client;
     this.receiveBuffer = new Uint8Array(0);
+    this.receiveBufferOffset = 0;
+    this.closeIncomingFileHandles();
     client.on('message', (info: socket.SocketMessageInfo) => {
       this.consumeBytes(info.message);
     });
     client.on('close', () => {
       if (!this.stopped && this.serverConnection === client) {
         this.serverConnection = null;
+        this.closeIncomingFileHandles();
         this.awaitingAck = false;
         this.clearAckTimer();
         this.setState(WifiMigrationPhase.Waiting, 'Receiving device disconnected; waiting again');
@@ -652,37 +659,68 @@ export class WifiMigrationSession {
   }
 
   private consumeBytes(buffer: ArrayBuffer): void {
-    this.receiveBuffer = concatBytes(this.receiveBuffer, new Uint8Array(buffer));
-    while (this.receiveBuffer.length >= 4) {
-      const headerLength = readUint32(this.receiveBuffer, 0);
+    const incoming = new Uint8Array(buffer);
+    const bufferedLength = this.receiveBuffer.length - this.receiveBufferOffset;
+    if (bufferedLength + incoming.length > MAX_RECEIVE_BUFFER_BYTES) {
+      this.fail('Received transfer buffer is too large');
+      this.receiveBuffer = new Uint8Array(0);
+      this.receiveBufferOffset = 0;
+      return;
+    }
+    if (incoming.length > 0) {
+      if (bufferedLength === 0) {
+        this.receiveBuffer = incoming;
+        this.receiveBufferOffset = 0;
+      } else {
+        const combined = new Uint8Array(bufferedLength + incoming.length);
+        combined.set(this.receiveBuffer.slice(this.receiveBufferOffset), 0);
+        combined.set(incoming, bufferedLength);
+        this.receiveBuffer = combined;
+        this.receiveBufferOffset = 0;
+      }
+    }
+    while (this.receiveBuffer.length - this.receiveBufferOffset >= 4) {
+      const headerLength = readUint32(this.receiveBuffer, this.receiveBufferOffset);
       if (headerLength <= 0 || headerLength > MAX_HEADER_BYTES) {
         this.fail('Received transfer header is invalid');
         this.receiveBuffer = new Uint8Array(0);
+        this.receiveBufferOffset = 0;
         return;
       }
-      if (this.receiveBuffer.length < 4 + headerLength) {
+      if (this.receiveBuffer.length - this.receiveBufferOffset < 4 + headerLength) {
         return;
       }
       let header: WifiTransferPacketHeader;
       try {
-        const headerBytes = this.receiveBuffer.slice(4, 4 + headerLength);
+        const headerBytes = this.receiveBuffer.slice(this.receiveBufferOffset + 4,
+          this.receiveBufferOffset + 4 + headerLength);
         header = JSON.parse(this.decoder.decodeToString(headerBytes)) as WifiTransferPacketHeader;
       } catch (error) {
         this.fail('Received transfer header is invalid');
         this.receiveBuffer = new Uint8Array(0);
+        this.receiveBufferOffset = 0;
         return;
       }
       if (!validHeader(header)) {
         this.fail('Received transfer data is not compatible');
         this.receiveBuffer = new Uint8Array(0);
+        this.receiveBufferOffset = 0;
         return;
       }
       const packetLength = 4 + headerLength + header.payloadLength;
-      if (this.receiveBuffer.length < packetLength) {
+      if (this.receiveBuffer.length - this.receiveBufferOffset < packetLength) {
         return;
       }
-      const payload = this.receiveBuffer.slice(4 + headerLength, packetLength);
-      this.receiveBuffer = this.receiveBuffer.slice(packetLength);
+      const packetStart = this.receiveBufferOffset;
+      const payload = this.receiveBuffer.slice(packetStart + 4 + headerLength, packetStart + packetLength);
+      this.receiveBufferOffset += packetLength;
+      if (this.receiveBufferOffset === this.receiveBuffer.length) {
+        this.receiveBuffer = new Uint8Array(0);
+        this.receiveBufferOffset = 0;
+      } else if (this.receiveBufferOffset > this.receiveBuffer.length / 2) {
+        this.receiveBuffer = this.receiveBuffer.slice(this.receiveBufferOffset);
+        this.receiveBufferOffset = 0;
+      }
       const version = this.sessionVersion;
       this.receiveChain = this.receiveChain.then(async () => {
         if (version === this.sessionVersion && !this.stopped) {
@@ -862,10 +900,36 @@ export class WifiMigrationSession {
     if (directory === undefined || directory.length === 0) {
       throw new Error('Transferred gallery metadata is missing');
     }
-    const data = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
-    const written = ehDownloadFileStore.writeTransferredImageChunk(directory, name, offset, data);
-    if (written !== payload.length) {
-      throw new Error('Transferred image was not fully written');
+    const key = gid.toString() + ':' + name;
+    let fd = this.incomingFileHandles.get(key);
+    try {
+      if (offset === 0) {
+        if (fd !== undefined) {
+          this.closeIncomingFileHandle(key, fd);
+          fd = undefined;
+        }
+        const target = directory + '/' + name;
+        const file = fs.openSync(target, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
+        fd = file.fd;
+        this.incomingFileHandles.set(key, fd);
+      } else if (fd === undefined) {
+        throw new Error('Transferred image starts without its first chunk');
+      }
+      const data = payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength);
+      const written = fs.writeSync(fd, data, { offset: offset, length: data.byteLength });
+      if (written !== payload.length) {
+        throw new Error('Transferred image was not fully written');
+      }
+      if (offset + payload.length >= size) {
+        this.closeIncomingFileHandle(key, fd);
+        this.incomingFileHandles.delete(key);
+      }
+    } catch (error) {
+      if (fd !== undefined) {
+        this.closeIncomingFileHandle(key, fd);
+        this.incomingFileHandles.delete(key);
+      }
+      throw error instanceof Error ? error : new Error('Unable to write transferred image');
     }
   }
 
@@ -892,12 +956,47 @@ export class WifiMigrationSession {
     await ehDownloadStore.save(this.context);
   }
 
+  private readOutgoingPacketPayload(packet: OutgoingTransferPacket): Uint8Array {
+    if (packet.payload !== undefined) {
+      return packet.payload;
+    }
+    if (packet.filePath === undefined || packet.header.fileOffset === undefined) {
+      return new Uint8Array(0);
+    }
+    const path = packet.filePath;
+    const buffer = new ArrayBuffer(packet.header.payloadLength);
+    let fd = this.outgoingFileHandles.get(path);
+    try {
+      if (fd === undefined) {
+        const file = fs.openSync(path, fs.OpenMode.READ_ONLY);
+        fd = file.fd;
+        this.outgoingFileHandles.set(path, fd);
+      }
+      const count = fs.readSync(fd, buffer, {
+        offset: packet.header.fileOffset,
+        length: packet.header.payloadLength
+      });
+      if (count !== packet.header.payloadLength) {
+        throw new Error('Downloaded image changed during transfer');
+      }
+      if (isLastFileChunk(packet.header)) {
+        this.closeOutgoingFileHandle(path, fd);
+      }
+      return new Uint8Array(buffer);
+    } catch (error) {
+      if (fd !== undefined) {
+        this.closeOutgoingFileHandle(path, fd);
+      }
+      throw new Error('Unable to read downloaded image: ' + cleanError(error));
+    }
+  }
+
   private async sendCurrentPacket(): Promise<void> {
     if (this.outgoingIndex >= this.outgoingPackets.length || this.awaitingAck) {
       return;
     }
     const packet = this.outgoingPackets[this.outgoingIndex];
-    const payload = readPacketPayload(packet);
+    const payload = this.readOutgoingPacketPayload(packet);
     await this.sendPacket(packet.header, payload);
     this.awaitingAck = true;
     this.currentPage = this.outgoingIndex + 1;
@@ -962,6 +1061,8 @@ export class WifiMigrationSession {
   }
 
   private fail(status: string): void {
+    this.closeIncomingFileHandles();
+    this.closeOutgoingFileHandles();
     this.phase = WifiMigrationPhase.Error;
     this.status = status;
     this.emit();
@@ -973,13 +1074,16 @@ export class WifiMigrationSession {
 
   private clearTransferState(): void {
     this.clearAckTimer();
+    this.closeOutgoingFileHandles();
     this.outgoingPackets = [];
     this.outgoingIndex = 0;
     this.awaitingAck = false;
     this.receiveBuffer = new Uint8Array(0);
+    this.receiveBufferOffset = 0;
     this.receiveChain = Promise.resolve();
     this.incomingMetadata = null;
     this.incomingDirectories.clear();
+    this.closeIncomingFileHandles();
     this.currentPage = 0;
     this.totalPages = 0;
     this.transferredItems = 0;
@@ -996,6 +1100,42 @@ export class WifiMigrationSession {
       clearTimeout(this.ackTimer);
       this.ackTimer = 0;
     }
+  }
+
+  private closeIncomingFileHandle(key: string, fd: number): void {
+    try {
+      fs.closeSync(fd);
+    } catch (error) {
+    }
+    if (this.incomingFileHandles.get(key) === fd) {
+      this.incomingFileHandles.delete(key);
+    }
+  }
+
+  private closeIncomingFileHandles(): void {
+    const handles = Array.from(this.incomingFileHandles.entries());
+    for (let i = 0; i < handles.length; i++) {
+      this.closeIncomingFileHandle(handles[i][0], handles[i][1]);
+    }
+    this.incomingFileHandles.clear();
+  }
+
+  private closeOutgoingFileHandle(path: string, fd: number): void {
+    try {
+      fs.closeSync(fd);
+    } catch (error) {
+    }
+    if (this.outgoingFileHandles.get(path) === fd) {
+      this.outgoingFileHandles.delete(path);
+    }
+  }
+
+  private closeOutgoingFileHandles(): void {
+    const handles = Array.from(this.outgoingFileHandles.entries());
+    for (let i = 0; i < handles.length; i++) {
+      this.closeOutgoingFileHandle(handles[i][0], handles[i][1]);
+    }
+    this.outgoingFileHandles.clear();
   }
 
   private async closeSockets(): Promise<void> {
@@ -1212,38 +1352,6 @@ function baseHeader(type: string, sequence: number, payloadLength: number): Wifi
   };
 }
 
-function readPacketPayload(packet: OutgoingTransferPacket): Uint8Array {
-  if (packet.payload !== undefined) {
-    return packet.payload;
-  }
-  if (packet.filePath === undefined || packet.header.fileOffset === undefined) {
-    return new Uint8Array(0);
-  }
-  const buffer = new ArrayBuffer(packet.header.payloadLength);
-  let fd = -1;
-  try {
-    const file = fs.openSync(packet.filePath, fs.OpenMode.READ_ONLY);
-    fd = file.fd;
-    const count = fs.readSync(fd, buffer, {
-      offset: packet.header.fileOffset,
-      length: packet.header.payloadLength
-    });
-    if (count !== packet.header.payloadLength) {
-      throw new Error('Downloaded image changed during transfer');
-    }
-    return new Uint8Array(buffer);
-  } catch (error) {
-    throw new Error('Unable to read downloaded image: ' + cleanError(error));
-  } finally {
-    if (fd >= 0) {
-      try {
-        fs.closeSync(fd);
-      } catch (error) {
-      }
-    }
-  }
-}
-
 function normalizeIncomingDownload(value: DownloadInfo): DownloadInfo | null {
   if (value === undefined || value.gid <= 0 || typeof value.token !== 'string' || value.token.length === 0) {
     return null;
@@ -1267,6 +1375,14 @@ function validHeader(header: WifiTransferPacketHeader): boolean {
     header.totalPackets < 0 || header.totalBytes < 0 || header.totalFiles < 0) {
     return false;
   }
+  if (header.type === PACKET_FILE) {
+    if (header.payloadLength > FILE_CHUNK_SIZE || header.fileGid === undefined || header.fileGid <= 0 ||
+      header.fileName === undefined || !isSafeTransferredImageName(header.fileName) ||
+      header.fileOffset === undefined || header.fileOffset < 0 || header.fileSize === undefined ||
+      header.fileSize <= 0 || header.fileOffset + header.payloadLength > header.fileSize) {
+      return false;
+    }
+  }
   return header.type === PACKET_METADATA || header.type === PACKET_FILE || header.type === PACKET_COMPLETE ||
     header.type === PACKET_ACK;
 }
@@ -1289,11 +1405,13 @@ function clonePeers(peers: WifiMigrationPeer[]): WifiMigrationPeer[] {
   return cloned;
 }
 
-function concatBytes(left: Uint8Array, right: Uint8Array): Uint8Array {
-  const result = new Uint8Array(left.length + right.length);
-  result.set(left, 0);
-  result.set(right, left.length);
-  return result;
+function isSafeTransferredImageName(name: string): boolean {
+  if (name.length === 0 || pathBaseName(name) !== name) {
+    return false;
+  }
+  const lower = name.toLowerCase();
+  return lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png') ||
+    lower.endsWith('.webp') || lower.endsWith('.gif');
 }
 
 function readUint32(bytes: Uint8Array, offset: number): number {

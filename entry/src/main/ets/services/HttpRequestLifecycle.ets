@@ -4,6 +4,7 @@ const ACTIVE_HTTP_REQUESTS: http.HttpRequest[] = [];
 const RETIRED_HTTP_REQUESTS: http.HttpRequest[] = [];
 const IDLE_HTTP_REQUESTS: http.HttpRequest[] = [];
 const VOLATILE_HTTP_REQUESTS: http.HttpRequest[] = [];
+const CANCELLED_HTTP_REQUESTS: http.HttpRequest[] = [];
 const HTTP_REQUEST_CLEANUP_QUIET_MS: number = 30000;
 const HTTP_REQUEST_CLEANUP_STEP_MS: number = 500;
 const MAX_IDLE_HTTP_REQUESTS: number = 6;
@@ -36,6 +37,9 @@ export function releaseHttpRequest(request: http.HttpRequest): void {
   lastActivityAt = Date.now();
   removeRequest(ACTIVE_HTTP_REQUESTS, request);
   removeRequest(VOLATILE_HTTP_REQUESTS, request);
+  if (removeRequest(CANCELLED_HTTP_REQUESTS, request)) {
+    return;
+  }
   if (RETIRED_HTTP_REQUESTS.indexOf(request) < 0) {
     RETIRED_HTTP_REQUESTS.push(request);
   }
@@ -63,8 +67,20 @@ export function retireHttpRequest(request: http.HttpRequest): void {
 export function cancelHttpRequest(request: http.HttpRequest): void {
   activityGeneration++;
   lastActivityAt = Date.now();
-  if (ACTIVE_HTTP_REQUESTS.indexOf(request) >= 0) {
-    cancelCleanupTimer();
+  removeRequest(ACTIVE_HTTP_REQUESTS, request);
+  removeRequest(RETIRED_HTTP_REQUESTS, request);
+  removeRequest(IDLE_HTTP_REQUESTS, request);
+  removeRequest(VOLATILE_HTTP_REQUESTS, request);
+  if (CANCELLED_HTTP_REQUESTS.indexOf(request) >= 0) {
+    return;
+  }
+  CANCELLED_HTTP_REQUESTS.push(request);
+  cancelCleanupTimer();
+  try {
+    // destroy() immediately tears down an in-flight @kit.NetworkKit request. The finally path calls
+    // releaseHttpRequest(), which removes this marker instead of retiring the destroyed handle again.
+    request.destroy();
+  } catch (_error) {
   }
 }
 

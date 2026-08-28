@@ -271,7 +271,7 @@ export class EhDownloadManager {
       if (!this.hasWaitingDownloads()) {
         await this.stopBackgroundTask(context);
       }
-      this.saveDownloads(context);
+      this.saveDownloads(context, true);
     }
   }
 
@@ -352,7 +352,7 @@ export class EhDownloadManager {
     ehDownloadStore.setState(item.gid, DownloadState.Downloading);
     ehDownloadStore.setTransfer(item.gid, 0, 0);
     this.publishStatus('Downloading: ' + item.title);
-    this.saveDownloads(context);
+    this.saveDownloads(context, true);
 
     try {
       const detailResult = await this.client.loadGalleryDetail(item.gid, item.token, 0, currentGallerySite(),
@@ -426,6 +426,7 @@ export class EhDownloadManager {
         ehDownloadStore.setState(item.gid, DownloadState.None);
         ehDownloadStore.setTransfer(item.gid, 0, 0);
         this.publishStatus('Stopped: ' + item.title);
+        this.saveDownloads(context, true);
         return;
       }
 
@@ -443,7 +444,7 @@ export class EhDownloadManager {
       }
       await publishDownloadResultNotification(context, DOWNLOAD_RESULT_NOTIFICATION_ID, item.title,
         'Download completed');
-      this.saveDownloads(context);
+      this.saveDownloads(context, true);
     } catch (error) {
       ehDownloadStore.setState(item.gid, DownloadState.Failed);
       ehDownloadStore.setTransfer(item.gid, 0, 0);
@@ -454,7 +455,7 @@ export class EhDownloadManager {
       }
       await publishDownloadResultNotification(context, DOWNLOAD_RESULT_NOTIFICATION_ID, item.title,
         'Download failed');
-      this.saveDownloads(context);
+      this.saveDownloads(context, true);
     }
   }
 
@@ -963,8 +964,12 @@ export class EhDownloadManager {
     }
   }
 
-  private saveDownloads(context: common.UIAbilityContext): void {
-    ehDownloadStore.save(context).catch(() => {});
+  private saveDownloads(context: common.UIAbilityContext, immediate: boolean = false): void {
+    if (immediate) {
+      ehDownloadStore.save(context).catch(() => {});
+      return;
+    }
+    ehDownloadStore.scheduleSave(context);
   }
 
   private addStoppedGid(gid: number): void {
