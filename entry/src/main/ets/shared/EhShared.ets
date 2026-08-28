@@ -9,6 +9,7 @@ import { BrowsePositionsBackupInfo } from '../services/EhBrowsePositionStore';
 import {
   DEFAULT_DOWNLOAD_LABEL_ASK,
   DEFAULT_DOWNLOAD_LABEL_SETTING_KEY,
+  FLOATING_ACTION_HOLDING_HAND_SETTING_KEY,
   HISTORY_INFO_SIZE_KEY,
   ehSettingsStore,
   historyInfoSizeLimitFromValue,
@@ -1450,6 +1451,8 @@ export function zhText(text: string): string {
     case 'Theme': return '主题';
     case 'Interface style': return '界面风格';
     case 'Choose the base layout or the Harmony native material style': return '选择基础界面或鸿蒙原生材质风格';
+    case 'Smart grip': return '智感握持';
+    case 'Move floating action buttons to the detected holding hand': return '根据检测到的握姿移动浮动操作按钮';
     case 'Classic': return '基础';
     case 'Harmony': return '鸿蒙';
     case 'HarmonyOS 7': return '鸿蒙';
@@ -3210,6 +3213,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('ui_style', 'Interface style',
         'Choose the base layout or the Harmony native material style', entries,
         ['Classic', 'Harmony']),
+      optionSettingsRow(FLOATING_ACTION_HOLDING_HAND_SETTING_KEY, 'Smart grip',
+        'Move floating action buttons to the detected holding hand', entries, ON_OFF_OPTIONS),
       staticSettingsRow('filter', 'Filter', 'Keyword/gallery filtering rules', '', 'navigation'),
       staticSettingsRow('comment_blacklist', 'Comment blacklist',
         'Block comments from selected user names', '', 'navigation'),

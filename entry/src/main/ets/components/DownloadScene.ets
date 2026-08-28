@@ -16,6 +16,8 @@ import { subscribeHoldingHandSide } from '../services/EhHoldingHandSupport';
 import { BrowsePosition, ehBrowsePositionStore } from '../services/EhBrowsePositionStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import {
+  FLOATING_ACTION_HOLDING_HAND_REVISION_KEY,
+  FLOATING_ACTION_HOLDING_HAND_SETTING_KEY,
   FLOATING_ACTION_SIDE_SETTING_KEY,
   TRANSLATION_BUTTONS_VISIBLE_KEY,
   ehSettingsStore
@@ -134,6 +136,7 @@ import {
 import {
   applyTagSuggestionToKeyword,
   buildSearchSuggestions,
+  FloatingActionDock,
   normalizeSubmittedSearchKeyword,
   recordSearchHistory,
   SearchAdvancedPanel,
@@ -315,6 +318,8 @@ export struct DownloadScene {
   @StorageProp(SPLIT_PANE_RATIO_REVISION_KEY) @Watch('onSplitPaneRatioRevisionChange') splitPaneRatioRevision: number = 0;
   @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
   @StorageProp(TRANSLATION_BUTTONS_VISIBLE_KEY) translationButtonsVisible: boolean = true;
+  @StorageProp(FLOATING_ACTION_HOLDING_HAND_REVISION_KEY) @Watch('onHoldingHandSettingChanged')
+  holdingHandSettingRevision: number = 0;
   private downloadScroller: Scroller = new Scroller();
   private cardScrollAnchor: GalleryCardScrollAnchor = new GalleryCardScrollAnchor();
   private splitDragStartWidth: number = 0;
@@ -333,12 +338,7 @@ export struct DownloadScene {
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
-    this.floatingActionSide = normalizeFloatingActionSide(
-      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT));
-    this.unsubscribeHoldingHandSide();
-    this.unsubscribeHoldingHandSide = subscribeHoldingHandSide((side: string) => {
-      this.applyHoldingHandActionSide(side);
-    });
+    this.syncHoldingHandSubscription();
     this.restoreNavigationCache();
     this.syncSceneContentWidthFromWindow();
     this.syncDownloadContentWidthFromWindow();
@@ -582,8 +582,23 @@ export struct DownloadScene {
     return floatingActionAvailableHeight(this.viewportHeight, reservedTop);
   }
 
-  private floatingActionsOnLeft(): boolean {
-    return this.floatingActionSide === FLOATING_ACTION_SIDE_LEFT;
+  onHoldingHandSettingChanged(): void {
+    this.syncHoldingHandSubscription();
+  }
+
+  private syncHoldingHandSubscription(): void {
+    this.unsubscribeHoldingHandSide();
+    this.unsubscribeHoldingHandSide = () => {};
+    this.holdingHandActionSide = '';
+    const fallback = normalizeFloatingActionSide(
+      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT));
+    this.animateFloatingActionSide(fallback);
+    if (ehSettingsStore.getValue(FLOATING_ACTION_HOLDING_HAND_SETTING_KEY, 'On') !== 'On') {
+      return;
+    }
+    this.unsubscribeHoldingHandSide = subscribeHoldingHandSide((side: string) => {
+      this.applyHoldingHandActionSide(side);
+    });
   }
 
   private setFloatingActionSide(side: string): void {
@@ -609,9 +624,7 @@ export struct DownloadScene {
     if (side === this.floatingActionSide) {
       return;
     }
-    this.getUIContext().animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
-      this.floatingActionSide = side;
-    });
+    this.floatingActionSide = side;
   }
 
   private updateToolbarForScrollFrame(scrollOffset: number): number {
@@ -2237,7 +2250,7 @@ export struct DownloadScene {
             .zIndex(16)
         }
 
-        Column() {
+        FloatingActionDock({ side: this.floatingActionSide }) {
           if (this.searchBarVisible && !this.searchSubmitted) {
             ActionBubble({
               label: uiText('Search'),
@@ -2303,16 +2316,6 @@ export struct DownloadScene {
             })
           }
         }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.End)
-        .alignItems(this.floatingActionsOnLeft() ? HorizontalAlign.Start : HorizontalAlign.End)
-        .padding({
-          left: this.floatingActionsOnLeft() ? 16 : 0,
-          right: this.floatingActionsOnLeft() ? 0 : 16,
-          bottom: 24
-        })
-        .hitTestBehavior(HitTestMode.Transparent)
 
         if (this.statusHintVisible) {
           Text(this.statusHintText)

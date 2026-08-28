@@ -28,6 +28,8 @@ import {
   restoreDownloadedItemsAndArchives
 } from '../services/DownloadZipImportService';
 import {
+  FLOATING_ACTION_HOLDING_HAND_REVISION_KEY,
+  FLOATING_ACTION_HOLDING_HAND_SETTING_KEY,
   HISTORY_INFO_SIZE_KEY,
   ehSettingsStore,
   historyInfoSizeLimitFromValue,
@@ -591,6 +593,10 @@ export struct SettingsScene {
     const normalizedValue = this.normalizedSettingValue(key, value);
     const previousValue = ehSettingsStore.getValue(key, '');
     ehSettingsStore.setValue(key, normalizedValue);
+    if (key === FLOATING_ACTION_HOLDING_HAND_SETTING_KEY && normalizedValue !== previousValue) {
+      const revision = AppStorage.get<number>(FLOATING_ACTION_HOLDING_HAND_REVISION_KEY) ?? 0;
+      AppStorage.setOrCreate<number>(FLOATING_ACTION_HOLDING_HAND_REVISION_KEY, revision + 1);
+    }
     if (key === AI_TRANSLATION_CONVERSATION_LOG_SETTING_KEY && normalizedValue !== 'On') {
       aiTranslationConversationLog.clear(getAbilityContext());
     }

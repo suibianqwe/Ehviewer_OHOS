@@ -1,4 +1,5 @@
 import { ALL_CATEGORY, GalleryCategory } from '../model/GalleryModels';
+import { curves } from '@kit.ArkUI';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
 import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
@@ -65,6 +66,65 @@ export interface SearchSuggestionItem {
 export interface GalleryUrlMatch {
   gid: number;
   token: string;
+}
+
+@Component
+export struct FloatingActionDock {
+  @Prop side: string = FLOATING_ACTION_SIDE_RIGHT;
+  @BuilderParam content: () => void = this.EmptyContent;
+  @State hostWidth: number = 0;
+  @State toolbarWidth: number = 54;
+  @State animationReady: boolean = false;
+  private animationActivationPending: boolean = false;
+
+  @Builder
+  private EmptyContent() {}
+
+  private isLeftSide(): boolean {
+    return normalizeFloatingActionSide(this.side) === FLOATING_ACTION_SIDE_LEFT;
+  }
+
+  private travelX(): number {
+    if (this.isLeftSide()) {
+      return 0;
+    }
+    return Math.max(0, this.hostWidth - 32 - this.toolbarWidth);
+  }
+
+  private enableAnimationAfterLayout(): void {
+    if (this.animationReady || this.animationActivationPending) {
+      return;
+    }
+    this.animationActivationPending = true;
+    setTimeout(() => {
+      this.animationActivationPending = false;
+      this.animationReady = true;
+    }, 0);
+  }
+
+  build() {
+    Stack({ alignContent: Alignment.BottomStart }) {
+      Column() {
+        this.content()
+      }
+      .alignItems(this.isLeftSide() ? HorizontalAlign.Start : HorizontalAlign.End)
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.toolbarWidth = Number.parseFloat(newArea.width.toString());
+        this.enableAnimationAfterLayout();
+      })
+      .translate({ x: this.travelX() })
+      .animation({ curve: curves.responsiveSpringMotion(), tempo: this.animationReady ? 1 : 0 })
+      .hitTestBehavior(HitTestMode.Transparent)
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 16, right: 16, bottom: 24 })
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      this.hostWidth = Number.parseFloat(newArea.width.toString());
+      this.enableAnimationAfterLayout();
+    })
+    .hitTestBehavior(HitTestMode.Transparent)
+  }
 }
 
 function floatingActionForeground(): ResourceColor {
@@ -1283,14 +1343,6 @@ export struct ActionBubble {
     return this.primary ? 54 : 44;
   }
 
-  private bubbleWidth(): number {
-    return this.buttonSize() + 8 + 214;
-  }
-
-  private bubbleOffsetX(): number {
-    return this.isLeftSide() ? 0 : this.buttonSize() - this.bubbleWidth();
-  }
-
   private isLeftSide(): boolean {
     return normalizeFloatingActionSide(this.side) === FLOATING_ACTION_SIDE_LEFT;
   }
@@ -1343,25 +1395,18 @@ export struct ActionBubble {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      Row({ space: 8 }) {
-        if (this.isLeftSide()) {
-          this.buttonBubble()
-          if (this.active && this.label.length > 0) {
-            this.labelBubble()
-          }
-        } else {
-          if (this.active && this.label.length > 0) {
-            this.labelBubble()
-          }
-          this.buttonBubble()
+      this.buttonBubble()
+      if (this.active && this.label.length > 0) {
+        Row() {
+          this.labelBubble()
         }
+        .width(214)
+        .height(this.buttonSize())
+        .position({ x: this.isLeftSide() ? this.buttonSize() + 8 : -222, y: 0 })
+        .alignItems(VerticalAlign.Center)
+        .justifyContent(this.isLeftSide() ? FlexAlign.Start : FlexAlign.End)
+        .hitTestBehavior(HitTestMode.Transparent)
       }
-      .width(this.bubbleWidth())
-      .height(this.buttonSize())
-      .position({ x: this.bubbleOffsetX(), y: 0 })
-      .alignItems(VerticalAlign.Center)
-      .justifyContent(this.isLeftSide() ? FlexAlign.Start : FlexAlign.End)
-      .hitTestBehavior(HitTestMode.Transparent)
     }
     .width(this.buttonSize())
     .height(this.buttonSize())

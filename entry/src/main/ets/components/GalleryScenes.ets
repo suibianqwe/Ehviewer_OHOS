@@ -21,6 +21,8 @@ import { DownloadLabel, ehDownloadStore } from '../services/EhDownloadStore';
 import {
   DEFAULT_FAVORITE_SLOT_ASK,
   DEFAULT_FAVORITE_SLOT_SETTING_KEY,
+  FLOATING_ACTION_HOLDING_HAND_REVISION_KEY,
+  FLOATING_ACTION_HOLDING_HAND_SETTING_KEY,
   FLOATING_ACTION_SIDE_SETTING_KEY,
   TRANSLATION_BUTTONS_VISIBLE_KEY,
   defaultFavoriteSlotSettingValue,
@@ -142,6 +144,7 @@ import {
   addSearchTagToken,
   buildSearchSuggestions,
   composeSearchKeywordWithInput,
+  FloatingActionDock,
   gallerySuggestionUrl,
   QuickActionColumn,
   removeSearchTagToken,
@@ -158,7 +161,6 @@ import {
   recordSearchHistory
 } from './GallerySearchScenes';
 import {
-  FLOATING_ACTION_SIDE_LEFT,
   FLOATING_ACTION_SIDE_RIGHT,
   floatingActionAvailableHeight,
   normalizeFloatingActionSide
@@ -4177,6 +4179,8 @@ export struct GalleryListContent {
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
   @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
   @StorageProp(TRANSLATION_BUTTONS_VISIBLE_KEY) translationButtonsVisible: boolean = true;
+  @StorageProp(FLOATING_ACTION_HOLDING_HAND_REVISION_KEY) @Watch('onHoldingHandSettingChanged')
+  holdingHandSettingRevision: number = 0;
 
   onScrollReset(): void {
     // Scroll back to the top when scrollResetVersion changes.
@@ -4315,12 +4319,7 @@ export struct GalleryListContent {
     this.unregisterActiveBackHandler();
     this.unregisterActiveBackHandler = pushActiveBackHandler(() => this.handleContentBack());
     this.onLayoutWidthHintChanged();
-    this.floatingActionSide = normalizeFloatingActionSide(
-      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT));
-    this.unsubscribeHoldingHandSide();
-    this.unsubscribeHoldingHandSide = subscribeHoldingHandSide((side: string) => {
-      this.applyHoldingHandActionSide(side);
-    });
+    this.syncHoldingHandSubscription();
     this.syncContentWidthFromWindow();
     this.syncPageJumpDraft();
     this.searchTagTokenCount = this.selectedSearchTagTokens().length;
@@ -4528,8 +4527,23 @@ export struct GalleryListContent {
     return floatingActionAvailableHeight(this.viewportHeight, this.statusBarVp() + this.barHeight() + 8);
   }
 
-  private floatingActionsOnLeft(): boolean {
-    return this.floatingActionSide === FLOATING_ACTION_SIDE_LEFT;
+  onHoldingHandSettingChanged(): void {
+    this.syncHoldingHandSubscription();
+  }
+
+  private syncHoldingHandSubscription(): void {
+    this.unsubscribeHoldingHandSide();
+    this.unsubscribeHoldingHandSide = () => {};
+    this.holdingHandActionSide = '';
+    const fallback = normalizeFloatingActionSide(
+      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT));
+    this.animateFloatingActionSide(fallback);
+    if (ehSettingsStore.getValue(FLOATING_ACTION_HOLDING_HAND_SETTING_KEY, 'On') !== 'On') {
+      return;
+    }
+    this.unsubscribeHoldingHandSide = subscribeHoldingHandSide((side: string) => {
+      this.applyHoldingHandActionSide(side);
+    });
   }
 
   private setFloatingActionSide(side: string): void {
@@ -4555,9 +4569,7 @@ export struct GalleryListContent {
     if (side === this.floatingActionSide) {
       return;
     }
-    this.getUIContext().animateTo({ duration: 220, curve: Curve.EaseOut }, () => {
-      this.floatingActionSide = side;
-    });
+    this.floatingActionSide = side;
   }
 
   private visibleBarHeight(): number {
@@ -5495,7 +5507,7 @@ export struct GalleryListContent {
       }
 
       // FAB 悬浮按钮
-      Column() {
+      FloatingActionDock({ side: this.floatingActionSide }) {
         if (this.shouldShowSearchOnlyFab()) {
           if (this.shouldShowTranslationAction()) {
             ActionBubble({
@@ -5557,16 +5569,6 @@ export struct GalleryListContent {
           })
         }
       }
-      .width('100%')
-      .height('100%')
-      .justifyContent(FlexAlign.End)
-      .alignItems(this.floatingActionsOnLeft() ? HorizontalAlign.Start : HorizontalAlign.End)
-      .padding({
-        left: this.floatingActionsOnLeft() ? 16 : 0,
-        right: this.floatingActionsOnLeft() ? 0 : 16,
-        bottom: 24
-      })
-      .hitTestBehavior(HitTestMode.Transparent)
 
       if (this.advancedPanelVisible) {
         PopupScrim({
