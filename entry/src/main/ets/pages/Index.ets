@@ -1,7 +1,11 @@
 import { common } from '@kit.AbilityKit';
 import { GalleryRoute } from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
-import { ehDailyCheckInService, EhDailyCheckInResult } from '../services/EhDailyCheckInService';
+import {
+  DAILY_CHECK_IN_FOREGROUND_REVISION_KEY,
+  ehDailyCheckInService,
+  EhDailyCheckInResult
+} from '../services/EhDailyCheckInService';
 import { ehDownloadStore } from '../services/EhDownloadStore';
 import { ehAppLog } from '../services/EhAppLog';
 import { ehHistoryStore } from '../services/EhHistoryStore';
@@ -53,6 +57,8 @@ let rootNavigationCache: RootNavigationCache = {
   routeResetVersion: 0
 };
 
+const DAILY_CHECK_IN_RETRY_INTERVAL_MS: number = 5 * 60 * 1000;
+
 @Entry
 @Component
 struct Index {
@@ -72,7 +78,10 @@ struct Index {
   @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
   @StorageProp(IDENTITY_AUTH_LOCKED_KEY) identityAuthLocked: boolean = false;
   @StorageProp(TRANSLATION_ERROR_REVISION_KEY) @Watch('onTranslationErrorRevision') translationErrorRevision: number = 0;
-  private dailyCheckInRequested: boolean = false;
+  @StorageProp(DAILY_CHECK_IN_FOREGROUND_REVISION_KEY) @Watch('onDailyCheckInForeground')
+  dailyCheckInForegroundRevision: number = 0;
+  private dailyCheckInPending: boolean = false;
+  private dailyCheckInLastAttemptAt: number = 0;
 
   onTranslationErrorRevision(): void {
     const message = AppStorage.get<string>(TRANSLATION_ERROR_MESSAGE_KEY);
@@ -83,6 +92,13 @@ struct Index {
       this.getUIContext().getPromptAction().showToast({ message: uiStatusText(message) });
     } catch (_error) {
     }
+  }
+
+  onDailyCheckInForeground(): void {
+    if (!this.settingsReady) {
+      return;
+    }
+    this.requestDailyCheckIn('foreground');
   }
 
   private statusBarVp(): number {
@@ -175,15 +191,15 @@ struct Index {
   private loadSessionRoute(ctx: common.UIAbilityContext): void {
     ehCookieStore.ensureLoaded(ctx).then(() => {
       this.applyInitialRoute();
-      this.checkInOnStartup();
+      this.requestDailyCheckIn('startup');
     }).catch(() => {
       this.applyInitialRoute();
-      this.checkInOnStartup();
+      this.requestDailyCheckIn('startup');
     });
   }
 
-  private checkInOnStartup(): void {
-    if (this.dailyCheckInRequested) {
+  private requestDailyCheckIn(reason: string, force: boolean = false): void {
+    if (this.dailyCheckInPending) {
       return;
     }
     if (!ehCookieStore.hasCookies()) {
@@ -194,28 +210,39 @@ struct Index {
       this.logDailyCheckInInfo('Skipped: automatic check-in is disabled');
       return;
     }
-    this.dailyCheckInRequested = true;
+    const now = Date.now();
+    if (!force && now - this.dailyCheckInLastAttemptAt < DAILY_CHECK_IN_RETRY_INTERVAL_MS) {
+      return;
+    }
+    this.dailyCheckInPending = true;
+    this.dailyCheckInLastAttemptAt = now;
     const startedAt = Date.now();
-    this.logDailyCheckInInfo('Request started');
+    this.logDailyCheckInInfo('Request started, reason=' + reason);
     ehDailyCheckInService.check().then((result: EhDailyCheckInResult) => {
       const elapsedMs = Date.now() - startedAt;
       if (!result.ok) {
         this.logDailyCheckInWarn('Request failed, status=' + result.statusCode.toString() +
-          ', elapsedMs=' + elapsedMs.toString() + ', message=' + result.message);
+          ', elapsedMs=' + elapsedMs.toString() + ', kind=' + result.responseKind +
+          ', message=' + result.message);
         return;
       }
       if (result.event !== null) {
         this.logDailyCheckInInfo('Request succeeded, status=' + result.statusCode.toString() +
-          ', elapsedMs=' + elapsedMs.toString() + ', dailyEvent=present');
+          ', elapsedMs=' + elapsedMs.toString() + ', dailyEvent=present, bodyLength=' +
+          result.bodyLength.toString() + ', paragraphs=' + result.eventParagraphCount.toString());
         this.dailyCheckInMessage = result.event.message;
         this.dailyCheckInDialogVisible = true;
       } else {
         this.logDailyCheckInInfo('Request succeeded, status=' + result.statusCode.toString() +
-          ', elapsedMs=' + elapsedMs.toString() + ', dailyEvent=absent (already claimed or no daily event)');
+          ', elapsedMs=' + elapsedMs.toString() + ', dailyEvent=absent, kind=' + result.responseKind +
+          ', bodyLength=' + result.bodyLength.toString() + ', paragraphs=' +
+          result.eventParagraphCount.toString());
       }
     }).catch((error: Error) => {
       this.logDailyCheckInWarn('Request rejected, elapsedMs=' + (Date.now() - startedAt).toString() +
         ', message=' + error.message);
+    }).finally(() => {
+      this.dailyCheckInPending = false;
     });
   }
 
@@ -231,7 +258,7 @@ struct Index {
 
   private handleSignedIn(): void {
     this.setRootRoute(this.routeAfterSignIn());
-    this.checkInOnStartup();
+    this.requestDailyCheckIn('signed-in', true);
   }
 
   private restoreRootRoute(): void {

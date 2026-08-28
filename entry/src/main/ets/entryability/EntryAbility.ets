@@ -28,6 +28,7 @@ import {
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { ehDownloadStore } from '../services/EhDownloadStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
+import { DAILY_CHECK_IN_FOREGROUND_REVISION_KEY } from '../services/EhDailyCheckInService';
 import { EH_SYSTEM_COLOR_MODE_DARK, EH_SYSTEM_COLOR_MODE_KEY } from '../shared/EhTheme';
 import {
   ensureEhHostRules,
@@ -104,6 +105,7 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate<string>(WINDOW_PRIVACY_STATUS_KEY, '');
     AppStorage.setOrCreate<boolean>(IDENTITY_AUTH_LOCKED_KEY, false);
     AppStorage.setOrCreate<boolean>(EMBEDDED_READER_ACTIVE_KEY, false);
+    AppStorage.setOrCreate<number>(DAILY_CHECK_IN_FOREGROUND_REVISION_KEY, 0);
     this.updateSystemColorMode(this.context.config.colorMode);
     let mainWindow: window.Window | undefined = undefined;
     const windowReady = stage.getMainWindow().then((win) => {
@@ -343,6 +345,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
+    this.notifyDailyCheckInForeground();
     if (this.appWasBackground) {
       this.appWasBackground = false;
       refreshEhConnectionsAfterForeground();
@@ -360,6 +363,11 @@ export default class EntryAbility extends UIAbility {
       this.setIdentityAuthLocked(true);
     }
     this.checkAndPromptBiometricLock();
+  }
+
+  private notifyDailyCheckInForeground(): void {
+    const current = AppStorage.get<number>(DAILY_CHECK_IN_FOREGROUND_REVISION_KEY) ?? 0;
+    AppStorage.setOrCreate<number>(DAILY_CHECK_IN_FOREGROUND_REVISION_KEY, current + 1);
   }
 
   onBackground(): void {

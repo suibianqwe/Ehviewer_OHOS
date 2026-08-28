@@ -3,6 +3,8 @@ import { decodeHtmlEntities } from '../shared/HtmlEntitySupport';
 import { EhHttpClient } from './EhHttpClient';
 import { EhUrl } from './EhUrl';
 
+export const DAILY_CHECK_IN_FOREGROUND_REVISION_KEY: string = 'dailyCheckInForegroundRevision';
+
 export interface EhDailyCheckInEvent {
   message: string;
 }
@@ -12,6 +14,15 @@ export interface EhDailyCheckInResult {
   statusCode: number;
   message: string;
   event: EhDailyCheckInEvent | null;
+  responseKind: string;
+  bodyLength: number;
+  eventParagraphCount: number;
+}
+
+interface EhDailyCheckInInspection {
+  event: EhDailyCheckInEvent | null;
+  responseKind: string;
+  eventParagraphCount: number;
 }
 
 class EhDailyCheckInService {
@@ -43,11 +54,15 @@ class EhDailyCheckInService {
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return failureResult(response.statusCode, 'HTTP ' + response.statusCode.toString());
       }
+      const inspection = inspectEhDailyCheckInResponse(response.body);
       return {
         ok: true,
         statusCode: response.statusCode,
         message: '',
-        event: parseEhDailyCheckInEvent(response.body)
+        event: inspection.event,
+        responseKind: inspection.responseKind,
+        bodyLength: response.body.length,
+        eventParagraphCount: inspection.eventParagraphCount
       };
     } catch (error) {
       return failureResult(0, String(error));
@@ -56,9 +71,17 @@ class EhDailyCheckInService {
 }
 
 export function parseEhDailyCheckInEvent(body: string): EhDailyCheckInEvent | null {
+  return inspectEhDailyCheckInResponse(body).event;
+}
+
+function inspectEhDailyCheckInResponse(body: string): EhDailyCheckInInspection {
   const paneMatch = /<div\b[^>]*\bid\s*=\s*["']eventpane["'][^>]*>([\s\S]*?)<\/div>/i.exec(body);
   if (paneMatch === null) {
-    return null;
+    return {
+      event: null,
+      responseKind: classifyResponseWithoutEvent(body),
+      eventParagraphCount: 0
+    };
   }
 
   const paragraphs: string[] = [];
@@ -74,9 +97,30 @@ export function parseEhDailyCheckInEvent(body: string): EhDailyCheckInEvent | nu
 
   // Match the Android implementation: ordinary news pages must not produce a dialog.
   if (paragraphs.length !== 3) {
-    return null;
+    return {
+      event: null,
+      responseKind: 'event-pane-unexpected',
+      eventParagraphCount: paragraphs.length
+    };
   }
-  return { message: paragraphs.join('\n\n') };
+  return {
+    event: { message: paragraphs.join('\n\n') },
+    responseKind: 'daily-event',
+    eventParagraphCount: paragraphs.length
+  };
+}
+
+function classifyResponseWithoutEvent(body: string): string {
+  if (/cf-chl-|challenge-platform|<title[^>]*>\s*Just a moment|Checking your browser|cf-ray/i.test(body)) {
+    return 'site-verification';
+  }
+  if (/Sign in with an E-Hentai forum account|name\s*=\s*["']UserName["']|act=Login/i.test(body)) {
+    return 'signed-out';
+  }
+  if (/\bid\s*=\s*["']newsouter["']|<title[^>]*>[^<]*E-Hentai/i.test(body)) {
+    return 'news-without-event';
+  }
+  return 'unexpected-page';
 }
 
 function cleanEventText(value: string): string {
@@ -84,7 +128,15 @@ function cleanEventText(value: string): string {
 }
 
 function failureResult(statusCode: number, message: string): EhDailyCheckInResult {
-  return { ok: false, statusCode: statusCode, message: message, event: null };
+  return {
+    ok: false,
+    statusCode: statusCode,
+    message: message,
+    event: null,
+    responseKind: 'request-failed',
+    bodyLength: 0,
+    eventParagraphCount: 0
+  };
 }
 
 export const ehDailyCheckInService: EhDailyCheckInService = new EhDailyCheckInService();
