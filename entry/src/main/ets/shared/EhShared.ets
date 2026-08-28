@@ -803,6 +803,8 @@ const UI_STATUS_PREFIX_TRANSLATIONS: UiStatusPrefixTranslation[] = [
   { source: 'Exporting ', target: '正在导出 ' },
   { source: 'Favorite failed: ', target: '收藏操作失败：' },
   { source: 'Filter rule added: ', target: '已添加过滤规则：' },
+  { source: 'Local tag filter load failed: ', target: '本地标签屏蔽规则加载失败：' },
+  { source: 'Local tag filter save failed: ', target: '本地标签屏蔽规则保存失败：' },
   { source: 'H@H failed: ', target: 'H@H 失败：' },
   { source: 'Invalid gallery id: ', target: '无效的画廊 ID：' },
   { source: 'Jump failed: ', target: '跳转失败：' },
@@ -1266,6 +1268,11 @@ export function zhText(text: string): string {
       case 'Enter new tag': return '输入新标签';
       case 'Show Tagged Galleries': return '显示含此标签的画廊';
       case 'Show Tag Definition': return '显示标签定义';
+      case 'Copy Tag': return '复制标签';
+      case 'Block Tag Locally': return '本地屏蔽标签';
+      case 'Block this tag locally?': return '将此标签添加到本地屏蔽项？';
+      case 'Block': return '屏蔽';
+      case 'Unable to add local tag filter': return '无法添加本地标签屏蔽规则';
       case 'Tag vote submitted': return '标签投票已提交';
       case 'Tag vote requires gallery API key': return '标签投票需要已加载的画廊会话';
       case 'Tag definition unavailable': return '标签定义不可用';

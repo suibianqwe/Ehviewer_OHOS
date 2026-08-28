@@ -99,6 +99,8 @@ export struct GalleryDetailOverlayScene {
   onTagSearch: (namespace: string, tag: string) => void = (_namespace: string, _tag: string) => {};
   onVoteTag: (fullTag: string, vote: number) => void = (_fullTag: string, _vote: number) => {};
   onAddTag: (fullTag: string) => void = (_fullTag: string) => {};
+  onCopyTag: (fullTag: string) => void = (_fullTag: string) => {};
+  onBlockTag: (fullTag: string) => void = (_fullTag: string) => {};
   onShowTagDefinition: (fullTag: string) => void = (_fullTag: string) => {};
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
 
@@ -155,6 +157,8 @@ export struct GalleryDetailOverlayScene {
         onTagSearch: this.onTagSearch,
         onVoteTag: this.onVoteTag,
         onAddTag: this.onAddTag,
+        onCopyTag: this.onCopyTag,
+        onBlockTag: this.onBlockTag,
         onShowTagDefinition: this.onShowTagDefinition
       })
 
@@ -239,6 +243,8 @@ export struct GalleryDetailScene {
   onTagSearch: (namespace: string, tag: string) => void = (_namespace: string, _tag: string) => {};
   onVoteTag: (fullTag: string, vote: number) => void = (_fullTag: string, _vote: number) => {};
   onAddTag: (fullTag: string) => void = (_fullTag: string) => {};
+  onCopyTag: (fullTag: string) => void = (_fullTag: string) => {};
+  onBlockTag: (fullTag: string) => void = (_fullTag: string) => {};
   onShowTagDefinition: (fullTag: string) => void = (_fullTag: string) => {};
   private detailScroller: Scroller = new Scroller();
   @State showRatingDialog: boolean = false;
@@ -400,6 +406,18 @@ export struct GalleryDetailScene {
     const fullTag = this.tagVoteTarget.fullTag;
     this.tagVotePanelVisible = false;
     this.onShowTagDefinition(fullTag);
+  }
+
+  private copyTag(): void {
+    const fullTag = this.tagVoteTarget.fullTag;
+    this.tagVotePanelVisible = false;
+    this.onCopyTag(fullTag);
+  }
+
+  private blockTag(): void {
+    const fullTag = this.tagVoteTarget.fullTag;
+    this.tagVotePanelVisible = false;
+    this.onBlockTag(fullTag);
   }
 
   private startDetailPullRefresh(): void {
@@ -621,6 +639,12 @@ export struct GalleryDetailScene {
           },
           onShowTagDefinition: () => {
             this.showTagDefinition();
+          },
+          onCopyTag: () => {
+            this.copyTag();
+          },
+          onBlockTag: () => {
+            this.blockTag();
           }
         })
         .zIndex(14)
@@ -653,11 +677,14 @@ export struct GalleryDetailScene {
 struct TagVoteOverlay {
   @State popupWidth: number = 0;
   @State popupHeight: number = 0;
+  @State confirmingBlock: boolean = false;
   tag: GalleryTagInfo = createEmptyTagInfo();
   onDismiss: () => void = () => {};
   onVote: (vote: number) => void = (_vote: number) => {};
   onShowTaggedGalleries: () => void = () => {};
   onShowTagDefinition: () => void = () => {};
+  onCopyTag: () => void = () => {};
+  onBlockTag: () => void = () => {};
 
   private translatedTitle(): string {
     return translatedTagLabel(this.tag);
@@ -758,6 +785,50 @@ struct TagVoteOverlay {
           symbolIcon: $r('sys.symbol.book'),
           onTap: this.onShowTagDefinition
         })
+        TagActionButton({
+          label: 'Copy Tag',
+          symbolIcon: $r('sys.symbol.save'),
+          onTap: this.onCopyTag
+        })
+        if (this.confirmingBlock) {
+          Text(uiText('Block this tag locally?'))
+            .fontSize(13)
+            .fontColor(themeSecondaryText())
+            .width('100%')
+            .textAlign(TextAlign.Center)
+          Row({ space: 10 }) {
+            TagVoteWideButton({
+              symbolIcon: $r('sys.symbol.xmark'),
+              label: 'Cancel',
+              enabledValue: true,
+              accentColor: themeSecondaryText(),
+              onClickAction: () => {
+                this.confirmingBlock = false;
+              }
+            })
+            .layoutWeight(1)
+            TagVoteWideButton({
+              symbolIcon: $r('sys.symbol.xmark_circle'),
+              label: 'Block',
+              enabledValue: true,
+              accentColor: '#C43C3C',
+              onClickAction: () => {
+                this.confirmingBlock = false;
+                this.onBlockTag();
+              }
+            })
+            .layoutWeight(1)
+          }
+          .width('100%')
+        } else {
+          TagActionButton({
+            label: 'Block Tag Locally',
+            symbolIcon: $r('sys.symbol.xmark_circle'),
+            onTap: () => {
+              this.confirmingBlock = true;
+            }
+          })
+        }
       }
       .width('86%')
       .constraintSize({ maxWidth: 440 })

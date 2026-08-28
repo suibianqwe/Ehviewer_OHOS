@@ -9,6 +9,7 @@ import { ehDownloadManager } from '../services/EhDownloadManager';
 import { DownloadInfo, DownloadLabel, ehDownloadStore } from '../services/EhDownloadStore';
 import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
+import { FILTER_MODE_TAG, ehFilterStore } from '../services/EhFilterStore';
 import {
   ArchiverDownloadResult,
   ArchiverLoadResult,
@@ -1418,6 +1419,43 @@ export struct GalleryDetailHostScene {
     this.voteDetailTag(fullTag, 1);
   }
 
+  private copyDetailTag(fullTag: string): void {
+    if (fullTag.length === 0) {
+      return;
+    }
+    try {
+      const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, fullTag);
+      pasteboard.getSystemPasteboard().setData(data).then(() => {
+        this.showToast('Copied to clipboard');
+      }).catch(() => {
+        this.showToast('Copy failed');
+      });
+    } catch (error) {
+      this.showToast('Copy failed');
+    }
+  }
+
+  private blockDetailTag(fullTag: string): void {
+    const context = getAbilityContext();
+    if (context === undefined || fullTag.length === 0) {
+      this.showToast('Unable to add local tag filter');
+      return;
+    }
+    ehFilterStore.ensureLoaded(context).then(() => {
+      if (!ehFilterStore.addRule(FILTER_MODE_TAG, fullTag)) {
+        this.showToast('Rule already exists: ' + fullTag);
+        return;
+      }
+      ehFilterStore.save(context).then(() => {
+        this.showToast('Filter rule added: ' + fullTag);
+      }).catch((error: Error) => {
+        this.showToast('Local tag filter save failed: ' + error.message);
+      });
+    }).catch((error: Error) => {
+      this.showToast('Local tag filter load failed: ' + error.message);
+    });
+  }
+
   private reloadCurrentDetailAfterTagChange(): void {
     const requestGid = this.detail.gid;
     const referer = this.detailRequestUrl.length > 0 ? this.detailRequestUrl : this.detailLink.referer;
@@ -1627,6 +1665,8 @@ export struct GalleryDetailHostScene {
         onTagSearch: (namespace: string, tag: string) => { this.openTagSearch(namespace, tag); },
         onVoteTag: (fullTag: string, vote: number) => { this.voteDetailTag(fullTag, vote); },
         onAddTag: (fullTag: string) => { this.addDetailTag(fullTag); },
+        onCopyTag: (fullTag: string) => { this.copyDetailTag(fullTag); },
+        onBlockTag: (fullTag: string) => { this.blockDetailTag(fullTag); },
         onShowTagDefinition: (fullTag: string) => { this.openTagDefinition(fullTag); }
       })
 

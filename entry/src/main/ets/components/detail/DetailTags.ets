@@ -129,6 +129,10 @@ export struct DetailTags {
     this.onOpenTagVote(cloneTagInfo(info));
   }
 
+  private longPressTag(info: GalleryTagInfo): void {
+    this.onOpenTagVote(cloneTagInfo(info));
+  }
+
   build() {
     Column() {
         Row() {
@@ -176,6 +180,9 @@ export struct DetailTags {
                 editMode: this.editMode,
                 onSelectTag: (info: GalleryTagInfo) => {
                   this.selectTag(info);
+                },
+                onLongPressTag: (info: GalleryTagInfo) => {
+                  this.longPressTag(info);
                 }
               })
             }, (group: GalleryTagGroup) => group.namespace + ':' + this.tagRevision.toString())
@@ -275,6 +282,8 @@ export struct TagGroupRow {
   @Prop editMode: boolean = false;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   onSelectTag: (info: GalleryTagInfo) => void = (_info: GalleryTagInfo) => {};
+  onLongPressTag: (info: GalleryTagInfo) => void = (_info: GalleryTagInfo) => {};
+  private lastLongPressAt: number = 0;
 
   private tagLabel(tag: string): string {
     if (!shouldShowTagTranslations()) {
@@ -338,8 +347,18 @@ export struct TagGroupRow {
           .padding({ left: 8, right: 8 })
           .margin({ right: 6, bottom: 6 })
           .onClick(() => {
+            if (Date.now() - this.lastLongPressAt < 600) {
+              return;
+            }
             this.onSelectTag(this.tagInfo(tag));
           })
+          .gesture(
+            LongPressGesture({ repeat: false })
+              .onAction(() => {
+                this.lastLongPressAt = Date.now();
+                this.onLongPressTag(this.tagInfo(tag));
+              })
+          )
         }, (tag: string) => this.group.namespace + ':' + tag)
       }
       .layoutWeight(1)
