@@ -1027,6 +1027,7 @@ export struct SearchAdvancedPanel {
       .borderRadius({ bottomLeft: 8, bottomRight: 8 })
     }
     .width('100%')
+    .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
     .backgroundColor(uiPopupMaterialBackground(themeSurface()))
     .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
     .systemMaterial(uiPanelMaterial())
