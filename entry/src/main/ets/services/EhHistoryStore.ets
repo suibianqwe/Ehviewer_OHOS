@@ -18,7 +18,7 @@ const FILE_NAME: string = 'ehviewer_history.json';
 const FILE_BACKUP_NAME: string = 'ehviewer_history.backup.json';
 const HISTORY_DEFAULT_MAX_SIZE: number = 100;
 const HISTORY_ABSOLUTE_MAX_SIZE: number = 20000;
-const HISTORY_SAVE_CHECKPOINT_MS: number = 5000;
+const HISTORY_SAVE_DEBOUNCE_MS: number = 300;
 
 interface StoredGalleryInfo {
   galleryUrl?: string;
@@ -82,7 +82,6 @@ interface HistoryBackupFile {
 interface HistoryFileState {
   items: GalleryInfo[];
   readPositions: ReadPosition[];
-  updatedAt: number;
 }
 
 interface StoredGalleryUrlParts {
@@ -98,7 +97,6 @@ export class EhHistoryStore {
   private saveTimer: number = -1;
   private loaded: boolean = false;
   private loadPromise: Promise<void> | null = null;
-  private nextSaveUsesBackup: boolean = false;
 
   getItems(): GalleryInfo[] {
     return cloneGalleryInfos(this.items);
@@ -352,11 +350,7 @@ export class EhHistoryStore {
     try {
       const main = this.readFile(context.filesDir + '/' + FILE_NAME);
       const backup = this.readFile(context.filesDir + '/' + FILE_BACKUP_NAME);
-      const mainAvailable = historyStateHasData(main);
-      const backupAvailable = historyStateHasData(backup);
-      const useBackup = backupAvailable && (!mainAvailable || backup.updatedAt > main.updatedAt);
-      const chosen = useBackup ? backup : main;
-      this.nextSaveUsesBackup = mainAvailable || useBackup;
+      const chosen = main.items.length > 0 || main.readPositions.length > 0 ? main : backup;
       this.items = chosen.items;
       this.readPositions = chosen.readPositions;
       if (this.items.length === 0 && this.readPositions.length === 0) {
@@ -388,12 +382,12 @@ export class EhHistoryStore {
       return;
     }
     if (this.saveTimer >= 0) {
-      return;
+      clearTimeout(this.saveTimer);
     }
     this.saveTimer = setTimeout(() => {
       this.saveTimer = -1;
       this.saveChain = this.saveChain.then(() => this.saveNow(context)).catch(() => {});
-    }, HISTORY_SAVE_CHECKPOINT_MS) as number;
+    }, HISTORY_SAVE_DEBOUNCE_MS) as number;
   }
 
   private async saveNow(context: common.UIAbilityContext): Promise<void> {
@@ -425,11 +419,10 @@ export class EhHistoryStore {
       return {
         items: this.parseStoredItemsOnce(JSON.stringify(parsed.items === undefined ? [] : parsed.items)),
         readPositions: this.parseReadPositionsOnce(JSON.stringify(parsed.readPositions === undefined ? [] :
-          parsed.readPositions)),
-        updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0
+          parsed.readPositions))
       };
     } catch (error) {
-      return { items: [], readPositions: [], updatedAt: 0 };
+      return { items: [], readPositions: [] };
     }
   }
 
@@ -441,9 +434,8 @@ export class EhHistoryStore {
       readPositions: readPositions,
       updatedAt: Date.now()
     });
-    const fileName = this.nextSaveUsesBackup ? FILE_BACKUP_NAME : FILE_NAME;
-    await writeTextFileQuietly(context.filesDir + '/' + fileName, payload);
-    this.nextSaveUsesBackup = !this.nextSaveUsesBackup;
+    await writeTextFileQuietly(context.filesDir + '/' + FILE_NAME, payload);
+    await writeTextFileQuietly(context.filesDir + '/' + FILE_BACKUP_NAME, payload);
   }
 
   private serializeStoredItems(): StoredGalleryInfo[] {
@@ -550,10 +542,6 @@ export class EhHistoryStore {
     }
     this.readPositions = next;
   }
-}
-
-function historyStateHasData(state: HistoryFileState): boolean {
-  return state.items.length > 0 || state.readPositions.length > 0;
 }
 
 function storedToGalleryInfo(item: StoredGalleryInfo): GalleryInfo {
@@ -769,7 +757,6 @@ async function writeTextFileQuietly(path: string, value: string): Promise<void> 
     file = await fs.open(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
     await fs.write(file.fd, value);
   } catch (error) {
-    throw new Error(String(error));
   } finally {
     if (file !== null) {
       try {

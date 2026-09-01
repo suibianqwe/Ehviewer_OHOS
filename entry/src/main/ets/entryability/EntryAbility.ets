@@ -26,8 +26,6 @@ import {
   resumeBackgroundImageRequests
 } from '../services/ReaderImageCache';
 import { ehDownloadManager } from '../services/EhDownloadManager';
-import { ehDownloadStore } from '../services/EhDownloadStore';
-import { ehHistoryStore } from '../services/EhHistoryStore';
 import { DAILY_CHECK_IN_FOREGROUND_REVISION_KEY } from '../services/EhDailyCheckInService';
 import { EH_SYSTEM_COLOR_MODE_DARK, EH_SYSTEM_COLOR_MODE_KEY } from '../shared/EhTheme';
 import {
@@ -374,8 +372,6 @@ export default class EntryAbility extends UIAbility {
     this.appWasBackground = true;
     pauseBackgroundImageRequests();
     ehDownloadManager.onAppBackground(this.context);
-    ehDownloadStore.ensureLoaded(this.context).then(() => ehDownloadStore.save(this.context)).catch(() => {});
-    ehHistoryStore.ensureLoaded(this.context).then(() => ehHistoryStore.save(this.context)).catch(() => {});
     if (this.authPending) {
       return;
     }

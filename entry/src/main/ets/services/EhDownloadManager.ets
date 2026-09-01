@@ -271,7 +271,7 @@ export class EhDownloadManager {
       if (!this.hasWaitingDownloads()) {
         await this.stopBackgroundTask(context);
       }
-      this.saveDownloads(context, true);
+      this.saveDownloads(context);
     }
   }
 
@@ -352,7 +352,7 @@ export class EhDownloadManager {
     ehDownloadStore.setState(item.gid, DownloadState.Downloading);
     ehDownloadStore.setTransfer(item.gid, 0, 0);
     this.publishStatus('Downloading: ' + item.title);
-    this.saveDownloads(context, true);
+    this.saveDownloads(context);
 
     try {
       const detailResult = await this.client.loadGalleryDetail(item.gid, item.token, 0, currentGallerySite(),
@@ -426,7 +426,6 @@ export class EhDownloadManager {
         ehDownloadStore.setState(item.gid, DownloadState.None);
         ehDownloadStore.setTransfer(item.gid, 0, 0);
         this.publishStatus('Stopped: ' + item.title);
-        this.saveDownloads(context, true);
         return;
       }
 
@@ -444,7 +443,7 @@ export class EhDownloadManager {
       }
       await publishDownloadResultNotification(context, DOWNLOAD_RESULT_NOTIFICATION_ID, item.title,
         'Download completed');
-      this.saveDownloads(context, true);
+      this.saveDownloads(context);
     } catch (error) {
       ehDownloadStore.setState(item.gid, DownloadState.Failed);
       ehDownloadStore.setTransfer(item.gid, 0, 0);
@@ -455,7 +454,7 @@ export class EhDownloadManager {
       }
       await publishDownloadResultNotification(context, DOWNLOAD_RESULT_NOTIFICATION_ID, item.title,
         'Download failed');
-      this.saveDownloads(context, true);
+      this.saveDownloads(context);
     }
   }
 
@@ -964,12 +963,8 @@ export class EhDownloadManager {
     }
   }
 
-  private saveDownloads(context: common.UIAbilityContext, immediate: boolean = false): void {
-    if (immediate) {
-      ehDownloadStore.save(context).catch(() => {});
-      return;
-    }
-    ehDownloadStore.scheduleSave(context);
+  private saveDownloads(context: common.UIAbilityContext): void {
+    ehDownloadStore.save(context).catch(() => {});
   }
 
   private addStoppedGid(gid: number): void {

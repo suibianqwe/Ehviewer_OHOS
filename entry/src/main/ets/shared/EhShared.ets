@@ -2653,6 +2653,7 @@ export function saveGalleryToHistory(gallery: GalleryInfo): void {
   }
   ehHistoryStore.ensureLoaded(context).then(() => {
     ehHistoryStore.addGallery(gallery, limit);
+    ehHistoryStore.save(context).catch(() => {});
   }).catch(() => {});
 }
 
@@ -2673,6 +2674,7 @@ export function saveGalleryReadPosition(gid: number, pageIndex: number, gallery?
     }
     ehHistoryStore.setReadPage(gid, pageIndex);
     notifyHistoryReadChanged();
+    ehHistoryStore.save(context).catch(() => {});
   }).catch(() => {});
 }
 
