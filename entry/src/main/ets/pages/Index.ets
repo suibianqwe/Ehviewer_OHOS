@@ -288,12 +288,9 @@ struct Index {
   }
 
   private setRootRoute(route: GalleryRoute): void {
-    const shouldResetCurrentRoute = rootNavigationCache.initialized && this.activeRoute === route;
     prepareSplitPaneRouteTransition();
     this.activeRoute = route;
-    if (shouldResetCurrentRoute) {
-      this.routeResetVersion++;
-    }
+    this.routeResetVersion++;
     rootNavigationCache = {
       initialized: true,
       activeRoute: this.activeRoute,
