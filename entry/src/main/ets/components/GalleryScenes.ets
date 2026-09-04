@@ -1524,6 +1524,11 @@ export struct GalleryListScene {
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
     this.syncSceneContentWidthFromWindow();
+    // The cache key contains the account-filter setting. Root settings are already loaded
+    // before gallery scenes are created, so synchronize it before looking up the cache.
+    // Otherwise returning from Settings can miss the existing list cache, briefly render an
+    // empty page and start another network refresh.
+    this.syncAccountFilterSetting();
     if (this.sourceRoute === GalleryRoute.Favorites) {
       this.favoriteCat = recentFavoriteCat;
     }
