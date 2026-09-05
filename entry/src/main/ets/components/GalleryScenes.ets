@@ -5285,11 +5285,10 @@ export struct GalleryListContent {
       { alwaysEnabled: !this.isInitialLoadingState(), effectEdge: EffectEdge.START | EffectEdge.END })
     .cachedCount(10)
     .padding({
-      top: this.expandedTitleContentInset(),
+      top: this.titleContentInset(),
       left: this.galleries.length > 0 ? this.galleryContentPadding() : 0,
       right: this.galleries.length > 0 ? this.galleryContentPadding() : 0
     })
-    .translate({ y: -(this.expandedTitleContentInset() - this.titleContentInset()) })
     .width('100%')
     .height('100%')
     .onAppear(() => {
@@ -5329,11 +5328,10 @@ export struct GalleryListContent {
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
     .cachedCount(10)
     .padding({
-      top: this.expandedTitleContentInset(),
+      top: this.titleContentInset(),
       left: this.galleryContentPadding(),
       right: this.galleryContentPadding()
     })
-    .translate({ y: -(this.expandedTitleContentInset() - this.titleContentInset()) })
     .width('100%')
     .height('100%')
     .onAppear(() => {
