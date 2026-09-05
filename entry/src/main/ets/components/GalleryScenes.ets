@@ -5206,7 +5206,7 @@ export struct GalleryListContent {
   }
 
   @Builder
-  private galleryFlowItem(gallery: GalleryInfo, index: number, addTopSpacing: boolean = false) {
+  private galleryFlowItem(gallery: GalleryInfo, index: number) {
     FlowItem() {
       GalleryThumbCard({
         gallery: gallery,
@@ -5227,7 +5227,6 @@ export struct GalleryListContent {
         })
     }
     .width('100%')
-    .margin({ top: addTopSpacing ? this.expandedTitleContentInset() : 0 })
     .reuseId('gallery-thumb-flow-item')
     .animation({ duration: 220, curve: Curve.EaseOut })
     .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
@@ -5331,7 +5330,7 @@ export struct GalleryListContent {
       layoutMode: WaterFlowLayoutMode.SLIDING_WINDOW
     }) {
       ForEach(this.galleries, (gallery: GalleryInfo, index: number) => {
-        this.galleryFlowItem(gallery, index, index < this.galleryColumnCount())
+        this.galleryFlowItem(gallery, index)
       }, (gallery: GalleryInfo) => this.galleryCardKey(gallery))
     }
     .columnsTemplate(this.galleryWaterFlowColumnsTemplate())
@@ -5341,6 +5340,7 @@ export struct GalleryListContent {
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
     .cachedCount(10)
     .padding({
+      top: this.expandedTitleContentInset(),
       left: this.galleryContentPadding(),
       right: this.galleryContentPadding()
     })
