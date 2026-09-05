@@ -482,7 +482,8 @@ export struct SearchSummaryStrip {
     }
     .width('100%')
     .height(36)
-    .padding({ top: 1, bottom: 1 })
+    // 与搜索栏的实际起点对齐：返回按钮 40vp + 两侧间距和边距共 60vp。
+    .padding({ left: 60, right: 12, top: 1, bottom: 1 })
     .scrollable(ScrollDirection.Horizontal)
     .scrollBar(BarState.Off)
   }

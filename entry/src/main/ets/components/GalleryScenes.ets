@@ -5026,7 +5026,8 @@ export struct GalleryListContent {
   @Builder
   private searchResultNavBar() {
     Stack({ alignContent: Alignment.TopStart }) {
-      EhTitleBarBackdrop({ barBackdropHeight: this.titleBarBackdropHeight() })
+      EhTitleBarBackdrop({ barBackdropHeight: this.searchSubmitted ? this.titleBarBackdropHeight() :
+        this.totalBarHeight() + uiTitleBarFadeHeight() })
 
       Column() {
         Column()
@@ -5074,11 +5075,11 @@ export struct GalleryListContent {
         .backgroundColor(Color.Transparent)
       }
       .width('100%')
-      .translate({ y: this.toolbarOffsetY })
-      .visibility(this.toolbarVisible() ? Visibility.Visible : Visibility.Hidden)
+      .translate({ y: this.searchSubmitted ? this.toolbarOffsetY : 0 })
+      .visibility(!this.searchSubmitted || this.toolbarVisible() ? Visibility.Visible : Visibility.Hidden)
     }
     .width('100%')
-    .height(this.titleBarBackdropHeight())
+    .height(this.searchSubmitted ? this.titleBarBackdropHeight() : this.totalBarHeight() + uiTitleBarFadeHeight())
     .backgroundColor(Color.Transparent)
     .zIndex(10)
   }
@@ -5350,9 +5351,6 @@ export struct GalleryListContent {
   private galleryStandardList() {
     List({ space: 0, scroller: this.listScroller }) {
       if (this.shouldShowSearchSuggestions()) {
-        ListItem() {
-          Row().width('100%').height(this.titleContentInset())
-        }
         ListItem() {
           this.searchSuggestionPlaceholder()
         }

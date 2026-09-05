@@ -44,7 +44,6 @@ import {
 } from '../shared/EhUiStyle';
 import { TranslationText } from './TranslationComponents';
 
-const GALLERY_THUMB_LOCAL_SOURCE_CACHE: Map<string, string> = new Map<string, string>();
 const GALLERY_THUMB_ASPECT_RATIO_CACHE: Map<string, number> = new Map<string, number>();
 
 interface GalleryImageCompleteEvent {
@@ -521,6 +520,7 @@ export struct GalleryThumb {
   @State localUrl: string = '';
   @State loadFailed: boolean = false;
   private cachedUrl: string = '';
+  private imageRetryCount: number = 0;
 
   aboutToAppear(): void {
     if (this.url.length > 0) {
@@ -544,19 +544,18 @@ export struct GalleryThumb {
     if (this.cachedUrl === this.url && (this.localUrl.length > 0 || this.loadFailed)) {
       return;
     }
+    const urlChanged = this.cachedUrl !== this.url;
     this.cachedUrl = this.url;
-    const cachedLocalSource = GALLERY_THUMB_LOCAL_SOURCE_CACHE.get(this.url);
-    this.localUrl = cachedLocalSource === undefined ? '' : cachedLocalSource;
-    this.loadFailed = false;
-    if (this.localUrl.length > 0) {
-      return;
+    if (urlChanged) {
+      this.imageRetryCount = 0;
     }
+    this.localUrl = '';
+    this.loadFailed = false;
     cacheThumbnailImage(this.url, (path: string) => {
       if (this.cachedUrl !== this.url) {
         return;
       }
       this.localUrl = readerLocalImageSource(path);
-      GALLERY_THUMB_LOCAL_SOURCE_CACHE.set(this.url, this.localUrl);
       this.loadFailed = false;
     }, () => {
       if (this.cachedUrl !== this.url) {
@@ -635,7 +634,17 @@ export struct GalleryThumb {
             this.onImageAspectRatio(aspectRatio);
           })
           .onError(() => {
-            this.loadFailed = true;
+            if (this.imageRetryCount < 2 && this.url.length > 0) {
+              this.imageRetryCount++;
+              this.cachedUrl = this.url;
+              this.localUrl = '';
+              this.loadFailed = false;
+              setTimeout(() => {
+                this.cacheThumb();
+              }, 120);
+            } else {
+              this.loadFailed = true;
+            }
           })
       } else {
         LoadingProgress()
