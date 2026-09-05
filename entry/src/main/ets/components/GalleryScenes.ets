@@ -4506,7 +4506,10 @@ export struct GalleryListContent {
   }
 
   private titleContentInset(): number {
-    const visibleHeight = Math.max(this.statusBarVp(), this.visibleBarHeight());
+    const visibleHeight = this.visibleBarHeight();
+    if (visibleHeight <= 0) {
+      return 0;
+    }
     return visibleHeight + uiTitleBarFadeHeight() * 0.68;
   }
 
