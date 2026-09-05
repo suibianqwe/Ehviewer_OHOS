@@ -26,6 +26,9 @@ import {
 } from '../shared/EhTheme';
 import {
   uiAdaptiveToolbarHeight,
+  uiButtonBlurOptions,
+  uiButtonBlurStyle,
+  uiButtonHighlightBorderColor,
   uiButtonMaterial,
   uiListItemBackground,
   uiMaterialBackground,
@@ -335,6 +338,8 @@ export struct FilterPanel {
         .borderRadius(uiRadius(22))
         .backgroundColor(themePrimaryColor())
         .systemMaterial(uiButtonMaterial())
+        .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
+        .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .onClick(() => {
           this.submitTextRule();
         })
@@ -509,6 +514,8 @@ struct FilterRuleCard {
         .borderRadius(uiRadius(19))
         .backgroundColor(this.rule.enabled ? themeSelectedBackgroundLight() : themeSurfaceVariant())
         .systemMaterial(uiButtonMaterial())
+        .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
+        .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .onClick(() => {
           this.onToggle();
         })
@@ -524,6 +531,8 @@ struct FilterRuleCard {
         .borderRadius(uiRadius(19))
         .backgroundColor(themeSurfaceVariant())
         .systemMaterial(uiButtonMaterial())
+        .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
+        .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .onClick(() => {
           this.onRemove();
         })

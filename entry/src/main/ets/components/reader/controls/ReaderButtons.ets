@@ -1,5 +1,7 @@
 import {
   uiButtonHighlightBorderColor,
+  uiButtonBlurOptions,
+  uiButtonBlurStyle,
   uiMaterialLayerBackground,
   uiMaterialForegroundColor,
   uiRadius,
@@ -19,6 +21,7 @@ export struct ReaderToolButton {
       .fontColor(this.active ? uiMaterialForegroundColor(Color.White) : '#6B7280')
       .backgroundColor(uiMaterialLayerBackground(this.active ? '#334155' : '#1F2937'))
       .systemMaterial(uiTintedButtonMaterial(this.active ? '#334155' : '#1F2937'))
+      .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
       .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .enabled(this.active)
       .onClick(() => {
@@ -47,6 +50,7 @@ export struct ReaderNavButton {
     .width('100%')
     .backgroundColor(uiMaterialLayerBackground(this.active ? '#2F6F8F' : '#1F2937'))
     .systemMaterial(uiTintedButtonMaterial(this.active ? '#2F6F8F' : '#1F2937'))
+    .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
     .borderRadius(uiRadius(4))
     .border({ width: 1, color: uiButtonHighlightBorderColor() })
     .onClick(() => {

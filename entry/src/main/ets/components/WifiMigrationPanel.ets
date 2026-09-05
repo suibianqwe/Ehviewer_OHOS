@@ -29,7 +29,7 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
+import { uiButtonBlurOptions, uiButtonBlurStyle, uiButtonHighlightBorderColor, uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
 import { AppSubToolbar } from './NavigationComponents';
 
 @Component
@@ -263,6 +263,8 @@ export struct WifiMigrationPanel {
     .padding({ left: 14, right: 14 })
     .backgroundColor(this.role === role ? themePrimaryColor() : themeSurfaceVariant())
     .systemMaterial(uiButtonMaterial())
+    .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
+    .border({ width: 1, color: uiButtonHighlightBorderColor() })
     .borderRadius(uiRadius(8))
     .onClick(() => {
       this.switchRole(role);
@@ -310,6 +312,8 @@ export struct WifiMigrationPanel {
     .padding({ left: 12, right: 12 })
     .backgroundColor(this.isDataKindSelected(kind) ? themeSelectedBackground() : themeSurface())
     .systemMaterial(uiButtonMaterial())
+    .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
+    .border({ width: 1, color: uiButtonHighlightBorderColor() })
     .borderRadius(uiRadius(8))
     .onClick(() => {
       if (!this.active()) {

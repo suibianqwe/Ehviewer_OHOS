@@ -18,6 +18,9 @@ import {
   themeTertiaryText
 } from '../shared/EhTheme';
 import {
+  uiButtonBlurOptions,
+  uiButtonBlurStyle,
+  uiButtonHighlightBorderColor,
   uiButtonMaterial,
   uiListItemBackground,
   uiListItemBorderColor,
@@ -145,6 +148,8 @@ export struct CommentBlacklistPanel {
         .borderRadius(uiRadius(22))
         .backgroundColor(themePrimaryColor())
         .systemMaterial(uiButtonMaterial())
+        .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
+        .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .onClick(() => {
           this.addEntry();
         })
@@ -223,6 +228,8 @@ export struct CommentBlacklistPanel {
       .borderRadius(uiRadius(20))
       .backgroundColor(themeSurfaceVariant())
       .systemMaterial(uiButtonMaterial())
+      .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
+      .border({ width: 1, color: uiButtonHighlightBorderColor() })
       .onClick(() => {
         this.pendingDelete = entry;
       })

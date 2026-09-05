@@ -14,6 +14,9 @@ import { applyAppChromeImmersiveMode } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, setActiveBackHandler } from '../shared/EhShared';
 import { themeAccentTextColor, themeFieldBackground, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSuccessText, themeSurface, themeTransparentColor } from '../shared/EhTheme';
 import {
+  uiButtonBlurOptions,
+  uiButtonBlurStyle,
+  uiButtonHighlightBorderColor,
   uiButtonMaterial,
   uiMaterialBackground,
   uiMaterialForegroundColor,
@@ -560,8 +563,10 @@ export struct SessionScene {
             Button(uiText('Cancel'))
               .type(ButtonType.Normal)
               .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
-              .backgroundColor(themeTransparentColor())
-              .systemMaterial(uiButtonMaterial())
+            .backgroundColor(themeTransparentColor())
+            .systemMaterial(uiButtonMaterial())
+            .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
               .onClick(() => {
                 this.failPasswordWebSignIn('Sign in cancelled');
               })
@@ -670,6 +675,8 @@ export struct SessionScene {
             .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
             .backgroundColor(themeTransparentColor())
             .systemMaterial(uiTintedButtonMaterial(themeSurface()))
+            .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .layoutWeight(1)
           Button(this.signingIn ? uiText('Signing in...') : uiText('Sign in'))
             .type(ButtonType.Capsule)
@@ -678,6 +685,8 @@ export struct SessionScene {
             .fontWeight(FontWeight.Bold)
             .backgroundColor(themeTransparentColor())
             .systemMaterial(uiTintedButtonMaterial(themeSurface()))
+            .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .layoutWeight(1)
             .enabled(!this.signingIn)
             .onClick(() => {
@@ -817,6 +826,8 @@ export struct SessionScene {
           .height(44)
           .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
           .backgroundColor(themeTransparentColor())
+          .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .systemMaterial(uiTintedButtonMaterial(themeSurface()))
           .layoutWeight(1)
           .onClick(() => {
@@ -828,6 +839,8 @@ export struct SessionScene {
           .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
           .fontWeight(FontWeight.Bold)
           .backgroundColor(themeTransparentColor())
+          .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .systemMaterial(uiTintedButtonMaterial(themeSurface()))
           .layoutWeight(1)
           .onClick(() => {
