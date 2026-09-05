@@ -149,6 +149,8 @@ import { PopupScrim } from './PopupScrim';
 import {
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
+  uiButtonBlurOptions,
+  uiButtonBlurStyle,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -2654,6 +2656,7 @@ struct ProxySettingsOverlay {
           .height(40)
           .backgroundColor(themeSurfaceVariant())
           .systemMaterial(uiButtonMaterial())
+          .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .onClick(this.onCancel)
         }

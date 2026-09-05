@@ -28,6 +28,8 @@ import {
   uiAdaptiveTitleSize,
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
+  uiButtonBlurOptions,
+  uiButtonBlurStyle,
   uiButtonHighlightBorderColor,
   uiCardRadius,
   uiControlRadius,
@@ -557,6 +559,7 @@ export struct EhNavBar {
         .height(this.actionSize())
         .backgroundColor(navigationActionBackground(themeOnPrimaryActionBackground()))
         .systemMaterial(uiButtonMaterial())
+        .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .flexShrink(0)
         .onClick(() => {
@@ -616,6 +619,7 @@ export struct EhNavBar {
           .backgroundColor(navigationActionBackground(this.searchShowsAdvancedButton && this.filterActive ?
             themeOnPrimaryActionStrongBackground() : themeOnPrimaryActionBackground()))
           .systemMaterial(uiButtonMaterial())
+          .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .flexShrink(0)
           .margin({ left: 8 })

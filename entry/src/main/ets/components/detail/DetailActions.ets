@@ -18,6 +18,8 @@ import {
 } from '../../shared/EhTheme';
 import {
   uiButtonMaterial,
+  uiButtonBlurOptions,
+  uiButtonBlurStyle,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -247,6 +249,7 @@ export struct DetailActionItem {
     .justifyContent(FlexAlign.Center)
     .backgroundColor(this.pressed ? themeSurfaceVariant() : themeTransparentColor())
     .systemMaterial(uiButtonMaterial())
+    .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
     .borderRadius(34)
     .shadow({
       radius: this.pressed ? 2 : 8,
