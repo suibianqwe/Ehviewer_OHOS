@@ -1,5 +1,4 @@
 import { ALL_CATEGORY, GalleryCategory } from '../model/GalleryModels';
-import { curves } from '@kit.ArkUI';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
 import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
@@ -75,10 +74,6 @@ export interface GalleryUrlMatch {
 export struct FloatingActionDock {
   @Prop side: string = FLOATING_ACTION_SIDE_RIGHT;
   @BuilderParam content: () => void = this.EmptyContent;
-  @State hostWidth: number = 0;
-  @State toolbarWidth: number = 54;
-  @State animationReady: boolean = false;
-  private animationActivationPending: boolean = false;
 
   @Builder
   private EmptyContent() {}
@@ -87,45 +82,20 @@ export struct FloatingActionDock {
     return normalizeFloatingActionSide(this.side) === FLOATING_ACTION_SIDE_LEFT;
   }
 
-  private travelX(): number {
-    if (this.isLeftSide()) {
-      return 0;
-    }
-    return Math.max(0, this.hostWidth - 32 - this.toolbarWidth);
-  }
-
-  private enableAnimationAfterLayout(): void {
-    if (this.animationReady || this.animationActivationPending) {
-      return;
-    }
-    this.animationActivationPending = true;
-    setTimeout(() => {
-      this.animationActivationPending = false;
-      this.animationReady = true;
-    }, 0);
-  }
-
   build() {
     Stack({ alignContent: Alignment.BottomStart }) {
       Column() {
         this.content()
       }
       .alignItems(this.isLeftSide() ? HorizontalAlign.Start : HorizontalAlign.End)
-      .onAreaChange((_oldArea: Area, newArea: Area) => {
-        this.toolbarWidth = Number.parseFloat(newArea.width.toString());
-        this.enableAnimationAfterLayout();
-      })
-      .translate({ x: this.travelX() })
-      .animation({ curve: curves.responsiveSpringMotion(), tempo: this.animationReady ? 1 : 0 })
+      // 由父容器直接定位，避免测量回调与平移动画产生不同的坐标基准。
+      // 展开多列、横竖屏及分栏宽度变化时，布局会重新保持对应侧的边距。
+      .align(this.isLeftSide() ? Alignment.BottomStart : Alignment.BottomEnd)
       .hitTestBehavior(HitTestMode.Transparent)
     }
     .width('100%')
     .height('100%')
     .padding({ left: 16, right: 16, bottom: 24 })
-    .onAreaChange((_oldArea: Area, newArea: Area) => {
-      this.hostWidth = Number.parseFloat(newArea.width.toString());
-      this.enableAnimationAfterLayout();
-    })
     .hitTestBehavior(HitTestMode.Transparent)
   }
 }
