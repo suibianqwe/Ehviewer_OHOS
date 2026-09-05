@@ -4613,6 +4613,9 @@ export struct GalleryListContent {
       this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, yOffset, this.totalBarHeight());
       return scrollOffset;
     }
+    if (scrollOffset < 0 && this.toolbarOffsetY < 0) {
+      this.toolbarOffsetY = 0;
+    }
     return scrollOffset;
   }
 
