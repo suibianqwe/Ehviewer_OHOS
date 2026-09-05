@@ -4162,7 +4162,6 @@ export struct GalleryListContent {
   private loadMorePending: boolean = false;
   private restoredScroll: boolean = false;
   private galleryThumbnailAspectRatioAverage: number = 0.75;
-  @State private contentOpacity: number = 1;
   @State toolbarOffsetY: number = 0;
   @State translationVisibleStart: number = -1;
   @State translationVisibleEnd: number = -1;
@@ -4331,9 +4330,6 @@ export struct GalleryListContent {
     this.syncPageJumpDraft();
     this.searchTagTokenCount = this.selectedSearchTagTokens().length;
     this.refreshSearchSuggestions();
-    if (this.initialScrollOffset > 0) {
-      this.contentOpacity = 0;
-    }
     setTimeout(() => {
       this.syncContentWidthFromWindow();
     }, 0);
@@ -4671,10 +4667,8 @@ export struct GalleryListContent {
   }
 
   private listViewportHeight(): number {
-    if (this.viewportHeight <= 0) {
-      return 1;
-    }
-    return Math.max(1, this.viewportHeight - this.contentStartOffset());
+    // 测量值仅用于预加载距离计算，不参与列表布局，避免首帧 1vp 高度被保留在渲染节点中。
+    return Math.max(0, this.viewportHeight - this.contentStartOffset());
   }
 
   private searchResultStripHeight(): number {
@@ -5308,7 +5302,7 @@ export struct GalleryListContent {
       right: this.galleries.length > 0 ? this.galleryContentPadding() : 0
     })
     .width('100%')
-    .height(this.listViewportHeight())
+    .height('100%')
     .onAppear(() => {
       this.restoreInitialListOffset();
     })
@@ -5350,7 +5344,7 @@ export struct GalleryListContent {
       right: this.galleryContentPadding()
     })
     .width('100%')
-    .height(this.listViewportHeight())
+    .height('100%')
     .onAppear(() => {
       this.restoreInitialListOffset();
     })
@@ -5377,7 +5371,6 @@ export struct GalleryListContent {
       this.restoredScroll = true;
       setTimeout(() => {
         this.listScroller.scrollTo({ xOffset: 0, yOffset: this.initialScrollOffset });
-        this.contentOpacity = 1;
       }, 80);
     }
   }
@@ -5407,7 +5400,7 @@ export struct GalleryListContent {
             this.galleryListContent()
           }
           .width('100%')
-          .height(this.listViewportHeight())
+          .height('100%')
           .translate({ y: this.contentStartOffset() })
           .backgroundColor(themePageBackground())
         } else {
@@ -5423,15 +5416,13 @@ export struct GalleryListContent {
             this.startPullRefresh();
           })
           .width('100%')
-          .height(this.listViewportHeight())
+          .height('100%')
           .translate({ y: this.contentStartOffset() })
           .backgroundColor(themePageBackground())
         }
       }
       .width('100%')
       .height('100%')
-      .opacity(this.contentOpacity)
-      .animation({ duration: 100, curve: Curve.EaseOut })
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.updateContentWidth(this.layoutWidthHint >= 240 ? this.layoutWidthHint : newArea.width as number);
         const h = newArea.height as number;

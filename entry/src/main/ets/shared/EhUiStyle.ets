@@ -26,7 +26,9 @@ const harmony7DialogMaterials: Map<string, uiMaterial.Material> = new Map<string
 const harmony7SelectDialogMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 
 function supportsImmersiveMaterial(): boolean {
-  return deviceInfo.apiAvailable('26.0.0');
+  // ImmersiveMaterial is a device capability. apiAvailable() describes the
+  // compiled API surface and can be true on a lower-version device.
+  return deviceInfo.sdkApiVersion >= 26;
 }
 
 function supportsBackgroundBlur(): boolean {
