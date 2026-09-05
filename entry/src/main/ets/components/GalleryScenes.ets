@@ -1561,13 +1561,15 @@ export struct GalleryListScene {
     }
     const context = getAbilityContext();
     if (context !== undefined) {
-      Promise.all([
-        ehCookieStore.ensureLoaded(context),
-        ehFilterStore.ensureLoaded(context),
-        ehSettingsStore.ensureLoaded(context),
+      const auxiliaryStores = Promise.all([
         ehBookmarkStore.ensureLoaded(context),
         ehLocalFavoritesStore.ensureLoaded(context),
         ehDownloadStore.ensureLoaded(context)
+      ]).catch(() => {});
+      Promise.all([
+        ehCookieStore.ensureLoaded(context),
+        ehFilterStore.ensureLoaded(context),
+        ehSettingsStore.ensureLoaded(context)
       ]).catch((error: Error) => {
         this.statusText = 'Cookie load failed, using current session: ' + error.message;
       }).finally(() => {
@@ -1584,6 +1586,10 @@ export struct GalleryListScene {
         if (!this.isSearchResultScene || this.searchSubmitted) {
           this.firstRefresh();
         }
+      });
+      auxiliaryStores.then(() => {
+        this.refreshSearchBookmarks();
+        this.refreshLocalFavoriteCount();
       });
     } else {
       if (this.isSearchResultScene && this.initialSearchSubmitted && !this.hasFirstRefresh) {
