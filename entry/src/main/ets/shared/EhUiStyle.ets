@@ -26,9 +26,9 @@ const harmony7DialogMaterials: Map<string, uiMaterial.Material> = new Map<string
 const harmony7SelectDialogMaterials: Map<string, uiMaterial.Material> = new Map<string, uiMaterial.Material>();
 
 function supportsImmersiveMaterial(): boolean {
-  // ImmersiveMaterial is a device capability. apiAvailable() describes the
-  // compiled API surface and can be true on a lower-version device.
-  return deviceInfo.sdkApiVersion >= 26;
+  // HarmonyOS 7.0.0.3 limits ImmersiveMaterial to a system-controlled
+  // component allowlist. App-owned controls must use the blur fallback.
+  return false;
 }
 
 function supportsBackgroundBlur(): boolean {
