@@ -630,6 +630,8 @@ export struct GalleryThumb {
             }
             const aspectRatio = normalizedThumbnailAspectRatio(event.width, event.height);
             GALLERY_THUMB_ASPECT_RATIO_CACHE.set(this.url, aspectRatio);
+            // Parsed gallery metadata is the layout contract. The callback is only
+            // needed for legacy entries whose metadata did not contain dimensions.
             this.onImageAspectRatio(aspectRatio);
           })
           .onError(() => {
@@ -673,6 +675,9 @@ export struct GalleryThumbCard {
   }
 
   private updateThumbnailAspectRatio(aspectRatio: number): void {
+    if (this.gallery.thumbWidth > 0 && this.gallery.thumbHeight > 0) {
+      return;
+    }
     if (Math.abs(this.resolvedThumbnailAspectRatio - aspectRatio) < 0.001) {
       return;
     }

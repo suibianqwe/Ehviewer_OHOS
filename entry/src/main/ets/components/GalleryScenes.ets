@@ -1,5 +1,6 @@
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { fileIo as fs, picker } from '@kit.CoreFileKit';
+import { image } from '@kit.ImageKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { systemShare } from '@kit.ShareKit';
 import { KeyCode } from '@ohos.multimodalInput.keyCode';
@@ -196,7 +197,8 @@ import {
   galleryThumbnailPreferredColumnWidth,
   toggleGalleryDownload,
   downloadButtonText,
-  shouldShowTagTranslations
+  shouldShowTagTranslations,
+  cacheThumbnailImage
 } from '../shared/EhShared';
 
 export { CategoryBadge, GalleryListRow, GalleryTagChip, GalleryThumb, GalleryThumbCard } from './GalleryCards';
@@ -223,6 +225,27 @@ function galleryChromeForeground(): string {
 
 function galleryChromeBackground(solidColor: string): string {
   return uiMaterialBackground(solidColor);
+}
+
+interface ThumbnailImageSize {
+  width: number;
+  height: number;
+}
+
+function readThumbnailImageSize(path: string): ThumbnailImageSize {
+  let source: image.ImageSource | undefined = undefined;
+  try {
+    source = image.createImageSource(path);
+    const info = source.getImageInfoSync();
+    return { width: info.size.width, height: info.size.height };
+  } catch (error) {
+    return { width: 0, height: 0 };
+  } finally {
+    if (source !== undefined) {
+      source.release().catch(() => {
+      });
+    }
+  }
 }
 
 interface GalleryListSceneCache {
@@ -4169,6 +4192,8 @@ export struct GalleryListContent {
   private loadMorePending: boolean = false;
   private restoredScroll: boolean = false;
   private galleryThumbnailAspectRatioAverage: number = 0.75;
+  @State thumbnailDimensionsReady: boolean = false;
+  private thumbnailDimensionsGeneration: number = 0;
   @State toolbarOffsetY: number = 0;
   @State translationVisibleStart: number = -1;
   @State translationVisibleEnd: number = -1;
@@ -4219,6 +4244,7 @@ export struct GalleryListContent {
     this.translationVisibleEnd = -1;
     if (this.galleries.length === 0) {
       this.galleryThumbnailAspectRatioAverage = 0.75;
+      this.thumbnailDimensionsReady = true;
       return;
     }
     let ratioSum = 0;
@@ -4226,6 +4252,62 @@ export struct GalleryListContent {
       ratioSum += galleryThumbnailAspectRatio(this.galleries[i]);
     }
     this.galleryThumbnailAspectRatioAverage = ratioSum / this.galleries.length;
+    this.prepareThumbnailDimensions();
+  }
+
+  private prepareThumbnailDimensions(): void {
+    const generation = ++this.thumbnailDimensionsGeneration;
+    const missing: GalleryInfo[] = [];
+    for (let i = 0; i < this.galleries.length; i++) {
+      const gallery = this.galleries[i];
+      if (gallery.thumbWidth <= 0 || gallery.thumbHeight <= 0) {
+        missing.push(gallery);
+      }
+    }
+    if (missing.length === 0) {
+      this.thumbnailDimensionsReady = true;
+      return;
+    }
+
+    this.thumbnailDimensionsReady = false;
+    let remaining = missing.length;
+    const complete = (): void => {
+      if (generation !== this.thumbnailDimensionsGeneration) {
+        return;
+      }
+      remaining--;
+      if (remaining > 0) {
+        return;
+      }
+      let ratioSum = 0;
+      for (let i = 0; i < this.galleries.length; i++) {
+        ratioSum += galleryThumbnailAspectRatio(this.galleries[i]);
+      }
+      this.galleryThumbnailAspectRatioAverage = this.galleries.length > 0 ?
+        ratioSum / this.galleries.length : 0.75;
+      this.thumbnailDimensionsReady = true;
+    };
+
+    for (let i = 0; i < missing.length; i++) {
+      const gallery = missing[i];
+      const url = gallery.thumb === undefined ? '' : gallery.thumb;
+      if (url.length === 0) {
+        complete();
+        continue;
+      }
+      cacheThumbnailImage(url, (path: string) => {
+        if (generation === this.thumbnailDimensionsGeneration) {
+          const size = readThumbnailImageSize(path);
+          if (size.width > 0 && size.height > 0) {
+            gallery.thumbWidth = size.width;
+            gallery.thumbHeight = size.height;
+          }
+        }
+        complete();
+      }, () => {
+        complete();
+      });
+    }
   }
 
   onLayoutWidthHintChanged(): void {
@@ -4330,6 +4412,7 @@ export struct GalleryListContent {
   aboutToAppear(): void {
     this.unregisterActiveBackHandler();
     this.unregisterActiveBackHandler = pushActiveBackHandler(() => this.handleContentBack());
+    this.onGalleriesChanged();
     this.onLayoutWidthHintChanged();
     this.syncHoldingHandSubscription();
     this.syncContentWidthFromWindow();
@@ -5398,8 +5481,18 @@ export struct GalleryListContent {
 
   @Builder
   private galleryListContent() {
-    if (this.useThumbnailWaterFlow()) {
+    if (this.useThumbnailWaterFlow() && this.thumbnailDimensionsReady) {
       this.galleryThumbnailWaterFlow()
+    } else if (galleryListMode() === 'Thumb' && !this.shouldShowSearchSuggestions() && this.galleries.length > 0 &&
+      !this.thumbnailDimensionsReady) {
+      Stack({ alignContent: Alignment.Center }) {
+        LoadingProgress()
+          .width(36)
+          .height(36)
+          .color(themePlaceholderColor())
+      }
+      .width('100%')
+      .height('100%')
     } else {
       this.galleryStandardList()
     }
