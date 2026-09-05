@@ -4505,6 +4505,11 @@ export struct GalleryListContent {
     return this.totalBarHeight() + uiTitleBarFadeHeight() * 0.68;
   }
 
+  private titleContentInset(): number {
+    const visibleHeight = Math.max(this.statusBarVp(), this.visibleBarHeight());
+    return visibleHeight + uiTitleBarFadeHeight() * 0.68;
+  }
+
   private imageSearchPanelWidth(): number {
     const width = this.effectiveContentWidth();
     if (width <= 0) {
@@ -4921,7 +4926,6 @@ export struct GalleryListContent {
     .padding({ left: 8, right: 8 })
     .backgroundColor(uiMaterialBackground(themeFieldBackground()))
     .systemMaterial(uiSearchMaterial())
-    .border(uiInputFieldBorder())
     .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
     .alignItems(VerticalAlign.Center)
   }
@@ -5149,11 +5153,11 @@ export struct GalleryListContent {
   private galleryRefreshIndicator() {
     Row()
       .width('100%')
-      .height(this.expandedTitleContentInset())
+      .height(this.titleContentInset())
   }
 
   private refreshIndicatorTop(): number {
-    return this.expandedTitleContentInset() + Math.min(20, this.refreshPullOffset * 0.25);
+    return this.titleContentInset() + Math.min(20, this.refreshPullOffset * 0.25);
   }
 
   @Builder
@@ -5236,7 +5240,7 @@ export struct GalleryListContent {
   private galleryListEdgeSpacer() {
     Row()
       .width('100%')
-      .height(this.expandedTitleContentInset())
+      .height(this.titleContentInset())
   }
 
   @Builder
@@ -5263,7 +5267,7 @@ export struct GalleryListContent {
     List({ space: 0, scroller: this.listScroller }) {
       if (this.shouldShowSearchSuggestions()) {
         ListItem() {
-          Row().width('100%').height(this.expandedTitleContentInset())
+          Row().width('100%').height(this.titleContentInset())
         }
         ListItem() {
           this.searchSuggestionPlaceholder()
@@ -5340,7 +5344,7 @@ export struct GalleryListContent {
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
     .cachedCount(10)
     .padding({
-      top: this.expandedTitleContentInset(),
+      top: this.titleContentInset(),
       left: this.galleryContentPadding(),
       right: this.galleryContentPadding()
     })
