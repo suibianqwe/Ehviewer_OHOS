@@ -24,12 +24,15 @@ import {
   isHarmonyUiStyle,
   uiButtonMaterial,
   uiButtonHighlightBorderColor,
+  uiButtonBlurOptions,
+  uiButtonBlurStyle,
   uiFloatingButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiMaterialLayerBackground,
   uiPanelMaterial,
   uiPopupBlurStyle,
+  uiPopupBlurOptions,
   uiPopupMaterialBackground,
   uiRadius,
   uiSegmentMaterial,
@@ -1379,6 +1382,7 @@ export struct ActionBubble {
     .backgroundColor(floatingActionBackground(this.isEnabled ?
       (this.primary || this.checked ? themePrimaryColor() : themeControlNeutralBackground()) :
       themeControlMutedBackground()))
+    .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
     .systemMaterial(this.primary || this.checked ?
       uiTintedButtonMaterial(themePrimaryColor()) : uiButtonMaterial())
     .border({

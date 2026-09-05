@@ -261,6 +261,14 @@ export function uiMaterialBackground(solidColor: string): string {
   return isHarmonyMaterialEnabled() ? 'rgba(0,0,0,0)' : translucentMaterialColor(solidColor);
 }
 
+export function uiButtonBlurStyle(): BlurStyle {
+  return isHarmonyUiStyle() && supportsBackgroundBlur() ? BlurStyle.COMPONENT_THIN : BlurStyle.NONE;
+}
+
+export function uiButtonBlurOptions(): BackgroundBlurStyleOptions {
+  return uiPopupBlurOptions();
+}
+
 export function uiMaterialLayerBackground(solidColor: string): string {
   if (!isHarmonyUiStyle()) {
     return solidColor;
