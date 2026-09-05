@@ -1339,9 +1339,9 @@ export struct GalleryListScene {
     this.totalPages = cache.totalPages;
     this.nextUrl = cache.nextUrl;
     this.resultCount = cache.resultCount;
-    this.galleries = cloneGalleryInfos(cache.galleries);
+    this.galleries = cache.galleries;
     this.favoriteCat = cache.favoriteCat;
-    this.favoriteCategories = cloneFavoriteCategories(cache.favoriteCategories);
+    this.favoriteCategories = cache.favoriteCategories;
     this.hasFirstRefresh = cache.hasFirstRefresh;
     this.filterActive = this.isSearchResultScene ? false : cache.filterActive;
     this.accountFilterEnabled = cache.accountFilterEnabled !== false;
