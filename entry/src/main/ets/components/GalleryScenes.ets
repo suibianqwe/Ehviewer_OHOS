@@ -4978,7 +4978,6 @@ export struct GalleryListContent {
     }
     .width('100%')
     .height(this.titleBarBackdropHeight())
-    .animation({ duration: 200, curve: Curve.EaseOut })
     .backgroundColor(Color.Transparent)
     .zIndex(10)
   }
