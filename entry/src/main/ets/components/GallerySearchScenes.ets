@@ -18,7 +18,7 @@ import {
   tagTranslationOptionText,
   uiText
 } from '../shared/EhShared';
-import { themeAccentTextColor, themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSelectedBackground, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
+import { isDarkTheme, themeAccentTextColor, themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSelectedBackground, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
 import {
   isHarmonyMaterialEnabled,
   isHarmonyUiStyle,
@@ -131,7 +131,7 @@ export struct FloatingActionDock {
 }
 
 function floatingActionForeground(): ResourceColor {
-  return uiMaterialForegroundColor(themeOnPrimaryText());
+  return isDarkTheme() ? themeOnPrimaryText() : themePrimaryText();
 }
 
 function floatingActionBackground(solidColor: string): string {
