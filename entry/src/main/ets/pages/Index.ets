@@ -283,6 +283,10 @@ struct Index {
 
   selectRoute(route: GalleryRoute): void {
     applyAppChromeImmersiveMode();
+    if (route === this.activeRoute) {
+      this.closeDrawer();
+      return;
+    }
     this.setRootRoute(route);
     this.closeDrawer();
   }
@@ -440,25 +444,18 @@ struct Index {
         resetVersion: this.routeResetVersion,
         onMenu: () => { this.openDrawer(); }
       })
-        .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.Subscription) {
       SubscriptionGalleryScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
-        .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.WhatsHot) {
       HotGalleryScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
-        .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.TopLists) {
       TopListScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
-        .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.Favorites) {
       FavoriteGalleryScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
-        .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.History) {
       HistoryScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
-        .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.Downloads) {
       DownloadScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
-        .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
     } else if (this.activeRoute === GalleryRoute.Session) {
       SessionScene({
         onSignedIn: () => { this.handleSignedIn(); }
