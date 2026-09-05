@@ -253,7 +253,12 @@ export function uiReaderOptionSegmentMaterial(): uiMaterial.Material | undefined
 }
 
 export function uiMaterialBackground(solidColor: string): string {
-  return isHarmonyMaterialEnabled() ? 'rgba(0,0,0,0)' : solidColor;
+  if (!isHarmonyUiStyle()) {
+    return solidColor;
+  }
+  // ImmersiveMaterial is unavailable for app-owned controls on HarmonyOS
+  // 7.0.0.3. Keep a translucent tint so the accompanying blur remains visible.
+  return isHarmonyMaterialEnabled() ? 'rgba(0,0,0,0)' : translucentMaterialColor(solidColor);
 }
 
 export function uiMaterialLayerBackground(solidColor: string): string {
