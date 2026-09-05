@@ -194,6 +194,8 @@ export struct DownloadLabelSelectionDialog {
     .height(52)
     .padding({ left: 18, right: 18 })
     .backgroundColor(value === this.selectedLabel ? themeSelectedBackground() : themeTransparentColor())
+    .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
+    .border({ width: 1, color: uiButtonHighlightBorderColor() })
     .onClick(() => {
       this.onSelect(value);
     })
