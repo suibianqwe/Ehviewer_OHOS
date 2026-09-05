@@ -1324,6 +1324,7 @@ export function zhText(text: string): string {
     case 'Length': return '页数';
     case 'Rating': return '评分';
     case 'Favorited': return '已收藏';
+    case 'In download list': return '已加入下载列表';
     case 'Favorite': return '收藏';
     case 'Archive': return '存档';
     case 'Archive -': return '存档 -';

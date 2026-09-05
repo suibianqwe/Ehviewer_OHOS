@@ -12,6 +12,7 @@ import {
   TopListDetail
 } from '../model/GalleryModels';
 import { ehCookieStore } from './EhCookieStore';
+import { galleryStatusStore } from './GalleryStatusStore';
 import { EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder } from './EhUrl';
 import { GalleryDetailParseResult, parseGalleryDetail } from './GalleryDetailParser';
 import { mergeGalleryApiMetadata } from './GalleryApiParser';
@@ -667,6 +668,7 @@ export class EhHttpClient {
           nowFavorited: isFavorited
         };
       }
+      galleryStatusStore.setCloudFavorite(gid, !isFavorited);
       return {
         ok: true,
         statusCode: response.statusCode,
@@ -762,6 +764,7 @@ export class EhHttpClient {
       }
 
       const parsed: GalleryListParseResult = parseGalleryList(response.body);
+      galleryStatusStore.syncCloudFavorites(parsed.galleries);
       await yieldToEventLoop();
       await this.fillGalleryListByApi(parsed.galleries, url, site);
       const parseMessage = parsed.warning.length > 0 ? parsed.warning + '; ' + galleryListBodyDiagnostic(response.body) :
@@ -849,6 +852,9 @@ export class EhHttpClient {
       }
 
       const parsed: GalleryDetailParseResult = parseGalleryDetail(response.body);
+      if (parsed.detail !== null) {
+        galleryStatusStore.setCloudFavorite(parsed.detail.gid, parsed.detail.isFavorited);
+      }
       await yieldToEventLoop();
       this.saveParseErrorBodyIfNeeded('gallery_detail', url, response.statusCode, parsed.warning, parsed.detail === null,
         response.body);
@@ -1280,6 +1286,7 @@ export class EhHttpClient {
         return emptyGalleryListResult(url, httpStatusMessage(response.statusCode, response.body), response.statusCode);
       }
       const parsed: GalleryListParseResult = parseGalleryList(response.body);
+      galleryStatusStore.syncCloudFavorites(parsed.galleries);
       await this.fillGalleryListByApi(parsed.galleries, url, site);
       this.saveParseErrorBodyIfNeeded('image_search', redirectUrl.length > 0 ? redirectUrl : url, response.statusCode,
         parsed.warning, parsed.galleries.length === 0 && parsed.warning.length > 0, response.body);

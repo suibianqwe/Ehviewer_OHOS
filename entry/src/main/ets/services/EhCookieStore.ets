@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { preferences } from '@kit.ArkData';
 import { ehSettingsStore } from './EhSettingsStore';
+import { galleryStatusStore } from './GalleryStatusStore';
 
 const PREFERENCES_NAME: string = 'ehviewer_session';
 const COOKIE_KEY: string = 'cookie_header';
@@ -52,6 +53,7 @@ export class EhCookieStore {
       }
       this.upsert(pair.substring(0, index), pair.substring(index + 1));
     }
+    galleryStatusStore.setCloudAccount(this.cookieValue(KEY_IPB_MEMBER_ID));
   }
 
   absorbSetCookieHeader(setCookieHeader: string): void {
@@ -63,6 +65,7 @@ export class EhCookieStore {
     for (let i = 0; i < lines.length; i++) {
       this.absorbOne(lines[i]);
     }
+    galleryStatusStore.setCloudAccount(this.cookieValue(KEY_IPB_MEMBER_ID));
   }
 
   getCookieHeader(): string {
@@ -211,12 +214,14 @@ export class EhCookieStore {
 
   clear(): void {
     this.cookies = [];
+    galleryStatusStore.setCloudAccount('');
     this.loaded = true;
   }
 
   clearSessionPreservingIgneous(): void {
     const localIgneous = this.cookieValue(KEY_IGNEOUS);
     this.cookies = [];
+    galleryStatusStore.setCloudAccount('');
     if (localIgneous.length > 0) {
       this.cookies.push({ name: KEY_IGNEOUS, value: localIgneous });
     }
@@ -233,6 +238,7 @@ export class EhCookieStore {
     }
     this.cookies = retained;
     this.loaded = true;
+    galleryStatusStore.setCloudAccount('');
   }
 
   async ensureLoaded(context: common.UIAbilityContext): Promise<void> {

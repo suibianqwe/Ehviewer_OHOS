@@ -1566,7 +1566,8 @@ export struct GalleryListScene {
         ehFilterStore.ensureLoaded(context),
         ehSettingsStore.ensureLoaded(context),
         ehBookmarkStore.ensureLoaded(context),
-        this.sourceRoute === GalleryRoute.Favorites ? ehLocalFavoritesStore.ensureLoaded(context) : Promise.resolve()
+        ehLocalFavoritesStore.ensureLoaded(context),
+        ehDownloadStore.ensureLoaded(context)
       ]).catch((error: Error) => {
         this.statusText = 'Cookie load failed, using current session: ' + error.message;
       }).finally(() => {

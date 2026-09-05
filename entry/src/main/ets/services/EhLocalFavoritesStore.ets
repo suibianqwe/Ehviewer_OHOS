@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { galleryStatusStore } from './GalleryStatusStore';
 import { preferences } from '@kit.ArkData';
 import { GalleryCategory, GalleryDetail, GalleryInfo, GalleryTagGroup } from '../model/GalleryModels';
 import { normalizeGalleryLanguageCode } from './GalleryLanguageSupport';
@@ -122,6 +123,7 @@ export class EhLocalFavoritesStore {
 
   async save(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
+    this.publishMembership();
     await this.saveSnapshot(context, this.snapshot());
   }
 
@@ -142,6 +144,7 @@ export class EhLocalFavoritesStore {
     next.sort((left: LocalFavoriteEntry, right: LocalFavoriteEntry): number => right.time - left.time);
     this.items = next;
     if (queueSave) {
+      this.publishMembership();
       this.queueSave();
     }
   }
@@ -154,6 +157,7 @@ export class EhLocalFavoritesStore {
       }
     }
     this.items = next;
+    this.publishMembership();
     this.queueSave();
   }
 
@@ -181,6 +185,11 @@ export class EhLocalFavoritesStore {
     }
     this.loaded = true;
     this.loadPromise = null;
+    this.publishMembership();
+  }
+
+  private publishMembership(): void {
+    galleryStatusStore.syncLocalFavorites(this.items.map((item: LocalFavoriteEntry) => item.gallery.gid));
   }
 
   private queueSave(): void {

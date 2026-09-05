@@ -1,5 +1,6 @@
 import { GalleryCategory, GalleryInfo, GallerySite } from '../model/GalleryModels';
 import { ehHistoryStore } from '../services/EhHistoryStore';
+import { GALLERY_STATUS_REVISION_KEY, galleryStatusStore } from '../services/GalleryStatusStore';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import {
   cacheThumbnailImage,
@@ -370,13 +371,19 @@ export struct GalleryListRow {
   @Builder
   private detailArea() {
     Row() {
-      GalleryThumb({
-        url: this.gallery.thumb === undefined ? '' : this.gallery.thumb,
-        widthValue: this.cardThumbWidth(),
-        heightValue: this.detailAreaHeight(),
-        radiusValue: 6
-      })
-        .height('100%')
+      Stack({ alignContent: Alignment.BottomStart }) {
+        GalleryThumb({
+          url: this.gallery.thumb === undefined ? '' : this.gallery.thumb,
+          widthValue: this.cardThumbWidth(),
+          heightValue: this.detailAreaHeight(),
+          radiusValue: 6
+        })
+          .height('100%')
+        GalleryStatusBadges({ gallery: this.gallery })
+          .margin({ left: 4, bottom: 4 })
+      }
+      .width(this.cardThumbWidth())
+      .height('100%')
 
       Column() {
         Column() {
@@ -737,16 +744,22 @@ export struct GalleryThumbCard {
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
-        GalleryThumb({
-          url: this.gallery.thumb === undefined ? '' : this.gallery.thumb,
-          widthValue: 0,
-          heightValue: 0,
-          onImageAspectRatio: (aspectRatio: number) => {
-            this.updateThumbnailAspectRatio(aspectRatio);
-          }
-        })
-          .width('100%')
-          .aspectRatio(this.resolvedThumbnailAspectRatio)
+        Stack({ alignContent: Alignment.BottomStart }) {
+          GalleryThumb({
+            url: this.gallery.thumb === undefined ? '' : this.gallery.thumb,
+            widthValue: 0,
+            heightValue: 0,
+            onImageAspectRatio: (aspectRatio: number) => {
+              this.updateThumbnailAspectRatio(aspectRatio);
+            }
+          })
+            .width('100%')
+            .height('100%')
+          GalleryStatusBadges({ gallery: this.gallery })
+            .margin({ left: 4, bottom: 4 })
+        }
+        .width('100%')
+        .aspectRatio(this.resolvedThumbnailAspectRatio)
 
         Column() {
           Column() {
@@ -802,6 +815,47 @@ export struct GalleryThumbCard {
           this.onLongPress(this.gallery);
         })
     )
+  }
+}
+
+@Component
+struct GalleryStatusBadges {
+  @Prop gallery: GalleryInfo = createEmptyGallery();
+  @StorageProp(GALLERY_STATUS_REVISION_KEY) statusRevision: number = 0;
+  @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
+
+  private hasDownload(): boolean {
+    return this.statusRevision >= 0 && galleryStatusStore.hasDownload(this.gallery.gid);
+  }
+
+  private isFavorite(): boolean {
+    return this.statusRevision >= 0 && galleryStatusStore.isFavorite(this.gallery);
+  }
+
+  build() {
+    Row({ space: 3 }) {
+      if (this.hasDownload()) {
+        SymbolGlyph($r('sys.symbol.arrow_down_circle'))
+          .fontSize(16)
+          .fontColor([Color.White])
+          .width(22)
+          .height(22)
+          .backgroundColor('#CF164E63')
+          .borderRadius(11)
+          .accessibilityText(uiText('In download list'))
+      }
+      if (this.isFavorite()) {
+        SymbolGlyph($r('sys.symbol.heart_fill'))
+          .fontSize(15)
+          .fontColor([Color.White])
+          .width(22)
+          .height(22)
+          .backgroundColor('#CF9D174D')
+          .borderRadius(11)
+          .accessibilityText(uiText('Favorited'))
+      }
+    }
+    .hitTestBehavior(HitTestMode.None)
   }
 }
 

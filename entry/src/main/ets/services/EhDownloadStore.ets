@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { galleryStatusStore } from './GalleryStatusStore';
 import { preferences } from '@kit.ArkData';
 import { GalleryCategory, GalleryDetail, GalleryInfo, GalleryTagGroup } from '../model/GalleryModels';
 
@@ -593,6 +594,7 @@ export class EhDownloadStore {
   }
 
   private emitChanged(): void {
+    galleryStatusStore.syncDownloads(this.items.map((item: DownloadInfo) => item.gid));
     const items = this.getItems();
     const labels = this.getLabels();
     for (let i = 0; i < this.listeners.length; i++) {
