@@ -110,6 +110,7 @@ import {
   uiPageHorizontalPadding,
   uiRadius,
   uiSearchFieldHeight,
+  uiInputFieldBorder,
   uiSearchMaterial
 } from '../shared/EhUiStyle';
 import { FloatingToolbarHost } from './NavigationComponents';
@@ -2367,6 +2368,7 @@ export struct DownloadScene {
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
                 .systemMaterial(uiSearchMaterial())
+                .border(uiInputFieldBorder())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 10, right: 10 })
                 .onChange((value: string) => {

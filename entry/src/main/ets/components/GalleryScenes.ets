@@ -96,6 +96,7 @@ import {
   uiPageHorizontalPadding,
   uiRadius,
   uiSearchFieldHeight,
+  uiInputFieldBorder,
   uiSearchMaterial,
   uiSwitchHeight,
   uiSwitchWidth,
@@ -3472,6 +3473,7 @@ export struct GalleryListScene {
                   .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                   .backgroundColor(uiMaterialBackground(themeFieldBackground()))
                   .systemMaterial(uiSearchMaterial())
+                  .border(uiInputFieldBorder())
                   .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                   .padding({ left: 12, right: 12 })
                   .onChange((value: string) => {
@@ -4924,6 +4926,7 @@ export struct GalleryListContent {
     .padding({ left: 8, right: 8 })
     .backgroundColor(uiMaterialBackground(themeFieldBackground()))
     .systemMaterial(uiSearchMaterial())
+    .border(uiInputFieldBorder())
     .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
     .alignItems(VerticalAlign.Center)
   }
@@ -5725,6 +5728,7 @@ export struct GalleryListContent {
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
                 .systemMaterial(uiSearchMaterial())
+                .border(uiInputFieldBorder())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 8, right: 8 })
                 .onChange((value: string) => {
@@ -5737,6 +5741,7 @@ export struct GalleryListContent {
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
                 .systemMaterial(uiSearchMaterial())
+                .border(uiInputFieldBorder())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 8, right: 8 })
                 .onChange((value: string) => {
@@ -5749,6 +5754,7 @@ export struct GalleryListContent {
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
                 .systemMaterial(uiSearchMaterial())
+                .border(uiInputFieldBorder())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 8, right: 8 })
                 .onChange((value: string) => {
@@ -5782,6 +5788,7 @@ export struct GalleryListContent {
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
                 .systemMaterial(uiSearchMaterial())
+                .border(uiInputFieldBorder())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 10, right: 10 })
                 .onChange((value: string) => {

@@ -28,6 +28,7 @@ import {
   uiMaterialForegroundColor,
   uiRadius,
   uiSearchFieldHeight,
+  uiInputFieldBorder,
   uiSearchMaterial
 } from '../shared/EhUiStyle';
 import { AppSubToolbar } from './NavigationComponents';
@@ -210,6 +211,7 @@ export struct ReaderPresetPanel {
               .caretColor(themeAccentTextColor())
               .backgroundColor(uiMaterialBackground(themeFieldBackground()))
               .systemMaterial(uiSearchMaterial())
+              .border(uiInputFieldBorder())
               .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
               .onChange((value: string) => {
                 this.presetName = value;

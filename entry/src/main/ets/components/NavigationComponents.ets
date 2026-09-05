@@ -39,6 +39,7 @@ import {
   uiPopupBlurStyle,
   uiPopupEffectBackground,
   uiSearchFieldHeight,
+  uiInputFieldBorder,
   uiSearchMaterial,
   uiTitleBarBackgroundEffect,
   uiTitleBarFadeHeight
@@ -578,6 +579,7 @@ export struct EhNavBar {
               .width('100%')
               .backgroundColor(uiMaterialBackground(themeFieldBackground()))
               .systemMaterial(uiSearchMaterial())
+              .border(uiInputFieldBorder())
               .borderRadius(uiPillRadius(uiSearchFieldHeight() / 2))
               .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
               .fontSize(16)
@@ -1100,6 +1102,7 @@ struct LegacySearchBar {
         .layoutWeight(1)
         .backgroundColor(uiMaterialBackground(themeFieldBackground()))
         .systemMaterial(uiSearchMaterial())
+        .border(uiInputFieldBorder())
         .borderRadius(uiPillRadius(uiSearchFieldHeight() / 2))
         .fontSize(16)
         .lineHeight(22)

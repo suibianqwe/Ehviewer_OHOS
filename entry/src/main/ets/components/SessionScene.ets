@@ -19,6 +19,7 @@ import {
   uiMaterialForegroundColor,
   uiMaterialSecondaryForegroundColor,
   uiRadius,
+  uiInputFieldBorder,
   uiSearchMaterial,
   uiTintedButtonMaterial
 } from '../shared/EhUiStyle';
@@ -629,6 +630,7 @@ export struct SessionScene {
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
             .systemMaterial(uiSearchMaterial())
+            .border(uiInputFieldBorder())
             .borderRadius(uiRadius(23))
             .onChange((value: string) => {
               this.username = value;
@@ -643,6 +645,7 @@ export struct SessionScene {
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
             .systemMaterial(uiSearchMaterial())
+            .border(uiInputFieldBorder())
             .borderRadius(uiRadius(23))
             .onChange((value: string) => {
               this.password = value;
@@ -741,6 +744,7 @@ export struct SessionScene {
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
             .systemMaterial(uiSearchMaterial())
+            .border(uiInputFieldBorder())
             .borderRadius(uiRadius(23))
             .onChange((value: string) => {
               this.memberId = value;
@@ -755,6 +759,7 @@ export struct SessionScene {
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
             .systemMaterial(uiSearchMaterial())
+            .border(uiInputFieldBorder())
             .borderRadius(uiRadius(23))
             .onChange((value: string) => {
               this.passHash = value;
@@ -769,6 +774,7 @@ export struct SessionScene {
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
             .systemMaterial(uiSearchMaterial())
+            .border(uiInputFieldBorder())
             .borderRadius(uiRadius(23))
             .onChange((value: string) => {
               this.igneous = value;
@@ -784,6 +790,7 @@ export struct SessionScene {
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
             .systemMaterial(uiSearchMaterial())
+            .border(uiInputFieldBorder())
             .borderRadius(uiRadius(23))
             .onChange((value: string) => {
               this.cookieInput = value;

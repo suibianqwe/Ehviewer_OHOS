@@ -25,6 +25,7 @@ import {
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius,
+  uiInputFieldBorder,
   uiSearchMaterial
 } from '../shared/EhUiStyle';
 import {
@@ -365,6 +366,7 @@ export struct DownloadLabelEditDialog {
           .fontColor(uiMaterialForegroundColor(themePrimaryText()))
           .backgroundColor(uiMaterialBackground(themeFieldBackground()))
           .systemMaterial(uiSearchMaterial())
+          .border(uiInputFieldBorder())
           .borderRadius(uiRadius(24))
           .onChange((value: string) => {
             this.value = value;

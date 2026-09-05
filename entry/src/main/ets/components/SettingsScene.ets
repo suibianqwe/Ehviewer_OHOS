@@ -164,6 +164,7 @@ import {
   uiButtonHighlightBorderColor,
   uiRadius,
   uiSearchFieldHeight,
+  uiInputFieldBorder,
   uiSearchMaterial,
   uiSelectDialogMaterial,
   uiSelectPopupBackground,
@@ -2694,6 +2695,7 @@ struct ProxySettingsOverlay {
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
                 .systemMaterial(uiSearchMaterial())
+                .border(uiInputFieldBorder())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .onChange((value: string) => {
                   this.draftHost = value;
@@ -2708,6 +2710,7 @@ struct ProxySettingsOverlay {
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
                 .systemMaterial(uiSearchMaterial())
+                .border(uiInputFieldBorder())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .onChange((value: string) => {
                   this.draftPort = value;
@@ -2722,6 +2725,7 @@ struct ProxySettingsOverlay {
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
                 .systemMaterial(uiSearchMaterial())
+                .border(uiInputFieldBorder())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .onChange((value: string) => {
                   this.draftUsername = value;
@@ -2737,6 +2741,7 @@ struct ProxySettingsOverlay {
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
                 .systemMaterial(uiSearchMaterial())
+                .border(uiInputFieldBorder())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .onChange((value: string) => {
                   this.draftPassword = value;
@@ -2752,6 +2757,7 @@ struct ProxySettingsOverlay {
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
                 .systemMaterial(uiSearchMaterial())
+                .border(uiInputFieldBorder())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .onChange((value: string) => {
                   this.draftExclusions = value;
@@ -3425,6 +3431,7 @@ struct TranslationPromptPanel {
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
             .systemMaterial(uiSearchMaterial())
+            .border(uiInputFieldBorder())
             .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
             .onChange((value: string) => {
               this.promptName = value;
@@ -3445,6 +3452,7 @@ struct TranslationPromptPanel {
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
             .systemMaterial(uiSearchMaterial())
+            .border(uiInputFieldBorder())
             .borderRadius(uiRadius(18))
             .onChange((value: string) => {
               this.promptText = value;
@@ -3689,6 +3697,7 @@ export struct SettingsOptionPanel {
               .fontColor(uiMaterialForegroundColor(themePrimaryText()))
               .backgroundColor(uiMaterialBackground(themeFieldBackground()))
               .systemMaterial(uiSearchMaterial())
+              .border(uiInputFieldBorder())
               .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
               .onChange((value: string) => {
                 this.customValue = value;
@@ -3844,6 +3853,7 @@ export struct SettingsStaticRow {
             .placeholderColor(uiMaterialForegroundColor(themeSecondaryText()))
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
             .systemMaterial(uiSearchMaterial())
+            .border(uiInputFieldBorder())
             .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
             .margin({ left: 12 })
             .onChange((value: string) => {

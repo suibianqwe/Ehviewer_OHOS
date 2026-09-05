@@ -149,6 +149,15 @@ export function uiSearchMaterial(): uiMaterial.Material | undefined {
   return harmony7SearchMaterial;
 }
 
+// 纯色背景没有可供模糊的纹理，输入区域需要独立于材质的明暗自适应边界。
+export function uiInputFieldBorder(hasError: boolean = false): BorderOptions {
+  return {
+    width: hasError || isHarmonyUiStyle() ? 1 : 0,
+    color: hasError ? '#F87171' :
+      (isDarkTheme() ? 'rgba(255,255,255,0.32)' : 'rgba(0,0,0,0.22)')
+  };
+}
+
 export function uiSegmentMaterial(): uiMaterial.Material | undefined {
   if (!isHarmonyMaterialEnabled()) {
     return undefined;

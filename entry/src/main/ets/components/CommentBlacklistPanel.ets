@@ -24,6 +24,7 @@ import {
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius,
+  uiInputFieldBorder,
   uiSearchMaterial
 } from '../shared/EhUiStyle';
 import { ConfirmActionOverlay } from './ConfirmActionOverlay';
@@ -109,6 +110,7 @@ export struct CommentBlacklistPanel {
         .placeholderColor(themeTertiaryText())
         .backgroundColor(uiMaterialBackground(themeFieldBackground()))
         .systemMaterial(uiSearchMaterial())
+        .border(uiInputFieldBorder())
         .borderRadius(uiRadius(22))
         .padding({ left: 12, right: 12 })
         .onChange((value: string) => {
@@ -123,6 +125,7 @@ export struct CommentBlacklistPanel {
           .placeholderColor(themeTertiaryText())
           .backgroundColor(uiMaterialBackground(themeFieldBackground()))
           .systemMaterial(uiSearchMaterial())
+          .border(uiInputFieldBorder())
           .borderRadius(uiRadius(22))
           .padding({ left: 12, right: 12 })
           .onChange((value: string) => {

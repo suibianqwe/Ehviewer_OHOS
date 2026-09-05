@@ -32,6 +32,7 @@ import {
   uiReaderOptionButtonMaterial,
   uiRadius,
   uiSearchFieldHeight,
+  uiInputFieldBorder,
   uiSearchMaterial,
   uiTabHeight,
   uiTintedButtonMaterial,
@@ -660,7 +661,7 @@ export struct ReaderSettingsMenuOverlay {
               .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
               .systemMaterial(uiSearchMaterial())
               .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-              .border({ width: this.presetNameError ? 1 : 0, color: '#F87171' })
+              .border(uiInputFieldBorder(this.presetNameError))
               .onChange((value: string) => {
                 this.presetEditorName = value;
                 this.presetNameError = false;

@@ -30,6 +30,7 @@ import {
   uiMaterialForegroundColor,
   uiRadius,
   uiSearchFieldHeight,
+  uiInputFieldBorder,
   uiSearchMaterial
 } from '../shared/EhUiStyle';
 
@@ -322,6 +323,7 @@ struct MyTagsColumn {
           .placeholderColor(themeTertiaryText())
           .backgroundColor(uiMaterialBackground(themeFieldBackground()))
           .systemMaterial(uiSearchMaterial())
+          .border(uiInputFieldBorder())
           .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
           .padding({ left: 10, right: 10 })
           .onChange((value: string) => {

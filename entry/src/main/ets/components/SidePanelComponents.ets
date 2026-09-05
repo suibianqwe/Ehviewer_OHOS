@@ -26,6 +26,7 @@ import {
   uiPopupBlurOptions,
   uiPopupBlurStyle,
   uiSearchFieldHeight,
+  uiInputFieldBorder,
   uiSearchMaterial
 } from '../shared/EhUiStyle';
 import { PopupScrim } from './PopupScrim';
@@ -402,6 +403,7 @@ export struct SidePanelEditableManagerRow {
             .fontColor(uiMaterialForegroundColor(themePrimaryText()))
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
             .systemMaterial(uiSearchMaterial())
+            .border(uiInputFieldBorder())
             .borderRadius(uiPillRadius(uiSearchFieldHeight() / 2))
             .padding({ left: 10, right: 10 })
             .onChange((value: string) => {
