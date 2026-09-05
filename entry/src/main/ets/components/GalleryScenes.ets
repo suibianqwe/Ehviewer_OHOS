@@ -4676,6 +4676,15 @@ export struct GalleryListContent {
     return uiListGap();
   }
 
+  private galleryTopSpacerIndexes(): number[] {
+    const indexes: number[] = [];
+    const columns = Math.max(1, this.galleryColumnCount());
+    for (let index = 0; index < columns; index++) {
+      indexes.push(index);
+    }
+    return indexes;
+  }
+
   private galleryContentPadding(): number {
     return uiPageHorizontalPadding(this.effectiveContentWidth());
   }
@@ -5317,6 +5326,13 @@ export struct GalleryListContent {
       scroller: this.listScroller,
       layoutMode: WaterFlowLayoutMode.SLIDING_WINDOW
     }) {
+      ForEach(this.galleryTopSpacerIndexes(), (index: number) => {
+        FlowItem() {
+          Row()
+            .width('100%')
+            .height(this.expandedTitleContentInset())
+        }
+      }, (index: number) => 'gallery-top-spacer-' + index.toString())
       ForEach(this.galleries, (gallery: GalleryInfo, index: number) => {
         this.galleryFlowItem(gallery, index)
       }, (gallery: GalleryInfo) => this.galleryCardKey(gallery))
@@ -5328,7 +5344,6 @@ export struct GalleryListContent {
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
     .cachedCount(10)
     .padding({
-      top: this.titleContentInset(),
       left: this.galleryContentPadding(),
       right: this.galleryContentPadding()
     })
