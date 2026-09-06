@@ -262,8 +262,8 @@ export function uiMaterialBackground(solidColor: string): string {
 }
 
 export function uiSelectedButtonBackground(solidColor: string): string {
-  // 选中态通过更浓的主题底色区分，仍保留透明度以显示背景模糊。
-  return isHarmonyUiStyle() ? materialColorWithAlpha(solidColor, 'B3') : solidColor;
+  // 减少底图对选中色的干扰，保证配套前景色在亮暗背景上的对比度。
+  return isHarmonyUiStyle() ? materialColorWithAlpha(solidColor, 'F2') : solidColor;
 }
 
 export function uiButtonBlurStyle(): BlurStyle {

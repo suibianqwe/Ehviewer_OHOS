@@ -18,6 +18,7 @@ import {
   uiText
 } from '../shared/EhShared';
 import { isDarkTheme, themeAccentTextColor, themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSelectedBackground, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
+import { themeSelectedButtonColor, themeSelectedButtonTextColor } from '../shared/EhTheme';
 import {
   isHarmonyMaterialEnabled,
   isHarmonyUiStyle,
@@ -478,11 +479,12 @@ export struct SearchSummaryStrip {
           })
         }, (option: TagNamespaceOption) => option.value + ':' + this.languageRevision.toString())
       }
+      .padding({ left: 12, right: 12 })
     }
     .width('100%')
     .height(36)
-    // 与搜索栏的实际起点对齐：返回按钮 40vp + 两侧间距和边距共 60vp。
-    .padding({ left: 60, right: 12, top: 1, bottom: 1 })
+    .padding({ top: 1, bottom: 1 })
+    .align(Alignment.Start)
     .scrollable(ScrollDirection.Horizontal)
     .scrollBar(BarState.Off)
   }
@@ -593,6 +595,7 @@ export struct SearchSuggestionList {
     .height('100%')
     .backgroundColor(themePageBackground())
     .scrollBar(BarState.Auto)
+    .edgeEffect(EdgeEffect.None)
     .onReachEnd(() => {
       this.loadMoreVisibleSuggestions();
     })
@@ -665,6 +668,7 @@ struct SearchNamespaceChip {
   @Prop paletteIndex: number = 0;
   @Prop isActive: boolean = false;
   @Prop revision: number = 0;
+  @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
   onClickAction: () => void = () => {};
 
   private activeColor(): string {
@@ -677,15 +681,19 @@ struct SearchNamespaceChip {
     return colors[this.paletteIndex % colors.length];
   }
 
+  private selectedColor(): string {
+    return isDarkTheme() ? this.softColor() : this.activeColor();
+  }
+
   build() {
     Button(this.label, { type: ButtonType.Normal, stateEffect: true })
       .width(102)
       .height(34)
       .fontSize(16)
       .fontWeight(FontWeight.Bold)
-      .fontColor(this.isActive ? this.activeColor() : themeSecondaryText())
-      .backgroundColor(this.isActive ? uiMaterialLayerBackground(this.softColor()) : Color.Transparent)
-      .systemMaterial(this.isActive ? uiTintedSegmentMaterial(this.softColor()) : uiSegmentMaterial())
+      .fontColor(this.isActive ? themeSelectedButtonTextColor() : themePrimaryText())
+      .backgroundColor(this.isActive ? uiSelectedButtonBackground(this.selectedColor()) : themeSurfaceVariant())
+      .systemMaterial(this.isActive ? uiTintedSegmentMaterial(this.selectedColor()) : uiSegmentMaterial())
       .border({ width: 0, color: Color.Transparent })
       .borderRadius(uiRadius(5))
       .padding({ left: 4, right: 4 })
@@ -1344,18 +1352,19 @@ export struct ActionBubble {
     Stack({ alignContent: Alignment.Center }) {
       SymbolGlyph(this.symbolIcon)
         .fontSize(this.primary ? 26 : 20)
-        .fontColor([this.isEnabled ? floatingActionForeground() : themeInactiveActionText()])
+        .fontColor([this.isEnabled ?
+          (this.checked ? themeSelectedButtonTextColor() : floatingActionForeground()) : themeInactiveActionText()])
     }
     .width(this.buttonSize())
     .height(this.buttonSize())
     .borderRadius(uiRadius(this.primary ? 27 : 22))
-    .backgroundColor(this.isEnabled && this.checked ? uiSelectedButtonBackground(themePrimaryColor()) :
+    .backgroundColor(this.isEnabled && this.checked ? uiSelectedButtonBackground(themeSelectedButtonColor()) :
       floatingActionBackground(this.isEnabled ?
         (this.primary ? themePrimaryColor() : themeControlNeutralBackground()) :
         themeControlMutedBackground()))
     .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
     .systemMaterial(this.primary || this.checked ?
-      uiTintedButtonMaterial(themePrimaryColor()) : uiButtonMaterial())
+      uiTintedButtonMaterial(this.checked ? themeSelectedButtonColor() : themePrimaryColor()) : uiButtonMaterial())
     .border({ width: 1, color: uiButtonHighlightBorderColor() })
     .scale({ x: this.active ? 0.92 : 1, y: this.active ? 0.92 : 1 })
     .animation({ duration: 120, curve: Curve.EaseOut })

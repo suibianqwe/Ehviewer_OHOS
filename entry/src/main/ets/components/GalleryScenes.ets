@@ -5176,7 +5176,7 @@ export struct GalleryListContent {
             this.applySearchSuggestion(suggestion);
           }
         })
-          .height(Math.max(240, this.viewportHeight - this.totalBarHeight() - 58))
+          .layoutWeight(1)
       } else {
         Column({ space: 8 }) {
           SymbolGlyph($r('sys.symbol.clock'))
@@ -5195,7 +5195,9 @@ export struct GalleryListContent {
       }
     }
     .width('100%')
-    .padding({ left: 8, right: 8, top: 4 })
+    .height('100%')
+    .padding({ left: 8, right: 8, top: this.expandedTitleContentInset() + 4, bottom: 8 })
+    .backgroundColor(themePageBackground())
   }
 
   private openBookmarkDrawer(): void {
@@ -5364,11 +5366,7 @@ export struct GalleryListContent {
   @Builder
   private galleryStandardList() {
     List({ space: 0, scroller: this.listScroller }) {
-      if (this.shouldShowSearchSuggestions()) {
-        ListItem() {
-          this.searchSuggestionPlaceholder()
-        }
-      } else if (this.galleries.length === 0) {
+      if (this.galleries.length === 0) {
         ListItem() {
           GalleryListStateView({
             statusText: this.statusText,
@@ -5513,7 +5511,10 @@ export struct GalleryListContent {
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
-        if (this.isInitialLoadingState()) {
+        if (this.shouldShowSearchSuggestions()) {
+          // 搜索编辑页固定布局，历史和标签网格自行滚动；提交后才使用可下拉的结果列表。
+          this.searchSuggestionPlaceholder()
+        } else if (this.isInitialLoadingState()) {
           Stack({ alignContent: Alignment.TopStart }) {
             this.galleryListContent()
           }

@@ -477,6 +477,14 @@ export function themeAccentTextColor(): string {
   return isDarkTheme() ? accentIndicatorColor() : accentPrimaryColor();
 }
 
+export function themeSelectedButtonColor(): string {
+  return isDarkTheme() ? accentIndicatorColor() : mixThemeColor(accentPrimaryColor(), '#000000', 0.15);
+}
+
+export function themeSelectedButtonTextColor(): string {
+  return isDarkTheme() ? '#19191B' : '#FFFFFF';
+}
+
 export function themeDetailActionColor(): string {
   return isDarkTheme() ? accentIndicatorColor() : accentPrimaryColor();
 }
