@@ -83,14 +83,12 @@ export struct FloatingActionDock {
   }
 
   build() {
-    Stack({ alignContent: Alignment.BottomStart }) {
+    // Stack 负责工具栏在页面中的位置，提示文字与按钮共用同一个左右状态。
+    Stack({ alignContent: this.isLeftSide() ? Alignment.BottomStart : Alignment.BottomEnd }) {
       Column() {
         this.content()
       }
       .alignItems(this.isLeftSide() ? HorizontalAlign.Start : HorizontalAlign.End)
-      // 由父容器直接定位，避免测量回调与平移动画产生不同的坐标基准。
-      // 展开多列、横竖屏及分栏宽度变化时，布局会重新保持对应侧的边距。
-      .align(this.isLeftSide() ? Alignment.BottomStart : Alignment.BottomEnd)
       .hitTestBehavior(HitTestMode.Transparent)
     }
     .width('100%')

@@ -17,11 +17,14 @@ export function floatingActionSideForHoldingHand(status: motion.HoldingHandStatu
 export function subscribeHoldingHandSide(onChange: (side: string) => void): () => void {
   let subscribed = false;
   const callback = (status: motion.HoldingHandStatus): void => {
-    onChange(floatingActionSideForHoldingHand(status));
+    const side = floatingActionSideForHoldingHand(status);
+    console.info(`EhHoldingHandSupport: status=${status}, side=${side || 'Fallback'}`);
+    onChange(side);
   };
   try {
     motion.on('holdingHandChanged', callback);
     subscribed = true;
+    console.info('EhHoldingHandSupport: subscribed');
   } catch (error) {
     console.warn('EhHoldingHandSupport: holding-hand awareness is unavailable');
   }

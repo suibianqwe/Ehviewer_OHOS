@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { curves } from '@kit.ArkUI';
 import { fileUri, picker } from '@kit.CoreFileKit';
 import {
   GalleryCategory,
@@ -329,7 +330,6 @@ export struct DownloadScene {
   private downloadBrowsePositionLoaded: boolean = false;
   private downloadBrowsePositionRestored: boolean = false;
   private restoringDownloadBrowsePosition: boolean = false;
-  private toolbarRestoring: boolean = false;
   private holdingHandActionSide: string = '';
   private unsubscribeHoldingHandSide: () => void = () => {};
   private cellularWarningDialogOpen: boolean = false;
@@ -625,19 +625,20 @@ export struct DownloadScene {
     if (side === this.floatingActionSide) {
       return;
     }
-    this.floatingActionSide = side;
+    // 与画廊工具栏使用同一停靠动效，连续换手时继承当前动画速度。
+    this.getUIContext().animateTo({ curve: curves.springMotion(0.35, 1) }, () => {
+      this.floatingActionSide = side;
+    });
   }
 
   private updateToolbarForScrollFrame(scrollOffset: number): number {
     const offset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
     if (offset <= 4) {
-      this.toolbarRestoring = false;
-      this.toolbarOffsetY = 0;
+      this.restoreToolbarOnReverseScroll();
       return scrollOffset;
     }
     if (scrollOffset > 0 && this.toolbarVisibleHeight() > 0) {
       const previousOffsetY = this.toolbarOffsetY;
-      this.toolbarRestoring = false;
       this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, offset, this.floatingToolbarHeight());
       const consumedOffset = Math.max(0, previousOffsetY - this.toolbarOffsetY);
       return Math.max(0, scrollOffset - consumedOffset);
@@ -649,16 +650,12 @@ export struct DownloadScene {
   }
 
   private restoreToolbarOnReverseScroll(): void {
-    if (this.toolbarRestoring) {
+    if (this.toolbarOffsetY >= 0) {
       return;
     }
-    this.toolbarRestoring = true;
-    this.getUIContext().animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
+    this.getUIContext().animateTo({ curve: curves.springMotion(0.35, 1) }, () => {
       this.toolbarOffsetY = 0;
     });
-    setTimeout(() => {
-      this.toolbarRestoring = false;
-    }, 320);
   }
 
   private loadDownloads(): void {

@@ -1,4 +1,5 @@
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
+import { curves } from '@kit.ArkUI';
 import { fileIo as fs, picker } from '@kit.CoreFileKit';
 import { image } from '@kit.ImageKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
@@ -4669,7 +4670,10 @@ export struct GalleryListContent {
     if (side === this.floatingActionSide) {
       return;
     }
-    this.floatingActionSide = side;
+    // 临界阻尼平滑停靠边缘，连续换手时由系统衔接当前动画速度。
+    this.getUIContext().animateTo({ curve: curves.springMotion(0.35, 1) }, () => {
+      this.floatingActionSide = side;
+    });
   }
 
   private visibleBarHeight(): number {
@@ -4695,7 +4699,7 @@ export struct GalleryListContent {
   private handleScrollFrame(scrollOffset: number): number {
     const yOffset = normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset);
     if (yOffset <= 4) {
-      this.toolbarOffsetY = 0;
+      this.restoreToolbarOnReverseScroll();
       return scrollOffset;
     }
     if (scrollOffset > 0 && this.visibleBarHeight() > 0) {
@@ -4703,9 +4707,19 @@ export struct GalleryListContent {
       return scrollOffset;
     }
     if (scrollOffset < 0 && this.toolbarOffsetY < 0) {
-      this.toolbarOffsetY = 0;
+      this.restoreToolbarOnReverseScroll();
     }
     return scrollOffset;
+  }
+
+  private restoreToolbarOnReverseScroll(): void {
+    if (this.toolbarOffsetY >= 0) {
+      return;
+    }
+    // 从当前收起位置展开；状态同步置为终点，后续下滑帧不会重复启动动画。
+    this.getUIContext().animateTo({ curve: curves.springMotion(0.35, 1) }, () => {
+      this.toolbarOffsetY = 0;
+    });
   }
 
   private triggerLoadMoreIfNear(last: number): void {
