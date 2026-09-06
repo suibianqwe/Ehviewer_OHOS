@@ -3956,7 +3956,8 @@ function scheduleThumbnailReadyDelivery(): void {
   }, THUMBNAIL_READY_BATCH_DELAY_MS);
 }
 
-export function cacheThumbnailImage(url: string, onReady: (path: string) => void, onError?: () => void): void {
+// 不传 onReady 时只预下载，不占用逐帧派发给卡片的图片更新队列。
+export function cacheThumbnailImage(url: string, onReady?: (path: string) => void, onError?: () => void): void {
   const context = getAbilityContext();
   if (context === undefined || url.length === 0) {
     if (onError !== undefined) {
@@ -3967,7 +3968,9 @@ export function cacheThumbnailImage(url: string, onReady: (path: string) => void
 
   const existing = readerImageCache.getCachedPath(context, url);
   if (existing.length > 0) {
-    enqueueThumbnailReady(existing, onReady);
+    if (onReady !== undefined) {
+      enqueueThumbnailReady(existing, onReady);
+    }
     return;
   }
 
@@ -3975,7 +3978,9 @@ export function cacheThumbnailImage(url: string, onReady: (path: string) => void
     IMAGE_DOWNLOAD_PRIORITY_BACKGROUND, undefined, '',
     { retryLimit: THUMBNAIL_RETRY_LIMIT }).then((path: string) => {
     if (path.length > 0) {
-      enqueueThumbnailReady(path, onReady);
+      if (onReady !== undefined) {
+        enqueueThumbnailReady(path, onReady);
+      }
     } else if (onError !== undefined) {
       onError();
     }

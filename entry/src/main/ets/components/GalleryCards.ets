@@ -621,7 +621,8 @@ export struct GalleryThumb {
           .width('100%')
           .height('100%')
           .objectFit(ImageFit.Cover)
-          .syncLoad(false)
+          // 图源已由异步下载缓存为本地缩略图，同步加载可在屏外布局时完成解码。
+          .syncLoad(true)
           .borderRadius(uiControlRadius(this.radiusValue))
           .onComplete((event?: GalleryImageCompleteEvent) => {
             if (event === undefined || event.width <= 0 || event.height <= 0) {

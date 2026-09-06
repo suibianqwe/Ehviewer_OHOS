@@ -235,8 +235,8 @@ interface ThumbnailImageSize {
 }
 
 const GALLERY_THUMBNAIL_CACHE_COUNT: number = 16;
-const GALLERY_THUMBNAIL_PREFETCH_BEFORE: number = 4;
-const GALLERY_THUMBNAIL_PREFETCH_AFTER: number = 12;
+const GALLERY_THUMBNAIL_PREFETCH_BEFORE: number = GALLERY_THUMBNAIL_CACHE_COUNT;
+const GALLERY_THUMBNAIL_PREFETCH_AFTER: number = GALLERY_THUMBNAIL_CACHE_COUNT + 8;
 
 function readThumbnailImageSize(path: string): ThumbnailImageSize {
   let source: image.ImageSource | undefined = undefined;
@@ -4202,7 +4202,6 @@ export struct GalleryListContent {
   private thumbnailDimensionsGeneration: number = 0;
   private galleryThumbnailSource: ArrayDataSource<GalleryInfo> =
     new ArrayDataSource<GalleryInfo>([]);
-  private galleryThumbnailPrefetchRevision: number = 0;
   @State toolbarOffsetY: number = 0;
   @State translationVisibleStart: number = -1;
   @State translationVisibleEnd: number = -1;
@@ -5456,7 +5455,9 @@ export struct GalleryListContent {
     .rowsGap(this.galleryCardGap())
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
-    .cachedCount(GALLERY_THUMBNAIL_CACHE_COUNT, false)
+    // 挂载屏外缓存节点，配合本地缩略图同步加载，在入屏前完成布局和解码。
+    .cachedCount(GALLERY_THUMBNAIL_CACHE_COUNT, true)
+    .clip(true)
     .padding({
       left: this.galleryContentPadding(),
       right: this.galleryContentPadding()
@@ -5473,8 +5474,12 @@ export struct GalleryListContent {
       this.handleGalleryListDidScroll();
     })
     .onScrollIndex((first: number, last: number) => {
-      this.setVisibleTranslationRange(first, last);
-      this.prefetchGalleryThumbnailRange(first, last);
+      // 每列的顶部占位块也占用 FlowItem 索引，需先换算为画廊索引。
+      const spacerCount = this.galleryTopSpacerIndexes().length;
+      const galleryFirst = Math.max(0, first - spacerCount);
+      const galleryLast = Math.min(this.galleries.length - 1, last - spacerCount);
+      this.setVisibleTranslationRange(galleryFirst, galleryLast);
+      this.prefetchGalleryThumbnailRange(galleryFirst, galleryLast);
     })
     .onScrollStop(() => {
       this.rememberListOffset(normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset));
@@ -5489,7 +5494,7 @@ export struct GalleryListContent {
     if (url.length === 0) {
       return;
     }
-    cacheThumbnailImage(url, () => {}, () => {});
+    cacheThumbnailImage(url);
   }
 
   private prefetchGalleryThumbnailRange(first: number, last: number): void {
@@ -5498,11 +5503,7 @@ export struct GalleryListContent {
     }
     const start = Math.max(0, first - GALLERY_THUMBNAIL_PREFETCH_BEFORE);
     const end = Math.min(this.galleries.length - 1, last + GALLERY_THUMBNAIL_PREFETCH_AFTER);
-    const revision = ++this.galleryThumbnailPrefetchRevision;
     for (let index = start; index <= end; index++) {
-      if (revision !== this.galleryThumbnailPrefetchRevision) {
-        return;
-      }
       this.prefetchGalleryThumbnail(this.galleries[index]);
     }
   }
