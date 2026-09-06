@@ -59,6 +59,7 @@ import {
 import { LANGUAGE_REVISION_KEY, pushActiveBackHandler, runDetailBackHandler } from '../shared/EhShared';
 import { sortedStringKey, toggleStringValue } from '../shared/StringCollectionSupport';
 import { GalleryCardScrollAnchor } from '../shared/GalleryCardScrollAnchor';
+import { ArrayDataSource } from '../shared/ListDataSource';
 import {
   themeDividerColor,
   themeFieldBackground,
@@ -232,6 +233,10 @@ interface ThumbnailImageSize {
   width: number;
   height: number;
 }
+
+const GALLERY_THUMBNAIL_CACHE_COUNT: number = 16;
+const GALLERY_THUMBNAIL_PREFETCH_BEFORE: number = 4;
+const GALLERY_THUMBNAIL_PREFETCH_AFTER: number = 12;
 
 function readThumbnailImageSize(path: string): ThumbnailImageSize {
   let source: image.ImageSource | undefined = undefined;
@@ -4195,6 +4200,9 @@ export struct GalleryListContent {
   private galleryThumbnailAspectRatioAverage: number = 0.75;
   @State thumbnailDimensionsReady: boolean = false;
   private thumbnailDimensionsGeneration: number = 0;
+  private galleryThumbnailSource: ArrayDataSource<GalleryInfo> =
+    new ArrayDataSource<GalleryInfo>([]);
+  private galleryThumbnailPrefetchRevision: number = 0;
   @State toolbarOffsetY: number = 0;
   @State translationVisibleStart: number = -1;
   @State translationVisibleEnd: number = -1;
@@ -4240,6 +4248,7 @@ export struct GalleryListContent {
   }
 
   onGalleriesChanged(): void {
+    this.galleryThumbnailSource.setItems(this.galleries);
     this.translationVisibleItems = [];
     this.translationVisibleStart = -1;
     this.translationVisibleEnd = -1;
@@ -4414,6 +4423,9 @@ export struct GalleryListContent {
     this.unregisterActiveBackHandler();
     this.unregisterActiveBackHandler = pushActiveBackHandler(() => this.handleContentBack());
     this.onGalleriesChanged();
+    this.galleryThumbnailSource.setPrefetchCallback((gallery: GalleryInfo) => {
+      this.prefetchGalleryThumbnail(gallery);
+    });
     this.onLayoutWidthHintChanged();
     this.syncHoldingHandSubscription();
     this.syncContentWidthFromWindow();
@@ -5435,7 +5447,7 @@ export struct GalleryListContent {
             .height(this.expandedTitleContentInset())
         }
       }, (index: number) => 'gallery-top-spacer-' + index.toString())
-      ForEach(this.galleries, (gallery: GalleryInfo, index: number) => {
+      LazyForEach(this.galleryThumbnailSource, (gallery: GalleryInfo, index: number) => {
         this.galleryFlowItem(gallery, index)
       }, (gallery: GalleryInfo) => this.galleryCardKey(gallery))
     }
@@ -5444,7 +5456,7 @@ export struct GalleryListContent {
     .rowsGap(this.galleryCardGap())
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
-    .cachedCount(10)
+    .cachedCount(GALLERY_THUMBNAIL_CACHE_COUNT, false)
     .padding({
       left: this.galleryContentPadding(),
       right: this.galleryContentPadding()
@@ -5462,6 +5474,7 @@ export struct GalleryListContent {
     })
     .onScrollIndex((first: number, last: number) => {
       this.setVisibleTranslationRange(first, last);
+      this.prefetchGalleryThumbnailRange(first, last);
     })
     .onScrollStop(() => {
       this.rememberListOffset(normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset));
@@ -5469,6 +5482,29 @@ export struct GalleryListContent {
     .onReachEnd(() => {
       this.triggerLoadMoreIfNear(this.galleries.length);
     })
+  }
+
+  private prefetchGalleryThumbnail(gallery: GalleryInfo): void {
+    const url = gallery.thumb === undefined ? '' : gallery.thumb;
+    if (url.length === 0) {
+      return;
+    }
+    cacheThumbnailImage(url, () => {}, () => {});
+  }
+
+  private prefetchGalleryThumbnailRange(first: number, last: number): void {
+    if (this.galleries.length === 0 || first < 0 || last < first) {
+      return;
+    }
+    const start = Math.max(0, first - GALLERY_THUMBNAIL_PREFETCH_BEFORE);
+    const end = Math.min(this.galleries.length - 1, last + GALLERY_THUMBNAIL_PREFETCH_AFTER);
+    const revision = ++this.galleryThumbnailPrefetchRevision;
+    for (let index = start; index <= end; index++) {
+      if (revision !== this.galleryThumbnailPrefetchRevision) {
+        return;
+      }
+      this.prefetchGalleryThumbnail(this.galleries[index]);
+    }
   }
 
   private restoreInitialListOffset(): void {
