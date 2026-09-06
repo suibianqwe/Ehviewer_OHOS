@@ -261,6 +261,11 @@ export function uiMaterialBackground(solidColor: string): string {
   return isHarmonyMaterialEnabled() ? 'rgba(0,0,0,0)' : translucentMaterialColor(solidColor);
 }
 
+export function uiSelectedButtonBackground(solidColor: string): string {
+  // 选中态通过更浓的主题底色区分，仍保留透明度以显示背景模糊。
+  return isHarmonyUiStyle() ? materialColorWithAlpha(solidColor, 'B3') : solidColor;
+}
+
 export function uiButtonBlurStyle(): BlurStyle {
   return isHarmonyUiStyle() && supportsBackgroundBlur() ? BlurStyle.COMPONENT_THIN : BlurStyle.NONE;
 }

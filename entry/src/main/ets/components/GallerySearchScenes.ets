@@ -35,6 +35,7 @@ import {
   uiPopupMaterialBackground,
   uiRadius,
   uiSegmentMaterial,
+  uiSelectedButtonBackground,
   uiSwitchHeight,
   uiSwitchWidth,
   uiTabHeight,
@@ -1348,16 +1349,14 @@ export struct ActionBubble {
     .width(this.buttonSize())
     .height(this.buttonSize())
     .borderRadius(uiRadius(this.primary ? 27 : 22))
-    .backgroundColor(floatingActionBackground(this.isEnabled ?
-      (this.primary || this.checked ? themePrimaryColor() : themeControlNeutralBackground()) :
-      themeControlMutedBackground()))
+    .backgroundColor(this.isEnabled && this.checked ? uiSelectedButtonBackground(themePrimaryColor()) :
+      floatingActionBackground(this.isEnabled ?
+        (this.primary ? themePrimaryColor() : themeControlNeutralBackground()) :
+        themeControlMutedBackground()))
     .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
     .systemMaterial(this.primary || this.checked ?
       uiTintedButtonMaterial(themePrimaryColor()) : uiButtonMaterial())
-    .border({
-      width: this.checked ? 2 : 1,
-      color: this.checked ? themeOnPrimaryText() : uiButtonHighlightBorderColor()
-    })
+    .border({ width: 1, color: uiButtonHighlightBorderColor() })
     .scale({ x: this.active ? 0.92 : 1, y: this.active ? 0.92 : 1 })
     .animation({ duration: 120, curve: Curve.EaseOut })
     .onClick(() => {
