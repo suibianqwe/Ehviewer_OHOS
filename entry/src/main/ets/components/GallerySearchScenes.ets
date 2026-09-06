@@ -180,18 +180,15 @@ function activeTagSearchInput(keyword: string): ActiveTagSearchInput {
   const explicit = trimmed.match(/(^|\s)([A-Za-z0-9_]+)\s*[:：]\s*(.*)$/);
   if (explicit !== null && isKnownTagNamespace(explicit[2])) {
     const rawQuery = explicit[3].trim();
-    const quoted = /^["“＂]/.test(rawQuery);
     let query = rawQuery.replace(/^["“＂]/, '').trim();
     query = query.replace(/\$+$/, '').trim();
     query = query.replace(/["”＂]$/, '').trim();
     query = query.replace(/\$+$/, '').trim();
-    if (quoted || !/\s/.test(query)) {
-      return {
-        text: explicit[0].trim(),
-        query: query,
-        namespace: fullTagNamespace(explicit[2])
-      };
-    }
+    return {
+      text: explicit[0].trim(),
+      query: query,
+      namespace: fullTagNamespace(explicit[2])
+    };
   }
   const active = activeTagPrefix(trimmed);
   return {
@@ -379,20 +376,26 @@ export function addSearchTagToken(keyword: string, tag: string): string {
   return tokens.join(' ').trim();
 }
 
-export function applyTagSuggestionToKeyword(keyword: string, tag: string): string {
+export function applyTagSuggestionToKeyword(keyword: string, tag: string, namespace: string = '',
+  terminate: boolean = false): string {
+  const normalizedTag = tag.trim().replace(/\s+/g, ' ');
+  const normalizedNamespace = namespace.trim().toLowerCase();
+  const rawFullTag = normalizedTag.indexOf(':') >= 0 || normalizedNamespace.length === 0 ?
+    normalizedTag : normalizedNamespace + ':' + normalizedTag;
+  const fullTag = terminate ? normalizeSearchTagToken(rawFullTag) : rawFullTag;
   const trimmed = keyword.trim();
   if (trimmed.length === 0) {
-    return tag;
+    return fullTag;
   }
   const active = activeTagSearchInput(trimmed);
   if (active.text.length === 0) {
-    return (trimmed + ' ' + tag).trim();
+    return (trimmed + ' ' + fullTag).trim();
   }
   const start = trimmed.length - active.text.length;
   if (start <= 0) {
-    return tag;
+    return fullTag;
   }
-  return (trimmed.substring(0, start).trim() + ' ' + tag).trim();
+  return (trimmed.substring(0, start).trim() + ' ' + fullTag).trim();
 }
 
 export function recordSearchHistory(keyword: string): void {

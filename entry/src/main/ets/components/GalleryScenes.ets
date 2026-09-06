@@ -144,7 +144,7 @@ import {
 } from './SplitPaneSupport';
 import {
   ActionBubble,
-  addSearchTagToken,
+  applyTagSuggestionToKeyword,
   buildSearchSuggestions,
   composeSearchKeywordWithInput,
   FloatingActionDock,
@@ -5144,7 +5144,7 @@ export struct GalleryListContent {
 
   private applySearchSuggestion(suggestion: SearchSuggestionItem): void {
     if (suggestion.kind === 'tag') {
-      this.onKeywordChange(addSearchTagToken(this.keyword, suggestion.query));
+      this.onKeywordChange(applyTagSuggestionToKeyword(this.keyword, suggestion.query, suggestion.namespace, true));
       this.onSearchModeChange(ListMode.Normal);
       return;
     }

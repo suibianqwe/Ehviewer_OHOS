@@ -1034,7 +1034,7 @@ export struct DownloadScene {
 
   private applySearchSuggestion(suggestion: SearchSuggestionItem): void {
     if (suggestion.kind === 'tag') {
-      this.updateDownloadKeyword(applyTagSuggestionToKeyword(this.query, suggestion.query));
+      this.updateDownloadKeyword(applyTagSuggestionToKeyword(this.query, suggestion.query, suggestion.namespace));
       this.searchMode = ListMode.Tag;
       return;
     }
