@@ -26,6 +26,9 @@ import {
 } from '../shared/EhShared';
 import {
   themeDividerColor,
+  themeDownloadStateActiveColor,
+  themeFavoriteText,
+  themeOnPrimaryText,
   themePlaceholderColor,
   themePrimaryText,
   themeSecondaryText,
@@ -850,24 +853,28 @@ struct GalleryStatusBadges {
   build() {
     Row({ space: 3 }) {
       if (this.hasDownload()) {
-        SymbolGlyph($r('sys.symbol.arrow_down_circle'))
-          .fontSize(16)
-          .fontColor([Color.White])
-          .width(22)
-          .height(22)
-          .backgroundColor('#CF164E63')
-          .borderRadius(11)
-          .accessibilityText(uiText('In download list'))
+        Stack({ alignContent: Alignment.Center }) {
+          SymbolGlyph($r('sys.symbol.arrow_down'))
+            .fontSize(15)
+            .fontColor([themeOnPrimaryText()])
+        }
+        .width(22)
+        .height(22)
+        .backgroundColor(themeDownloadStateActiveColor())
+        .borderRadius(11)
+        .accessibilityText(uiText('In download list'))
       }
       if (this.isFavorite()) {
-        SymbolGlyph($r('sys.symbol.heart_fill'))
-          .fontSize(15)
-          .fontColor([Color.White])
-          .width(22)
-          .height(22)
-          .backgroundColor('#CF9D174D')
-          .borderRadius(11)
-          .accessibilityText(uiText('Favorited'))
+        Stack({ alignContent: Alignment.Center }) {
+          SymbolGlyph($r('sys.symbol.heart_fill'))
+            .fontSize(14)
+            .fontColor([themeOnPrimaryText()])
+        }
+        .width(22)
+        .height(22)
+        .backgroundColor(themeFavoriteText())
+        .borderRadius(11)
+        .accessibilityText(uiText('Favorited'))
       }
     }
     .hitTestBehavior(HitTestMode.None)

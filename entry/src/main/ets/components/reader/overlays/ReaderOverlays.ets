@@ -462,8 +462,6 @@ export struct ReaderSettingsMenuOverlay {
   @State presetPopupHeight: number = 0;
   @State presetEditorName: string = '';
   @State presetNameError: boolean = false;
-  @State panelWidth: number = 0;
-  @State panelHeight: number = 0;
   @Prop screenRotationOptions: string[] = [];
   @Prop readingDirectionOptions: string[] = [];
   @Prop pageScalingOptions: string[] = [];
@@ -1092,9 +1090,7 @@ export struct ReaderSettingsMenuOverlay {
   build() {
     Stack({ alignContent: Alignment.Center }) {
       ReaderPopupBackdrop({
-        cutoutWidth: this.panelWidth,
-        cutoutHeight: this.panelHeight,
-        cutoutRadius: uiRadius(20),
+        // 蒙版延伸到半透明设置面板下方，避免明亮的阅读内容透过来淹没文字。
         onDismiss: this.onDismiss
       })
       .zIndex(0)
@@ -1179,16 +1175,6 @@ export struct ReaderSettingsMenuOverlay {
       .backgroundEffect(uiReaderMenuBackgroundEffect())
       .borderRadius(uiRadius(20))
       .clip(true)
-      .onAreaChange((_oldArea: Area, newArea: Area) => {
-        const width = Number.parseFloat(newArea.width.toString());
-        const height = Number.parseFloat(newArea.height.toString());
-        if (width > 0 && !Number.isNaN(width)) {
-          this.panelWidth = width;
-        }
-        if (height > 0 && !Number.isNaN(height)) {
-          this.panelHeight = height;
-        }
-      })
       .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
       .zIndex(1)
       if (this.presetDialogMode.length > 0) {

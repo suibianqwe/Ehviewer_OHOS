@@ -357,7 +357,7 @@ export function uiReaderMenuBackgroundEffect(): BackgroundEffectOptions {
     saturation: 1.04,
     brightness: effectEnabled ? (isDarkTheme() ? 0.98 : 1.04) : 1,
     color: effectEnabled ?
-      (isDarkTheme() ? 'rgba(11,16,25,0.18)' : 'rgba(255,255,255,0.52)') : Color.Transparent,
+      (isDarkTheme() ? 'rgba(11,16,25,0.56)' : 'rgba(255,255,255,0.52)') : Color.Transparent,
     adaptiveColor: AdaptiveColor.DEFAULT
   };
 }
@@ -458,7 +458,8 @@ export function uiReaderSelectPopupBackground(solidColor: string): string {
   if (!isDarkTheme() && (supportsBackgroundEffect() || supportsBackgroundBlur())) {
     return 'rgba(255,255,255,0.90)';
   }
-  return uiPopupEffectBackground(solidColor);
+  // 旧系统无法为 Select 菜单单独指定模糊色调，底色也须保证暗色文字对比度。
+  return uiPopupMaterialBackground(solidColor);
 }
 
 export function uiSearchFieldHeight(): number {

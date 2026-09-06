@@ -7,6 +7,7 @@ import {
 } from '../../../shared/EhShared';
 import { readerSelectColors, selectArrowModifier } from '../../../shared/EhSelectStyle';
 import {
+  isDarkTheme,
   themeDividerColor,
   themePrimaryColor,
   themePrimaryText,
@@ -24,6 +25,7 @@ import {
   uiDialogSurfaceRadius,
   uiDialogSurfaceShadow,
   uiPopupBackgroundEffect,
+  uiPopupBlurOptions,
   uiPopupBlurStyle,
   uiReaderOptionRowHeight,
   uiReaderSelectControlBackground,
@@ -187,11 +189,12 @@ export struct ReaderMenuSelect {
         .font({ size: 15 })
         .fontColor(readerSelectColors().buttonText)
         .backgroundColor(uiReaderSelectControlBackground(readerSelectColors().buttonBackground))
-        .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
+        .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle(), uiPopupBlurOptions())
         .systemMaterial(uiReaderOptionSegmentMaterial())
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .menuBackgroundColor(uiReaderSelectPopupBackground(readerSelectColors().menuBackground))
-        .menuBackgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
+        // 当前系统的原生菜单模糊仍跟随系统亮色，暗色菜单使用半透明深色底回退。
+        .menuBackgroundBlurStyle(isHarmonyMaterialEnabled() || isDarkTheme() ? BlurStyle.NONE : uiPopupBlurStyle())
         .attributeModifier(READER_SELECT_MENU_EFFECT_MODIFIER)
         .optionBgColor(readerSelectColors().optionBackground)
         .optionFontColor(readerSelectColors().optionText)
