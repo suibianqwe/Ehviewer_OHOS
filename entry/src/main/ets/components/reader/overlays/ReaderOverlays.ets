@@ -20,6 +20,8 @@ import {
   isHarmonyUiStyle,
   uiButtonHighlightBorderColor,
   uiButtonMaterial,
+  uiFloatingButtonBackgroundEffect,
+  uiTransparentButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiMaterialLayerBackground,
@@ -32,10 +34,9 @@ import {
   uiReaderOptionButtonMaterial,
   uiRadius,
   uiSearchFieldHeight,
-  uiInputFieldBorder,
   uiSearchMaterial,
   uiTabHeight,
-  uiTintedButtonMaterial,
+  uiTintedButtonMaterial
 } from '../../../shared/EhUiStyle';
 import { PopupScrim } from '../../PopupScrim';
 import {
@@ -203,12 +204,13 @@ struct ReaderAutoTransferButton {
     .width(50)
     .height(50)
     .enabled(this.autoTransferEnabled)
-    .backgroundColor(uiReaderOptionControlBackground(this.autoTransferEnabled ? '#334155' : '#1F2937'))
-    .systemMaterial(uiReaderOptionButtonMaterial())
+    .backgroundColor(uiMaterialBackground(uiReaderOptionControlBackground(this.autoTransferEnabled ? '#334155' : '#1F2937')))
     .border({
       width: isHarmonyUiStyle() ? 1 : 0,
       color: uiButtonHighlightBorderColor()
     })
+    .backgroundEffect(uiFloatingButtonBackgroundEffect(this.autoTransferEnabled ? '#334155' : '#1F2937'))
+    .systemMaterial(uiReaderOptionButtonMaterial())
     .onClick(() => {
       this.onToggleAutoTransfer();
     })
@@ -571,9 +573,10 @@ export struct ReaderSettingsMenuOverlay {
     .width(58)
     .height(58)
     .enabled(enabled)
-    .backgroundColor(uiReaderOptionControlBackground())
-    .systemMaterial(uiReaderOptionButtonMaterial())
+    .backgroundColor(uiMaterialBackground(uiReaderOptionControlBackground()))
     .border({ width: 1, color: uiButtonHighlightBorderColor() })
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiReaderOptionButtonMaterial())
     .onClick(action)
   }
 
@@ -633,9 +636,10 @@ export struct ReaderSettingsMenuOverlay {
           }
           .width(32)
           .height(32)
-          .backgroundColor(Color.Transparent)
-          .systemMaterial(uiButtonMaterial())
+          .backgroundColor(uiMaterialBackground(Color.Transparent))
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.closePresetDialog();
           })
@@ -657,9 +661,9 @@ export struct ReaderSettingsMenuOverlay {
               .placeholderColor(themeSecondaryText())
               .caretColor(themeAccentTextColor())
               .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
-              .systemMaterial(uiSearchMaterial())
+              .border({ width: this.presetNameError ? 1 : 0, color: '#F87171' })
               .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-              .border(uiInputFieldBorder(this.presetNameError))
+              .systemMaterial(uiSearchMaterial())
               .onChange((value: string) => {
                 this.presetEditorName = value;
                 this.presetNameError = false;
@@ -680,10 +684,11 @@ export struct ReaderSettingsMenuOverlay {
             .height(40)
             .fontSize(14)
             .fontColor(themePrimaryText())
-            .backgroundColor(Color.Transparent)
-            .systemMaterial(uiButtonMaterial())
-            .borderRadius(uiRadius(6))
+            .backgroundColor(uiMaterialBackground(Color.Transparent))
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
+            .borderRadius(uiRadius(6))
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .onClick(() => {
               this.closePresetDialog();
             })
@@ -692,12 +697,14 @@ export struct ReaderSettingsMenuOverlay {
             .height(40)
             .fontSize(14)
             .fontColor(this.presetDialogMode === 'delete' ? themeDangerText() : themeOnPrimaryText())
-            .backgroundColor(uiMaterialLayerBackground(this.presetDialogMode === 'delete' ?
+            .backgroundColor(uiMaterialBackground(uiMaterialLayerBackground(this.presetDialogMode === 'delete' ?
+              themeDangerBackground() : themePrimaryColor())))
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
+            .borderRadius(uiRadius(6))
+            .backgroundEffect(uiFloatingButtonBackgroundEffect(this.presetDialogMode === 'delete' ?
               themeDangerBackground() : themePrimaryColor()))
             .systemMaterial(uiTintedButtonMaterial(this.presetDialogMode === 'delete' ?
               themeDangerBackground() : themePrimaryColor()))
-            .borderRadius(uiRadius(6))
-            .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .onClick(() => {
               if (this.presetDialogMode === 'delete') {
                 this.onDeleteReaderPreset();
@@ -1072,9 +1079,10 @@ export struct ReaderSettingsMenuOverlay {
             .height(44)
             .fontSize(15)
             .fontColor(themeAccentTextColor())
-            .backgroundColor(uiReaderOptionControlBackground())
-            .systemMaterial(uiReaderOptionButtonMaterial())
+            .backgroundColor(uiMaterialBackground(uiReaderOptionControlBackground()))
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiReaderOptionButtonMaterial())
             .onClick(this.onResetImageAdjustments)
         }
       }
@@ -1104,9 +1112,10 @@ export struct ReaderSettingsMenuOverlay {
           }
           .width(36)
           .height(36)
-          .backgroundColor(uiReaderOptionControlBackground())
-          .systemMaterial(uiReaderOptionButtonMaterial())
+          .backgroundColor(uiMaterialBackground(uiReaderOptionControlBackground()))
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiReaderOptionButtonMaterial())
           .onClick(() => {
             this.onBack();
           })

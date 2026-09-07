@@ -86,7 +86,7 @@ import {
 import { ArrayDataSource } from '../shared/ListDataSource';
 import {
   isHarmonyUiStyle,
-  uiButtonMaterial,
+  uiFloatingButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiTintedButtonMaterial
@@ -2311,7 +2311,7 @@ export struct ReaderScene {
       const fileName = hasProcessedImage ? readerProcessedImageFileName(index) :
         readerImageFileName(index, sourcePath, this.currentImageShareTarget());
       const title = mediaAssetTitle(fileName);
-      // @SuppressWarnings permission
+      // @SuppressWarnings permission -- photo album asset creation requires the media permission check above.
       const uri = await helper.createAsset(photoAccessHelper.PhotoType.IMAGE,
         hasProcessedImage ? 'jpeg' : albumImageFileType(sourcePath), { title: title });
       const saved = hasProcessedImage && processedImage.pixelMap !== undefined ?
@@ -3829,14 +3829,11 @@ export struct ReaderScene {
         .width(READER_TRANSLATION_BUTTON_SIZE)
         .height(READER_TRANSLATION_BUTTON_SIZE)
         .backgroundColor(uiMaterialBackground(this.comicTranslationActive ? '#167A9A' : '#34454D'))
-        .systemMaterial(this.comicTranslationActive ? uiTintedButtonMaterial('#167A9A') : uiButtonMaterial())
-        .border({
-          width: this.comicTranslationActive ? 2 : 1,
-          color: this.comicTranslationActive ? Color.White : 'rgba(255,255,255,0.42)'
-        })
-        .opacity(this.comicTranslationActive ? 0.96 : 0.78)
-        .shadow({ radius: 8, color: 'rgba(0,0,0,0.28)', offsetX: 0, offsetY: 2 })
+        .backgroundEffect(uiFloatingButtonBackgroundEffect(this.comicTranslationActive ? '#167A9A' : '#34454D'))
+        .systemMaterial(uiTintedButtonMaterial(this.comicTranslationActive ? '#167A9A' : '#34454D'))
         .position({ x: this.comicTranslationButtonX, y: this.comicTranslationButtonY })
+        .shadow({ radius: 8, color: 'rgba(0,0,0,0.28)', offsetX: 0, offsetY: 2 })
+        .opacity(this.comicTranslationActive ? 0.92 : 0.48)
         .accessibilityText(uiText('Comic translation'))
         .gesture(
           GestureGroup(GestureMode.Exclusive,

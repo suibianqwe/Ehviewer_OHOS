@@ -26,15 +26,12 @@ import {
 } from '../shared/EhTheme';
 import {
   uiAdaptiveToolbarHeight,
-  uiButtonBlurOptions,
-  uiButtonBlurStyle,
-  uiButtonHighlightBorderColor,
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiListItemBackground,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius,
-  uiInputFieldBorder,
   uiSearchMaterial,
   uiTabHeight
 } from '../shared/EhUiStyle';
@@ -314,10 +311,9 @@ export struct FilterPanel {
           .fontColor(themePrimaryText())
           .placeholderColor(themeTertiaryText())
           .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-          .systemMaterial(uiSearchMaterial())
-          .border(uiInputFieldBorder())
-          .borderRadius(uiRadius(22))
           .padding({ left: 12, right: 12 })
+          .borderRadius(uiRadius(22))
+          .systemMaterial(uiSearchMaterial())
           .onChange((value: string) => {
             this.updateDraftText(value);
           })
@@ -336,10 +332,9 @@ export struct FilterPanel {
         .height(44)
         .padding(0)
         .borderRadius(uiRadius(22))
-        .backgroundColor(themePrimaryColor())
+        .backgroundColor(uiMaterialBackground(themePrimaryColor()))
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
         .systemMaterial(uiButtonMaterial())
-        .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
-        .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .onClick(() => {
           this.submitTextRule();
         })
@@ -512,10 +507,9 @@ struct FilterRuleCard {
         .height(38)
         .padding(0)
         .borderRadius(uiRadius(19))
-        .backgroundColor(this.rule.enabled ? themeSelectedBackgroundLight() : themeSurfaceVariant())
+        .backgroundColor(uiMaterialBackground(this.rule.enabled ? themeSelectedBackgroundLight() : themeSurfaceVariant()))
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
         .systemMaterial(uiButtonMaterial())
-        .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
-        .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .onClick(() => {
           this.onToggle();
         })
@@ -529,10 +523,9 @@ struct FilterRuleCard {
         .height(38)
         .padding(0)
         .borderRadius(uiRadius(19))
-        .backgroundColor(themeSurfaceVariant())
+        .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
         .systemMaterial(uiButtonMaterial())
-        .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
-        .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .onClick(() => {
           this.onRemove();
         })

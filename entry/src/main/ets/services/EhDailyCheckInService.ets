@@ -1,7 +1,4 @@
-import { GallerySite } from '../model/GalleryModels';
 import { decodeHtmlEntities } from '../shared/HtmlEntitySupport';
-import { EhHttpClient } from './EhHttpClient';
-import { EhUrl } from './EhUrl';
 
 export const DAILY_CHECK_IN_FOREGROUND_REVISION_KEY: string = 'dailyCheckInForegroundRevision';
 
@@ -25,48 +22,62 @@ interface EhDailyCheckInInspection {
   eventParagraphCount: number;
 }
 
-class EhDailyCheckInService {
-  private client: EhHttpClient = new EhHttpClient();
-  private pending: Promise<EhDailyCheckInResult> | null = null;
+interface EhDailyCheckInWebSnapshot {
+  paragraphs: string[];
+  responseKind: string;
+  bodyLength: number;
+}
 
-  async check(): Promise<EhDailyCheckInResult> {
-    if (this.pending !== null) {
-      return this.pending;
-    }
-    const pending = this.requestCheckIn();
-    this.pending = pending;
-    try {
-      return await pending;
-    } finally {
-      if (this.pending === pending) {
-        this.pending = null;
-      }
-    }
-  }
+export function buildDailyCheckInInspectionScript(): string {
+  return "(() => {" +
+    "const pane=document.getElementById('eventpane');" +
+    "const paragraphs=pane?Array.from(pane.querySelectorAll('p')).map((p)=>" +
+    "(p.innerText||p.textContent||'').replace(/\\s+/g,' ').trim()).filter((p)=>p.length>0):[];" +
+    "const bodyText=(document.body&&document.body.innerText)||'';" +
+    "const html=(document.documentElement&&document.documentElement.innerHTML)||'';" +
+    "let kind='unexpected-page';" +
+    "if(pane){kind='event-pane';}" +
+    "else if(/cf-chl-|challenge-platform|Just a moment|Checking your browser|cf-ray/i.test(html)){" +
+    "kind='site-verification';}" +
+    "else if(/Sign in with an E-Hentai forum account|act=Login/i.test(bodyText)||" +
+    "document.querySelector('[name=UserName]')){kind='signed-out';}" +
+    "else if(document.getElementById('newsouter')||/E-Hentai/i.test(document.title)){" +
+    "kind='news-without-event';}" +
+    "return JSON.stringify({paragraphs:paragraphs,responseKind:kind,bodyLength:bodyText.length});" +
+    "})()";
+}
 
-  private async requestCheckIn(): Promise<EhDailyCheckInResult> {
-    const url = EhUrl.getNewsUrl();
-    try {
-      const response = await this.client.getText(url, EhUrl.getReferer(GallerySite.E), 0, {
-        includeUConfig: false,
-        browserCompatibility: true
-      });
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        return failureResult(response.statusCode, 'HTTP ' + response.statusCode.toString());
-      }
-      const inspection = inspectEhDailyCheckInResponse(response.body);
+export function parseEhDailyCheckInWebResult(raw: string): EhDailyCheckInResult {
+  try {
+    let json = raw.trim();
+    if (json.startsWith('"')) {
+      json = JSON.parse(json) as string;
+    }
+    const snapshot = JSON.parse(json) as EhDailyCheckInWebSnapshot;
+    const paragraphs = Array.isArray(snapshot.paragraphs) ? snapshot.paragraphs : [];
+    if (paragraphs.length === 3) {
       return {
         ok: true,
-        statusCode: response.statusCode,
+        statusCode: 200,
         message: '',
-        event: inspection.event,
-        responseKind: inspection.responseKind,
-        bodyLength: response.body.length,
-        eventParagraphCount: inspection.eventParagraphCount
+        event: { message: paragraphs.join('\n\n') },
+        responseKind: 'daily-event',
+        bodyLength: normalizeBodyLength(snapshot.bodyLength),
+        eventParagraphCount: paragraphs.length
       };
-    } catch (error) {
-      return failureResult(0, String(error));
     }
+    return {
+      ok: true,
+      statusCode: 200,
+      message: '',
+      event: null,
+      responseKind: snapshot.responseKind === 'event-pane' ? 'event-pane-unexpected' :
+        normalizeResponseKind(snapshot.responseKind),
+      bodyLength: normalizeBodyLength(snapshot.bodyLength),
+      eventParagraphCount: paragraphs.length
+    };
+  } catch (error) {
+    return dailyCheckInFailureResult('Invalid background Web result: ' + String(error), 'inspection-failed');
   }
 }
 
@@ -127,16 +138,27 @@ function cleanEventText(value: string): string {
   return decodeHtmlEntities(value.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
 }
 
-function failureResult(statusCode: number, message: string): EhDailyCheckInResult {
+export function dailyCheckInFailureResult(message: string,
+  responseKind: string = 'web-failed'): EhDailyCheckInResult {
   return {
     ok: false,
-    statusCode: statusCode,
+    statusCode: 0,
     message: message,
     event: null,
-    responseKind: 'request-failed',
+    responseKind: responseKind,
     bodyLength: 0,
     eventParagraphCount: 0
   };
 }
 
-export const ehDailyCheckInService: EhDailyCheckInService = new EhDailyCheckInService();
+function normalizeBodyLength(value: number): number {
+  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
+}
+
+function normalizeResponseKind(value: string): string {
+  if (value === 'site-verification' || value === 'signed-out' ||
+    value === 'news-without-event' || value === 'unexpected-page') {
+    return value;
+  }
+  return 'unexpected-page';
+}

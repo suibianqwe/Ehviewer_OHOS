@@ -28,6 +28,7 @@ import {
 import {
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -35,7 +36,8 @@ import {
   uiDialogSurfaceRadius,
   uiDialogSurfaceShadow,
   uiMaterialForegroundColor,
-  uiRadius
+  uiRadius,
+  uiMaterialBackground
 } from '../shared/EhUiStyle';
 import { MAIN_CONTENT_WIDTH_VP_KEY } from '../services/EhWindowImmersive';
 import { EhSubNavBar } from './NavigationComponents';
@@ -738,7 +740,8 @@ struct TagVoteOverlay {
           .height(34)
           .padding(0)
           .borderRadius(uiRadius(17))
-          .backgroundColor(themeSurfaceVariant())
+          .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onDismiss();
@@ -833,11 +836,11 @@ struct TagVoteOverlay {
       .width('86%')
       .constraintSize({ maxWidth: 440 })
       .padding(16)
-      .backgroundColor(uiDialogSurfaceBackground())
-      .systemMaterial(uiDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
       .shadow(uiDialogSurfaceShadow())
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiDialogMaterial())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());
@@ -880,15 +883,16 @@ struct TagVoteWideButton {
     .width('100%')
     .height(44)
     .padding(0)
-    .backgroundColor(this.selected ? this.selectedBackground : themeSurfaceVariant())
-    .systemMaterial(uiButtonMaterial())
+    .backgroundColor(uiMaterialBackground(this.selected ? this.selectedBackground : themeSurfaceVariant()))
+    .opacity(this.enabledValue ? 1 : 0.56)
+    .enabled(this.enabledValue)
+    .borderRadius(uiRadius(6))
     .border({
       width: this.selected ? 1.2 : 0,
       color: this.selected ? this.accentColor : Color.Transparent
     })
-    .borderRadius(uiRadius(6))
-    .enabled(this.enabledValue)
-    .opacity(this.enabledValue ? 1 : 0.56)
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .onClick(() => {
       this.onClickAction();
     })
@@ -919,9 +923,10 @@ struct TagActionButton {
     .width('100%')
     .height(40)
     .padding({ left: 10, right: 10 })
-    .backgroundColor(themeSurfaceVariant())
-    .systemMaterial(uiButtonMaterial())
+    .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
     .borderRadius(uiRadius(6))
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .onClick(() => {
       this.onTap();
     })
@@ -1020,9 +1025,10 @@ struct ArchiveOptionsOverlay {
             .height(34)
             .fontSize(13)
             .fontColor(uiMaterialForegroundColor(themeSecondaryText()))
-            .backgroundColor(themeSurfaceVariant())
-            .systemMaterial(uiButtonMaterial())
+            .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
             .borderRadius(uiRadius(6))
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .onClick(() => {
               this.onDismiss();
             })
@@ -1094,12 +1100,12 @@ struct ArchiveOptionsOverlay {
       }
       .width('88%')
       .constraintSize({ maxWidth: 520 })
-      .backgroundColor(uiDialogSurfaceBackground())
-      .systemMaterial(uiDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
-      .clip(true)
+      .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
       .shadow(uiDialogSurfaceShadow())
+      .clip(true)
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiDialogMaterial())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());

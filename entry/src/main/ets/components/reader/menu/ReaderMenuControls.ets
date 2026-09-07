@@ -18,6 +18,7 @@ import {
   isHarmonyMaterialEnabled,
   uiButtonHighlightBorderColor,
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -25,7 +26,6 @@ import {
   uiDialogSurfaceRadius,
   uiDialogSurfaceShadow,
   uiPopupBackgroundEffect,
-  uiPopupBlurOptions,
   uiPopupBlurStyle,
   uiReaderOptionRowHeight,
   uiReaderSelectControlBackground,
@@ -33,7 +33,8 @@ import {
   uiReaderOptionSegmentMaterial,
   uiSelectorHeight,
   uiSwitchHeight,
-  uiSwitchWidth
+  uiSwitchWidth,
+  uiMaterialBackground
 } from '../../../shared/EhUiStyle';
 
 class ReaderSelectMenuEffectModifier implements AttributeModifier<SelectAttribute> {
@@ -116,13 +117,13 @@ export struct ReaderImageActionDialog {
     .width('78%')
     .constraintSize({ maxWidth: 360 })
     .padding({ top: 6, bottom: 6 })
-    .backgroundColor(uiDialogSurfaceBackground())
-    .systemMaterial(uiDialogMaterial())
-    .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-    .borderRadius(uiDialogSurfaceRadius())
-    .clip(true)
-    .shadow(uiDialogSurfaceShadow())
+    .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
     .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+    .shadow(uiDialogSurfaceShadow())
+    .clip(true)
+    .borderRadius(uiDialogSurfaceRadius())
+    .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+    .systemMaterial(uiDialogMaterial())
   }
 }
 
@@ -150,9 +151,10 @@ struct ReaderImageActionButton {
     }
     .width('100%')
     .height(48)
-    .backgroundColor(Color.Transparent)
-    .systemMaterial(uiButtonMaterial())
+    .backgroundColor(uiMaterialBackground(Color.Transparent))
     .borderRadius(0)
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .onClick(() => {
       this.onTap();
     })
@@ -188,21 +190,20 @@ export struct ReaderMenuSelect {
         .value(uiValue(this.value))
         .font({ size: 15 })
         .fontColor(readerSelectColors().buttonText)
-        .backgroundColor(uiReaderSelectControlBackground(readerSelectColors().buttonBackground))
-        .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle(), uiPopupBlurOptions())
-        .systemMaterial(uiReaderOptionSegmentMaterial())
-        .border({ width: 1, color: uiButtonHighlightBorderColor() })
-        .menuBackgroundColor(uiReaderSelectPopupBackground(readerSelectColors().menuBackground))
-        // 当前系统的原生菜单模糊仍跟随系统亮色，暗色菜单使用半透明深色底回退。
-        .menuBackgroundBlurStyle(isHarmonyMaterialEnabled() || isDarkTheme() ? BlurStyle.NONE : uiPopupBlurStyle())
-        .attributeModifier(READER_SELECT_MENU_EFFECT_MODIFIER)
-        .optionBgColor(readerSelectColors().optionBackground)
-        .optionFontColor(readerSelectColors().optionText)
-        .optionFont({ size: 14 })
-        .selectedOptionBgColor(readerSelectColors().selectedOptionBackground)
-        .selectedOptionFontColor(readerSelectColors().selectedOptionText)
-        .menuOutline({ width: 1, color: readerSelectColors().outline })
+        .backgroundColor(uiMaterialBackground(uiReaderSelectControlBackground(readerSelectColors().buttonBackground)))
+        .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
         .arrowModifier(selectArrowModifier(readerSelectColors().arrow))
+        .menuOutline({ width: 1, color: readerSelectColors().outline })
+        .selectedOptionFontColor(readerSelectColors().selectedOptionText)
+        .selectedOptionBgColor(readerSelectColors().selectedOptionBackground)
+        .optionFont({ size: 14 })
+        .optionFontColor(readerSelectColors().optionText)
+        .optionBgColor(readerSelectColors().optionBackground)
+        .attributeModifier(READER_SELECT_MENU_EFFECT_MODIFIER)
+        .menuBackgroundBlurStyle(isHarmonyMaterialEnabled() || isDarkTheme() ? BlurStyle.NONE : uiPopupBlurStyle())
+        .menuBackgroundColor(uiReaderSelectPopupBackground(readerSelectColors().menuBackground))
+        .border({ width: 1, color: uiButtonHighlightBorderColor() })
+        .systemMaterial(uiReaderOptionSegmentMaterial())
         .onSelect((index: number) => {
           if (index >= 0 && index < this.options.length) {
             this.onChange(this.options[index]);

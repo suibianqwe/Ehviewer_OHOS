@@ -23,9 +23,8 @@ import {
   isHarmonyMaterialEnabled,
   isHarmonyUiStyle,
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiButtonHighlightBorderColor,
-  uiButtonBlurOptions,
-  uiButtonBlurStyle,
   uiFloatingButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
@@ -36,7 +35,6 @@ import {
   uiPopupMaterialBackground,
   uiRadius,
   uiSegmentMaterial,
-  uiSelectedButtonBackground,
   uiSwitchHeight,
   uiSwitchWidth,
   uiTabHeight,
@@ -104,7 +102,7 @@ function floatingActionForeground(): ResourceColor {
   return isDarkTheme() ? themeOnPrimaryText() : themePrimaryText();
 }
 
-function floatingActionBackground(solidColor: string): string {
+function floatingActionBackground(solidColor: string): ResourceColor {
   return uiMaterialBackground(solidColor);
 }
 
@@ -694,13 +692,13 @@ struct SearchNamespaceChip {
       .height(34)
       .fontSize(16)
       .fontWeight(FontWeight.Bold)
-      .fontColor(this.isActive ? themeSelectedButtonTextColor() : themePrimaryText())
-      .backgroundColor(this.isActive ? uiSelectedButtonBackground(this.selectedColor()) : themeSurfaceVariant())
-      .systemMaterial(this.isActive ? uiTintedSegmentMaterial(this.selectedColor()) : uiSegmentMaterial())
-      .border({ width: 0, color: Color.Transparent })
-      .borderRadius(uiRadius(5))
-      .padding({ left: 4, right: 4 })
+      .fontColor(this.isActive ? this.activeColor() : themeSecondaryText())
+      .backgroundColor(uiMaterialBackground(this.isActive ? uiMaterialLayerBackground(this.softColor()) : Color.Transparent))
       .animation({ duration: 180, curve: Curve.EaseInOut })
+      .padding({ left: 4, right: 4 })
+      .borderRadius(uiRadius(5))
+      .border({ width: 0, color: Color.Transparent })
+      .systemMaterial(this.isActive ? uiTintedSegmentMaterial(this.softColor()) : uiSegmentMaterial())
       .onClick(() => {
         this.onClickAction();
       })
@@ -877,14 +875,14 @@ export struct SearchAdvancedPanel {
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
             .fontColor(this.allCategoriesSelected() ? themeAccentTextColor() : themeSecondaryText())
-            .backgroundColor(this.allCategoriesSelected() ?
-              uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent)
+            .backgroundColor(uiMaterialBackground(this.allCategoriesSelected() ?
+              uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent))
+            .animation({ duration: 180, curve: Curve.EaseInOut })
+            .width('100%')
+            .borderRadius(uiRadius(17))
+            .border({ width: 0, color: Color.Transparent })
             .systemMaterial(this.allCategoriesSelected() ?
               uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
-            .border({ width: 0, color: Color.Transparent })
-            .borderRadius(uiRadius(17))
-            .width('100%')
-            .animation({ duration: 180, curve: Curve.EaseInOut })
             .onClick(() => {
               this.toggleAllCategories();
             })
@@ -924,9 +922,9 @@ export struct SearchAdvancedPanel {
           .width('100%')
           .height(42)
           .padding({ left: 10, right: 10 })
-          .backgroundColor(uiMaterialLayerBackground(themeSurfaceVariant()))
-          .systemMaterial(uiSegmentMaterial())
+          .backgroundColor(uiMaterialBackground(uiMaterialLayerBackground(themeSurfaceVariant())))
           .borderRadius(uiRadius(6))
+          .systemMaterial(uiSegmentMaterial())
 
           if (this.advancedEnabledDraft) {
             Column({ space: 10 }) {
@@ -997,10 +995,10 @@ export struct SearchAdvancedPanel {
           .width('100%')
         }
         .height(44)
-        .backgroundColor(uiMaterialLayerBackground(themePrimaryColor()))
-        .systemMaterial(uiTintedSegmentMaterial(themePrimaryColor()))
-        .borderRadius(uiRadius(8))
+        .backgroundColor(uiMaterialBackground(uiMaterialLayerBackground(themePrimaryColor())))
         .width('100%')
+        .borderRadius(uiRadius(8))
+        .systemMaterial(uiTintedSegmentMaterial(themePrimaryColor()))
         .onClick(() => {
           this.onSearch();
         })
@@ -1012,11 +1010,8 @@ export struct SearchAdvancedPanel {
     }
     .width('100%')
     .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
-    .backgroundColor(uiPopupMaterialBackground(themeSurface()))
+    .backgroundColor(uiMaterialBackground(uiPopupMaterialBackground(themeSurface())))
     .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
-    .systemMaterial(uiPanelMaterial())
-    .borderRadius(uiRadius(8))
-    .clip(true)
     .shadow(isHarmonyMaterialEnabled() ? {
       radius: 0,
       color: Color.Transparent,
@@ -1028,6 +1023,9 @@ export struct SearchAdvancedPanel {
       offsetX: 0,
       offsetY: 4
     })
+    .clip(true)
+    .borderRadius(uiRadius(8))
+    .systemMaterial(uiPanelMaterial())
   }
 
   private categoryRows(): SearchCategoryOption[][] {
@@ -1332,6 +1330,10 @@ export struct ActionBubble {
     return normalizeFloatingActionSide(this.side) === FLOATING_ACTION_SIDE_LEFT;
   }
 
+  private buttonColor(): string {
+    return this.primary || this.checked ? themePrimaryColor() : themeControlNeutralBackground();
+  }
+
   @Builder
   private labelBubble() {
     Text(this.label)
@@ -1361,14 +1363,13 @@ export struct ActionBubble {
     .width(this.buttonSize())
     .height(this.buttonSize())
     .borderRadius(uiRadius(this.primary ? 27 : 22))
-    .backgroundColor(this.isEnabled && this.checked ? uiSelectedButtonBackground(themeSelectedButtonColor()) :
-      floatingActionBackground(this.isEnabled ?
-        (this.primary ? themePrimaryColor() : themeControlNeutralBackground()) :
-        themeControlMutedBackground()))
-    .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
-    .systemMaterial(this.primary || this.checked ?
-      uiTintedButtonMaterial(this.checked ? themeSelectedButtonColor() : themePrimaryColor()) : uiButtonMaterial())
-    .border({ width: 1, color: uiButtonHighlightBorderColor() })
+    .backgroundColor(floatingActionBackground(this.isEnabled ? this.buttonColor() : themeControlMutedBackground()))
+    .backgroundEffect(uiFloatingButtonBackgroundEffect(this.primary || this.checked ? themePrimaryColor() : ''))
+    .systemMaterial(uiTintedButtonMaterial(this.buttonColor()))
+    .border({
+      width: this.checked ? 2 : 1,
+      color: this.checked ? themeOnPrimaryText() : uiButtonHighlightBorderColor()
+    })
     .scale({ x: this.active ? 0.92 : 1, y: this.active ? 0.92 : 1 })
     .animation({ duration: 120, curve: Curve.EaseOut })
     .onClick(() => {
@@ -1423,11 +1424,11 @@ export struct SearchModeSegmentButton {
     .height(uiTabHeight())
     .layoutWeight(1)
     .padding({ left: 4, right: 4 })
-    .backgroundColor(this.selected ? uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent)
-    .systemMaterial(this.selected ? uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
-    .border({ width: 0, color: Color.Transparent })
-    .borderRadius(uiRadius(uiTabHeight() / 2))
+    .backgroundColor(uiMaterialBackground(this.selected ? uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent))
     .animation({ duration: 180, curve: Curve.EaseInOut })
+    .borderRadius(uiRadius(uiTabHeight() / 2))
+    .border({ width: 0, color: Color.Transparent })
+    .systemMaterial(this.selected ? uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
     .onClick(() => {
       this.onSelect();
     })
@@ -1448,14 +1449,14 @@ export struct SearchFlagChip {
       .fontWeight(FontWeight.Medium)
       .fontColor(this.isOn ? themeAccentTextColor() :
         (this.isEnabled ? themeSecondaryText() : themeInactiveActionText()))
-      .backgroundColor(this.isOn ? uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent)
-      .systemMaterial(this.isOn ? uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
-      .border({ width: 0, color: Color.Transparent })
-      .borderRadius(uiRadius(17))
-      .layoutWeight(1)
-      .enabled(this.isEnabled)
-      .opacity(this.isEnabled ? 1 : 0.72)
+      .backgroundColor(uiMaterialBackground(this.isOn ? uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent))
       .animation({ duration: 180, curve: Curve.EaseInOut })
+      .opacity(this.isEnabled ? 1 : 0.72)
+      .enabled(this.isEnabled)
+      .layoutWeight(1)
+      .borderRadius(uiRadius(17))
+      .border({ width: 0, color: Color.Transparent })
+      .systemMaterial(this.isOn ? uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
       .onClick(() => {
         this.onToggle(!this.isOn);
       })
@@ -1502,13 +1503,13 @@ export struct SearchCategoryChip {
       .fontSize(14)
       .fontWeight(FontWeight.Bold)
       .fontColor(this.selected ? categoryColor(this.category) : themeSecondaryText())
-      .backgroundColor(this.selected ? uiMaterialLayerBackground(this.selectedColor()) : Color.Transparent)
+      .backgroundColor(uiMaterialBackground(this.selected ? uiMaterialLayerBackground(this.selectedColor()) : Color.Transparent))
+      .animation({ duration: 180, curve: Curve.EaseInOut })
+      .layoutWeight(1)
+      .borderRadius(uiRadius(17))
+      .border({ width: 0, color: Color.Transparent })
       .systemMaterial(this.selected ?
         uiTintedSegmentMaterial(this.selectedColor()) : uiSegmentMaterial())
-      .border({ width: 0, color: Color.Transparent })
-      .borderRadius(uiRadius(17))
-      .layoutWeight(1)
-      .animation({ duration: 180, curve: Curve.EaseInOut })
       .onClick(() => {
         this.onToggle(this.category);
       })
@@ -1538,9 +1539,10 @@ export struct RatingStarBar {
           }
           .width(36)
           .height(36)
-          .backgroundColor(this.starActive(index) ? '#6E521F' : themeSurfaceVariant())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundColor(uiMaterialBackground(this.starActive(index) ? '#6E521F' : themeSurfaceVariant()))
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onSelect(index);
           })

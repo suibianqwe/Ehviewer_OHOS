@@ -5,6 +5,7 @@ import { fileUri } from '@kit.CoreFileKit';
 import { userAuth } from '@kit.UserAuthenticationKit';
 import { configureEhWebDns } from '../services/EhWebRuntime';
 import {
+  APP_FOREGROUND_REVISION_KEY,
   EMBEDDED_READER_ACTIVE_KEY,
   MAIN_WINDOW_KEY,
   applyAppChromeImmersiveMode,
@@ -80,6 +81,7 @@ export default class EntryAbility extends UIAbility {
   // area report 0 — but the gesture indicator zone physically persists. We keep the max-seen
   // value so the reader can still inset its bottom bar clear of that zone.
   private maxBottomAvoidPx: number = 0;
+  private lastTopAvoidPx: number = 0;
 
   onCreate(want: Want): void {
     this.captureDownloadDirectory(want);
@@ -103,6 +105,7 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate<string>(WINDOW_PRIVACY_STATUS_KEY, '');
     AppStorage.setOrCreate<boolean>(IDENTITY_AUTH_LOCKED_KEY, false);
     AppStorage.setOrCreate<boolean>(EMBEDDED_READER_ACTIVE_KEY, false);
+    AppStorage.setOrCreate<number>(APP_FOREGROUND_REVISION_KEY, 0);
     AppStorage.setOrCreate<number>(DAILY_CHECK_IN_FOREGROUND_REVISION_KEY, 0);
     this.updateSystemColorMode(this.context.config.colorMode);
     let mainWindow: window.Window | undefined = undefined;
@@ -334,9 +337,15 @@ export default class EntryAbility extends UIAbility {
   }
 
   private setTopAvoidArea(win: window.Window, area: window.AvoidArea): void {
-    AppStorage.set<number>(STATUS_BAR_HEIGHT_KEY, area.topRect.height);
+    // A returning standalone reader briefly reports a zero system avoid area while
+    // its fullscreen window is being removed. Keep the last real value so the main
+    // toolbar never jumps under the status bar during that transition.
+    if (area.topRect.height > 0) {
+      this.lastTopAvoidPx = area.topRect.height;
+    }
+    AppStorage.set<number>(STATUS_BAR_HEIGHT_KEY, this.lastTopAvoidPx);
     try {
-      AppStorage.set<number>(TOP_AVOID_HEIGHT_KEY, win.getUIContext().px2vp(area.topRect.height));
+      AppStorage.set<number>(TOP_AVOID_HEIGHT_KEY, win.getUIContext().px2vp(this.lastTopAvoidPx));
     } catch (error) {
       AppStorage.set<number>(TOP_AVOID_HEIGHT_KEY, 0);
     }
@@ -348,6 +357,18 @@ export default class EntryAbility extends UIAbility {
       this.appWasBackground = false;
       refreshEhConnectionsAfterForeground();
       resumeBackgroundImageRequests();
+      // ReaderAbility uses a separate window. Reassert the already-created
+      // main window's chrome first. Recreate the route only after the reader
+      // window and the main window's avoid areas have finished switching;
+      // rebuilding in the same foreground frame can retain an invalid API 26
+      // WaterFlow render surface.
+      applyAppChromeImmersiveMode();
+      this.refreshMainWindowAvoidAreasAfterReaderExit();
+      setTimeout(() => {
+        if (!this.appWasBackground) {
+          this.notifyAppForeground();
+        }
+      }, 420);
     }
     ehDownloadManager.onAppForeground(this.context);
     this.applyPersistedSecureScreen();
@@ -361,6 +382,25 @@ export default class EntryAbility extends UIAbility {
       this.setIdentityAuthLocked(true);
     }
     this.checkAndPromptBiometricLock();
+  }
+
+  private notifyAppForeground(): void {
+    const current = AppStorage.get<number>(APP_FOREGROUND_REVISION_KEY) ?? 0;
+    AppStorage.setOrCreate<number>(APP_FOREGROUND_REVISION_KEY, current + 1);
+  }
+
+  private refreshMainWindowAvoidAreasAfterReaderExit(): void {
+    const refresh = (): void => {
+      if (this.windowStage === undefined) {
+        return;
+      }
+      this.windowStage.getMainWindow().then((win) => {
+        this.updateWindowAvoidAreas(win);
+      }).catch(() => {});
+    };
+    refresh();
+    setTimeout(refresh, 120);
+    setTimeout(refresh, 360);
   }
 
   private notifyDailyCheckInForeground(): void {

@@ -1,11 +1,11 @@
 import {
   uiButtonHighlightBorderColor,
-  uiButtonBlurOptions,
-  uiButtonBlurStyle,
   uiMaterialLayerBackground,
   uiMaterialForegroundColor,
+  uiFloatingButtonBackgroundEffect,
   uiRadius,
-  uiTintedButtonMaterial
+  uiTintedButtonMaterial,
+  uiMaterialBackground
 } from '../../../shared/EhUiStyle';
 
 @Component
@@ -19,11 +19,11 @@ export struct ReaderToolButton {
       .height(32)
       .fontSize(12)
       .fontColor(this.active ? uiMaterialForegroundColor(Color.White) : '#6B7280')
-      .backgroundColor(uiMaterialLayerBackground(this.active ? '#334155' : '#1F2937'))
-      .systemMaterial(uiTintedButtonMaterial(this.active ? '#334155' : '#1F2937'))
-      .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
-      .border({ width: 1, color: uiButtonHighlightBorderColor() })
+      .backgroundColor(uiMaterialBackground(uiMaterialLayerBackground(this.active ? '#334155' : '#1F2937')))
       .enabled(this.active)
+      .border({ width: 1, color: uiButtonHighlightBorderColor() })
+      .backgroundEffect(uiFloatingButtonBackgroundEffect(this.active ? '#334155' : '#1F2937'))
+      .systemMaterial(uiTintedButtonMaterial(this.active ? '#334155' : '#1F2937'))
       .onClick(() => {
         if (this.active) {
           this.onTap();
@@ -48,11 +48,11 @@ export struct ReaderNavButton {
     .justifyContent(FlexAlign.Center)
     .height(42)
     .width('100%')
-    .backgroundColor(uiMaterialLayerBackground(this.active ? '#2F6F8F' : '#1F2937'))
-    .systemMaterial(uiTintedButtonMaterial(this.active ? '#2F6F8F' : '#1F2937'))
-    .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
-    .borderRadius(uiRadius(4))
+    .backgroundColor(uiMaterialBackground(uiMaterialLayerBackground(this.active ? '#2F6F8F' : '#1F2937')))
     .border({ width: 1, color: uiButtonHighlightBorderColor() })
+    .borderRadius(uiRadius(4))
+    .backgroundEffect(uiFloatingButtonBackgroundEffect(this.active ? '#2F6F8F' : '#1F2937'))
+    .systemMaterial(uiTintedButtonMaterial(this.active ? '#2F6F8F' : '#1F2937'))
     .onClick(() => {
       if (this.active) {
         this.onTap();

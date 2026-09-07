@@ -2,7 +2,7 @@
 
 English · [简体中文](USER_GUIDE.md)
 
-This guide applies to EhViewer HarmonyOS `0.6.3`. Button positions may vary with the device, system version, window size, and permissions, but the entry points and behavior are the same. Portrait screenshots were captured on a phone and landscape screenshots on a tablet. Every reader screenshot in this guide was reached through `Subscriptions → Gallery details → Read`.
+This guide applies to EhViewer HarmonyOS `0.6.9`. Button positions may vary with the device, system version, window size, and permissions, but the entry points and behavior are the same. Portrait screenshots were captured on a phone and landscape screenshots on a tablet. Every reader screenshot in this guide was reached through `Subscriptions → Gallery details → Read`.
 
 > Tip: the app follows the system proxy and language by default. On a working network, advanced options such as custom hosts, SNI fronting, and DoH are normally unnecessary.
 
@@ -70,7 +70,7 @@ If the web page remains signed in after an app logout, use the app's `Log out/Cl
 
 ### 2.3 Refreshing account configuration after login
 
-After a successful login, the app tries to open the current site's settings page and collect `uconfig` automatically. If gallery covers, reader images, or quota information still fail to load, do this before changing network options:
+After a successful login, the app tries to open the current site's settings page and collect `uconfig` automatically. Daily check-in also opens the current site's `news.php` in a background WebView with the saved Cookie session; when it succeeds, the result dialog remains visible in the foreground. If gallery covers, reader images, or quota information still fail to load, do this before changing network options:
 
 1. Open `Settings → EH → Account configuration`.
 2. Wait until the page body appears, then return to the app. You normally do not need to press Apply on the website.
@@ -149,7 +149,8 @@ Enable `Settings → EH → Split view` on tablets, unfolded foldables, and PCs.
 - The left pane keeps the list or parent page; the right pane shows details or another child page.
 - Drag the divider to resize the panes. Its position is shared across supported pages.
 - Back first affects the pane that currently owns focus.
-- The full-screen reader remains independent and never opens inside a pane.
+- The embedded reader overlays the current page while the underlying list remains mounted. The independent reader still uses a separate full-screen window and never opens inside a split pane.
+- Gallery lists keep a stable edge inset on wide windows instead of adding extra side whitespace as the window grows.
 
 ## 5. Searching galleries
 
@@ -157,7 +158,7 @@ Use the search button in the title bar. Search supports keywords, uploader, tags
 
 ### 5.1 Keywords and multiple tags
 
-Submit text for a normal search. Tapping a tag in gallery details opens the full search page and creates a removable tag condition. Add more tags to narrow the results, or remove an existing chip. Tapping an uploader creates a nested uploader search; Back restores the previous conditions, list position, and detail state.
+Submit text for a normal search. Tapping a tag in gallery details opens the full search page and creates a removable tag condition. Add more tags to narrow the results, or remove an existing chip. Tapping an uploader creates a nested uploader search; Back restores the previous conditions, list position, and detail state. Search suggestions refresh automatically after persisted search history finishes loading.
 
 <p align="center">
   <img src="images/search-phone.jpg" width="360" alt="Gallery search on a phone" />
@@ -198,9 +199,11 @@ Common actions include:
 - Request an original/resampled archive or H@H download into the public Download root.
 - Search for similar galleries or the current cover.
 - Add the gallery to the download queue.
-- Enter the full-screen reader.
+- Open the embedded reader over the current page, or enter the independent full-screen reader when that mode is selected.
 
 Tap a tag to search it. Use the add button beside the tag section to enter tag editing and voting. Translated tag names and categories follow `Show tag translations`, independently of the app language.
+
+Closing gallery details or the reader restores the previous list position, split-pane focus, and floating toolbar state.
 
 <p align="center">
   <img src="images/gallery-tag-vote-phone.jpg" width="360" alt="Tag editing and voting on a phone" />
@@ -208,7 +211,7 @@ Tap a tag to search it. Use the add button beside the tag section to enter tag e
 
 ## 7. Reader
 
-The reader is always full screen. Tap the center to show or hide controls. Use the side regions to turn pages, double-tap for quick zoom, pinch for continuous zoom, and long-press the image for image actions.
+The embedded reader overlays the current page while the list stays mounted; the independent reader uses a separate full-screen window. Tap the center to show or hide controls. Use the side regions to turn pages, double-tap for quick zoom, pinch for continuous zoom, and long-press the image for image actions. Exiting restores the list position and split-view state.
 
 <p align="center">
   <img src="images/reader-phone.jpg" width="300" alt="Phone reader opened from Subscriptions" />
@@ -329,6 +332,8 @@ The Settings home groups options under EH, Reading, Downloads, Privacy, Translat
 `Settings → EH` supports light, dark, black, and follow-system themes, plus several theme colors. Open `Settings → Advanced → App language` for Follow system, English, Simplified Chinese, or Traditional Chinese. Tag translation is independent of the app language.
 
 `Settings → Privacy` includes app authentication, screenshot/task-preview protection, private download notifications, saved error bodies, and crash logs. Enable diagnostic storage only while investigating a problem and clear it afterward.
+
+Buttons, floating toolbars, and dialogs use Gaussian-blur materials. Newer HarmonyOS releases restrict immersive light effects, so API 26 and older systems use a visible compatible material instead of becoming fully transparent or gray.
 
 ## 12. Network and proxy
 

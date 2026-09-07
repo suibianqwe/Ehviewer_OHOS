@@ -52,28 +52,33 @@ export function loadEhWebUrlWithAndroidCompatibility(controller: webview.Webview
 
 function configureAndroidUserAgentMetadata(controller: webview.WebviewController, userAgent: string,
   chromeVersion: string): void {
-  if (!deviceInfo.apiAvailable(24)) {
-    return;
+  if (deviceInfo.apiAvailable(24)) {
+    const majorVersion = chromeVersion.split('.')[0];
+    const chromiumBrand = createUserAgentBrand('Chromium', majorVersion, chromeVersion);
+    const chromeBrand = createUserAgentBrand('Google Chrome', majorVersion, chromeVersion);
+    if (chromiumBrand === null || chromeBrand === null) {
+      return;
+    }
+    const metadata = new webview.UserAgentMetadata();
+    metadata.setBrandVersionList([chromiumBrand, chromeBrand]);
+    metadata.setFullVersion(chromeVersion);
+    metadata.setPlatform('Android');
+    metadata.setPlatformVersion(EH_ANDROID_PLATFORM_VERSION);
+    metadata.setMobile(true);
+    metadata.setModel(androidChromeModel());
+    metadata.setFormFactors([webview.UserAgentFormFactor.MOBILE]);
+    controller.setUserAgentMetadata(userAgent, metadata);
   }
-  const majorVersion = chromeVersion.split('.')[0];
-  const chromiumBrand = createUserAgentBrand('Chromium', majorVersion, chromeVersion);
-  const chromeBrand = createUserAgentBrand('Google Chrome', majorVersion, chromeVersion);
-  const metadata = new webview.UserAgentMetadata();
-  metadata.setBrandVersionList([chromiumBrand, chromeBrand]);
-  metadata.setFullVersion(chromeVersion);
-  metadata.setPlatform('Android');
-  metadata.setPlatformVersion(EH_ANDROID_PLATFORM_VERSION);
-  metadata.setMobile(true);
-  metadata.setModel(androidChromeModel());
-  metadata.setFormFactors([webview.UserAgentFormFactor.MOBILE]);
-  controller.setUserAgentMetadata(userAgent, metadata);
 }
 
 function createUserAgentBrand(brand: string, majorVersion: string,
-  fullVersion: string): webview.UserAgentBrandVersion {
-  const result = new webview.UserAgentBrandVersion();
-  result.setBrand(brand);
-  result.setMajorVersion(majorVersion);
-  result.setFullVersion(fullVersion);
-  return result;
+  fullVersion: string): webview.UserAgentBrandVersion | null {
+  if (deviceInfo.apiAvailable(24)) {
+    const result = new webview.UserAgentBrandVersion();
+    result.setBrand(brand);
+    result.setMajorVersion(majorVersion);
+    result.setFullVersion(fullVersion);
+    return result;
+  }
+  return null;
 }

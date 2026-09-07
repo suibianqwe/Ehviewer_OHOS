@@ -23,7 +23,9 @@ import {
   themeTertiaryText,
   themeTransparentColor
 } from '../shared/EhTheme';
-import { uiButtonMaterial, uiButtonBlurOptions, uiButtonBlurStyle, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
+import { uiButtonMaterial, uiTransparentButtonBackgroundEffect, uiMaterialForegroundColor, uiRadius,
+  uiMaterialBackground
+} from '../shared/EhUiStyle';
 import { CategoryBadge, GalleryThumb } from './GalleryScenes';
 
 @Component
@@ -190,9 +192,9 @@ export struct DownloadRow {
         }
         .width(34)
         .height(34)
-        .backgroundColor(themeTransparentColor())
+        .backgroundColor(uiMaterialBackground(themeTransparentColor()))
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
         .systemMaterial(uiButtonMaterial())
-        .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
         .onClick(() => {
           this.onRemove();
         })
@@ -217,9 +219,9 @@ export struct DownloadRow {
         }
         .width(38)
         .height(38)
-        .backgroundColor(this.isActive() ? themeControlMutedBackground() : themePrimaryColor())
+        .backgroundColor(uiMaterialBackground(this.isActive() ? themeControlMutedBackground() : themePrimaryColor()))
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
         .systemMaterial(uiButtonMaterial())
-        .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
         .onClick(() => {
           this.onState();
         })

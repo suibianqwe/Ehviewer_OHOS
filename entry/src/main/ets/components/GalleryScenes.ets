@@ -17,6 +17,7 @@ import {
 import { DEFAULT_ADVANCE_SEARCH, EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder, buildJumpSeekUrl } from '../services/EhUrl';
 import { ehFilterStore } from '../services/EhFilterStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
+import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { subscribeHoldingHandSide } from '../services/EhHoldingHandSupport';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
 import { DownloadLabel, ehDownloadStore } from '../services/EhDownloadStore';
@@ -86,6 +87,7 @@ import {
   uiAdaptiveColumnCount,
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -96,10 +98,8 @@ import {
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiMaterialSecondaryForegroundColor,
-  uiPageHorizontalPadding,
   uiRadius,
   uiSearchFieldHeight,
-  uiInputFieldBorder,
   uiSearchMaterial,
   uiSwitchHeight,
   uiSwitchWidth,
@@ -225,7 +225,7 @@ function galleryChromeForeground(): string {
   return themePrimaryText();
 }
 
-function galleryChromeBackground(solidColor: string): string {
+function galleryChromeBackground(solidColor: string): ResourceColor {
   return uiMaterialBackground(solidColor);
 }
 
@@ -721,7 +721,8 @@ struct DefaultFavoriteSlotDialog {
           }
           .width(40)
           .height(40)
-          .backgroundColor(themeFieldBackground())
+          .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
@@ -785,11 +786,11 @@ struct DefaultFavoriteSlotDialog {
       .width('78%')
       .height(this.panelHeight())
       .constraintSize({ maxWidth: 360, minWidth: 280, maxHeight: this.panelMaxHeight })
-      .backgroundColor(uiDialogSurfaceBackground())
-      .systemMaterial(uiDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
       .shadow(uiDialogSurfaceShadow())
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiDialogMaterial())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());
@@ -3107,7 +3108,7 @@ export struct GalleryListScene {
 
   private useSplitLayout(): boolean {
     return splitPaneModeEnabled() && this.sceneContentWidth >= SPLIT_PANE_BREAKPOINT &&
-      (this.showDetail || this.showBookmarkManager) && !this.showReader;
+      (this.showDetail || this.showBookmarkManager);
   }
 
   private splitListPaneWidth(): number {
@@ -3180,17 +3181,7 @@ export struct GalleryListScene {
 
   build() {
     Column() {
-      if (this.showReader) {
-        ReaderSessionScene({
-          restoreAppChromeOnExit: true,
-          onBack: () => {
-            this.closeReader();
-          }
-        })
-          .width('100%')
-          .height('100%')
-      } else {
-        Stack({ alignContent: Alignment.TopStart }) {
+      Stack({ alignContent: Alignment.TopStart }) {
           GalleryListContent({
             sceneTitle: this.sceneTitle,
             listMode: this.listMode,
@@ -3399,18 +3390,18 @@ export struct GalleryListScene {
               this.listScrollOffset = offset;
               updateGalleryListScrollCache(this.cacheKey(), this.listScrollOffset);
             }
-          })
-            .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
-            .height('100%')
-            .onTouch((event: TouchEvent) => {
-              if (shouldUpdateSplitPaneFocus(event)) {
-                this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
-              }
             })
-            .animation({
-              duration: this.splitDragging ? 0 : 220,
-              curve: Curve.EaseOut
-            })
+              .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
+              .height('100%')
+              .onTouch((event: TouchEvent) => {
+                if (shouldUpdateSplitPaneFocus(event)) {
+                  this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
+                }
+              })
+              .animation({
+                duration: this.splitDragging ? 0 : 220,
+                curve: Curve.EaseOut
+              })
 
           if (!this.isSearchResultScene && this.showSearchResultScene) {
             Column() {
@@ -3493,7 +3484,8 @@ export struct GalleryListScene {
                   }
                   .width(38)
                   .height(38)
-                  .backgroundColor(themeSurfaceVariant())
+                  .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
+                  .backgroundEffect(uiTransparentButtonBackgroundEffect())
                   .systemMaterial(uiButtonMaterial())
                   .onClick(() => {
                     this.addBookmarkDialogVisible = false;
@@ -3508,10 +3500,9 @@ export struct GalleryListScene {
                   .fontSize(15)
                   .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                   .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-                  .systemMaterial(uiSearchMaterial())
-                  .border(uiInputFieldBorder())
-                  .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                   .padding({ left: 12, right: 12 })
+                  .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+                  .systemMaterial(uiSearchMaterial())
                   .onChange((value: string) => {
                     this.addBookmarkName = value;
                   })
@@ -3532,9 +3523,10 @@ export struct GalleryListScene {
                     .layoutWeight(1)
                     .fontSize(14)
                     .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-                    .backgroundColor(themeSurfaceVariant())
-                    .systemMaterial(uiButtonMaterial())
+                    .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
                     .borderRadius(uiRadius(20))
+                    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+                    .systemMaterial(uiButtonMaterial())
                     .onClick(() => {
                       this.addBookmarkDialogVisible = false;
                     })
@@ -3543,9 +3535,10 @@ export struct GalleryListScene {
                     .layoutWeight(1)
                     .fontSize(14)
                     .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
-                    .backgroundColor(themePrimaryColor())
-                    .systemMaterial(uiButtonMaterial())
+                    .backgroundColor(uiMaterialBackground(themePrimaryColor()))
                     .borderRadius(uiRadius(20))
+                    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+                    .systemMaterial(uiButtonMaterial())
                     .onClick(() => {
                       this.confirmAddBookmark();
                     })
@@ -3555,11 +3548,11 @@ export struct GalleryListScene {
               .width('72%')
               .constraintSize({ maxWidth: 340, minWidth: 280 })
               .padding(18)
-              .backgroundColor(uiDialogSurfaceBackground())
-              .systemMaterial(uiDialogMaterial())
-              .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-              .borderRadius(uiDialogSurfaceRadius())
+              .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
               .shadow(uiDialogSurfaceShadow())
+              .borderRadius(uiDialogSurfaceRadius())
+              .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+              .systemMaterial(uiDialogMaterial())
               .onAreaChange((_oldArea: Area, newArea: Area) => {
                 this.addBookmarkPopupWidth = Number.parseFloat(newArea.width.toString());
                 this.addBookmarkPopupHeight = Number.parseFloat(newArea.height.toString());
@@ -3678,10 +3671,21 @@ export struct GalleryListScene {
               .zIndex(31)
               .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }))
           }
+
+          if (this.showReader) {
+            ReaderSessionScene({
+              restoreAppChromeOnExit: true,
+              onBack: () => {
+                this.closeReader();
+              }
+            })
+              .width('100%')
+              .height('100%')
+              .zIndex(50)
+          }
         }
-        .width('100%')
-        .height('100%')
-      }
+      .width('100%')
+      .height('100%')
     }
     .width('100%')
     .height('100%')
@@ -3795,7 +3799,8 @@ struct ImageSearchPanel {
           }
           .width(34)
           .height(34)
-          .backgroundColor(themeFieldBackground())
+          .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
@@ -3820,9 +3825,10 @@ struct ImageSearchPanel {
           .height(38)
           .layoutWeight(1)
           .borderRadius(uiRadius(6))
-          .backgroundColor(themePrimaryColor())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundColor(uiMaterialBackground(themePrimaryColor()))
           .enabled(!this.busy)
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.chooseFromAlbum();
           })
@@ -3843,9 +3849,10 @@ struct ImageSearchPanel {
           .height(38)
           .layoutWeight(1)
           .borderRadius(uiRadius(6))
-          .backgroundColor(themeFieldBackground())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundColor(uiMaterialBackground(themeFieldBackground()))
           .enabled(!this.busy)
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.chooseFromFile();
           })
@@ -3926,10 +3933,11 @@ struct ImageSearchPanel {
           .width('100%')
           .fontSize(14)
           .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
-          .backgroundColor(themePrimaryColor())
-          .systemMaterial(uiButtonMaterial())
-          .borderRadius(uiRadius(6))
+          .backgroundColor(uiMaterialBackground(themePrimaryColor()))
           .enabled(this.selectedPath.length > 0 && !this.busy)
+          .borderRadius(uiRadius(6))
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.submit();
           })
@@ -3982,9 +3990,10 @@ export struct GalleryCardActionOverlay {
     }
     .width('100%')
     .height(48)
-    .backgroundColor(Color.Transparent)
-    .systemMaterial(uiButtonMaterial())
+    .backgroundColor(uiMaterialBackground(Color.Transparent))
     .borderRadius(0)
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .onClick(onTap)
   }
 
@@ -4049,12 +4058,12 @@ export struct GalleryCardActionOverlay {
       .width('78%')
       .constraintSize({ maxWidth: 360 })
       .padding({ top: 4, bottom: 6 })
-      .backgroundColor(uiDialogSurfaceBackground())
-      .systemMaterial(uiDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
-      .clip(true)
+      .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
       .shadow(uiDialogSurfaceShadow())
+      .clip(true)
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiDialogMaterial())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());
@@ -4159,7 +4168,7 @@ export struct GalleryListContent {
   onImageSearch: (path: string, useSimilarityScan: boolean, onlySearchCovers: boolean) => void =
     (_path: string, _useSimilarityScan: boolean, _onlySearchCovers: boolean) => {
     };
-  onSelectGallery: (gallery: GalleryInfo) => void = () => {
+  onSelectGallery: (gallery: GalleryInfo) => void = (_gallery: GalleryInfo) => {
   };
   onLongPressGallery: (gallery: GalleryInfo) => void = (_gallery: GalleryInfo) => {
   };
@@ -4431,6 +4440,16 @@ export struct GalleryListContent {
     this.syncPageJumpDraft();
     this.searchTagTokenCount = this.selectedSearchTagTokens().length;
     this.refreshSearchSuggestions();
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSearchHistoryStore.load(context).then(() => {
+        this.refreshSearchSuggestions();
+      }).catch(() => {});
+    }
+    if (this.initialScrollOffset > 0) {
+      this.contentOpacity = 0;
+      this.toolbarOffsetY = -Math.min(this.initialScrollOffset, this.totalBarHeight());
+    }
     setTimeout(() => {
       this.syncContentWidthFromWindow();
     }, 0);
@@ -4470,6 +4489,10 @@ export struct GalleryListContent {
     }
     return translationPriorityForIndex(index, this.translationVisibleStart, this.translationVisibleEnd,
       this.galleryColumnCount());
+  }
+
+  private galleryCardTransition(): TransitionEffect {
+    return TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut });
   }
 
   aboutToDisappear(): void {
@@ -4803,7 +4826,9 @@ export struct GalleryListContent {
   }
 
   private galleryContentPadding(): number {
-    return uiPageHorizontalPadding(this.effectiveContentWidth());
+    // Keep gallery edges visually stable across phone and wide layouts. The
+    // page-level padding remains responsive for settings and other surfaces.
+    return 12;
   }
 
   private snapListToTop(): void {
@@ -4850,7 +4875,8 @@ export struct GalleryListContent {
   }
 
   private useThumbnailWaterFlow(): boolean {
-    return galleryListMode() === 'Thumb' && !this.shouldShowSearchSuggestions() && this.galleries.length > 0;
+    return galleryListMode() === 'Thumb' &&
+      !this.shouldShowSearchSuggestions() && this.galleries.length > 0;
   }
 
   private galleryColumnCountForWidth(width: number): number {
@@ -4860,7 +4886,7 @@ export struct GalleryListContent {
     }
     const preferred = this.galleryCardPreferredWidth();
     const gap = this.galleryCardGap();
-    return uiAdaptiveColumnCount(width, preferred, gap);
+    return uiAdaptiveColumnCount(width, preferred, gap, this.galleryContentPadding());
   }
 
   private galleryCardMinWidth(): number {
@@ -5035,9 +5061,9 @@ export struct GalleryListContent {
     .layoutWeight(1)
     .padding({ left: 8, right: 8 })
     .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-    .systemMaterial(uiSearchMaterial())
-    .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
     .alignItems(VerticalAlign.Center)
+    .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+    .systemMaterial(uiSearchMaterial())
   }
 
   private syncContentWidthFromWindow(): void {
@@ -5068,9 +5094,10 @@ export struct GalleryListContent {
         }
         .width(40)
         .height(40)
-        .backgroundColor(galleryChromeBackground(themeOnPrimaryActionBackground()))
-        .systemMaterial(uiButtonMaterial())
+        .backgroundColor(uiMaterialBackground(galleryChromeBackground(themeOnPrimaryActionBackground())))
         .flexShrink(0)
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
+        .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.onBack();
         })
@@ -5084,11 +5111,12 @@ export struct GalleryListContent {
         }
         .width(40)
         .height(40)
-        .backgroundColor(galleryChromeBackground(
+        .backgroundColor(uiMaterialBackground(galleryChromeBackground(
           this.advancedPanelVisible || this.advancedSearchEnabled ? themeOnPrimaryActionStrongBackground() :
-            themeOnPrimaryActionBackground()))
-        .systemMaterial(uiButtonMaterial())
+            themeOnPrimaryActionBackground())))
         .flexShrink(0)
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
+        .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.toggleAdvancedPanel();
         })
@@ -5318,7 +5346,7 @@ export struct GalleryListContent {
       this.updateVisibleTranslationItem(index, visible);
     })
     .animation({ duration: 220, curve: Curve.EaseOut })
-    .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+    .transition(this.galleryCardTransition())
   }
 
   @Builder
@@ -5345,7 +5373,7 @@ export struct GalleryListContent {
     .width('100%')
     .reuseId('gallery-thumb-flow-item')
     .animation({ duration: 220, curve: Curve.EaseOut })
-    .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+    .transition(this.galleryCardTransition())
   }
 
   @Builder
@@ -5852,9 +5880,10 @@ export struct GalleryListContent {
                     .width('100%')
                     .fontSize(12)
                     .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
-                    .backgroundColor(themeFieldBackground())
-                    .systemMaterial(uiButtonMaterial())
+                    .backgroundColor(uiMaterialBackground(themeFieldBackground()))
                     .borderRadius(uiRadius(4))
+                    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+                    .systemMaterial(uiButtonMaterial())
                     .onClick(() => {
                       this.onSeekJump('jump=' + preset);
                       this.closeJumpPanel();
@@ -5874,10 +5903,9 @@ export struct GalleryListContent {
                 .type(InputType.Number)
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-                .systemMaterial(uiSearchMaterial())
-                .border(uiInputFieldBorder())
-                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 8, right: 8 })
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.seekYearDraft = value;
                 })
@@ -5887,10 +5915,9 @@ export struct GalleryListContent {
                 .type(InputType.Number)
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-                .systemMaterial(uiSearchMaterial())
-                .border(uiInputFieldBorder())
-                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 8, right: 8 })
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.seekMonthDraft = value;
                 })
@@ -5900,10 +5927,9 @@ export struct GalleryListContent {
                 .type(InputType.Number)
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-                .systemMaterial(uiSearchMaterial())
-                .border(uiInputFieldBorder())
-                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 8, right: 8 })
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.seekDayDraft = value;
                 })
@@ -5914,9 +5940,10 @@ export struct GalleryListContent {
               .width('100%')
               .fontSize(13)
               .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
-              .backgroundColor(themePrimaryColor())
-              .systemMaterial(uiButtonMaterial())
+              .backgroundColor(uiMaterialBackground(themePrimaryColor()))
               .borderRadius(uiRadius(4))
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
+              .systemMaterial(uiButtonMaterial())
               .onClick(() => {
                 this.submitSeekDate();
                 this.closeJumpPanel();
@@ -5934,10 +5961,9 @@ export struct GalleryListContent {
                 .type(InputType.Number)
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-                .systemMaterial(uiSearchMaterial())
-                .border(uiInputFieldBorder())
-                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 10, right: 10 })
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.pageJumpDraft = value;
                 })
@@ -5955,9 +5981,10 @@ export struct GalleryListContent {
               .width('100%')
               .fontSize(13)
               .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
-              .backgroundColor(themePrimaryColor())
-              .systemMaterial(uiButtonMaterial())
+              .backgroundColor(uiMaterialBackground(themePrimaryColor()))
               .borderRadius(uiRadius(4))
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
+              .systemMaterial(uiButtonMaterial())
               .onClick(() => {
                 this.submitPageJump();
                 this.closeJumpPanel();
@@ -6135,9 +6162,10 @@ export struct GalleryListStateView {
           .height(38)
           .fontSize(13)
           .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
-          .backgroundColor(themePrimaryColor())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundColor(uiMaterialBackground(themePrimaryColor()))
           .margin({ top: 16 })
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onRefresh();
           })

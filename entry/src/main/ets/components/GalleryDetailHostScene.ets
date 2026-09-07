@@ -92,6 +92,7 @@ import {
 } from '../shared/EhTheme';
 import {
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -99,7 +100,8 @@ import {
   uiDialogSurfaceRadius,
   uiDialogSurfaceShadow,
   uiMaterialForegroundColor,
-  uiRadius
+  uiRadius,
+  uiMaterialBackground
 } from '../shared/EhUiStyle';
 import { PopupScrim } from './PopupScrim';
 import { GalleryDetailOverlayScene } from './GalleryDetailScenes';
@@ -178,7 +180,8 @@ struct AddFavoriteDialog {
           }
           .width(40)
           .height(40)
-          .backgroundColor(themeFieldBackground())
+          .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
@@ -252,11 +255,11 @@ struct AddFavoriteDialog {
       .width('78%')
       .height(this.panelHeight())
       .constraintSize({ maxWidth: 360, minWidth: 280, maxHeight: this.panelMaxHeight })
-      .backgroundColor(uiDialogSurfaceBackground())
-      .systemMaterial(uiDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
       .shadow(uiDialogSurfaceShadow())
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiDialogMaterial())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());

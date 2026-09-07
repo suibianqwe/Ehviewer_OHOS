@@ -23,11 +23,11 @@ import {
 } from '../../shared/EhTheme';
 import {
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius,
   uiSearchFieldHeight,
-  uiInputFieldBorder,
   uiSearchMaterial
 } from '../../shared/EhUiStyle';
 import {
@@ -152,9 +152,10 @@ export struct DetailTags {
           .height(34)
           .borderRadius(uiRadius(17))
           .padding(0)
-          .backgroundColor(this.editMode ? themePrimaryColor() : themeSurfaceVariant())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundColor(uiMaterialBackground(this.editMode ? themePrimaryColor() : themeSurfaceVariant()))
           .enabled(this.isDetailLoaded)
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.setEditMode(!this.editMode);
           })
@@ -201,11 +202,10 @@ export struct DetailTags {
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .placeholderColor(themeTertiaryText())
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-                .systemMaterial(uiSearchMaterial())
-                .border(uiInputFieldBorder())
-                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-                .padding({ left: 10, right: 10 })
                 .layoutWeight(1)
+                .padding({ left: 10, right: 10 })
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.updateAddTagText(value);
                 })
@@ -221,7 +221,8 @@ export struct DetailTags {
               .height(38)
               .borderRadius(uiRadius(6))
               .padding(0)
-              .backgroundColor(themePrimaryColor())
+              .backgroundColor(uiMaterialBackground(themePrimaryColor()))
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
               .systemMaterial(uiButtonMaterial())
               .onClick(() => {
                 this.submitCurrentTag();
@@ -343,11 +344,12 @@ export struct TagGroupRow {
             }
           }
           .height(26)
-          .backgroundColor(this.tagBackgroundColor())
-          .systemMaterial(uiButtonMaterial())
-          .borderRadius(uiRadius(4))
-          .padding({ left: 8, right: 8 })
+          .backgroundColor(uiMaterialBackground(this.tagBackgroundColor()))
           .margin({ right: 6, bottom: 6 })
+          .padding({ left: 8, right: 8 })
+          .borderRadius(uiRadius(4))
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             if (Date.now() - this.lastLongPressAt < 600) {
               return;

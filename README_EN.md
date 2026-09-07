@@ -12,8 +12,8 @@ EhViewer HarmonyOS is a HarmonyOS port of [Ehviewer_CN_SXJ](https://github.com/x
 
 Download the latest unsigned HAP from [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases). It can be installed with tools such as [Auto Installer](https://github.com/likuai2010/auto-installer).
 
-- Current version: `0.6.3`
-- Package: [`EhViewer_OHOS_0.6.3.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.6.3/EhViewer_OHOS_0.6.3.hap)
+- Current version: `0.6.9`
+- Package: [`EhViewer_OHOS_0.6.9.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.6.9/EhViewer_OHOS_0.6.9.hap)
 - Target API: `26.0.0`
 - Compatible API: `6.0.0(20)`
 
@@ -30,13 +30,21 @@ See the [complete English user guide](docs/USER_GUIDE_EN.md) for first launch, l
 - Browsing: E-Hentai/ExHentai, home, subscriptions, popular, toplists, cloud/local favorites, history, and downloads.
 - Search: keywords, multiple tags, uploaders, advanced filters, saved searches, search history, similarity search, and cover search.
 - Gallery details: favorites, rating, system sharing, Torrent magnet links, archives, H@H, comments, previews, similar galleries, and tag editing/voting.
-- Reader: horizontal/continuous reading, presets, gestures, rotation, adaptive two-page mode, border cropping, preloading, and an independent full-screen reader.
+- Reader: horizontal/continuous reading, presets, gestures, rotation, adaptive two-page mode, border cropping, preloading, an embedded overlay reader, and an independent full-screen reader.
 - Image processing: adjustments, adaptive moiré removal, system/API 26 Core Vision AI upscaling, and SDR-to-HDR. Pre-rendering uses `moiré removal and adjustments → upscaling → HDR`.
 - Translation: titles, details, comments, and OCR manga translation through web services, DeepSeek, OpenAI, Gemini, or a custom compatible API.
 - Downloads: a cross-gallery shared worker pool, progress/speed notifications, privacy notifications, status filters, multi-select actions, item recovery, and ZIP import/export.
 - Wide screens: resizable split panes with independent routes and focus-aware Back behavior.
 - Migration: JSON/Android database import, legacy EhViewer download recovery, and selectable Wi-Fi Direct transfer of reading progress, app settings, login cookies, bookmarks, favorites, blocklists, download metadata, and images. Local `igneous` is never exported or overwritten by incoming data.
 - Personalization and network: multiple languages/themes, translated tags, filters, privacy controls, HTTP/SOCKS5 proxy, DoH, hosts, SNI fronting, direct-connect detection, and diagnostics.
+
+## 0.6.9 updates
+
+- Daily check-in now opens `news.php` in a background WebView with the saved Cookie session; a successful check-in still keeps the result dialog in the foreground.
+- The embedded reader overlays the current page while the underlying list remains mounted. Exiting the reader or gallery details now restores list state, scroll position, split-pane focus, and toolbar state.
+- Fixed search suggestions not refreshing after search history finishes loading asynchronously.
+- Because newer HarmonyOS APIs restrict immersive light effects, buttons, floating toolbars, and dialogs now use visible Gaussian-blur materials with compatible fallbacks for API 26 and older systems.
+- Gallery list edge insets are now stable on wide windows instead of growing with the window width.
 
 ## Screenshots
 

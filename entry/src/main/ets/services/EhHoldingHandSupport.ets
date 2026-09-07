@@ -4,6 +4,16 @@ export const HOLDING_HAND_SIDE_LEFT: string = 'Left';
 export const HOLDING_HAND_SIDE_RIGHT: string = 'Right';
 export const HOLDING_HAND_SIDE_NONE: string = '';
 
+export function floatingActionSideForOperatingHand(status: motion.OperatingHandStatus): string {
+  if (status === motion.OperatingHandStatus.LEFT_HAND_OPERATED) {
+    return HOLDING_HAND_SIDE_LEFT;
+  }
+  if (status === motion.OperatingHandStatus.RIGHT_HAND_OPERATED) {
+    return HOLDING_HAND_SIDE_RIGHT;
+  }
+  return HOLDING_HAND_SIDE_NONE;
+}
+
 export function floatingActionSideForHoldingHand(status: motion.HoldingHandStatus): string {
   if (status === motion.HoldingHandStatus.LEFT_HAND_HELD) {
     return HOLDING_HAND_SIDE_LEFT;
@@ -15,27 +25,55 @@ export function floatingActionSideForHoldingHand(status: motion.HoldingHandStatu
 }
 
 export function subscribeHoldingHandSide(onChange: (side: string) => void): () => void {
-  let subscribed = false;
-  const callback = (status: motion.HoldingHandStatus): void => {
-    const side = floatingActionSideForHoldingHand(status);
-    console.info(`EhHoldingHandSupport: status=${status}, side=${side || 'Fallback'}`);
-    onChange(side);
+  let holdingSubscribed = false;
+  let operatingSubscribed = false;
+  let holdingSide = HOLDING_HAND_SIDE_NONE;
+  let operatingSide = HOLDING_HAND_SIDE_NONE;
+  const emitEffectiveSide = (): void => {
+    onChange(holdingSide.length > 0 ? holdingSide : operatingSide);
+  };
+  const holdingCallback = (status: motion.HoldingHandStatus): void => {
+    holdingSide = floatingActionSideForHoldingHand(status);
+    emitEffectiveSide();
+  };
+  const operatingCallback = (status: motion.OperatingHandStatus): void => {
+    operatingSide = floatingActionSideForOperatingHand(status);
+    if (holdingSide.length === 0) {
+      emitEffectiveSide();
+    }
   };
   try {
-    motion.on('holdingHandChanged', callback);
-    subscribed = true;
-    console.info('EhHoldingHandSupport: subscribed');
+    operatingSide = floatingActionSideForOperatingHand(motion.getRecentOperatingHandStatus());
+    emitEffectiveSide();
+  } catch (error) {
+    console.warn('EhHoldingHandSupport: recent operating-hand status is unavailable');
+  }
+  try {
+    motion.on('holdingHandChanged', holdingCallback);
+    holdingSubscribed = true;
   } catch (error) {
     console.warn('EhHoldingHandSupport: holding-hand awareness is unavailable');
   }
+  try {
+    motion.on('operatingHandChanged', operatingCallback);
+    operatingSubscribed = true;
+  } catch (error) {
+    console.warn('EhHoldingHandSupport: operating-hand awareness is unavailable');
+  }
   return (): void => {
-    if (!subscribed) {
-      return;
+    if (holdingSubscribed) {
+      holdingSubscribed = false;
+      try {
+        motion.off('holdingHandChanged', holdingCallback);
+      } catch (error) {
+      }
     }
-    subscribed = false;
-    try {
-      motion.off('holdingHandChanged', callback);
-    } catch (error) {
+    if (operatingSubscribed) {
+      operatingSubscribed = false;
+      try {
+        motion.off('operatingHandChanged', operatingCallback);
+      } catch (error) {
+      }
     }
   };
 }

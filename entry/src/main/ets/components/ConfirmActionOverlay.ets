@@ -9,14 +9,16 @@ import {
   themeSurfaceVariant
 } from '../shared/EhTheme';
 import {
-  uiButtonMaterial,
   uiControlRadius,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
-  uiDialogMaterial,
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
   uiDialogSurfaceShadow,
+  uiButtonMaterial,
+  uiFloatingButtonBackgroundEffect,
+  uiTransparentButtonBackgroundEffect,
+  uiMaterialBackground,
   uiMaterialForegroundColor
 } from '../shared/EhUiStyle';
 import { PopupScrim } from './PopupScrim';
@@ -61,19 +63,22 @@ export struct ConfirmActionOverlay {
             Button(uiText('Cancel'), { type: ButtonType.Normal, stateEffect: true })
               .fontSize(14)
               .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-              .backgroundColor(themeSurfaceVariant())
-              .systemMaterial(uiButtonMaterial())
-              .borderRadius(uiControlRadius(6))
+              .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
               .layoutWeight(1)
+              .borderRadius(uiControlRadius(6))
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
+              .systemMaterial(uiButtonMaterial())
               .onClick(this.onCancel)
           }
           Button(uiText(this.confirmLabel), { type: ButtonType.Normal, stateEffect: true })
             .fontSize(14)
             .fontColor(this.danger ? themeDangerText() : uiMaterialForegroundColor(themeOnPrimaryText()))
-            .backgroundColor(this.danger ? themeDangerBackground() : themePrimaryColor())
-            .systemMaterial(uiButtonMaterial())
-            .borderRadius(uiControlRadius(6))
+            .backgroundColor(uiMaterialBackground(this.danger ? themeDangerBackground() : themePrimaryColor()))
             .layoutWeight(1)
+            .borderRadius(uiControlRadius(6))
+            .backgroundEffect(uiFloatingButtonBackgroundEffect(this.danger ?
+              themeDangerBackground() : themePrimaryColor()))
+            .systemMaterial(uiButtonMaterial())
             .onClick(this.onConfirm)
         }
         .width('100%')
@@ -83,10 +88,9 @@ export struct ConfirmActionOverlay {
       .constraintSize({ maxWidth: 420 })
       .padding(18)
       .backgroundColor(uiDialogSurfaceBackground())
-      .systemMaterial(uiDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
       .shadow(uiDialogSurfaceShadow())
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());

@@ -1,9 +1,12 @@
 import { common } from '@kit.AbilityKit';
+import { webview } from '@kit.ArkWeb';
 import { GalleryRoute } from '../model/GalleryModels';
 import { ehCookieStore } from '../services/EhCookieStore';
 import {
+  buildDailyCheckInInspectionScript,
   DAILY_CHECK_IN_FOREGROUND_REVISION_KEY,
-  ehDailyCheckInService,
+  dailyCheckInFailureResult,
+  parseEhDailyCheckInWebResult,
   EhDailyCheckInResult
 } from '../services/EhDailyCheckInService';
 import { ehDownloadStore } from '../services/EhDownloadStore';
@@ -13,17 +16,30 @@ import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
 import { ehUpdateChecker, ReleaseInfo, UpdateCheckResult } from '../services/EhUpdateChecker';
+import { EhUrl } from '../services/EhUrl';
+import {
+  EH_WEB_COMPATIBILITY_SCRIPTS,
+  loadEhWebUrlWithAndroidCompatibility
+} from '../services/EhWebRuntime';
 import { TRANSLATION_ERROR_MESSAGE_KEY, TRANSLATION_ERROR_REVISION_KEY } from '../services/EhTranslationService';
 import { EhDrawer } from '../components/NavigationComponents';
 import { ConfirmActionOverlay } from '../components/ConfirmActionOverlay';
 import { UpdatePromptOverlay } from '../components/UpdatePromptOverlay';
 import { PopupScrim } from '../components/PopupScrim';
-import { applyAppChromeImmersiveMode, isEmbeddedReaderActive } from '../services/EhWindowImmersive';
+import {
+  applyAppChromeImmersiveMode,
+  isEmbeddedReaderActive
+} from '../services/EhWindowImmersive';
 import { prepareSplitPaneRouteTransition, SPLIT_PANE_MODAL_Z_INDEX } from '../components/SplitPaneSupport';
 import { FavoriteGalleryScene, HomeGalleryScene, HotGalleryScene, SubscriptionGalleryScene } from '../components/GalleryScenes';
 import { HistoryScene, TopListScene } from '../components/HistoryTopScenes';
 import { DownloadScene, MigrationScene } from '../components/DownloadMigrationScenes';
 import { SessionScene, SettingsScene } from '../components/SessionSettingsScenes';
+import {
+  captureEhAccountWebCookies,
+  configureWebCookieAccess,
+  syncCookieHeaderToWebView
+} from '../components/SessionScene';
 import {
   LANGUAGE_REVISION_KEY,
   IDENTITY_AUTH_LOCKED_KEY,
@@ -58,6 +74,9 @@ let rootNavigationCache: RootNavigationCache = {
 };
 
 const DAILY_CHECK_IN_RETRY_INTERVAL_MS: number = 5 * 60 * 1000;
+const DAILY_CHECK_IN_WEB_TIMEOUT_MS: number = 30000;
+const DAILY_CHECK_IN_WEB_INSPECTION_DELAY_MS: number = 250;
+const DAILY_CHECK_IN_WEB_VERIFICATION_RETRY_MS: number = 1500;
 
 @Entry
 @Component
@@ -73,6 +92,7 @@ struct Index {
   @State updateRelease: ReleaseInfo | null = null;
   @State dailyCheckInDialogVisible: boolean = false;
   @State dailyCheckInMessage: string = '';
+  @State dailyCheckInWebMounted: boolean = false;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeight: number = 0;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
@@ -82,7 +102,12 @@ struct Index {
   dailyCheckInForegroundRevision: number = 0;
   private dailyCheckInPending: boolean = false;
   private dailyCheckInLastAttemptAt: number = 0;
-
+  private dailyCheckInWebController: webview.WebviewController = new webview.WebviewController();
+  private dailyCheckInWebAttached: boolean = false;
+  private dailyCheckInWebLoading: boolean = false;
+  private dailyCheckInStartedAt: number = 0;
+  private dailyCheckInWebTimeoutTimer: number = -1;
+  private dailyCheckInWebInspectionTimer: number = -1;
   onTranslationErrorRevision(): void {
     const message = AppStorage.get<string>(TRANSLATION_ERROR_MESSAGE_KEY);
     if (message === undefined || message.length === 0) {
@@ -103,6 +128,15 @@ struct Index {
 
   private statusBarVp(): number {
     return this.getUIContext().px2vp(this.statusBarHeight);
+  }
+
+  private currentPageBackground(): string {
+    // Read the revision on a stable node so theme changes update colors
+    // without replacing the active route component tree.
+    if (this.themeRevision >= 0) {
+      return themePageBackground();
+    }
+    return themePageBackground();
   }
 
   private openExternalUrl(url: string): void {
@@ -175,6 +209,14 @@ struct Index {
     });
   }
 
+  aboutToDisappear(): void {
+    this.clearDailyCheckInWebTimers();
+    this.dailyCheckInPending = false;
+    this.dailyCheckInWebMounted = false;
+    this.dailyCheckInWebAttached = false;
+    this.dailyCheckInWebLoading = false;
+  }
+
   private checkForUpdatesOnStartup(): void {
     if (ehSettingsStore.getValue('close_auto_updates', 'Off') === 'On') {
       return;
@@ -216,34 +258,132 @@ struct Index {
     }
     this.dailyCheckInPending = true;
     this.dailyCheckInLastAttemptAt = now;
-    const startedAt = Date.now();
-    this.logDailyCheckInInfo('Request started, reason=' + reason);
-    ehDailyCheckInService.check().then((result: EhDailyCheckInResult) => {
-      const elapsedMs = Date.now() - startedAt;
-      if (!result.ok) {
-        this.logDailyCheckInWarn('Request failed, status=' + result.statusCode.toString() +
-          ', elapsedMs=' + elapsedMs.toString() + ', kind=' + result.responseKind +
-          ', message=' + result.message);
+    this.dailyCheckInStartedAt = now;
+    this.dailyCheckInWebController = new webview.WebviewController();
+    this.dailyCheckInWebAttached = false;
+    this.dailyCheckInWebLoading = false;
+    this.dailyCheckInWebMounted = true;
+    this.logDailyCheckInInfo('Background Web requested, reason=' + reason);
+  }
+
+  private handleDailyCheckInWebAttached(): void {
+    this.dailyCheckInWebAttached = true;
+    if (!this.dailyCheckInPending || this.dailyCheckInWebLoading) {
+      return;
+    }
+    try {
+      this.prepareDailyCheckInWebCookies();
+      this.dailyCheckInWebLoading = true;
+      this.dailyCheckInWebTimeoutTimer = setTimeout(() => {
+        this.finishDailyCheckIn(dailyCheckInFailureResult(
+          'Background news page timed out', 'web-timeout'));
+      }, DAILY_CHECK_IN_WEB_TIMEOUT_MS);
+      loadEhWebUrlWithAndroidCompatibility(this.dailyCheckInWebController, EhUrl.getNewsUrl());
+      this.logDailyCheckInInfo('Background Web loading news.php');
+    } catch (error) {
+      this.finishDailyCheckIn(dailyCheckInFailureResult(String(error), 'web-start-failed'));
+    }
+  }
+
+  private prepareDailyCheckInWebCookies(): void {
+    configureWebCookieAccess();
+    const cookieHeader = ehCookieStore.getStoredCookieHeader();
+    syncCookieHeaderToWebView(EhUrl.HOST_E, cookieHeader, false);
+    syncCookieHeaderToWebView(EhUrl.HOST_EX, cookieHeader, false);
+    syncCookieHeaderToWebView(EhUrl.FORUM_ORIGIN, cookieHeader, false);
+    try {
+      webview.WebCookieManager.configCookieSync(EhUrl.HOST_E, 'nw=1; path=/', false);
+      webview.WebCookieManager.configCookieSync(EhUrl.HOST_EX, 'nw=1; path=/', false);
+      webview.WebCookieManager.saveCookieSync();
+    } catch (_error) {
+    }
+  }
+
+  private handleDailyCheckInWebPageEnd(url: string): void {
+    if (!this.dailyCheckInPending || !this.dailyCheckInWebAttached) {
+      return;
+    }
+    this.clearDailyCheckInInspectionTimer();
+    this.dailyCheckInWebInspectionTimer = setTimeout(() => {
+      if (!this.dailyCheckInPending || !this.dailyCheckInWebAttached) {
         return;
       }
-      if (result.event !== null) {
-        this.logDailyCheckInInfo('Request succeeded, status=' + result.statusCode.toString() +
-          ', elapsedMs=' + elapsedMs.toString() + ', dailyEvent=present, bodyLength=' +
-          result.bodyLength.toString() + ', paragraphs=' + result.eventParagraphCount.toString());
-        this.dailyCheckInMessage = result.event.message;
-        this.dailyCheckInDialogVisible = true;
-      } else {
-        this.logDailyCheckInInfo('Request succeeded, status=' + result.statusCode.toString() +
-          ', elapsedMs=' + elapsedMs.toString() + ', dailyEvent=absent, kind=' + result.responseKind +
-          ', bodyLength=' + result.bodyLength.toString() + ', paragraphs=' +
-          result.eventParagraphCount.toString());
-      }
-    }).catch((error: Error) => {
-      this.logDailyCheckInWarn('Request rejected, elapsedMs=' + (Date.now() - startedAt).toString() +
-        ', message=' + error.message);
-    }).finally(() => {
-      this.dailyCheckInPending = false;
-    });
+      this.dailyCheckInWebController.runJavaScript(buildDailyCheckInInspectionScript())
+        .then((raw: string) => {
+          this.handleDailyCheckInWebInspection(url, parseEhDailyCheckInWebResult(raw));
+        }).catch((error: Error) => {
+          this.finishDailyCheckIn(dailyCheckInFailureResult(error.message, 'inspection-failed'));
+        });
+    }, DAILY_CHECK_IN_WEB_INSPECTION_DELAY_MS);
+  }
+
+  private handleDailyCheckInWebInspection(url: string, result: EhDailyCheckInResult): void {
+    if (!this.dailyCheckInPending) {
+      return;
+    }
+    if (result.ok && result.responseKind === 'site-verification') {
+      this.logDailyCheckInInfo('Site verification is running in background Web');
+      this.clearDailyCheckInInspectionTimer();
+      this.dailyCheckInWebInspectionTimer = setTimeout(() => {
+        this.handleDailyCheckInWebPageEnd(url);
+      }, DAILY_CHECK_IN_WEB_VERIFICATION_RETRY_MS);
+      return;
+    }
+    this.captureDailyCheckInWebCookies(url);
+    this.finishDailyCheckIn(result);
+  }
+
+  private captureDailyCheckInWebCookies(url: string): void {
+    if (!captureEhAccountWebCookies(url)) {
+      return;
+    }
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehCookieStore.save(context).catch(() => {});
+    }
+  }
+
+  private finishDailyCheckIn(result: EhDailyCheckInResult): void {
+    if (!this.dailyCheckInPending) {
+      return;
+    }
+    const elapsedMs = Date.now() - this.dailyCheckInStartedAt;
+    this.clearDailyCheckInWebTimers();
+    this.dailyCheckInPending = false;
+    this.dailyCheckInWebLoading = false;
+    this.dailyCheckInWebAttached = false;
+    this.dailyCheckInWebMounted = false;
+    if (!result.ok) {
+      this.logDailyCheckInWarn('Background Web failed, elapsedMs=' + elapsedMs.toString() +
+        ', kind=' + result.responseKind + ', message=' + result.message);
+      return;
+    }
+    if (result.event !== null) {
+      this.logDailyCheckInInfo('Background Web succeeded, elapsedMs=' + elapsedMs.toString() +
+        ', dailyEvent=present, bodyLength=' + result.bodyLength.toString() +
+        ', paragraphs=' + result.eventParagraphCount.toString());
+      this.dailyCheckInMessage = result.event.message;
+      this.dailyCheckInDialogVisible = true;
+      return;
+    }
+    this.logDailyCheckInInfo('Background Web succeeded, elapsedMs=' + elapsedMs.toString() +
+      ', dailyEvent=absent, kind=' + result.responseKind + ', bodyLength=' +
+      result.bodyLength.toString() + ', paragraphs=' + result.eventParagraphCount.toString());
+  }
+
+  private clearDailyCheckInInspectionTimer(): void {
+    if (this.dailyCheckInWebInspectionTimer >= 0) {
+      clearTimeout(this.dailyCheckInWebInspectionTimer);
+      this.dailyCheckInWebInspectionTimer = -1;
+    }
+  }
+
+  private clearDailyCheckInWebTimers(): void {
+    this.clearDailyCheckInInspectionTimer();
+    if (this.dailyCheckInWebTimeoutTimer >= 0) {
+      clearTimeout(this.dailyCheckInWebTimeoutTimer);
+      this.dailyCheckInWebTimeoutTimer = -1;
+    }
   }
 
   private logDailyCheckInInfo(message: string): void {
@@ -324,6 +464,33 @@ struct Index {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
+      if (this.dailyCheckInWebMounted) {
+        Stack() {
+          Web({ src: '', controller: this.dailyCheckInWebController, incognitoMode: false })
+            .javaScriptAccess(true)
+            .domStorageAccess(true)
+            .javaScriptOnDocumentStart(EH_WEB_COMPATIBILITY_SCRIPTS)
+            .onControllerAttached(() => {
+              this.handleDailyCheckInWebAttached();
+            })
+            .onPageEnd((event: OnPageEndEvent) => {
+              this.handleDailyCheckInWebPageEnd(event.url);
+            })
+            .onRenderExited(() => {
+              this.finishDailyCheckIn(dailyCheckInFailureResult(
+                'Background Web render process exited', 'web-render-exited'));
+            })
+            .width(2)
+            .height(2)
+        }
+        .width(2)
+        .height(2)
+        .clip(true)
+        .opacity(0.01)
+        .hitTestBehavior(HitTestMode.None)
+        .zIndex(0)
+      }
+
       // ---- Main content ----
       Column() {
         if (this.settingsReady) {
@@ -333,13 +500,9 @@ struct Index {
             Column()
               .width('100%')
               .height(this.statusBarVp() + 56)
-              .backgroundColor(themePageBackground())
+              .backgroundColor(this.currentPageBackground())
 
-            if (this.themeRevision % 2 === 0) {
-              this.RouteContent()
-            } else {
-              this.RouteContent()
-            }
+            this.RouteContent()
           }
           .width('100%')
           .height('100%')
@@ -347,7 +510,7 @@ struct Index {
       }
       .width('100%')
       .height('100%')
-      .backgroundColor(themePageBackground())
+      .backgroundColor(this.currentPageBackground())
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
 
       // ---- Scrim + drawer ----

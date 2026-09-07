@@ -29,7 +29,9 @@ import {
   themeSurfaceVariant,
   themeTertiaryText
 } from '../shared/EhTheme';
-import { uiButtonBlurOptions, uiButtonBlurStyle, uiButtonHighlightBorderColor, uiButtonMaterial, uiMaterialForegroundColor, uiRadius } from '../shared/EhUiStyle';
+import { uiButtonMaterial, uiTransparentButtonBackgroundEffect, uiMaterialForegroundColor, uiRadius,
+  uiMaterialBackground
+} from '../shared/EhUiStyle';
 import { AppSubToolbar } from './NavigationComponents';
 
 @Component
@@ -261,11 +263,10 @@ export struct WifiMigrationPanel {
     .height(68)
     .layoutWeight(1)
     .padding({ left: 14, right: 14 })
-    .backgroundColor(this.role === role ? themePrimaryColor() : themeSurfaceVariant())
-    .systemMaterial(uiButtonMaterial())
-    .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
-    .border({ width: 1, color: uiButtonHighlightBorderColor() })
+    .backgroundColor(uiMaterialBackground(this.role === role ? themePrimaryColor() : themeSurfaceVariant()))
     .borderRadius(uiRadius(8))
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .onClick(() => {
       this.switchRole(role);
     })
@@ -310,11 +311,10 @@ export struct WifiMigrationPanel {
     .width('100%')
     .height(72)
     .padding({ left: 12, right: 12 })
-    .backgroundColor(this.isDataKindSelected(kind) ? themeSelectedBackground() : themeSurface())
-    .systemMaterial(uiButtonMaterial())
-    .backgroundBlurStyle(uiButtonBlurStyle(), uiButtonBlurOptions())
-    .border({ width: 1, color: uiButtonHighlightBorderColor() })
+    .backgroundColor(uiMaterialBackground(this.isDataKindSelected(kind) ? themeSelectedBackground() : themeSurface()))
     .borderRadius(uiRadius(8))
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .onClick(() => {
       if (!this.active()) {
         this.toggleDataKind(kind);
@@ -362,9 +362,10 @@ export struct WifiMigrationPanel {
     .width('100%')
     .height(66)
     .padding({ left: 12, right: 12 })
-    .backgroundColor(themeSurface())
-    .systemMaterial(uiButtonMaterial())
+    .backgroundColor(uiMaterialBackground(themeSurface()))
     .borderRadius(uiRadius(8))
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .onClick(() => {
       this.connectPeer(peer);
     })
@@ -552,9 +553,10 @@ export struct WifiMigrationPanel {
             .fontSize(16)
             .fontWeight(FontWeight.Medium)
             .fontColor(this.active() ? themeDangerText() : uiMaterialForegroundColor(themeOnPrimaryText()))
-            .backgroundColor(this.active() ? themeDangerBackground() : themePrimaryColor())
-            .systemMaterial(uiButtonMaterial())
+            .backgroundColor(uiMaterialBackground(this.active() ? themeDangerBackground() : themePrimaryColor()))
             .borderRadius(uiRadius(8))
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .onClick(() => {
               this.runPrimaryAction();
             })

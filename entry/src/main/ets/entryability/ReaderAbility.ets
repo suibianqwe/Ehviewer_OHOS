@@ -20,6 +20,7 @@ export const READER_ABILITY_CONTEXT_KEY: string = 'readerAbilityContext';
 export default class ReaderAbility extends UIAbility {
   private readerWindow: window.Window | undefined = undefined;
   private appWasBackground: boolean = false;
+  private windowStateRestoreStarted: boolean = false;
 
   onWindowStageCreate(stage: window.WindowStage): void {
     AppStorage.setOrCreate(READER_ABILITY_CONTEXT_KEY, this.context);
@@ -117,19 +118,24 @@ export default class ReaderAbility extends UIAbility {
 
   onWindowStageDestroy(): void {
     cancelQueuedReaderImageRequests();
-    if (this.readerWindow !== undefined) {
-      restoreAppWindowState(this.readerWindow).catch(() => {});
-    }
+    this.restoreReaderWindowStateOnce();
     clearReaderWindow();
     this.readerWindow = undefined;
   }
 
   onDestroy(): void {
     cancelQueuedReaderImageRequests();
-    if (this.readerWindow !== undefined) {
-      restoreAppWindowState(this.readerWindow).catch(() => {});
-    }
+    this.restoreReaderWindowStateOnce();
     clearReaderWindow();
     AppStorage.set<common.UIAbilityContext | undefined>(READER_ABILITY_CONTEXT_KEY, undefined);
   }
+
+  private restoreReaderWindowStateOnce(): void {
+    if (this.windowStateRestoreStarted || this.readerWindow === undefined) {
+      return;
+    }
+    this.windowStateRestoreStarted = true;
+    restoreAppWindowState(this.readerWindow).catch(() => {});
+  }
+
 }
