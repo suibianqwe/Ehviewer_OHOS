@@ -24,6 +24,7 @@ import {
 import {
   uiButtonHighlightBorderColor,
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius
@@ -199,20 +200,21 @@ export struct HeaderActionButton {
     .height(46)
     .width('100%')
     .backgroundColor(uiMaterialBackground(this.buttonBackground()))
-    .systemMaterial(uiButtonMaterial())
-    .borderRadius(uiRadius(23))
-    .border({
-      width: 1,
-      color: this.accent ? uiButtonHighlightBorderColor() : themeDividerColor()
-    })
+    .animation({ duration: 120, curve: Curve.EaseOut })
+    .scale({ x: this.pressed ? 0.96 : 1, y: this.pressed ? 0.96 : 1 })
     .shadow({
       radius: this.pressed ? 2 : 6,
       color: '#22000000',
       offsetX: 0,
       offsetY: this.pressed ? 1 : 2
     })
-    .scale({ x: this.pressed ? 0.96 : 1, y: this.pressed ? 0.96 : 1 })
-    .animation({ duration: 120, curve: Curve.EaseOut })
+    .border({
+      width: 1,
+      color: this.accent ? uiButtonHighlightBorderColor() : themeDividerColor()
+    })
+    .borderRadius(uiRadius(23))
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .onTouch((event: TouchEvent) => {
       if (event.type === TouchType.Down) {
         this.pressed = true;

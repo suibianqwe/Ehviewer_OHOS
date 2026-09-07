@@ -14,6 +14,7 @@ import {
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { subscribeHoldingHandSide } from '../services/EhHoldingHandSupport';
 import { BrowsePosition, ehBrowsePositionStore } from '../services/EhBrowsePositionStore';
+import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import {
   FLOATING_ACTION_HOLDING_HAND_REVISION_KEY,
@@ -96,6 +97,7 @@ import {
   uiAdaptiveColumnCount,
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -357,6 +359,12 @@ export struct DownloadScene {
       this.statusText = status;
     });
     this.refreshSearchSuggestions();
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSearchHistoryStore.load(context).then(() => {
+        this.refreshSearchSuggestions();
+      }).catch(() => {});
+    }
     this.prepareDownloadBrowsePosition();
     this.loadDownloads();
     setTimeout(() => {
@@ -1278,7 +1286,7 @@ export struct DownloadScene {
 
   private useSplitLayout(): boolean {
     return splitPaneModeEnabled() && this.availableSceneWidth() >= SPLIT_PANE_BREAKPOINT &&
-      (this.showDetail || this.downloadLabelManagerVisible) && !this.showReader && !this.showTagSearch;
+      (this.showDetail || this.downloadLabelManagerVisible) && !this.showTagSearch;
   }
 
   private availableSceneWidth(): number {
@@ -2070,13 +2078,6 @@ export struct DownloadScene {
         .transition(this.restoreDetailWithFade ?
           TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
           TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }))
-    } else if (this.showReader) {
-      ReaderSessionScene({
-        restoreAppChromeOnExit: true,
-        onBack: () => {
-          this.closeEmbeddedReader();
-        }
-      })
     } else {
       Stack({ alignContent: Alignment.TopStart }) {
       Column() {
@@ -2366,9 +2367,9 @@ export struct DownloadScene {
                 .type(InputType.Number)
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-                .systemMaterial(uiSearchMaterial())
-                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
                 .padding({ left: 10, right: 10 })
+                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.downloadJumpDraft = value;
                 })
@@ -2386,9 +2387,10 @@ export struct DownloadScene {
               .width('100%')
               .fontSize(13)
               .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
-              .backgroundColor(themePrimaryColor())
-              .systemMaterial(uiButtonMaterial())
+              .backgroundColor(uiMaterialBackground(themePrimaryColor()))
               .borderRadius(uiRadius(4))
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
+              .systemMaterial(uiButtonMaterial())
               .onClick(() => {
                 this.submitDownloadJump();
                 this.closeDownloadJumpPanel();
@@ -2432,6 +2434,18 @@ export struct DownloadScene {
           BlockingBusyOverlay({ message: this.blockingBusyMessage })
             .zIndex(40)
             .transition(TransitionEffect.OPACITY.animation({ duration: 140, curve: Curve.EaseOut }))
+        }
+
+        if (this.showReader) {
+          ReaderSessionScene({
+            restoreAppChromeOnExit: true,
+            onBack: () => {
+              this.closeEmbeddedReader();
+            }
+          })
+            .width('100%')
+            .height('100%')
+            .zIndex(50)
         }
       }
       .width('100%')
@@ -2721,9 +2735,10 @@ struct DownloadStatusFilterOptionRow {
     }
     .width('100%')
     .height(46)
-    .backgroundColor(this.isSelected() ? themeSelectedBackground() : Color.Transparent)
-    .systemMaterial(uiButtonMaterial())
+    .backgroundColor(uiMaterialBackground(this.isSelected() ? themeSelectedBackground() : Color.Transparent))
     .borderRadius(uiRadius(8))
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .onClick(() => {
       this.toggle();
     })
@@ -2790,9 +2805,10 @@ struct DownloadStatusFilterOverlay {
             .layoutWeight(1)
             .fontSize(14)
             .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-            .backgroundColor(themeFieldBackground())
-            .systemMaterial(uiButtonMaterial())
+            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
             .borderRadius(uiRadius(8))
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .onClick(() => {
               this.onCancel();
             })
@@ -2802,9 +2818,10 @@ struct DownloadStatusFilterOverlay {
             .layoutWeight(1)
             .fontSize(14)
             .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
-            .backgroundColor(themePrimaryColor())
-            .systemMaterial(uiButtonMaterial())
+            .backgroundColor(uiMaterialBackground(themePrimaryColor()))
             .borderRadius(uiRadius(8))
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .onClick(() => {
               this.onApply();
             })
@@ -2815,11 +2832,11 @@ struct DownloadStatusFilterOverlay {
       .height('72%')
       .constraintSize({ maxWidth: 380, maxHeight: 560 })
       .padding(16)
-      .backgroundColor(uiDialogSurfaceBackground())
-      .systemMaterial(uiDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
       .shadow(uiDialogSurfaceShadow())
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiDialogMaterial())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());

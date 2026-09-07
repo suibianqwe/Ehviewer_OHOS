@@ -18,6 +18,7 @@ import {
 } from '../../shared/EhTheme';
 import {
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -25,7 +26,8 @@ import {
   uiDialogSurfaceRadius,
   uiDialogSurfaceShadow,
   uiMaterialForegroundColor,
-  uiRadius
+  uiRadius,
+  uiMaterialBackground
 } from '../../shared/EhUiStyle';
 import { GalleryThumb } from '../GalleryCards';
 import { PopupScrim } from '../PopupScrim';
@@ -222,11 +224,12 @@ export struct DetailPreviewJumpOverlay {
           .height(38)
           .fontSize(14)
           .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
-          .backgroundColor(themePrimaryColor())
-          .systemMaterial(uiButtonMaterial())
-          .borderRadius(uiRadius(6))
-          .width('100%')
+          .backgroundColor(uiMaterialBackground(themePrimaryColor()))
           .margin({ top: 16 })
+          .width('100%')
+          .borderRadius(uiRadius(6))
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.closeWithSelection();
           })
@@ -234,11 +237,11 @@ export struct DetailPreviewJumpOverlay {
       .width('86%')
       .constraintSize({ maxWidth: 420 })
       .padding(18)
-      .backgroundColor(uiDialogSurfaceBackground())
-      .systemMaterial(uiDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
       .shadow(uiDialogSurfaceShadow())
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiDialogMaterial())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());

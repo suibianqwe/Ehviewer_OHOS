@@ -149,6 +149,7 @@ import { PopupScrim } from './PopupScrim';
 import {
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -2587,16 +2588,16 @@ struct ProxySettingsOverlay {
       .fontSize(14)
       .fontColor(this.draftType === type ? themeAccentTextColor() : themeSecondaryText())
       .fontWeight(this.draftType === type ? FontWeight.Medium : FontWeight.Normal)
-      .backgroundColor(this.draftType === type ?
-        uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent)
-      .systemMaterial(this.draftType === type ?
-        uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
+      .backgroundColor(uiMaterialBackground(this.draftType === type ?
+        uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent))
+      .enabled(type !== 'SOCKS' || this.socksSupported)
+      .opacity(type === 'SOCKS' && !this.socksSupported ? 0.45 : 1)
+      .animation({ duration: 180, curve: Curve.EaseInOut })
+      .borderRadius(uiRadius(6))
       .border({ width: this.draftType === type ? 1 : 0,
         color: this.draftType === type ? themePrimaryColor() : Color.Transparent })
-      .borderRadius(uiRadius(6))
-      .animation({ duration: 180, curve: Curve.EaseInOut })
-      .opacity(type === 'SOCKS' && !this.socksSupported ? 0.45 : 1)
-      .enabled(type !== 'SOCKS' || this.socksSupported)
+      .systemMaterial(this.draftType === type ?
+        uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
       .onClick(() => {
         this.draftType = type;
       })
@@ -2620,8 +2621,8 @@ struct ProxySettingsOverlay {
     .height(58)
     .layoutWeight(1)
     .backgroundColor(uiMaterialBackground(this.draftSocksDns === value ? themePrimaryColor() : themeFieldBackground()))
-    .systemMaterial(uiSegmentMaterial())
     .borderRadius(uiRadius(6))
+    .systemMaterial(uiSegmentMaterial())
     .onClick(() => {
       this.draftSocksDns = value;
     })
@@ -2651,9 +2652,10 @@ struct ProxySettingsOverlay {
           }
           .width(40)
           .height(40)
-          .backgroundColor(themeSurfaceVariant())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(this.onCancel)
         }
         .width('100%')
@@ -2693,8 +2695,8 @@ struct ProxySettingsOverlay {
                 .fontSize(14)
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-                .systemMaterial(uiSearchMaterial())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.draftHost = value;
                 })
@@ -2707,8 +2709,8 @@ struct ProxySettingsOverlay {
                 .fontSize(14)
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-                .systemMaterial(uiSearchMaterial())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.draftPort = value;
                 })
@@ -2721,8 +2723,8 @@ struct ProxySettingsOverlay {
                 .fontSize(14)
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-                .systemMaterial(uiSearchMaterial())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.draftUsername = value;
                 })
@@ -2736,8 +2738,8 @@ struct ProxySettingsOverlay {
                 .fontSize(14)
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-                .systemMaterial(uiSearchMaterial())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.draftPassword = value;
                 })
@@ -2751,8 +2753,8 @@ struct ProxySettingsOverlay {
                 .fontSize(14)
                 .fontColor(uiMaterialForegroundColor(themePrimaryText()))
                 .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-                .systemMaterial(uiSearchMaterial())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.draftExclusions = value;
                 })
@@ -2783,20 +2785,22 @@ struct ProxySettingsOverlay {
             .layoutWeight(1)
             .fontSize(14)
             .fontColor(themePrimaryText())
-            .backgroundColor(themeSurfaceVariant())
-            .systemMaterial(uiButtonMaterial())
-            .border({ width: 1, color: uiButtonHighlightBorderColor() })
+            .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
             .borderRadius(uiRadius(6))
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .onClick(this.onCancel)
           Button(uiText('Save'), { type: ButtonType.Normal, stateEffect: true })
             .height(42)
             .layoutWeight(1)
             .fontSize(14)
             .fontColor(themeOnPrimaryText())
-            .backgroundColor(themePrimaryColor())
-            .systemMaterial(uiButtonMaterial())
-            .border({ width: 1, color: uiButtonHighlightBorderColor() })
+            .backgroundColor(uiMaterialBackground(themePrimaryColor()))
             .borderRadius(uiRadius(6))
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .onClick(() => {
               this.onSave(this.draftType, this.draftHost, this.draftPort, this.draftUsername,
                 this.draftPassword, this.draftExclusions, this.draftSocksDns);
@@ -2809,11 +2813,11 @@ struct ProxySettingsOverlay {
       .height('82%')
       .constraintSize({ maxWidth: 460, maxHeight: 650 })
       .padding(18)
-      .backgroundColor(uiDialogSurfaceBackground())
-      .systemMaterial(uiDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
       .shadow(uiDialogSurfaceShadow())
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiDialogMaterial())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());
@@ -2869,29 +2873,32 @@ struct DownloadMigrationConfirmOverlay {
           Button(uiText('Cancel'), { type: ButtonType.Normal, stateEffect: true })
             .fontSize(14)
             .fontColor(themePrimaryText())
-            .backgroundColor(themeSurfaceVariant())
-            .systemMaterial(uiButtonMaterial())
-            .border({ width: 1, color: uiButtonHighlightBorderColor() })
-            .borderRadius(uiRadius(6))
+            .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
             .layoutWeight(1)
+            .borderRadius(uiRadius(6))
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .onClick(this.onCancel)
           Button(uiText('Switch only'), { type: ButtonType.Normal, stateEffect: true })
             .fontSize(14)
             .fontColor(themePrimaryText())
-            .backgroundColor(themeSurfaceVariant())
-            .systemMaterial(uiButtonMaterial())
-            .border({ width: 1, color: uiButtonHighlightBorderColor() })
-            .borderRadius(uiRadius(6))
+            .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
             .layoutWeight(1)
+            .borderRadius(uiRadius(6))
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .onClick(this.onSwitchOnly)
           Button(uiText('Migrate'), { type: ButtonType.Normal, stateEffect: true })
             .fontSize(14)
             .fontColor(themeOnPrimaryText())
-            .backgroundColor(themePrimaryColor())
-            .systemMaterial(uiButtonMaterial())
-            .border({ width: 1, color: uiButtonHighlightBorderColor() })
-            .borderRadius(uiRadius(6))
+            .backgroundColor(uiMaterialBackground(themePrimaryColor()))
             .layoutWeight(1)
+            .borderRadius(uiRadius(6))
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .onClick(this.onMigrate)
         }
         .width('100%')
@@ -2900,11 +2907,11 @@ struct DownloadMigrationConfirmOverlay {
       .width('86%')
       .constraintSize({ maxWidth: 420 })
       .padding(18)
-      .backgroundColor(uiDialogSurfaceBackground())
-      .systemMaterial(uiDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
       .shadow(uiDialogSurfaceShadow())
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiDialogMaterial())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());
@@ -3403,9 +3410,10 @@ struct TranslationPromptPanel {
           .height(52)
           .padding({ left: 14, right: 14 })
           .backgroundColor(uiMaterialBackground(themeSurface()))
-          .systemMaterial(uiButtonMaterial())
-          .border({ width: 1, color: uiButtonHighlightBorderColor() })
           .borderRadius(uiRadius(6))
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.profileSelectorVisible = true;
           })
@@ -3424,8 +3432,8 @@ struct TranslationPromptPanel {
             .placeholderColor(themeSecondaryText())
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-            .systemMaterial(uiSearchMaterial())
             .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.promptName = value;
             })
@@ -3444,8 +3452,8 @@ struct TranslationPromptPanel {
             .placeholderColor(uiMaterialForegroundColor(themeSecondaryText()))
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-            .systemMaterial(uiSearchMaterial())
             .borderRadius(uiRadius(18))
+            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.promptText = value;
             })
@@ -3456,10 +3464,11 @@ struct TranslationPromptPanel {
                 .height(44)
                 .fontSize(14)
                 .fontColor(themeDangerText())
-                .backgroundColor(themeDangerBackground())
-                .systemMaterial(uiButtonMaterial())
-                .border({ width: 1, color: uiButtonHighlightBorderColor() })
+                .backgroundColor(uiMaterialBackground(themeDangerBackground()))
                 .borderRadius(uiRadius(6))
+                .border({ width: 1, color: uiButtonHighlightBorderColor() })
+                .backgroundEffect(uiTransparentButtonBackgroundEffect())
+                .systemMaterial(uiButtonMaterial())
                 .onClick(() => {
                   this.deletePrompt();
                 })
@@ -3469,10 +3478,11 @@ struct TranslationPromptPanel {
               .layoutWeight(1)
               .fontSize(14)
               .fontColor(themeOnPrimaryText())
-              .backgroundColor(themePrimaryColor())
-              .systemMaterial(uiButtonMaterial())
-              .border({ width: 1, color: uiButtonHighlightBorderColor() })
+              .backgroundColor(uiMaterialBackground(themePrimaryColor()))
               .borderRadius(uiRadius(6))
+              .border({ width: 1, color: uiButtonHighlightBorderColor() })
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
+              .systemMaterial(uiButtonMaterial())
               .onClick(() => {
                 this.savePrompt();
               })
@@ -3638,9 +3648,10 @@ export struct SettingsOptionPanel {
           }
           .width(40)
           .height(40)
-          .backgroundColor(themeSurfaceVariant())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(this.onBack)
         }
         .width('100%')
@@ -3688,8 +3699,8 @@ export struct SettingsOptionPanel {
               .fontSize(14)
               .fontColor(uiMaterialForegroundColor(themePrimaryText()))
               .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-              .systemMaterial(uiSearchMaterial())
               .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+              .systemMaterial(uiSearchMaterial())
               .onChange((value: string) => {
                 this.customValue = value;
               })
@@ -3703,9 +3714,10 @@ export struct SettingsOptionPanel {
               .height(40)
               .fontSize(13)
               .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
-              .backgroundColor(themePrimaryColor())
-              .systemMaterial(uiButtonMaterial())
+              .backgroundColor(uiMaterialBackground(themePrimaryColor()))
               .border({ width: 1, color: uiButtonHighlightBorderColor() })
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
+              .systemMaterial(uiButtonMaterial())
               .onClick(() => {
                 const value = this.customValue.trim();
                 if (value.length > 0) {
@@ -3721,12 +3733,12 @@ export struct SettingsOptionPanel {
       .height(this.panelHeight())
       .constraintSize({ maxWidth: 420 })
       .padding({ left: 18, right: 18, top: 18, bottom: 8 })
-      .backgroundColor(uiSelectPopupBackground(themeSurface()))
-      .systemMaterial(uiSelectDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
-      .clip(true)
+      .backgroundColor(uiMaterialBackground(uiSelectPopupBackground(themeSurface())))
       .shadow(uiDialogSurfaceShadow())
+      .clip(true)
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiSelectDialogMaterial())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());
@@ -3843,9 +3855,9 @@ export struct SettingsStaticRow {
             .fontColor(uiMaterialForegroundColor(themePrimaryText()))
             .placeholderColor(uiMaterialForegroundColor(themeSecondaryText()))
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-            .systemMaterial(uiSearchMaterial())
-            .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
             .margin({ left: 12 })
+            .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.inputValue = value;
               if (this.row.key !== undefined && isDirectTranslationApiKey(this.row.key)) {

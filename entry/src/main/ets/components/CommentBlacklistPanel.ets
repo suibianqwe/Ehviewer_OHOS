@@ -19,6 +19,7 @@ import {
 } from '../shared/EhTheme';
 import {
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiListItemBackground,
   uiListItemBorderColor,
   uiMaterialBackground,
@@ -108,9 +109,9 @@ export struct CommentBlacklistPanel {
         .fontColor(themePrimaryText())
         .placeholderColor(themeTertiaryText())
         .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-        .systemMaterial(uiSearchMaterial())
-        .borderRadius(uiRadius(22))
         .padding({ left: 12, right: 12 })
+        .borderRadius(uiRadius(22))
+        .systemMaterial(uiSearchMaterial())
         .onChange((value: string) => {
           this.draftUser = value;
         })
@@ -122,9 +123,9 @@ export struct CommentBlacklistPanel {
           .fontColor(uiMaterialForegroundColor(themePrimaryText()))
           .placeholderColor(themeTertiaryText())
           .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-          .systemMaterial(uiSearchMaterial())
-          .borderRadius(uiRadius(22))
           .padding({ left: 12, right: 12 })
+          .borderRadius(uiRadius(22))
+          .systemMaterial(uiSearchMaterial())
           .onChange((value: string) => {
             this.draftReason = value;
           })
@@ -140,8 +141,9 @@ export struct CommentBlacklistPanel {
         .height(44)
         .padding(0)
         .borderRadius(uiRadius(22))
-        .backgroundColor(themePrimaryColor())
-        .systemMaterial(uiButtonMaterial())
+        .backgroundColor(uiMaterialBackground(themePrimaryColor()))
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.addEntry();
         })
@@ -218,8 +220,9 @@ export struct CommentBlacklistPanel {
       .height(40)
       .padding(0)
       .borderRadius(uiRadius(20))
-      .backgroundColor(themeSurfaceVariant())
-      .systemMaterial(uiButtonMaterial())
+      .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
       .onClick(() => {
         this.pendingDelete = entry;
       })

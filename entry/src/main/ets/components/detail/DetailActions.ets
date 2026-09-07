@@ -18,6 +18,7 @@ import {
 } from '../../shared/EhTheme';
 import {
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -25,7 +26,8 @@ import {
   uiDialogSurfaceRadius,
   uiDialogSurfaceShadow,
   uiMaterialForegroundColor,
-  uiRadius
+  uiRadius,
+  uiMaterialBackground
 } from '../../shared/EhUiStyle';
 @Component
 export struct DetailActions {
@@ -187,10 +189,11 @@ export struct RatingPanel {
           .height(38)
           .fontSize(13)
           .fontColor(uiMaterialForegroundColor(themeSecondaryText()))
-          .backgroundColor(themeSurfaceVariant())
-          .systemMaterial(uiButtonMaterial())
-          .borderRadius(uiRadius(4))
+          .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
           .layoutWeight(1)
+          .borderRadius(uiRadius(4))
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onCancel();
           })
@@ -199,10 +202,11 @@ export struct RatingPanel {
           .height(38)
           .fontSize(13)
           .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
-          .backgroundColor(themePrimaryColor())
-          .systemMaterial(uiButtonMaterial())
-          .borderRadius(uiRadius(4))
+          .backgroundColor(uiMaterialBackground(themePrimaryColor()))
           .layoutWeight(1)
+          .borderRadius(uiRadius(4))
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onSubmit();
           })
@@ -212,11 +216,11 @@ export struct RatingPanel {
     }
     .width('100%')
     .padding(18)
-    .backgroundColor(uiDialogSurfaceBackground())
-    .systemMaterial(uiDialogMaterial())
-    .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-    .borderRadius(uiDialogSurfaceRadius())
+    .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
     .shadow(uiDialogSurfaceShadow())
+    .borderRadius(uiDialogSurfaceRadius())
+    .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+    .systemMaterial(uiDialogMaterial())
   }
 }
 
@@ -245,17 +249,18 @@ export struct DetailActionItem {
     .width(68)
     .height(68)
     .justifyContent(FlexAlign.Center)
-    .backgroundColor(this.pressed ? themeSurfaceVariant() : themeTransparentColor())
-    .systemMaterial(uiButtonMaterial())
-    .borderRadius(34)
+    .backgroundColor(uiMaterialBackground(this.pressed ? themeSurfaceVariant() : themeTransparentColor()))
+    .animation({ duration: 120, curve: Curve.EaseOut })
+    .scale({ x: this.pressed ? 0.92 : 1, y: this.pressed ? 0.92 : 1 })
     .shadow({
       radius: this.pressed ? 2 : 8,
       color: themeShadowColor(),
       offsetX: 0,
       offsetY: this.pressed ? 1 : 3
     })
-    .scale({ x: this.pressed ? 0.92 : 1, y: this.pressed ? 0.92 : 1 })
-    .animation({ duration: 120, curve: Curve.EaseOut })
+    .borderRadius(34)
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
+    .systemMaterial(uiButtonMaterial())
     .onTouch((event: TouchEvent) => {
       if (!this.isActive) {
         return;

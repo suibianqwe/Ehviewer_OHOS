@@ -24,6 +24,7 @@ import {
 } from '../shared/EhTheme';
 import {
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius,
@@ -147,7 +148,8 @@ export struct ReaderPresetPanel {
         }
         .width(38)
         .height(38)
-        .backgroundColor(themeDangerBackground())
+        .backgroundColor(uiMaterialBackground(themeDangerBackground()))
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
         .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.deleteProfile(profile);
@@ -209,8 +211,8 @@ export struct ReaderPresetPanel {
               .placeholderColor(themeSecondaryText())
               .caretColor(themeAccentTextColor())
               .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-              .systemMaterial(uiSearchMaterial())
               .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+              .systemMaterial(uiSearchMaterial())
               .onChange((value: string) => {
                 this.presetName = value;
               })
@@ -218,9 +220,10 @@ export struct ReaderPresetPanel {
               .height(42)
               .fontSize(14)
               .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
-              .backgroundColor(themePrimaryColor())
-              .systemMaterial(uiButtonMaterial())
+              .backgroundColor(uiMaterialBackground(themePrimaryColor()))
               .borderRadius(uiRadius(6))
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
+              .systemMaterial(uiButtonMaterial())
               .onClick(() => {
                 this.saveCurrentPreset();
               })

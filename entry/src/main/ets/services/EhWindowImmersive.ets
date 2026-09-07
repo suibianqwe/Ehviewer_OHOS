@@ -13,6 +13,7 @@ export const EMBEDDED_READER_ACTIVE_KEY: string = 'embeddedReaderActive';
 export const READER_TRANSIENT_STATUS_BAR_VISIBLE_KEY: string = 'readerTransientStatusBarVisible';
 export const MAIN_WINDOW_WIDTH_PX_KEY: string = 'mainWindowWidthPx';
 export const MAIN_CONTENT_WIDTH_VP_KEY: string = 'mainContentWidthVp';
+export const APP_FOREGROUND_REVISION_KEY: string = 'appForegroundRevision';
 type SystemBarName = 'status' | 'navigation';
 type SpecificSystemBarName = 'status' | 'navigationIndicator';
 

@@ -27,6 +27,7 @@ import {
 import {
   uiAdaptiveToolbarHeight,
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiListItemBackground,
   uiMaterialBackground,
   uiMaterialForegroundColor,
@@ -310,9 +311,9 @@ export struct FilterPanel {
           .fontColor(themePrimaryText())
           .placeholderColor(themeTertiaryText())
           .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-          .systemMaterial(uiSearchMaterial())
-          .borderRadius(uiRadius(22))
           .padding({ left: 12, right: 12 })
+          .borderRadius(uiRadius(22))
+          .systemMaterial(uiSearchMaterial())
           .onChange((value: string) => {
             this.updateDraftText(value);
           })
@@ -331,7 +332,8 @@ export struct FilterPanel {
         .height(44)
         .padding(0)
         .borderRadius(uiRadius(22))
-        .backgroundColor(themePrimaryColor())
+        .backgroundColor(uiMaterialBackground(themePrimaryColor()))
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
         .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.submitTextRule();
@@ -505,7 +507,8 @@ struct FilterRuleCard {
         .height(38)
         .padding(0)
         .borderRadius(uiRadius(19))
-        .backgroundColor(this.rule.enabled ? themeSelectedBackgroundLight() : themeSurfaceVariant())
+        .backgroundColor(uiMaterialBackground(this.rule.enabled ? themeSelectedBackgroundLight() : themeSurfaceVariant()))
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
         .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.onToggle();
@@ -520,7 +523,8 @@ struct FilterRuleCard {
         .height(38)
         .padding(0)
         .borderRadius(uiRadius(19))
-        .backgroundColor(themeSurfaceVariant())
+        .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
         .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.onRemove();

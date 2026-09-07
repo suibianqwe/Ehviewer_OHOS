@@ -9,7 +9,8 @@ import {
   uiDialogMaterial,
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
-  uiDialogSurfaceShadow
+  uiDialogSurfaceShadow,
+  uiMaterialBackground
 } from '../shared/EhUiStyle';
 import { PopupScrim } from './PopupScrim';
 
@@ -77,11 +78,11 @@ export struct BlockingBusyOverlay {
       .width(280)
       .constraintSize({ maxWidth: '72%' })
       .padding({ left: 20, right: 20, top: 20, bottom: 18 })
-      .backgroundColor(uiDialogSurfaceBackground())
-      .systemMaterial(uiDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
       .shadow(uiDialogSurfaceShadow())
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiDialogMaterial())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());

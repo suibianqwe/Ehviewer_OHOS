@@ -16,6 +16,7 @@ import {
 } from '../shared/EhTheme';
 import {
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
   uiDialogMaterial,
@@ -226,7 +227,8 @@ export struct DownloadLabelSelectionDialog {
             .width(40)
             .height(40)
             .margin({ right: 8 })
-            .backgroundColor(themeFieldBackground())
+            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .systemMaterial(uiButtonMaterial())
             .accessibilityText(uiText('New label'))
             .onClick(() => {
@@ -241,7 +243,8 @@ export struct DownloadLabelSelectionDialog {
           }
           .width(40)
           .height(40)
-          .backgroundColor(themeFieldBackground())
+          .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
@@ -298,11 +301,11 @@ export struct DownloadLabelSelectionDialog {
       .width('78%')
       .height(this.listHeight() + 57 + (this.showRemember ? 52 : 0))
       .constraintSize({ maxWidth: 380, minWidth: 280, maxHeight: this.panelMaxHeight })
-      .backgroundColor(uiDialogSurfaceBackground())
-      .systemMaterial(uiDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
       .shadow(uiDialogSurfaceShadow())
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiDialogMaterial())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());
@@ -350,7 +353,8 @@ export struct DownloadLabelEditDialog {
           }
           .width(40)
           .height(40)
-          .backgroundColor(themeFieldBackground())
+          .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onClose();
@@ -364,8 +368,8 @@ export struct DownloadLabelEditDialog {
           .fontSize(16)
           .fontColor(uiMaterialForegroundColor(themePrimaryText()))
           .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-          .systemMaterial(uiSearchMaterial())
           .borderRadius(uiRadius(24))
+          .systemMaterial(uiSearchMaterial())
           .onChange((value: string) => {
             this.value = value;
           })
@@ -375,7 +379,8 @@ export struct DownloadLabelEditDialog {
           .height(46)
           .fontSize(16)
           .fontColor(uiMaterialForegroundColor(themeSelectedText()))
-          .backgroundColor(themeSelectedBackground())
+          .backgroundColor(uiMaterialBackground(themeSelectedBackground()))
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
           .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onConfirm();
@@ -384,11 +389,11 @@ export struct DownloadLabelEditDialog {
       .width('78%')
       .constraintSize({ maxWidth: 380, minWidth: 280 })
       .padding(18)
-      .backgroundColor(uiDialogSurfaceBackground())
-      .systemMaterial(uiDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
       .shadow(uiDialogSurfaceShadow())
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiDialogMaterial())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());

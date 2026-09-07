@@ -15,6 +15,7 @@ import {
 } from '../shared/EhTheme';
 import {
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiButtonHighlightBorderColor,
   uiCardRadius,
   uiControlRadius,
@@ -139,9 +140,10 @@ export struct SidePanelManagerHeader {
         }
         .width(40)
         .height(40)
-        .backgroundColor(sidePanelChromeBackground())
-        .systemMaterial(uiButtonMaterial())
+        .backgroundColor(uiMaterialBackground(sidePanelChromeBackground()))
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
+        .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.onBack();
         })
@@ -163,9 +165,10 @@ export struct SidePanelManagerHeader {
           }
           .width(40)
           .height(40)
-          .backgroundColor(sidePanelChromeBackground())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundColor(uiMaterialBackground(sidePanelChromeBackground()))
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onAdd();
           })
@@ -217,10 +220,11 @@ export struct SidePanelHeader {
           }
           .width(40)
           .height(40)
-          .backgroundColor(sidePanelChromeBackground())
-          .systemMaterial(uiButtonMaterial())
-          .border({ width: 1, color: uiButtonHighlightBorderColor() })
+          .backgroundColor(uiMaterialBackground(sidePanelChromeBackground()))
           .margin({ right: this.showSecondAction ? 6 : 0 })
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onFirstAction();
           })
@@ -234,9 +238,10 @@ export struct SidePanelHeader {
           }
           .width(40)
           .height(40)
-          .backgroundColor(sidePanelChromeBackground())
-          .systemMaterial(uiButtonMaterial())
+          .backgroundColor(uiMaterialBackground(sidePanelChromeBackground()))
           .border({ width: 1, color: uiButtonHighlightBorderColor() })
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             this.onSecondAction();
           })
@@ -311,9 +316,10 @@ export struct SidePanelRow {
         }
         .width(36)
         .height(36)
-        .backgroundColor(themeTransparentColor())
-        .systemMaterial(uiButtonMaterial())
+        .backgroundColor(uiMaterialBackground(themeTransparentColor()))
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
+        .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.onDelete();
         })
@@ -401,9 +407,9 @@ export struct SidePanelEditableManagerRow {
             .fontSize(14)
             .fontColor(uiMaterialForegroundColor(themePrimaryText()))
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-            .systemMaterial(uiSearchMaterial())
-            .borderRadius(uiPillRadius(uiSearchFieldHeight() / 2))
             .padding({ left: 10, right: 10 })
+            .borderRadius(uiPillRadius(uiSearchFieldHeight() / 2))
+            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.draftValue = value;
               this.onValueChange(value);
@@ -440,9 +446,10 @@ export struct SidePanelEditableManagerRow {
         }
         .width(38)
         .height(38)
-        .backgroundColor(themeSurfaceVariant())
-        .systemMaterial(uiButtonMaterial())
+        .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
+        .backgroundEffect(uiTransparentButtonBackgroundEffect())
+        .systemMaterial(uiButtonMaterial())
         .onClick(() => {
           this.onDelete();
         })

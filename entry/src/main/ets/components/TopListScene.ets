@@ -594,7 +594,7 @@ export struct TopListScene {
 
   private useSplitLayout(): boolean {
     return splitPaneModeEnabled() && this.availableSceneWidth() >= SPLIT_PANE_BREAKPOINT &&
-      this.showDetail && !this.showReader && !this.showTagSearch && !this.showGalleryList;
+      this.showDetail && !this.showTagSearch && !this.showGalleryList;
   }
 
   private splitListPaneWidth(): number {
@@ -706,13 +706,6 @@ export struct TopListScene {
         .transition(this.restoreDetailWithFade ?
           TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
           TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }))
-    } else if (this.showReader) {
-      ReaderSessionScene({
-        restoreAppChromeOnExit: true,
-        onBack: () => {
-          this.closeReader();
-        }
-      })
     } else if (this.showGalleryList) {
       GalleryListScene({
         sceneTitle: this.galleryListTitle,
@@ -841,6 +834,18 @@ export struct TopListScene {
             .transition(this.restoreDetailWithFade ?
               TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
               TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }))
+        }
+
+        if (this.showReader) {
+          ReaderSessionScene({
+            restoreAppChromeOnExit: true,
+            onBack: () => {
+              this.closeReader();
+            }
+          })
+            .width('100%')
+            .height('100%')
+            .zIndex(50)
         }
       }
       .width('100%')

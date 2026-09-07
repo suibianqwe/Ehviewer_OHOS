@@ -10,6 +10,7 @@ import {
 } from '../shared/EhTheme';
 import {
   uiButtonMaterial,
+  uiTransparentButtonBackgroundEffect,
   uiControlRadius,
   uiDialogBlurOptions,
   uiDialogBlurStyle,
@@ -17,7 +18,8 @@ import {
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
   uiDialogSurfaceShadow,
-  uiMaterialForegroundColor
+  uiMaterialForegroundColor,
+  uiMaterialBackground
 } from '../shared/EhUiStyle';
 import { PopupScrim } from './PopupScrim';
 
@@ -88,19 +90,21 @@ export struct UpdatePromptOverlay {
             .height(38)
             .fontSize(14)
             .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-            .backgroundColor(themeSurfaceVariant())
-            .systemMaterial(uiButtonMaterial())
-            .borderRadius(uiControlRadius(6))
+            .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
             .layoutWeight(1)
+            .borderRadius(uiControlRadius(6))
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .onClick(this.onCancel)
           Button(uiText('Update'), { type: ButtonType.Normal, stateEffect: true })
             .height(38)
             .fontSize(14)
             .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
-            .backgroundColor(themePrimaryColor())
-            .systemMaterial(uiButtonMaterial())
-            .borderRadius(uiControlRadius(6))
+            .backgroundColor(uiMaterialBackground(themePrimaryColor()))
             .layoutWeight(1)
+            .borderRadius(uiControlRadius(6))
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
             .onClick(this.onUpdate)
         }
         .width('100%')
@@ -109,11 +113,11 @@ export struct UpdatePromptOverlay {
       .width('86%')
       .constraintSize({ maxWidth: 460 })
       .padding(18)
-      .backgroundColor(uiDialogSurfaceBackground())
-      .systemMaterial(uiDialogMaterial())
-      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
-      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
       .shadow(uiDialogSurfaceShadow())
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiDialogMaterial())
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());

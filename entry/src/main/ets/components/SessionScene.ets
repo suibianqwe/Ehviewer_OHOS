@@ -15,6 +15,8 @@ import { LANGUAGE_REVISION_KEY, setActiveBackHandler } from '../shared/EhShared'
 import { themeAccentTextColor, themeFieldBackground, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSuccessText, themeSurface, themeTransparentColor } from '../shared/EhTheme';
 import {
   uiButtonMaterial,
+  uiFloatingButtonBackgroundEffect,
+  uiTransparentButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiMaterialSecondaryForegroundColor,
@@ -559,7 +561,8 @@ export struct SessionScene {
             Button(uiText('Cancel'))
               .type(ButtonType.Normal)
               .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
-              .backgroundColor(themeTransparentColor())
+              .backgroundColor(uiMaterialBackground(themeTransparentColor()))
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
               .systemMaterial(uiButtonMaterial())
               .onClick(() => {
                 this.failPasswordWebSignIn('Sign in cancelled');
@@ -628,8 +631,8 @@ export struct SessionScene {
             .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-            .systemMaterial(uiSearchMaterial())
             .borderRadius(uiRadius(23))
+            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.username = value;
             })
@@ -642,8 +645,8 @@ export struct SessionScene {
             .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-            .systemMaterial(uiSearchMaterial())
             .borderRadius(uiRadius(23))
+            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.password = value;
             })
@@ -665,18 +668,20 @@ export struct SessionScene {
             .type(ButtonType.Capsule)
             .height(44)
             .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
-            .backgroundColor(themeTransparentColor())
-            .systemMaterial(uiTintedButtonMaterial(themeSurface()))
+            .backgroundColor(uiMaterialBackground(themeTransparentColor()))
             .layoutWeight(1)
+            .backgroundEffect(uiFloatingButtonBackgroundEffect(themeSurface()))
+            .systemMaterial(uiTintedButtonMaterial(themeSurface()))
           Button(this.signingIn ? uiText('Signing in...') : uiText('Sign in'))
             .type(ButtonType.Capsule)
             .height(44)
             .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
             .fontWeight(FontWeight.Bold)
-            .backgroundColor(themeTransparentColor())
-            .systemMaterial(uiTintedButtonMaterial(themeSurface()))
-            .layoutWeight(1)
+            .backgroundColor(uiMaterialBackground(themeTransparentColor()))
             .enabled(!this.signingIn)
+            .layoutWeight(1)
+            .backgroundEffect(uiFloatingButtonBackgroundEffect(themeSurface()))
+            .systemMaterial(uiTintedButtonMaterial(themeSurface()))
             .onClick(() => {
               this.signInWithPassword();
             })
@@ -740,8 +745,8 @@ export struct SessionScene {
             .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-            .systemMaterial(uiSearchMaterial())
             .borderRadius(uiRadius(23))
+            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.memberId = value;
             })
@@ -754,8 +759,8 @@ export struct SessionScene {
             .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-            .systemMaterial(uiSearchMaterial())
             .borderRadius(uiRadius(23))
+            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.passHash = value;
             })
@@ -768,8 +773,8 @@ export struct SessionScene {
             .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-            .systemMaterial(uiSearchMaterial())
             .borderRadius(uiRadius(23))
+            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.igneous = value;
             })
@@ -783,8 +788,8 @@ export struct SessionScene {
             .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
             .caretColor(themeAccentTextColor())
             .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-            .systemMaterial(uiSearchMaterial())
             .borderRadius(uiRadius(23))
+            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.cookieInput = value;
               this.syncCookieFieldsFromInput(value, true);
@@ -809,9 +814,10 @@ export struct SessionScene {
           .type(ButtonType.Capsule)
           .height(44)
           .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
-          .backgroundColor(themeTransparentColor())
-          .systemMaterial(uiTintedButtonMaterial(themeSurface()))
+          .backgroundColor(uiMaterialBackground(themeTransparentColor()))
           .layoutWeight(1)
+          .backgroundEffect(uiFloatingButtonBackgroundEffect(themeSurface()))
+          .systemMaterial(uiTintedButtonMaterial(themeSurface()))
           .onClick(() => {
             this.requestClearCookie();
           })
@@ -820,9 +826,10 @@ export struct SessionScene {
           .height(44)
           .fontColor(uiMaterialForegroundColor(themeAccentTextColor()))
           .fontWeight(FontWeight.Bold)
-          .backgroundColor(themeTransparentColor())
-          .systemMaterial(uiTintedButtonMaterial(themeSurface()))
+          .backgroundColor(uiMaterialBackground(themeTransparentColor()))
           .layoutWeight(1)
+          .backgroundEffect(uiFloatingButtonBackgroundEffect(themeSurface()))
+          .systemMaterial(uiTintedButtonMaterial(themeSurface()))
           .onClick(() => {
             this.saveCookie();
           })
