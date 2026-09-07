@@ -3385,7 +3385,7 @@ export struct GalleryListScene {
             },
             layoutWidthHint: this.useSplitLayout() ? this.splitListPaneWidth() : this.sceneContentWidth,
             scrollResetVersion: this.scrollResetVersion,
-            initialScrollOffset: this.listScrollOffset,
+            initialScrollOffset: this.isSearchResultScene ? 0 : this.listScrollOffset,
             onScrollUpdate: (offset: number) => {
               this.listScrollOffset = offset;
               updateGalleryListScrollCache(this.cacheKey(), this.listScrollOffset);
@@ -4428,6 +4428,12 @@ export struct GalleryListContent {
   }
 
   aboutToAppear(): void {
+    // Search scenes are mounted as an overlay and must start fully visible.
+    // Their list position is local to the still-mounted scene; applying a
+    // parent/cache offset here can leave the content at opacity 0 when the
+    // nested List does not emit onAppear again.
+    this.contentOpacity = 1;
+    this.toolbarOffsetY = 0;
     this.unregisterActiveBackHandler();
     this.unregisterActiveBackHandler = pushActiveBackHandler(() => this.handleContentBack());
     this.onGalleriesChanged();
@@ -4446,7 +4452,7 @@ export struct GalleryListContent {
         this.refreshSearchSuggestions();
       }).catch(() => {});
     }
-    if (this.initialScrollOffset > 0) {
+    if (!this.isSearchResultScene && this.initialScrollOffset > 0) {
       this.contentOpacity = 0;
       this.toolbarOffsetY = -Math.min(this.initialScrollOffset, this.totalBarHeight());
     }
