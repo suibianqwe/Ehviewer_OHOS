@@ -17,8 +17,7 @@ import {
   tagTranslationOptionText,
   uiText
 } from '../shared/EhShared';
-import { isDarkTheme, themeAccentTextColor, themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeSelectedBackground, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
-import { themeSelectedButtonColor, themeSelectedButtonTextColor } from '../shared/EhTheme';
+import { isDarkTheme, themeAccentTextColor, themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
 import {
   isHarmonyMaterialEnabled,
   isHarmonyUiStyle,
@@ -27,12 +26,15 @@ import {
   uiDialogBlurStyle,
   uiTransparentButtonBackgroundEffect,
   uiButtonHighlightBorderColor,
+  uiCapsuleButtonBackground,
+  uiCapsuleButtonBorderColor,
   uiFloatingButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiMaterialLayerBackground,
   uiPanelMaterial,
   uiPopupMaterialBackground,
+  uiPillRadius,
   uiRadius,
   uiSegmentMaterial,
   uiSwitchHeight,
@@ -872,19 +874,20 @@ export struct SearchAdvancedPanel {
             .fontWeight(FontWeight.Medium)
             .margin({ top: 4 })
           Button(tagTranslationOptionText('All categories', '全部分类'),
-            { type: ButtonType.Normal, stateEffect: true })
+            { type: ButtonType.Capsule, stateEffect: true })
             .height(34)
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
             .fontColor(this.allCategoriesSelected() ? themeAccentTextColor() : themeSecondaryText())
-            .backgroundColor(uiMaterialBackground(this.allCategoriesSelected() ?
-              uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent))
+            .backgroundColor(uiCapsuleButtonBackground(this.allCategoriesSelected()))
             .animation({ duration: 180, curve: Curve.EaseInOut })
             .width('100%')
-            .borderRadius(uiRadius(17))
-            .border({ width: 0, color: Color.Transparent })
-            .systemMaterial(this.allCategoriesSelected() ?
-              uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
+            .borderRadius(uiPillRadius(17))
+            .border({
+              width: this.allCategoriesSelected() ? 1.5 : 1,
+              color: uiCapsuleButtonBorderColor(this.allCategoriesSelected())
+            })
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .onClick(() => {
               this.toggleAllCategories();
             })
@@ -924,9 +927,10 @@ export struct SearchAdvancedPanel {
           .width('100%')
           .height(42)
           .padding({ left: 10, right: 10 })
-          .backgroundColor(uiMaterialBackground(uiMaterialLayerBackground(themeSurfaceVariant())))
-          .borderRadius(uiRadius(6))
-          .systemMaterial(uiSegmentMaterial())
+          .backgroundColor(uiCapsuleButtonBackground())
+          .borderRadius(uiPillRadius(21))
+          .border({ width: 1, color: uiCapsuleButtonBorderColor() })
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
 
           if (this.advancedEnabledDraft) {
             Column({ space: 10 }) {
@@ -982,25 +986,26 @@ export struct SearchAdvancedPanel {
       .constraintSize({ maxHeight: Math.max(320, this.panelMaxHeight - 64) })
 
       Column() {
-        Button(uiText('Search'), { type: ButtonType.Normal, stateEffect: true }) {
+        Button(uiText('Search'), { type: ButtonType.Capsule, stateEffect: true }) {
           Row({ space: 6 }) {
             SymbolGlyph($r('sys.symbol.magnifyingglass'))
               .fontSize(18)
-              .fontColor([uiMaterialForegroundColor(themeOnPrimaryText())])
+              .fontColor([themeOnPrimaryText()])
             Text(uiText('Search'))
               .fontSize(15)
               .fontWeight(FontWeight.Medium)
-              .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
+              .fontColor(themeOnPrimaryText())
           }
           .justifyContent(FlexAlign.Center)
           .alignItems(VerticalAlign.Center)
           .width('100%')
         }
         .height(44)
-        .backgroundColor(uiMaterialBackground(uiMaterialLayerBackground(themePrimaryColor())))
+        .backgroundColor(themePrimaryColor())
         .width('100%')
-        .borderRadius(uiRadius(8))
-        .systemMaterial(uiTintedSegmentMaterial(themePrimaryColor()))
+        .borderRadius(uiPillRadius(22))
+        .border({ width: 1, color: uiCapsuleButtonBorderColor(true, themePrimaryColor()) })
+        .backgroundEffect(uiFloatingButtonBackgroundEffect(themePrimaryColor()))
         .onClick(() => {
           this.onSearch();
         })
@@ -1559,7 +1564,7 @@ export struct SearchModeSegmentButton {
   onSelect: () => void = () => {};
 
   build() {
-    Button({ type: ButtonType.Normal, stateEffect: true }) {
+    Button({ type: ButtonType.Capsule, stateEffect: true }) {
       Text(uiText(this.label))
         .fontSize(12)
         .fontWeight(FontWeight.Medium)
@@ -1572,11 +1577,14 @@ export struct SearchModeSegmentButton {
     .height(uiTabHeight())
     .layoutWeight(1)
     .padding({ left: 4, right: 4 })
-    .backgroundColor(uiMaterialBackground(this.selected ? uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent))
+    .backgroundColor(uiCapsuleButtonBackground(this.selected))
     .animation({ duration: 180, curve: Curve.EaseInOut })
-    .borderRadius(uiRadius(uiTabHeight() / 2))
-    .border({ width: 0, color: Color.Transparent })
-    .systemMaterial(this.selected ? uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
+    .borderRadius(uiPillRadius(uiTabHeight() / 2))
+    .border({
+      width: this.selected ? 1.5 : 1,
+      color: uiCapsuleButtonBorderColor(this.selected)
+    })
+    .backgroundEffect(uiTransparentButtonBackgroundEffect())
     .onClick(() => {
       this.onSelect();
     })
@@ -1591,20 +1599,23 @@ export struct SearchFlagChip {
   onToggle: (isOn: boolean) => void = (_isOn: boolean) => {};
 
   build() {
-    Button(uiText(this.label), { type: ButtonType.Normal, stateEffect: true })
+    Button(uiText(this.label), { type: ButtonType.Capsule, stateEffect: true })
       .height(34)
       .fontSize(14)
       .fontWeight(FontWeight.Medium)
       .fontColor(this.isOn ? themeAccentTextColor() :
         (this.isEnabled ? themeSecondaryText() : themeInactiveActionText()))
-      .backgroundColor(uiMaterialBackground(this.isOn ? uiMaterialLayerBackground(themeSelectedBackground()) : Color.Transparent))
+      .backgroundColor(uiCapsuleButtonBackground(this.isOn))
       .animation({ duration: 180, curve: Curve.EaseInOut })
       .opacity(this.isEnabled ? 1 : 0.72)
       .enabled(this.isEnabled)
       .layoutWeight(1)
-      .borderRadius(uiRadius(17))
-      .border({ width: 0, color: Color.Transparent })
-      .systemMaterial(this.isOn ? uiTintedSegmentMaterial(themeSelectedBackground()) : uiSegmentMaterial())
+      .borderRadius(uiPillRadius(17))
+      .border({
+        width: this.isOn ? 1.5 : 1,
+        color: uiCapsuleButtonBorderColor(this.isOn)
+      })
+      .backgroundEffect(uiTransparentButtonBackgroundEffect())
       .onClick(() => {
         this.onToggle(!this.isOn);
       })
@@ -1645,19 +1656,36 @@ export struct SearchCategoryChip {
     }
   }
 
+  private categoryChipBackground(): string {
+    const accent = categoryColor(this.category);
+    if (isDarkTheme()) {
+      return '#' + (this.selected ? 'A3' : '52') + accent.substring(1);
+    }
+    return this.selected ? this.selectedColor() : '#38' + accent.substring(1);
+  }
+
+  private categoryChipForeground(): string {
+    if (!isDarkTheme()) {
+      return categoryColor(this.category);
+    }
+    return this.selected ? '#FFFFFF' : this.selectedColor();
+  }
+
   build() {
-    Button(this.label, { type: ButtonType.Normal, stateEffect: true })
+    Button(this.label, { type: ButtonType.Capsule, stateEffect: true })
       .height(34)
       .fontSize(14)
       .fontWeight(FontWeight.Bold)
-      .fontColor(this.selected ? categoryColor(this.category) : themeSecondaryText())
-      .backgroundColor(uiMaterialBackground(this.selected ? uiMaterialLayerBackground(this.selectedColor()) : Color.Transparent))
+      .fontColor(this.categoryChipForeground())
+      .backgroundColor(this.categoryChipBackground())
       .animation({ duration: 180, curve: Curve.EaseInOut })
       .layoutWeight(1)
-      .borderRadius(uiRadius(17))
-      .border({ width: 0, color: Color.Transparent })
-      .systemMaterial(this.selected ?
-        uiTintedSegmentMaterial(this.selectedColor()) : uiSegmentMaterial())
+      .borderRadius(uiPillRadius(17))
+      .border({
+        width: this.selected ? 1.5 : 1,
+        color: this.selected ? categoryColor(this.category) : uiButtonHighlightBorderColor()
+      })
+      .backgroundEffect(uiTransparentButtonBackgroundEffect())
       .onClick(() => {
         this.onToggle(this.category);
       })

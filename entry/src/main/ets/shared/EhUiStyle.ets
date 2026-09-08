@@ -7,6 +7,7 @@ import {
   themeMaterialContentColor,
   themeMaterialSecondaryContentColor,
   themePrimaryColor,
+  themeSelectedBackground,
   themeShadowColor,
   themeSurface,
   themeSurfaceVariant
@@ -377,6 +378,17 @@ export function uiReaderProgressBackgroundColor(fallbackColor: string): string {
 
 function uiSurfaceBlurStyle(style: BlurStyle): BlurStyle {
   return isHarmonyUiStyle() && supportsBackgroundBlur() ? style : BlurStyle.NONE;
+}
+
+export function uiCapsuleButtonBackground(selected: boolean = false,
+  selectedColor: string = themeSelectedBackground()): ResourceColor {
+  return selected ? selectedColor : themeSurfaceVariant();
+}
+
+export function uiCapsuleButtonBorderColor(selected: boolean = false,
+  selectedColor: string = themePrimaryColor()): ResourceColor {
+  return selected ? materialColorWithAlpha(selectedColor, isDarkTheme() ? 'B8' : '70') :
+    uiButtonHighlightBorderColor();
 }
 
 function uiSurfaceBlurOptions(): BackgroundBlurStyleOptions {
