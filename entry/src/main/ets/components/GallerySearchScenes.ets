@@ -44,6 +44,7 @@ import {
 import {
   FLOATING_ACTION_GAP,
   FLOATING_ACTION_PRIMARY_GAP,
+  FLOATING_ACTION_PRIMARY_SIZE,
   FLOATING_ACTION_SIZE,
   FLOATING_ACTION_SIDE_LEFT,
   FLOATING_ACTION_SIDE_RIGHT,
@@ -51,6 +52,7 @@ import {
   floatingActionGridWidth,
   floatingActionHitIndex,
   floatingActionIndexesForColumn,
+  floatingActionSideFromDrag,
   floatingActionToolbarWidth,
   floatingActionVisualColumns,
   normalizeFloatingActionSide
@@ -1193,7 +1195,7 @@ export struct QuickActionColumn {
     } else if (event.type === TouchType.Move) {
       const offsetX = this.touchX(event) - this.touchStartX;
       const offsetY = this.touchY(event) - this.touchStartY;
-      if (Math.abs(offsetX) >= 32 && Math.abs(offsetX) > Math.abs(offsetY) * 1.2) {
+      if (floatingActionSideFromDrag(offsetX, offsetY).length > 0) {
         this.sideDragDetected = true;
         this.activeActionIndex = -1;
       } else if (!this.sideDragDetected) {
@@ -1202,9 +1204,13 @@ export struct QuickActionColumn {
     } else if (event.type === TouchType.Up) {
       if (this.sideDragDetected) {
         const offsetX = this.touchX(event) - this.touchStartX;
+        const offsetY = this.touchY(event) - this.touchStartY;
+        const targetSide = floatingActionSideFromDrag(offsetX, offsetY);
         this.sideDragDetected = false;
         this.activeActionIndex = -1;
-        this.onSideChange(offsetX < 0 ? FLOATING_ACTION_SIDE_LEFT : FLOATING_ACTION_SIDE_RIGHT);
+        if (targetSide.length > 0) {
+          this.onSideChange(targetSide);
+        }
         return;
       }
       const index = this.hitActionIndex(this.touchX(event), this.touchY(event));
@@ -1305,6 +1311,148 @@ export struct QuickActionColumn {
     .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
     .onTouch((event: TouchEvent) => {
       this.handleToolbarTouch(event);
+    })
+  }
+}
+
+@Component
+export struct SearchActionColumn {
+  @Prop showTranslationButton: boolean = false;
+  @Prop translationEnabled: boolean = false;
+  @Prop side: string = FLOATING_ACTION_SIDE_RIGHT;
+  onSearch: () => void = () => {};
+  onTranslate: () => void = () => {};
+  onSideChange: (side: string) => void = (_side: string) => {};
+  @State activeActionIndex: number = -1;
+  private touchStartX: number = 0;
+  private touchStartY: number = 0;
+  private sideDragDetected: boolean = false;
+
+  private isLeftSide(): boolean {
+    return normalizeFloatingActionSide(this.side) === FLOATING_ACTION_SIDE_LEFT;
+  }
+
+  private actionCount(): number {
+    return this.showTranslationButton ? 1 : 0;
+  }
+
+  private primaryIndex(): number {
+    return this.actionCount();
+  }
+
+  private toolbarHeight(): number {
+    return this.showTranslationButton ?
+      FLOATING_ACTION_SIZE + FLOATING_ACTION_PRIMARY_GAP + FLOATING_ACTION_PRIMARY_SIZE :
+      FLOATING_ACTION_PRIMARY_SIZE;
+  }
+
+  private touchX(event: TouchEvent): number {
+    if (event.touches.length > 0) {
+      return event.touches[0].x;
+    }
+    if (event.changedTouches.length > 0) {
+      return event.changedTouches[0].x;
+    }
+    return -1;
+  }
+
+  private touchY(event: TouchEvent): number {
+    if (event.touches.length > 0) {
+      return event.touches[0].y;
+    }
+    if (event.changedTouches.length > 0) {
+      return event.changedTouches[0].y;
+    }
+    return -1;
+  }
+
+  private hitActionIndex(x: number, y: number): number {
+    return floatingActionHitIndex(x, y, this.actionCount(), FLOATING_ACTION_SIZE, this.side);
+  }
+
+  private updateActiveAction(event: TouchEvent): void {
+    const index = this.hitActionIndex(this.touchX(event), this.touchY(event));
+    if (index !== this.activeActionIndex) {
+      this.getUIContext().animateTo({ duration: 120, curve: Curve.EaseOut }, () => {
+        this.activeActionIndex = index;
+      });
+    }
+  }
+
+  private triggerAction(index: number): void {
+    if (index === this.primaryIndex()) {
+      this.onSearch();
+    } else if (this.showTranslationButton && index === 0) {
+      this.onTranslate();
+    }
+  }
+
+  private handleTouch(event: TouchEvent): void {
+    if (event.type === TouchType.Down) {
+      this.touchStartX = this.touchX(event);
+      this.touchStartY = this.touchY(event);
+      this.sideDragDetected = false;
+      this.updateActiveAction(event);
+    } else if (event.type === TouchType.Move) {
+      const offsetX = this.touchX(event) - this.touchStartX;
+      const offsetY = this.touchY(event) - this.touchStartY;
+      if (floatingActionSideFromDrag(offsetX, offsetY).length > 0) {
+        this.sideDragDetected = true;
+        this.activeActionIndex = -1;
+      } else if (!this.sideDragDetected) {
+        this.updateActiveAction(event);
+      }
+    } else if (event.type === TouchType.Up) {
+      if (this.sideDragDetected) {
+        const targetSide = floatingActionSideFromDrag(
+          this.touchX(event) - this.touchStartX, this.touchY(event) - this.touchStartY);
+        this.sideDragDetected = false;
+        this.activeActionIndex = -1;
+        if (targetSide.length > 0) {
+          this.onSideChange(targetSide);
+        }
+        return;
+      }
+      const index = this.hitActionIndex(this.touchX(event), this.touchY(event));
+      const fallbackIndex = index >= 0 ? index : this.activeActionIndex;
+      this.activeActionIndex = -1;
+      this.triggerAction(fallbackIndex);
+    } else if (event.type === TouchType.Cancel) {
+      this.sideDragDetected = false;
+      this.activeActionIndex = -1;
+    }
+  }
+
+  build() {
+    Column() {
+      if (this.showTranslationButton) {
+        ActionBubble({
+          label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
+          symbolIcon: $r('sys.symbol.translate'),
+          isEnabled: true,
+          checked: this.translationEnabled,
+          active: this.activeActionIndex === 0,
+          side: this.side,
+          directTap: false
+        })
+          .margin({ bottom: FLOATING_ACTION_PRIMARY_GAP })
+      }
+      ActionBubble({
+        label: uiText('Search'),
+        symbolIcon: $r('sys.symbol.magnifyingglass'),
+        isEnabled: true,
+        primary: true,
+        active: this.activeActionIndex === this.primaryIndex(),
+        side: this.side,
+        directTap: false
+      })
+    }
+    .width(FLOATING_ACTION_PRIMARY_SIZE)
+    .height(this.toolbarHeight())
+    .alignItems(this.isLeftSide() ? HorizontalAlign.Start : HorizontalAlign.End)
+    .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
+    .onTouch((event: TouchEvent) => {
+      this.handleTouch(event);
     })
   }
 }

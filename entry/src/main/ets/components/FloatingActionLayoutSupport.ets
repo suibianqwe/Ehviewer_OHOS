@@ -10,6 +10,13 @@ export function normalizeFloatingActionSide(value: string): string {
   return value === FLOATING_ACTION_SIDE_LEFT ? FLOATING_ACTION_SIDE_LEFT : FLOATING_ACTION_SIDE_RIGHT;
 }
 
+export function floatingActionSideFromDrag(offsetX: number, offsetY: number): string {
+  if (Math.abs(offsetX) < 32 || Math.abs(offsetX) <= Math.abs(offsetY) * 1.2) {
+    return '';
+  }
+  return offsetX < 0 ? FLOATING_ACTION_SIDE_LEFT : FLOATING_ACTION_SIDE_RIGHT;
+}
+
 export function floatingActionAvailableHeight(viewportHeight: number, reservedTop: number,
   reservedBottom: number = 24): number {
   if (viewportHeight <= 0 || Number.isNaN(viewportHeight)) {

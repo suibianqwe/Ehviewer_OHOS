@@ -26,6 +26,7 @@ import {
   DEFAULT_FAVORITE_SLOT_SETTING_KEY,
   FLOATING_ACTION_HOLDING_HAND_REVISION_KEY,
   FLOATING_ACTION_HOLDING_HAND_SETTING_KEY,
+  FLOATING_ACTION_SIDE_REVISION_KEY,
   FLOATING_ACTION_SIDE_SETTING_KEY,
   TRANSLATION_BUTTONS_VISIBLE_KEY,
   defaultFavoriteSlotSettingValue,
@@ -151,6 +152,7 @@ import {
   FloatingActionDock,
   gallerySuggestionUrl,
   QuickActionColumn,
+  SearchActionColumn,
   removeSearchTagToken,
   normalizeSubmittedSearchKeyword,
   SearchAdvancedPanel,
@@ -4218,6 +4220,8 @@ export struct GalleryListContent {
   @StorageProp(TRANSLATION_BUTTONS_VISIBLE_KEY) translationButtonsVisible: boolean = true;
   @StorageProp(FLOATING_ACTION_HOLDING_HAND_REVISION_KEY) @Watch('onHoldingHandSettingChanged')
   holdingHandSettingRevision: number = 0;
+  @StorageProp(FLOATING_ACTION_SIDE_REVISION_KEY) @Watch('onFloatingActionSideSettingChanged')
+  floatingActionSideRevision: number = 0;
 
   onScrollReset(): void {
     // Scroll back to the top when scrollResetVersion changes.
@@ -4655,6 +4659,14 @@ export struct GalleryListContent {
     this.syncHoldingHandSubscription();
   }
 
+  onFloatingActionSideSettingChanged(): void {
+    if (this.holdingHandActionSide.length > 0) {
+      return;
+    }
+    this.animateFloatingActionSide(normalizeFloatingActionSide(
+      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT)));
+  }
+
   private syncHoldingHandSubscription(): void {
     this.unsubscribeHoldingHandSide();
     this.unsubscribeHoldingHandSide = () => {};
@@ -4673,6 +4685,8 @@ export struct GalleryListContent {
   private setFloatingActionSide(side: string): void {
     const normalized = normalizeFloatingActionSide(side);
     ehSettingsStore.setValue(FLOATING_ACTION_SIDE_SETTING_KEY, normalized);
+    const revision = AppStorage.get<number>(FLOATING_ACTION_SIDE_REVISION_KEY) ?? 0;
+    AppStorage.setOrCreate<number>(FLOATING_ACTION_SIDE_REVISION_KEY, revision + 1);
     const context = getAbilityContext();
     if (context !== undefined) {
       ehSettingsStore.save(context).catch(() => {});
@@ -5682,29 +5696,18 @@ export struct GalleryListContent {
       // FAB 悬浮按钮
       FloatingActionDock({ side: this.floatingActionSide }) {
         if (this.shouldShowSearchOnlyFab()) {
-          if (this.shouldShowTranslationAction()) {
-            ActionBubble({
-              label: this.translationEnabled ? uiText('Show original titles') : uiText('Translate titles'),
-              symbolIcon: $r('sys.symbol.translate'),
-              isEnabled: true,
-              checked: this.translationEnabled,
-              side: this.floatingActionSide,
-              directTap: true,
-              onTapAction: () => {
-                ehTranslationService.setEnabled(!this.translationEnabled);
-              }
-            })
-              .margin({ bottom: 10 })
-          }
-          ActionBubble({
-            label: uiText('Search'),
-            symbolIcon: $r('sys.symbol.magnifyingglass'),
-            isEnabled: true,
-            primary: true,
+          SearchActionColumn({
+            showTranslationButton: this.shouldShowTranslationAction(),
+            translationEnabled: this.translationEnabled,
             side: this.floatingActionSide,
-            directTap: true,
-            onTapAction: () => {
+            onSearch: () => {
               this.onSearch();
+            },
+            onTranslate: () => {
+              ehTranslationService.setEnabled(!this.translationEnabled);
+            },
+            onSideChange: (side: string) => {
+              this.setFloatingActionSide(side);
             }
           })
         } else {

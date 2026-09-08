@@ -20,6 +20,7 @@ import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../
 import {
   FLOATING_ACTION_HOLDING_HAND_REVISION_KEY,
   FLOATING_ACTION_HOLDING_HAND_SETTING_KEY,
+  FLOATING_ACTION_SIDE_REVISION_KEY,
   FLOATING_ACTION_SIDE_SETTING_KEY,
   TRANSLATION_BUTTONS_VISIBLE_KEY,
   ehSettingsStore
@@ -142,6 +143,7 @@ import {
   FloatingActionDock,
   normalizeSubmittedSearchKeyword,
   recordSearchHistory,
+  SearchActionColumn,
   SearchAdvancedPanel,
   SearchSuggestionItem,
   SearchSuggestionList,
@@ -158,6 +160,7 @@ import {
   floatingActionGridWidth,
   floatingActionHitIndex,
   floatingActionIndexesForColumn,
+  floatingActionSideFromDrag,
   floatingActionToolbarWidth,
   floatingActionVisualColumns,
   normalizeFloatingActionSide
@@ -323,6 +326,8 @@ export struct DownloadScene {
   @StorageProp(TRANSLATION_BUTTONS_VISIBLE_KEY) translationButtonsVisible: boolean = true;
   @StorageProp(FLOATING_ACTION_HOLDING_HAND_REVISION_KEY) @Watch('onHoldingHandSettingChanged')
   holdingHandSettingRevision: number = 0;
+  @StorageProp(FLOATING_ACTION_SIDE_REVISION_KEY) @Watch('onFloatingActionSideSettingChanged')
+  floatingActionSideRevision: number = 0;
   private downloadScroller: Scroller = new Scroller();
   private cardScrollAnchor: GalleryCardScrollAnchor = new GalleryCardScrollAnchor();
   private splitDragStartWidth: number = 0;
@@ -594,6 +599,14 @@ export struct DownloadScene {
     this.syncHoldingHandSubscription();
   }
 
+  onFloatingActionSideSettingChanged(): void {
+    if (this.holdingHandActionSide.length > 0) {
+      return;
+    }
+    this.animateFloatingActionSide(normalizeFloatingActionSide(
+      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT)));
+  }
+
   private syncHoldingHandSubscription(): void {
     this.unsubscribeHoldingHandSide();
     this.unsubscribeHoldingHandSide = () => {};
@@ -612,6 +625,8 @@ export struct DownloadScene {
   private setFloatingActionSide(side: string): void {
     const normalized = normalizeFloatingActionSide(side);
     ehSettingsStore.setValue(FLOATING_ACTION_SIDE_SETTING_KEY, normalized);
+    const revision = AppStorage.get<number>(FLOATING_ACTION_SIDE_REVISION_KEY) ?? 0;
+    AppStorage.setOrCreate<number>(FLOATING_ACTION_SIDE_REVISION_KEY, revision + 1);
     const context = getAbilityContext();
     if (context !== undefined) {
       ehSettingsStore.save(context).catch(() => {});
@@ -2250,15 +2265,13 @@ export struct DownloadScene {
 
         FloatingActionDock({ side: this.floatingActionSide }) {
           if (this.searchBarVisible && !this.searchSubmitted) {
-            ActionBubble({
-              label: uiText('Search'),
-              symbolIcon: $r('sys.symbol.magnifyingglass'),
-              isEnabled: true,
-              primary: true,
+            SearchActionColumn({
               side: this.floatingActionSide,
-              directTap: true,
-              onTapAction: () => {
+              onSearch: () => {
                 this.applyDownloadSearch();
+              },
+              onSideChange: (side: string) => {
+                this.setFloatingActionSide(side);
               }
             })
           } else {
@@ -3063,7 +3076,7 @@ struct DownloadToolColumn {
     } else if (event.type === TouchType.Move) {
       const offsetX = this.touchX(event) - this.touchStartX;
       const offsetY = this.touchY(event) - this.touchStartY;
-      if (Math.abs(offsetX) >= 32 && Math.abs(offsetX) > Math.abs(offsetY) * 1.2) {
+      if (floatingActionSideFromDrag(offsetX, offsetY).length > 0) {
         this.sideDragDetected = true;
         this.activeActionIndex = -1;
       } else if (!this.sideDragDetected) {
@@ -3072,9 +3085,13 @@ struct DownloadToolColumn {
     } else if (event.type === TouchType.Up) {
       if (this.sideDragDetected) {
         const offsetX = this.touchX(event) - this.touchStartX;
+        const offsetY = this.touchY(event) - this.touchStartY;
+        const targetSide = floatingActionSideFromDrag(offsetX, offsetY);
         this.sideDragDetected = false;
         this.activeActionIndex = -1;
-        this.onSideChange(offsetX < 0 ? FLOATING_ACTION_SIDE_LEFT : FLOATING_ACTION_SIDE_RIGHT);
+        if (targetSide.length > 0) {
+          this.onSideChange(targetSide);
+        }
         return;
       }
       const index = this.hitActionIndex(this.touchX(event), this.touchY(event));

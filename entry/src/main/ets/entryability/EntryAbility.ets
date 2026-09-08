@@ -14,7 +14,7 @@ import {
   rememberMainWindowWidthPx
 } from '../services/EhWindowImmersive';
 import { applyWindowPrivacyMode, WINDOW_PRIVACY_STATUS_KEY } from '../services/EhWindowPrivacy';
-import { ehSettingsStore } from '../services/EhSettingsStore';
+import { ehSettingsStore, FLOATING_ACTION_SIDE_REVISION_KEY } from '../services/EhSettingsStore';
 import {
   COMMENT_BLACKLIST_REVISION_KEY,
   ehCommentBlacklistStore
@@ -107,6 +107,7 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate<boolean>(EMBEDDED_READER_ACTIVE_KEY, false);
     AppStorage.setOrCreate<number>(APP_FOREGROUND_REVISION_KEY, 0);
     AppStorage.setOrCreate<number>(DAILY_CHECK_IN_FOREGROUND_REVISION_KEY, 0);
+    AppStorage.setOrCreate<number>(FLOATING_ACTION_SIDE_REVISION_KEY, 0);
     this.updateSystemColorMode(this.context.config.colorMode);
     let mainWindow: window.Window | undefined = undefined;
     const windowReady = stage.getMainWindow().then((win) => {

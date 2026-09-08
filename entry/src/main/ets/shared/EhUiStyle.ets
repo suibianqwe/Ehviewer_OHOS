@@ -375,16 +375,24 @@ export function uiReaderProgressBackgroundColor(fallbackColor: string): string {
   return supportsBackgroundEffect() ? 'rgba(0,0,0,0)' : themeSurface();
 }
 
-export function uiPopupBlurStyle(): BlurStyle {
-  return isHarmonyUiStyle() && supportsBackgroundBlur() ? BlurStyle.COMPONENT_THICK : BlurStyle.NONE;
+function uiSurfaceBlurStyle(style: BlurStyle): BlurStyle {
+  return isHarmonyUiStyle() && supportsBackgroundBlur() ? style : BlurStyle.NONE;
 }
 
-export function uiPopupBlurOptions(): BackgroundBlurStyleOptions {
+function uiSurfaceBlurOptions(): BackgroundBlurStyleOptions {
   return {
     colorMode: isDarkTheme() ? ThemeColorMode.DARK : ThemeColorMode.LIGHT,
     adaptiveColor: AdaptiveColor.DEFAULT,
     scale: 0.82
   };
+}
+
+export function uiPopupBlurStyle(): BlurStyle {
+  return uiSurfaceBlurStyle(BlurStyle.COMPONENT_THICK);
+}
+
+export function uiPopupBlurOptions(): BackgroundBlurStyleOptions {
+  return uiSurfaceBlurOptions();
 }
 
 export function uiPopupBackgroundEffect(): BackgroundEffectOptions {
@@ -615,11 +623,11 @@ export function uiDialogBlurStyle(): BlurStyle {
   // ConfirmActionOverlay and the other in-app dialogs are custom Stack layers,
   // not framework Dialog components. Their systemMaterial call is out of scope,
   // so disabling this blur on API 26 turns the panel into plain transparency.
-  return isHarmonyUiStyle() && supportsBackgroundBlur() ? BlurStyle.BACKGROUND_THICK : BlurStyle.NONE;
+  return isHarmonyUiStyle() ? uiSurfaceBlurStyle(BlurStyle.BACKGROUND_THICK) : BlurStyle.NONE;
 }
 
 export function uiDialogBlurOptions(): BackgroundBlurStyleOptions {
-  return uiPopupBlurOptions();
+  return uiSurfaceBlurOptions();
 }
 
 export function uiDialogSurfaceRadius(): number {

@@ -43,16 +43,18 @@ export function subscribeHoldingHandSide(onChange: (side: string) => void): () =
     }
   };
   try {
-    operatingSide = floatingActionSideForOperatingHand(motion.getRecentOperatingHandStatus());
-    emitEffectiveSide();
-  } catch (error) {
-    console.warn('EhHoldingHandSupport: recent operating-hand status is unavailable');
-  }
-  try {
     motion.on('holdingHandChanged', holdingCallback);
     holdingSubscribed = true;
   } catch (error) {
     console.warn('EhHoldingHandSupport: holding-hand awareness is unavailable');
+    onChange(HOLDING_HAND_SIDE_NONE);
+    return (): void => {};
+  }
+  try {
+    operatingSide = floatingActionSideForOperatingHand(motion.getRecentOperatingHandStatus());
+    emitEffectiveSide();
+  } catch (error) {
+    console.warn('EhHoldingHandSupport: recent operating-hand status is unavailable');
   }
   try {
     motion.on('operatingHandChanged', operatingCallback);

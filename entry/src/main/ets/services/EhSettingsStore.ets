@@ -18,6 +18,7 @@ export const DEFAULT_FAVORITE_SLOT_ASK: string = 'Ask';
 export const DEFAULT_DOWNLOAD_LABEL_SETTING_KEY: string = 'default_download_label';
 export const DEFAULT_DOWNLOAD_LABEL_ASK: string = '__ask__';
 export const FLOATING_ACTION_SIDE_SETTING_KEY: string = 'floating_action_side';
+export const FLOATING_ACTION_SIDE_REVISION_KEY: string = 'floatingActionSideRevision';
 export const FLOATING_ACTION_HOLDING_HAND_SETTING_KEY: string = 'floating_action_holding_hand';
 export const FLOATING_ACTION_HOLDING_HAND_REVISION_KEY: string = 'floatingActionHoldingHandRevision';
 const HISTORY_INFO_SIZE_OPTIONS: string[] = ['100', '500', '1000', '5000', '10000', '20000'];
