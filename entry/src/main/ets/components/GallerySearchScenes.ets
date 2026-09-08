@@ -30,17 +30,14 @@ import {
   uiFloatingButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
-  uiMaterialLayerBackground,
   uiPanelMaterial,
   uiPopupMaterialBackground,
   uiPillRadius,
   uiRadius,
-  uiSegmentMaterial,
   uiSwitchHeight,
   uiSwitchWidth,
   uiTabHeight,
   uiTintedButtonMaterial,
-  uiTintedSegmentMaterial
 } from '../shared/EhUiStyle';
 import {
   FLOATING_ACTION_GAP,
@@ -690,18 +687,16 @@ struct SearchNamespaceChip {
   }
 
   build() {
-    Button(this.label, { type: ButtonType.Normal, stateEffect: true })
+    Button(this.label, { type: ButtonType.Capsule, stateEffect: true })
       .width(102)
       .height(34)
       .fontSize(16)
       .fontWeight(FontWeight.Bold)
       .fontColor(this.isActive ? this.activeColor() : themeSecondaryText())
-      .backgroundColor(uiMaterialBackground(this.isActive ? uiMaterialLayerBackground(this.softColor()) : Color.Transparent))
+      .backgroundColor(uiCapsuleButtonBackground(this.isActive, this.softColor()))
       .animation({ duration: 180, curve: Curve.EaseInOut })
       .padding({ left: 4, right: 4 })
-      .borderRadius(uiRadius(5))
-      .border({ width: 0, color: Color.Transparent })
-      .systemMaterial(this.isActive ? uiTintedSegmentMaterial(this.softColor()) : uiSegmentMaterial())
+      .borderRadius(uiPillRadius(17))
       .onClick(() => {
         this.onClickAction();
       })
