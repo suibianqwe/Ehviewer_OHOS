@@ -4629,6 +4629,12 @@ export struct GalleryListContent {
     return visibleHeight + uiTitleBarFadeHeight() * 0.68;
   }
 
+  private searchSuggestionTopInset(): number {
+    // Keep the suggestion chips close to the search field while preserving
+    // enough room for the status bar and toolbar.
+    return this.totalBarHeight() + 8;
+  }
+
   private imageSearchPanelWidth(): number {
     const width = this.effectiveContentWidth();
     if (width <= 0) {
@@ -5063,10 +5069,9 @@ export struct GalleryListContent {
     .height(uiSearchFieldHeight())
     .layoutWeight(1)
     .padding({ left: 8, right: 8 })
-    .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+    .backgroundColor(themeFieldBackground())
     .alignItems(VerticalAlign.Center)
     .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-    .systemMaterial(uiSearchMaterial())
   }
 
   private syncContentWidthFromWindow(): void {
@@ -5407,7 +5412,14 @@ export struct GalleryListContent {
   @Builder
   private galleryStandardList() {
     List({ space: 0, scroller: this.listScroller }) {
-      if (this.galleries.length === 0) {
+      if (this.shouldShowSearchSuggestions()) {
+        ListItem() {
+          Row().width('100%').height(this.searchSuggestionTopInset())
+        }
+        ListItem() {
+          this.searchSuggestionPlaceholder()
+        }
+      } else if (this.galleries.length === 0) {
         ListItem() {
           GalleryListStateView({
             statusText: this.statusText,
@@ -5581,7 +5593,7 @@ export struct GalleryListContent {
         if (this.shouldShowSearchSuggestions()) {
           Row()
             .width('100%')
-            .height(this.expandedTitleContentInset())
+            .height(this.searchSuggestionTopInset())
           this.searchSuggestionPlaceholder()
         } else if (this.isInitialLoadingState()) {
           Stack({ alignContent: Alignment.TopStart }) {
