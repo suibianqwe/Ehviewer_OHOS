@@ -1506,6 +1506,15 @@ export struct GalleryListScene {
     }
   }
 
+  private presentSearchResultScene(): void {
+    this.searchResultSceneRevision++;
+    this.showSearchResultScene = true;
+    this.saveNavigationCache();
+    setTimeout(() => {
+      this.refreshSearchResultNavigationCache();
+    }, 0);
+  }
+
   private captureSearchOrigin(): void {
     this.searchOriginShowDetail = this.showDetail;
     this.searchOriginDetailLink = cloneGalleryDetailLink(this.detailLink);
@@ -2483,11 +2492,7 @@ export struct GalleryListScene {
     if (!this.isSearchResultScene) {
       this.captureSearchOrigin();
       this.searchResultDraft = draft;
-      this.showSearchResultScene = true;
-      this.saveNavigationCache();
-      setTimeout(() => {
-        this.refreshSearchResultNavigationCache();
-      }, 0);
+      this.presentSearchResultScene();
       return;
     }
     this.keyword = draft.keyword;
@@ -2552,11 +2557,7 @@ export struct GalleryListScene {
     if (!this.isSearchResultScene) {
       this.captureSearchOrigin();
       this.searchResultDraft = draft;
-      this.showSearchResultScene = true;
-      this.saveNavigationCache();
-      setTimeout(() => {
-        this.refreshSearchResultNavigationCache();
-      }, 0);
+      this.presentSearchResultScene();
       return;
     }
     this.keyword = '';
@@ -2625,11 +2626,7 @@ export struct GalleryListScene {
       imageOnlySearchCovers: false,
       imageShowExpunged: false
     };
-    this.showSearchResultScene = true;
-    this.saveNavigationCache();
-    setTimeout(() => {
-      this.refreshSearchResultNavigationCache();
-    }, 0);
+    this.presentSearchResultScene();
   }
 
   private openLocalSearchBar(): void {
@@ -3073,12 +3070,7 @@ export struct GalleryListScene {
     };
     this.detailStatus = request.title;
     this.fabExpanded = false;
-    this.showSearchResultScene = true;
-    this.searchResultSceneRevision++;
-    this.saveNavigationCache();
-    setTimeout(() => {
-      this.refreshSearchResultNavigationCache();
-    }, 0);
+    this.presentSearchResultScene();
   }
 
   private updateSceneContentWidth(width: number): void {
@@ -3415,15 +3407,6 @@ export struct GalleryListScene {
                   this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
                 }
               })
-              .animation({
-                duration: this.splitDragging ? 0 : 220,
-                curve: Curve.EaseOut
-              })
-              .transition(this.shouldShowSearchResultInLeftPane() ?
-                TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }) :
-                TransitionEffect.asymmetric(
-                  TransitionEffect.move(TransitionEdge.END).animation({ duration: 260, curve: Curve.EaseOut }),
-                  TransitionEffect.move(TransitionEdge.END).animation({ duration: 220, curve: Curve.EaseIn })))
               .zIndex(4)
           }
 
@@ -5240,9 +5223,8 @@ export struct GalleryListContent {
       }
     }
     .width('100%')
-    .height('100%')
-    .padding({ left: 8, right: 8, top: this.expandedTitleContentInset() + 4, bottom: 8 })
-    .backgroundColor(themePageBackground())
+    .layoutWeight(1)
+    .padding({ left: 8, right: 8, top: 4 })
   }
 
   private openBookmarkDrawer(): void {
@@ -5583,7 +5565,9 @@ export struct GalleryListContent {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
         if (this.shouldShowSearchSuggestions()) {
-          // 搜索编辑页固定布局，历史和标签网格自行滚动；提交后才使用可下拉的结果列表。
+          Row()
+            .width('100%')
+            .height(this.expandedTitleContentInset())
           this.searchSuggestionPlaceholder()
         } else if (this.isInitialLoadingState()) {
           Stack({ alignContent: Alignment.TopStart }) {
