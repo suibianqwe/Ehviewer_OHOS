@@ -27,7 +27,6 @@ import {
   uiTransparentButtonBackgroundEffect,
   uiButtonHighlightBorderColor,
   uiCapsuleButtonBackground,
-  uiCapsuleButtonBorderColor,
   uiFloatingButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
@@ -878,16 +877,11 @@ export struct SearchAdvancedPanel {
             .height(34)
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
-            .fontColor(this.allCategoriesSelected() ? themeAccentTextColor() : themeSecondaryText())
-            .backgroundColor(uiCapsuleButtonBackground(this.allCategoriesSelected()))
+            .fontColor(this.allCategoriesSelected() ? Color.White : themeSecondaryText())
+            .backgroundColor(uiCapsuleButtonBackground(this.allCategoriesSelected(), themePrimaryColor()))
             .animation({ duration: 180, curve: Curve.EaseInOut })
             .width('100%')
             .borderRadius(uiPillRadius(17))
-            .border({
-              width: this.allCategoriesSelected() ? 1.5 : 1,
-              color: uiCapsuleButtonBorderColor(this.allCategoriesSelected())
-            })
-            .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .onClick(() => {
               this.toggleAllCategories();
             })
@@ -929,8 +923,6 @@ export struct SearchAdvancedPanel {
           .padding({ left: 10, right: 10 })
           .backgroundColor(uiCapsuleButtonBackground())
           .borderRadius(uiPillRadius(21))
-          .border({ width: 1, color: uiCapsuleButtonBorderColor() })
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
 
           if (this.advancedEnabledDraft) {
             Column({ space: 10 }) {
@@ -1004,7 +996,6 @@ export struct SearchAdvancedPanel {
         .backgroundColor(themePrimaryColor())
         .width('100%')
         .borderRadius(uiPillRadius(22))
-        .border({ width: 1, color: uiCapsuleButtonBorderColor(true, themePrimaryColor()) })
         .backgroundEffect(uiFloatingButtonBackgroundEffect(themePrimaryColor()))
         .onClick(() => {
           this.onSearch();
@@ -1580,11 +1571,6 @@ export struct SearchModeSegmentButton {
     .backgroundColor(uiCapsuleButtonBackground(this.selected))
     .animation({ duration: 180, curve: Curve.EaseInOut })
     .borderRadius(uiPillRadius(uiTabHeight() / 2))
-    .border({
-      width: this.selected ? 1.5 : 1,
-      color: uiCapsuleButtonBorderColor(this.selected)
-    })
-    .backgroundEffect(uiTransparentButtonBackgroundEffect())
     .onClick(() => {
       this.onSelect();
     })
@@ -1611,11 +1597,6 @@ export struct SearchFlagChip {
       .enabled(this.isEnabled)
       .layoutWeight(1)
       .borderRadius(uiPillRadius(17))
-      .border({
-        width: this.isOn ? 1.5 : 1,
-        color: uiCapsuleButtonBorderColor(this.isOn)
-      })
-      .backgroundEffect(uiTransparentButtonBackgroundEffect())
       .onClick(() => {
         this.onToggle(!this.isOn);
       })
@@ -1658,17 +1639,17 @@ export struct SearchCategoryChip {
 
   private categoryChipBackground(): string {
     const accent = categoryColor(this.category);
-    if (isDarkTheme()) {
-      return '#' + (this.selected ? 'A3' : '52') + accent.substring(1);
+    if (this.selected) {
+      return accent;
     }
-    return this.selected ? this.selectedColor() : '#38' + accent.substring(1);
+    return isDarkTheme() ? '#52' + accent.substring(1) : this.selectedColor();
   }
 
   private categoryChipForeground(): string {
-    if (!isDarkTheme()) {
-      return categoryColor(this.category);
+    if (this.selected) {
+      return '#FFFFFF';
     }
-    return this.selected ? '#FFFFFF' : this.selectedColor();
+    return isDarkTheme() ? this.selectedColor() : categoryColor(this.category);
   }
 
   build() {
@@ -1681,11 +1662,6 @@ export struct SearchCategoryChip {
       .animation({ duration: 180, curve: Curve.EaseInOut })
       .layoutWeight(1)
       .borderRadius(uiPillRadius(17))
-      .border({
-        width: this.selected ? 1.5 : 1,
-        color: this.selected ? categoryColor(this.category) : uiButtonHighlightBorderColor()
-      })
-      .backgroundEffect(uiTransparentButtonBackgroundEffect())
       .onClick(() => {
         this.onToggle(this.category);
       })

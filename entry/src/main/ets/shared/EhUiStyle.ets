@@ -382,13 +382,7 @@ function uiSurfaceBlurStyle(style: BlurStyle): BlurStyle {
 
 export function uiCapsuleButtonBackground(selected: boolean = false,
   selectedColor: string = themeSelectedBackground()): ResourceColor {
-  return selected ? selectedColor : themeSurfaceVariant();
-}
-
-export function uiCapsuleButtonBorderColor(selected: boolean = false,
-  selectedColor: string = themePrimaryColor()): ResourceColor {
-  return selected ? materialColorWithAlpha(selectedColor, isDarkTheme() ? 'B8' : '70') :
-    uiButtonHighlightBorderColor();
+  return selected ? selectedColor : (isDarkTheme() ? themeSurfaceVariant() : '#FFFFFF');
 }
 
 function uiSurfaceBlurOptions(): BackgroundBlurStyleOptions {
