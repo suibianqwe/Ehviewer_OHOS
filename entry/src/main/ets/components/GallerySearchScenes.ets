@@ -23,6 +23,8 @@ import {
   isHarmonyMaterialEnabled,
   isHarmonyUiStyle,
   uiButtonMaterial,
+  uiDialogBlurOptions,
+  uiDialogBlurStyle,
   uiTransparentButtonBackgroundEffect,
   uiButtonHighlightBorderColor,
   uiFloatingButtonBackgroundEffect,
@@ -30,8 +32,6 @@ import {
   uiMaterialForegroundColor,
   uiMaterialLayerBackground,
   uiPanelMaterial,
-  uiPopupBlurStyle,
-  uiPopupBlurOptions,
   uiPopupMaterialBackground,
   uiRadius,
   uiSegmentMaterial,
@@ -1011,7 +1011,7 @@ export struct SearchAdvancedPanel {
     .width('100%')
     .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
     .backgroundColor(uiMaterialBackground(uiPopupMaterialBackground(themeSurface())))
-    .backgroundBlurStyle(isHarmonyMaterialEnabled() ? BlurStyle.NONE : uiPopupBlurStyle())
+    .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
     .shadow(isHarmonyMaterialEnabled() ? {
       radius: 0,
       color: Color.Transparent,
