@@ -1,0 +1,13 @@
+{
+  "name": "ehviewer-ohos-quality",
+  "private": true,
+  "version": "0.6.9",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

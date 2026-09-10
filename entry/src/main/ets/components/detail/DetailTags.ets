@@ -28,7 +28,6 @@ import {
   uiMaterialForegroundColor,
   uiRadius,
   uiSearchFieldHeight,
-  uiSearchMaterial
 } from '../../shared/EhUiStyle';
 import {
   buildSearchSuggestions,
@@ -199,13 +198,12 @@ export struct DetailTags {
               TextInput({ text: this.addTagText, placeholder: uiText('Enter new tag') })
                 .height(uiSearchFieldHeight())
                 .fontSize(14)
-                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+                .fontColor(themePrimaryText())
                 .placeholderColor(themeTertiaryText())
-                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .backgroundColor(themeFieldBackground())
                 .layoutWeight(1)
                 .padding({ left: 10, right: 10 })
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.updateAddTagText(value);
                 })

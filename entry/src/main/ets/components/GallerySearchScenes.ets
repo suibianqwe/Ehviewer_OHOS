@@ -17,7 +17,8 @@ import {
   tagTranslationOptionText,
   uiText
 } from '../shared/EhShared';
-import { isDarkTheme, themeAccentTextColor, themeControlMutedBackground, themeControlNeutralBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
+import { isDarkTheme, themeAccentTextColor, themeControlMutedBackground, themeControlNeutralBackground, themeFieldBackground, themeInactiveActionText, themeOnPrimaryText, themePageBackground, themePrimaryColor, themePrimaryText, themeSecondaryText, themeShadowColor, themeSurface, themeSurfaceVariant } from '../shared/EhTheme';
+import { themeSelectedButtonTextColor } from '../shared/EhTheme';
 import {
   isHarmonyMaterialEnabled,
   isHarmonyUiStyle,
@@ -34,6 +35,7 @@ import {
   uiPopupMaterialBackground,
   uiPillRadius,
   uiRadius,
+  uiSearchFieldHeight,
   uiSwitchHeight,
   uiSwitchWidth,
   uiTabHeight,
@@ -178,15 +180,18 @@ function activeTagSearchInput(keyword: string): ActiveTagSearchInput {
   const explicit = trimmed.match(/(^|\s)([A-Za-z0-9_]+)\s*[:：]\s*(.*)$/);
   if (explicit !== null && isKnownTagNamespace(explicit[2])) {
     const rawQuery = explicit[3].trim();
+    const quoted = /^["“＂]/.test(rawQuery);
     let query = rawQuery.replace(/^["“＂]/, '').trim();
     query = query.replace(/\$+$/, '').trim();
     query = query.replace(/["”＂]$/, '').trim();
     query = query.replace(/\$+$/, '').trim();
-    return {
-      text: explicit[0].trim(),
-      query: query,
-      namespace: fullTagNamespace(explicit[2])
-    };
+    if (quoted || !/\s/.test(query)) {
+      return {
+        text: explicit[0].trim(),
+        query: query,
+        namespace: fullTagNamespace(explicit[2])
+      };
+    }
   }
   const active = activeTagPrefix(trimmed);
   return {
@@ -384,6 +389,16 @@ export function applyTagSuggestionToKeyword(keyword: string, tag: string, namesp
   const trimmed = keyword.trim();
   if (trimmed.length === 0) {
     return fullTag;
+  }
+  // Suggestions are selected for the complete active `namespace: query`
+  // expression. For multi-word queries, activeTagSearchInput intentionally
+  // avoids treating the text as a live suggestion prefix, so remove that
+  // expression here explicitly instead of only removing its final word.
+  const explicit = trimmed.match(/(^|\s)([A-Za-z0-9_]+)\s*[:：]\s*([^$]*)$/);
+  if (explicit !== null && isKnownTagNamespace(explicit[2])) {
+    const start = explicit.index === undefined ? 0 : explicit.index;
+    const prefix = trimmed.substring(0, start).trim();
+    return (prefix.length > 0 ? prefix + ' ' : '') + tag.trim();
   }
   const active = activeTagSearchInput(trimmed);
   if (active.text.length === 0) {
@@ -705,6 +720,8 @@ struct SearchNamespaceChip {
 
 @Component
 export struct SearchAdvancedPanel {
+  // A dialog supplies its own scroll container, surface and save/cancel actions.
+  @Prop embedded: boolean = false;
   @Prop searchModeValue: ListMode = ListMode.Normal;
   @Prop searchCategory: number = GalleryCategory.None;
   @Prop advancedSearchEnabled: boolean = false;
@@ -736,7 +753,7 @@ export struct SearchAdvancedPanel {
     this.modeDraft = this.searchModeValue;
     this.categoryDraft = this.searchCategory;
     this.advancedEnabledDraft = this.advancedSearchEnabled;
-    this.advanceSearchDraft = this.advanceSearch;
+    this.advanceSearchDraft = this.advanceSearch >= 0 ? this.advanceSearch : DEFAULT_ADVANCE_SEARCH;
     this.minRatingDraft = this.minRating;
     this.pageFromDraft = this.pageFrom;
     this.pageToDraft = this.pageTo;
@@ -841,133 +858,190 @@ export struct SearchAdvancedPanel {
       .margin({ top: 4 })
   }
 
-  build() {
-    Column() {
-      Scroll() {
-        Column({ space: 10 }) {
-          Row({ space: 6 }) {
-            ForEach(this.searchModeOptions(), (option: SearchModeOption) => {
-              SearchModeSegmentButton({
-                label: option.label,
-                selected: option.mode === this.modeDraft,
-                onSelect: () => {
-                  if (option.mode === this.modeDraft) {
-                    return;
-                  }
-                  this.modeDraft = option.mode;
-                  this.onSearchModeChange(option.mode);
-                }
-              })
-            }, (option: SearchModeOption) => option.mode.toString() + '-' + this.languageRevision.toString())
-          }
-          .width('100%')
-
-          Text(tagTranslationOptionText('Categories', '分类'))
-            .fontSize(12)
-            .fontColor(themeSecondaryText())
-            .fontWeight(FontWeight.Medium)
-            .margin({ top: 4 })
-          Button(tagTranslationOptionText('All categories', '全部分类'),
-            { type: ButtonType.Capsule, stateEffect: true })
-            .height(34)
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(this.allCategoriesSelected() ? Color.White : themeSecondaryText())
-            .backgroundColor(uiCapsuleButtonBackground(this.allCategoriesSelected(), themePrimaryColor()))
-            .animation({ duration: 180, curve: Curve.EaseInOut })
-            .width('100%')
-            .borderRadius(uiPillRadius(17))
-            .onClick(() => {
-              this.toggleAllCategories();
-            })
-          Column({ space: 8 }) {
-            ForEach(this.categoryRows(), (row: SearchCategoryOption[]) => {
-              Row({ space: 8 }) {
-                ForEach(row, (option: SearchCategoryOption) => {
-                  SearchCategoryChip({
-                    label: option.label,
-                    category: option.category,
-                    selected: this.categorySelected(option.category),
-                    onToggle: (category: number) => {
-                      this.toggleCategory(category);
-                    }
-                  })
-                }, (option: SearchCategoryOption) => option.category.toString())
+  @Builder
+  private optionsContent() {
+    Column({ space: 10 }) {
+      Row({ space: 6 }) {
+        ForEach(this.searchModeOptions(), (option: SearchModeOption) => {
+          SearchModeSegmentButton({
+            label: option.label,
+            selected: option.mode === this.modeDraft,
+            onSelect: () => {
+              if (option.mode === this.modeDraft) {
+                return;
               }
-              .width('100%')
-            }, (row: SearchCategoryOption[], index: number) => index.toString() + row.map((option: SearchCategoryOption) => option.category.toString()).join('-'))
-          }
-          .width('100%')
-
-          Row() {
-            Text(uiText('Advanced'))
-            .fontSize(14)
-            .fontColor(themePrimaryText())
-            Blank()
-            Toggle({ type: ToggleType.Switch, isOn: this.advancedEnabledDraft })
-              .width(uiSwitchWidth())
-              .height(uiSwitchHeight())
-              .selectedColor(themeAccentTextColor())
-              .switchPointColor(Color.White)
-              .onChange((isOn: boolean) => {
-                this.setAdvancedEnabledDraft(isOn);
-              })
-          }
-          .width('100%')
-          .height(42)
-          .padding({ left: 10, right: 10 })
-          .backgroundColor(uiCapsuleButtonBackground())
-          .borderRadius(uiPillRadius(21))
-
-          if (this.advancedEnabledDraft) {
-            Column({ space: 10 }) {
-              this.sectionTitle('Search galleries')
-              Row({ space: 8 }) {
-                SearchFlagChip({ label: 'Name', isOn: this.flagOn(0x1), onToggle: (isOn: boolean) => { this.setFlag(0x1, isOn); } })
-                SearchFlagChip({ label: 'Tags', isOn: this.flagOn(0x2), onToggle: (isOn: boolean) => { this.setFlag(0x2, isOn); } })
-              }
-              Row({ space: 8 }) {
-                SearchFlagChip({ label: 'Description', isOn: this.flagOn(0x4), onToggle: (isOn: boolean) => { this.setFlag(0x4, isOn); } })
-                SearchFlagChip({ label: 'Torrent', isOn: this.flagOn(0x8), onToggle: (isOn: boolean) => { this.setFlag(0x8, isOn); } })
-              }
-
-              this.sectionTitle('Options')
-              Row({ space: 8 }) {
-                SearchFlagChip({ label: 'Has torrent', isOn: this.flagOn(0x10), onToggle: (isOn: boolean) => { this.setFlag(0x10, isOn); } })
-                SearchFlagChip({ label: 'Low power', isOn: this.flagOn(0x20), onToggle: (isOn: boolean) => { this.setFlag(0x20, isOn); } })
-              }
-              Row({ space: 8 }) {
-                SearchFlagChip({ label: 'Downvoted', isOn: this.flagOn(0x40), onToggle: (isOn: boolean) => { this.setFlag(0x40, isOn); } })
-                SearchFlagChip({ label: 'Expunged', isOn: this.flagOn(0x80), onToggle: (isOn: boolean) => { this.setFlag(0x80, isOn); } })
-              }
-
-              this.sectionTitle('Disable default filter')
-              Row({ space: 8 }) {
-                SearchFlagChip({ label: 'No lang filter', isOn: this.flagOn(0x100), isEnabled: this.searchFilterEnabled, onToggle: (isOn: boolean) => { this.setFlag(0x100, isOn); } })
-                SearchFlagChip({ label: 'No uploader filter', isOn: this.flagOn(0x200), isEnabled: this.searchFilterEnabled, onToggle: (isOn: boolean) => { this.setFlag(0x200, isOn); } })
-              }
-              Row({ space: 8 }) {
-                SearchFlagChip({ label: 'No tag filter', isOn: this.flagOn(0x400), isEnabled: this.searchFilterEnabled, onToggle: (isOn: boolean) => { this.setFlag(0x400, isOn); } })
-                Blank().layoutWeight(1)
-              }
-
-              this.sectionTitle('Rating')
-              RatingStarBar({
-                level: this.ratingLevel(),
-                onSelect: (level: number) => {
-                  this.setRatingLevel(level);
-                }
-              })
+              this.modeDraft = option.mode;
+              this.onSearchModeChange(option.mode);
             }
-            .width('100%')
-            .clip(true)
-            .transition(TransitionEffect.OPACITY
-              .combine(TransitionEffect.translate({ y: -8 }))
-              .animation({ duration: 180, curve: Curve.EaseInOut }))
+          })
+        }, (option: SearchModeOption) => option.mode.toString() + '-' + this.languageRevision.toString())
+      }
+      .width('100%')
+
+      Text(tagTranslationOptionText('Categories', '分类'))
+        .fontSize(12)
+        .fontColor(themeSecondaryText())
+        .fontWeight(FontWeight.Medium)
+        .margin({ top: 4 })
+      Button(tagTranslationOptionText('All categories', '全部分类'),
+        { type: ButtonType.Capsule, stateEffect: true })
+        .height(34)
+        .fontSize(14)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.allCategoriesSelected() ? Color.White : themeSecondaryText())
+        .backgroundColor(uiCapsuleButtonBackground(this.allCategoriesSelected(), themePrimaryColor()))
+        .animation({ duration: 180, curve: Curve.EaseInOut })
+        .width('100%')
+        .borderRadius(uiPillRadius(17))
+        .onClick(() => {
+          this.toggleAllCategories();
+        })
+      Column({ space: 8 }) {
+        ForEach(this.categoryRows(), (row: SearchCategoryOption[]) => {
+          Row({ space: 8 }) {
+            ForEach(row, (option: SearchCategoryOption) => {
+              SearchCategoryChip({
+                label: option.label,
+                category: option.category,
+                selected: this.categorySelected(option.category),
+                onToggle: (category: number) => {
+                  this.toggleCategory(category);
+                }
+              })
+            }, (option: SearchCategoryOption) => option.category.toString())
           }
+          .width('100%')
+        }, (row: SearchCategoryOption[], index: number) => index.toString() + row.map((option: SearchCategoryOption) => option.category.toString()).join('-'))
+      }
+      .width('100%')
+
+      Row() {
+        Text(uiText('Advanced'))
+        .fontSize(14)
+        .fontColor(themePrimaryText())
+        Blank()
+        Toggle({ type: ToggleType.Switch, isOn: this.advancedEnabledDraft })
+          .width(uiSwitchWidth())
+          .height(uiSwitchHeight())
+          .selectedColor(themeAccentTextColor())
+          .switchPointColor(Color.White)
+          .onChange((isOn: boolean) => {
+            this.setAdvancedEnabledDraft(isOn);
+          })
+      }
+      .width('100%')
+      .height(42)
+      .padding({ left: 10, right: 10 })
+      .backgroundColor(uiCapsuleButtonBackground())
+      .borderRadius(uiPillRadius(21))
+
+      if (this.advancedEnabledDraft) {
+        Column({ space: 10 }) {
+          this.sectionTitle('Search galleries')
+          Row({ space: 8 }) {
+            SearchFlagChip({ label: 'Name', isOn: this.flagOn(0x1), onToggle: (isOn: boolean) => { this.setFlag(0x1, isOn); } })
+            SearchFlagChip({ label: 'Tags', isOn: this.flagOn(0x2), onToggle: (isOn: boolean) => { this.setFlag(0x2, isOn); } })
+          }
+          Row({ space: 8 }) {
+            SearchFlagChip({ label: 'Description', isOn: this.flagOn(0x4), onToggle: (isOn: boolean) => { this.setFlag(0x4, isOn); } })
+            SearchFlagChip({ label: 'Torrent', isOn: this.flagOn(0x8), onToggle: (isOn: boolean) => { this.setFlag(0x8, isOn); } })
+          }
+
+          this.sectionTitle('Options')
+          Row({ space: 8 }) {
+            SearchFlagChip({ label: 'Has torrent', isOn: this.flagOn(0x10), onToggle: (isOn: boolean) => { this.setFlag(0x10, isOn); } })
+            SearchFlagChip({ label: 'Low power', isOn: this.flagOn(0x20), onToggle: (isOn: boolean) => { this.setFlag(0x20, isOn); } })
+          }
+          Row({ space: 8 }) {
+            SearchFlagChip({ label: 'Downvoted', isOn: this.flagOn(0x40), onToggle: (isOn: boolean) => { this.setFlag(0x40, isOn); } })
+            SearchFlagChip({ label: 'Expunged', isOn: this.flagOn(0x80), onToggle: (isOn: boolean) => { this.setFlag(0x80, isOn); } })
+          }
+
+          this.sectionTitle('Disable default filter')
+          Row({ space: 8 }) {
+            SearchFlagChip({ label: 'No lang filter', isOn: this.flagOn(0x100), isEnabled: this.searchFilterEnabled, onToggle: (isOn: boolean) => { this.setFlag(0x100, isOn); } })
+            SearchFlagChip({ label: 'No uploader filter', isOn: this.flagOn(0x200), isEnabled: this.searchFilterEnabled, onToggle: (isOn: boolean) => { this.setFlag(0x200, isOn); } })
+          }
+          Row({ space: 8 }) {
+            SearchFlagChip({ label: 'No tag filter', isOn: this.flagOn(0x400), isEnabled: this.searchFilterEnabled, onToggle: (isOn: boolean) => { this.setFlag(0x400, isOn); } })
+            Blank().layoutWeight(1)
+          }
+
+          this.sectionTitle('Rating')
+          RatingStarBar({
+            level: this.ratingLevel(),
+            onSelect: (level: number) => {
+              this.setRatingLevel(level);
+            }
+          })
+
+          this.sectionTitle('Pages')
+          Row({ space: 8 }) {
+            TextInput({ text: this.pageFromDraft >= 0 ? this.pageFromDraft.toString() : '',
+              placeholder: uiText('From page') })
+              .layoutWeight(1)
+              .height(uiSearchFieldHeight())
+              .type(InputType.Number)
+              .inputFilter('[0-9]*')
+              .fontSize(14)
+              .fontColor(themePrimaryText())
+              .placeholderColor(themeSecondaryText())
+              .backgroundColor(themeFieldBackground())
+              .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+              .padding({ left: 12, right: 12 })
+              .onChange((value: string) => {
+                const parsed = Number.parseInt(value, 10);
+                this.pageFromDraft = Number.isFinite(parsed) ? Math.max(0, parsed) : -1;
+                this.onPageFromChange(this.pageFromDraft);
+              })
+            Text('–').fontColor(themeSecondaryText())
+            TextInput({ text: this.pageToDraft >= 0 ? this.pageToDraft.toString() : '',
+              placeholder: uiText('To page') })
+              .layoutWeight(1)
+              .height(uiSearchFieldHeight())
+              .type(InputType.Number)
+              .inputFilter('[0-9]*')
+              .fontSize(14)
+              .fontColor(themePrimaryText())
+              .placeholderColor(themeSecondaryText())
+              .backgroundColor(themeFieldBackground())
+              .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+              .padding({ left: 12, right: 12 })
+              .onChange((value: string) => {
+                const parsed = Number.parseInt(value, 10);
+                this.pageToDraft = Number.isFinite(parsed) ? Math.max(0, parsed) : -1;
+                this.onPageToChange(this.pageToDraft);
+              })
+          }
+          .width('100%')
         }
         .width('100%')
-        .padding({ left: 12, right: 12, top: 12, bottom: 12 })
+        .clip(true)
+        .transition(TransitionEffect.OPACITY
+          .combine(TransitionEffect.translate({ y: -8 }))
+          .animation({ duration: 180, curve: Curve.EaseInOut }))
+      }
+    }
+    .width('100%')
+    .padding({ left: 12, right: 12, top: 12, bottom: 12 })
+  }
+
+  build() {
+    Column() {
+      if (this.embedded) {
+        this.optionsContent()
+      } else {
+        this.popupContent()
+      }
+    }
+    .width('100%')
+  }
+
+  @Builder
+  private popupContent() {
+    Column() {
+      Scroll() {
+        this.optionsContent()
       }
       .width('100%')
       .constraintSize({ maxHeight: Math.max(320, this.panelMaxHeight - 64) })

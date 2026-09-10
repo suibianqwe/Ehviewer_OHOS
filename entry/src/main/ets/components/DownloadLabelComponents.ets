@@ -26,7 +26,6 @@ import {
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius,
-  uiSearchMaterial
 } from '../shared/EhUiStyle';
 import {
   SidePanelEditableManagerRow,
@@ -366,10 +365,9 @@ export struct DownloadLabelEditDialog {
           .width('100%')
           .height(48)
           .fontSize(16)
-          .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-          .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+          .fontColor(themePrimaryText())
+          .backgroundColor(themeFieldBackground())
           .borderRadius(uiRadius(24))
-          .systemMaterial(uiSearchMaterial())
           .onChange((value: string) => {
             this.value = value;
           })

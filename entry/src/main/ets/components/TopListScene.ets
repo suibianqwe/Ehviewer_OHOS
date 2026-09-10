@@ -23,6 +23,11 @@ import {
   rememberMainContentWidthVp
 } from '../services/EhWindowImmersive';
 import {
+  peekPendingContinuationSnapshot,
+  takePendingContinuationSnapshot
+} from '../services/DistributedContinuationService';
+import { readerSessionStore } from '../services/ReaderSessionStore';
+import {
   themeDividerColor,
   themePageBackground,
   themeAccentTextColor,
@@ -170,6 +175,7 @@ export struct TopListScene {
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
     this.restoreNavigationCache();
+    this.restoreEmbeddedContinuationIfPresent();
     this.syncSceneContentWidthFromWindow();
     markCurrentRouteRightPane(this.useSplitLayout());
     setActiveBackHandler(() => this.handleSystemBack());
@@ -595,6 +601,28 @@ export struct TopListScene {
   private useSplitLayout(): boolean {
     return splitPaneModeEnabled() && this.availableSceneWidth() >= SPLIT_PANE_BREAKPOINT &&
       this.showDetail && !this.showTagSearch && !this.showGalleryList;
+  }
+
+  private restoreEmbeddedContinuationIfPresent(): void {
+    const pending = peekPendingContinuationSnapshot();
+    if (pending === null || pending.kind !== 'embedded_reader' ||
+      pending.route !== GalleryRoute.TopLists.toString() || pending.readerSession === undefined) {
+      return;
+    }
+    const session = pending.readerSession;
+    if (session.detail.gid <= 0 || session.detail.token.length === 0) {
+      return;
+    }
+    readerSessionStore.setSession(session);
+    this.detail = cloneGalleryDetail(session.detail);
+    this.detailLink = createGalleryDetailLink(session.detail.gid, session.detail.token,
+      session.detail.title, session.site, session.detailRequestUrl);
+    this.detailRequestUrl = session.detailRequestUrl;
+    this.detailStatus = session.statusText;
+    this.showDetail = true;
+    this.showReader = true;
+    takePendingContinuationSnapshot();
+    this.renderVersion++;
   }
 
   private splitListPaneWidth(): number {

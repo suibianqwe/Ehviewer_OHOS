@@ -134,6 +134,34 @@ export class EhBookmarkStore {
     return true;
   }
 
+  updateBookmark(bookmark: SearchBookmarkInfo): boolean {
+    const normalized = normalizeBookmark(bookmark);
+    if (normalized === null) {
+      return false;
+    }
+    const next = cloneBookmarks(this.items);
+    let found = false;
+    for (let i = 0; i < next.length; i++) {
+      if (next[i].id !== normalized.id) {
+        if (bookmarksEquivalent(next[i], normalized)) {
+          return false;
+        }
+        continue;
+      }
+      normalized.id = next[i].id;
+      normalized.time = next[i].time;
+      next[i] = normalized;
+      found = true;
+      break;
+    }
+    if (!found) {
+      return false;
+    }
+    this.items = next;
+    this.queueSave();
+    return true;
+  }
+
   moveBookmarkToIndex(from: number, to: number): boolean {
     const next = cloneBookmarks(this.items);
     if (from < 0 || from >= next.length || to < 0 || to >= next.length || from === to) {

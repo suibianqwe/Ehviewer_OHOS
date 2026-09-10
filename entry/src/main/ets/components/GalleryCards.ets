@@ -942,3 +942,50 @@ export struct CategoryBadge {
       .borderRadius(uiControlRadius(3))
   }
 }
+
+// WaterFlow cell keeps the first-row top inset as reactive props so a resolution
+// change re-applies the toolbar placeholder margin to every column that moved
+// into the first row (reused FlowItems keep stale margins otherwise).
+@Component
+export struct GalleryWaterFlowCell {
+  @Prop gallery: GalleryInfo = createEmptyGallery();
+  @Prop index: number = 0;
+  @Prop columnCount: number = 1;
+  @Prop topSpacing: number = 0;
+  @Prop translateTitle: boolean = false;
+  @Prop translationPriority: number = 2;
+  onLongPress: (gallery: GalleryInfo) => void = (_gallery: GalleryInfo) => {
+  };
+  onSelect: (gallery: GalleryInfo, event?: ClickEvent) => void =
+    (_gallery: GalleryInfo, _event?: ClickEvent) => {
+    };
+  onAreaObserved: (gallery: GalleryInfo, area: Area) => void =
+    (_gallery: GalleryInfo, _area: Area) => {
+    };
+
+  build() {
+    FlowItem() {
+      GalleryThumbCard({
+        gallery: this.gallery,
+        translateTitle: this.translateTitle,
+        translationPriority: this.translationPriority,
+        onLongPress: (pressed: GalleryInfo) => {
+          this.onLongPress(pressed);
+        }
+      })
+        .width('100%')
+        .animation({ duration: 220, curve: Curve.EaseOut })
+        .onClick((event?: ClickEvent) => {
+          this.onSelect(this.gallery, event);
+        })
+        .onAreaChange((_oldArea: Area, newArea: Area) => {
+          this.onAreaObserved(this.gallery, newArea);
+        })
+    }
+    .width('100%')
+    .margin({ top: this.index < this.columnCount ? this.topSpacing : 0 })
+    .reuseId('gallery-thumb-flow-item')
+    .animation({ duration: 220, curve: Curve.EaseOut })
+    .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+  }
+}

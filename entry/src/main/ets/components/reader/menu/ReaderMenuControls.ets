@@ -242,6 +242,7 @@ export struct ReaderMenuSlider {
   min: number = 0;
   max: number = 100;
   step: number = 1;
+  resetValue: number | undefined = undefined;
   valueText: (v: number) => string = (v: number): string => v.toString();
   onChange: (v: number) => void = () => {};
   @State liveValue: number = 0;
@@ -264,11 +265,18 @@ export struct ReaderMenuSlider {
         Text(this.valueText(this.liveValue))
           .fontSize(14)
           .fontColor(themeSecondaryText())
-          .width(54)
           .textAlign(TextAlign.End)
+          .maxLines(1)
       }
       .width('100%')
       .alignItems(VerticalAlign.Center)
+      .gesture(TapGesture({ count: 2 })
+        .onAction(() => {
+          if (this.resetValue !== undefined) {
+            this.liveValue = this.resetValue;
+            this.onChange(this.resetValue);
+          }
+        }))
 
       Slider({
         value: this.liveValue,
@@ -283,7 +291,7 @@ export struct ReaderMenuSlider {
         })
     }
     .width('100%')
-    .padding({ left: 16, right: 16, top: 6, bottom: 8 })
+    .padding({ left: 16, right: 16, top: 14, bottom: 0 })
   }
 }
 

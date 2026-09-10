@@ -21,7 +21,6 @@ import {
   uiMaterialForegroundColor,
   uiMaterialSecondaryForegroundColor,
   uiRadius,
-  uiSearchMaterial,
   uiTintedButtonMaterial
 } from '../shared/EhUiStyle';
 import { SessionMode, uiText, uiStatusText, getAbilityContext } from '../shared/EhShared';
@@ -627,12 +626,11 @@ export struct SessionScene {
           TextInput({ text: this.username, placeholder: uiText('Username') })
             .height(46)
             .width('100%')
-            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-            .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
+            .fontColor(themePrimaryText())
+            .placeholderColor(themeSecondaryText())
             .caretColor(themeAccentTextColor())
-            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .backgroundColor(themeFieldBackground())
             .borderRadius(uiRadius(23))
-            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.username = value;
             })
@@ -641,12 +639,11 @@ export struct SessionScene {
             .width('100%')
             .margin({ top: 10 })
             .type(InputType.Password)
-            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-            .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
+            .fontColor(themePrimaryText())
+            .placeholderColor(themeSecondaryText())
             .caretColor(themeAccentTextColor())
-            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .backgroundColor(themeFieldBackground())
             .borderRadius(uiRadius(23))
-            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.password = value;
             })
@@ -741,12 +738,11 @@ export struct SessionScene {
             .width('100%')
             .constraintSize({ maxWidth: 420 })
             .margin({ top: 14 })
-            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-            .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
+            .fontColor(themePrimaryText())
+            .placeholderColor(themeSecondaryText())
             .caretColor(themeAccentTextColor())
-            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .backgroundColor(themeFieldBackground())
             .borderRadius(uiRadius(23))
-            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.memberId = value;
             })
@@ -755,12 +751,11 @@ export struct SessionScene {
             .width('100%')
             .constraintSize({ maxWidth: 420 })
             .margin({ top: 10 })
-            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-            .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
+            .fontColor(themePrimaryText())
+            .placeholderColor(themeSecondaryText())
             .caretColor(themeAccentTextColor())
-            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .backgroundColor(themeFieldBackground())
             .borderRadius(uiRadius(23))
-            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.passHash = value;
             })
@@ -769,12 +764,11 @@ export struct SessionScene {
             .width('100%')
             .constraintSize({ maxWidth: 420 })
             .margin({ top: 10 })
-            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-            .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
+            .fontColor(themePrimaryText())
+            .placeholderColor(themeSecondaryText())
             .caretColor(themeAccentTextColor())
-            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .backgroundColor(themeFieldBackground())
             .borderRadius(uiRadius(23))
-            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.igneous = value;
             })
@@ -784,12 +778,11 @@ export struct SessionScene {
             .constraintSize({ maxWidth: 420 })
             .fontSize(13)
             .margin({ top: 12 })
-            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-            .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
+            .fontColor(themePrimaryText())
+            .placeholderColor(themeSecondaryText())
             .caretColor(themeAccentTextColor())
-            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .backgroundColor(themeFieldBackground())
             .borderRadius(uiRadius(23))
-            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.cookieInput = value;
               this.syncCookieFieldsFromInput(value, true);

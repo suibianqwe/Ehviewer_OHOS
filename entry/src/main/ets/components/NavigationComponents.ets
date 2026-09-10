@@ -40,7 +40,6 @@ import {
   uiPopupBlurStyle,
   uiPopupEffectBackground,
   uiSearchFieldHeight,
-  uiSearchMaterial,
   uiTitleBarBackgroundEffect,
   uiTitleBarFadeHeight
 } from '../shared/EhUiStyle';
@@ -481,6 +480,7 @@ export struct EhTitleBarBackdrop {
 @Component
 export struct EhNavBar {
   @Prop statusBarHeight: number = 0;  // in vp
+  @Prop toolbarHeight: number = 0;
   @Prop title: string = '';
   @Prop subtitle: string = '';
   @Prop searchMode: boolean = false;
@@ -512,7 +512,7 @@ export struct EhNavBar {
   @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
 
   private barBodyHeight(): number {
-    return uiAdaptiveToolbarHeight(this.contentWidth);
+    return this.toolbarHeight > 0 ? this.toolbarHeight : uiAdaptiveToolbarHeight(this.contentWidth);
   }
 
   private actionSize(): number {
@@ -578,15 +578,14 @@ export struct EhNavBar {
             })
               .height(uiSearchFieldHeight())
               .width('100%')
-              .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+              .backgroundColor(themeFieldBackground())
               .padding({ left: 16, right: 42, top: 0, bottom: 0 })
               .caretColor(themeAccentTextColor())
-              .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+              .fontColor(themePrimaryText())
               .lineHeight(22)
               .fontSize(16)
-              .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
+              .placeholderColor(themeSecondaryText())
               .borderRadius(uiPillRadius(uiSearchFieldHeight() / 2))
-              .systemMaterial(uiSearchMaterial())
               .onFocus(() => { this.onSearchFocus(); })
               .onChange((v: string) => { this.onKeywordChange(v); })
               .onSubmit(() => { this.onSearch(); })
@@ -1030,7 +1029,7 @@ export struct FloatingToolbarHost {
   }
 
   private totalToolbarHeight(): number {
-    return this.statusBarVp() + uiAdaptiveToolbarHeight(this.contentWidth);
+    return this.statusBarVp() + this.toolbarHeight;
   }
 
   @Builder
@@ -1040,6 +1039,7 @@ export struct FloatingToolbarHost {
   private navigationBar(translateY: number) {
     EhNavBar({
       statusBarHeight: this.statusBarVp(),
+      toolbarHeight: this.toolbarHeight,
       title: this.title,
       searchMode: this.kind === 'search',
       keyword: this.keyword,
@@ -1109,16 +1109,15 @@ struct LegacySearchBar {
       TextInput({ text: this.keyword, placeholder: uiText(this.title.length > 0 ? this.title : 'Search') })
         .height(uiSearchFieldHeight())
         .layoutWeight(1)
-        .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+        .backgroundColor(themeFieldBackground())
         .margin({ left: 10 })
         .padding({ left: 14, right: 14, top: 0, bottom: 0 })
-        .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
+        .placeholderColor(themeSecondaryText())
         .caretColor(themeAccentTextColor())
-        .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+        .fontColor(themePrimaryText())
         .lineHeight(22)
         .fontSize(16)
         .borderRadius(uiPillRadius(uiSearchFieldHeight() / 2))
-        .systemMaterial(uiSearchMaterial())
         .onChange((v: string) => { this.onKeywordChange(v); })
 
       Button({ type: ButtonType.Circle, stateEffect: true }) {

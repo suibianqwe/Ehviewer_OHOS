@@ -21,6 +21,7 @@ export const FLOATING_ACTION_SIDE_SETTING_KEY: string = 'floating_action_side';
 export const FLOATING_ACTION_SIDE_REVISION_KEY: string = 'floatingActionSideRevision';
 export const FLOATING_ACTION_HOLDING_HAND_SETTING_KEY: string = 'floating_action_holding_hand';
 export const FLOATING_ACTION_HOLDING_HAND_REVISION_KEY: string = 'floatingActionHoldingHandRevision';
+export const MULTI_DEVICE_CONTINUATION_SETTING_KEY: string = 'multi_device_continuation';
 const HISTORY_INFO_SIZE_OPTIONS: string[] = ['100', '500', '1000', '5000', '10000', '20000'];
 const DEVICE_LOCAL_SETTING_KEYS: string[] = ['download_location', 'download_public_root_path'];
 
@@ -124,6 +125,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'start_position', value: 'Center' },
     { key: 'start_transfer_time', value: '5s' },
     { key: 'reader_standalone', value: 'On' },
+    { key: MULTI_DEVICE_CONTINUATION_SETTING_KEY, value: 'Off' },
     { key: 'keep_screen_on', value: 'Off' },
     { key: 'gallery_show_clock', value: 'On' },
     { key: 'gallery_show_progress', value: 'On' },

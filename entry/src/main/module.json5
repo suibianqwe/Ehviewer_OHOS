@@ -29,6 +29,7 @@
         "startWindowIcon": "$media:foreground",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
+        "continuable": true,
         "backgroundModes": [
           "dataTransfer"
         ],
@@ -53,6 +54,7 @@
         "startWindowIcon": "$media:foreground",
         "startWindowBackground": "$color:start_window_background",
         "exported": false,
+        "continuable": true,
         "skills": []
       }
     ],

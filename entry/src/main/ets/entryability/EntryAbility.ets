@@ -1,4 +1,4 @@
-import { Configuration, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
+import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { preferences } from '@kit.ArkData';
 import { fileUri } from '@kit.CoreFileKit';
@@ -9,6 +9,7 @@ import {
   EMBEDDED_READER_ACTIVE_KEY,
   MAIN_WINDOW_KEY,
   applyAppChromeImmersiveMode,
+  isEmbeddedReaderActive,
   prepareAppChromeBeforeContent,
   rememberMainWindow,
   rememberMainWindowWidthPx
@@ -28,6 +29,17 @@ import {
 } from '../services/ReaderImageCache';
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { DAILY_CHECK_IN_FOREGROUND_REVISION_KEY } from '../services/EhDailyCheckInService';
+import {
+  buildReaderContinuationSnapshot,
+  continuationRoute,
+  EH_CONTINUATION_ROUTE_KEY,
+  putContinuationSnapshot,
+  readContinuationSnapshot,
+  setPendingContinuationSnapshot,
+  applyMissionContinuationSetting,
+  isMultiDeviceContinuationEnabled
+} from '../services/DistributedContinuationService';
+import { readerSessionStore } from '../services/ReaderSessionStore';
 import { EH_SYSTEM_COLOR_MODE_DARK, EH_SYSTEM_COLOR_MODE_KEY } from '../shared/EhTheme';
 import {
   ensureEhHostRules,
@@ -85,15 +97,44 @@ export default class EntryAbility extends UIAbility {
 
   onCreate(want: Want): void {
     this.captureDownloadDirectory(want);
+    this.captureContinuation(want);
   }
 
   onNewWant(want: Want): void {
     this.captureDownloadDirectory(want);
+    this.captureContinuation(want);
     this.openPendingDownloadDirectory();
+  }
+
+  onContinue(wantParam: Record<string, Object>): AbilityConstant.OnContinueResult {
+    if (!isMultiDeviceContinuationEnabled()) {
+      return AbilityConstant.OnContinueResult.REJECT;
+    }
+    const embedded = isEmbeddedReaderActive();
+    const route = continuationRoute();
+    const session = embedded ? readerSessionStore.getSession() : null;
+    if (embedded && (session === null || session.pageIndex < 0)) {
+      return AbilityConstant.OnContinueResult.REJECT;
+    }
+    const snapshot = buildReaderContinuationSnapshot(
+      embedded ? 'embedded_reader' : 'main',
+      route,
+      session
+    );
+    if (!putContinuationSnapshot(wantParam, snapshot)) {
+      ehAppLog.warn(this.context, 'EntryAbility', 'Continuation snapshot exceeded the platform size limit');
+      return AbilityConstant.OnContinueResult.REJECT;
+    }
+    return AbilityConstant.OnContinueResult.AGREE;
+  }
+
+  onWindowStageRestore(stage: window.WindowStage): void {
+    this.onWindowStageCreate(stage);
   }
 
   onWindowStageCreate(stage: window.WindowStage): void {
     this.windowStage = stage;
+    applyMissionContinuationSetting(this.context);
     AppStorage.setOrCreate('abilityContext', this.context);
     AppStorage.setOrCreate<number>(STATUS_BAR_HEIGHT_KEY, 0);
     AppStorage.setOrCreate<number>(TOP_AVOID_HEIGHT_KEY, 0);
@@ -105,6 +146,7 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate<string>(WINDOW_PRIVACY_STATUS_KEY, '');
     AppStorage.setOrCreate<boolean>(IDENTITY_AUTH_LOCKED_KEY, false);
     AppStorage.setOrCreate<boolean>(EMBEDDED_READER_ACTIVE_KEY, false);
+    AppStorage.setOrCreate<string>(EH_CONTINUATION_ROUTE_KEY, '');
     AppStorage.setOrCreate<number>(APP_FOREGROUND_REVISION_KEY, 0);
     AppStorage.setOrCreate<number>(DAILY_CHECK_IN_FOREGROUND_REVISION_KEY, 0);
     AppStorage.setOrCreate<number>(FLOATING_ACTION_SIDE_REVISION_KEY, 0);
@@ -129,6 +171,7 @@ export default class EntryAbility extends UIAbility {
       ehSettingsStore.ensureLoaded(this.context),
       ehCommentBlacklistStore.ensureLoaded(this.context)
     ]).then(() => {
+      applyMissionContinuationSetting(this.context);
       configureEhWebDns();
       this.setIdentityAuthLocked(this.identityAuthEnabledInMemory());
       registerEhNetworkChangeListener(this.context);
@@ -383,6 +426,20 @@ export default class EntryAbility extends UIAbility {
       this.setIdentityAuthLocked(true);
     }
     this.checkAndPromptBiometricLock();
+  }
+
+  private captureContinuation(want: Want): void {
+    const snapshot = readContinuationSnapshot(want);
+    if (snapshot === null) {
+      return;
+    }
+    if (snapshot.kind === 'standalone_reader') {
+      return;
+    }
+    setPendingContinuationSnapshot(snapshot);
+    if (snapshot.route.length > 0) {
+      AppStorage.setOrCreate<string>(EH_CONTINUATION_ROUTE_KEY, snapshot.route);
+    }
   }
 
   private notifyAppForeground(): void {

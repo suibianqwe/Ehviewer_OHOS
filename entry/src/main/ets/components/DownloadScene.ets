@@ -44,6 +44,7 @@ import { galleryMatchesLocalSearch, LocalGallerySearchOptions } from '../service
 import { DetailSearchRequest } from '../services/GalleryDetailActionSupport';
 import {
   createEmptyGalleryDetailLink,
+  createGalleryDetailLink,
   createGalleryDetailLinkFromGallery,
   GalleryDetailLink,
   initialDetailForLink
@@ -55,9 +56,16 @@ import {
   mainContentWidthFallbackVp,
   rememberMainContentWidthVp
 } from '../services/EhWindowImmersive';
+import {
+  peekPendingContinuationSnapshot,
+  takePendingContinuationSnapshot
+} from '../services/DistributedContinuationService';
+import { readerSessionStore } from '../services/ReaderSessionStore';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, nextFloatingToolbarOffset, runDetailBackHandler, setActiveBackHandler } from '../shared/EhShared';
 import { sortedStringKey, toggleStringValue } from '../shared/StringCollectionSupport';
 import { GalleryCardScrollAnchor } from '../shared/GalleryCardScrollAnchor';
+import { galleryListColumnCount, galleryListColumnsTemplate, galleryListHorizontalPadding,
+  galleryListTopInset, galleryListViewportHeight } from '../shared/AdaptiveGalleryListLayout';
 import {
   cloneGalleryDetail,
   cloneGalleryInfo,
@@ -114,7 +122,6 @@ import {
   uiPageHorizontalPadding,
   uiRadius,
   uiSearchFieldHeight,
-  uiSearchMaterial
 } from '../shared/EhUiStyle';
 import { FloatingToolbarHost } from './NavigationComponents';
 import { PopupScrim } from './PopupScrim';
@@ -306,6 +313,8 @@ export struct DownloadScene {
   @State activeSplitPane: string = SPLIT_PANE_FOCUS_LEFT;
   @State selectedDownloadGids: string = '';
   @State toolbarOffsetY: number = 0;
+  private lastToolbarScrollOffset: number = 0;
+  private toolbarRestoring: boolean = false;
   @State downloadActionsExpanded: boolean = false;
   @State floatingActionSide: string = FLOATING_ACTION_SIDE_RIGHT;
   @State statusHintText: string = '';
@@ -345,6 +354,7 @@ export struct DownloadScene {
 
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
+    this.restoreEmbeddedContinuationIfPresent();
     this.syncHoldingHandSubscription();
     this.restoreNavigationCache();
     this.syncSceneContentWidthFromWindow();
@@ -573,30 +583,48 @@ export struct DownloadScene {
   }
 
   private downloadContentStartOffset(): number {
-    return this.toolbarVisibleHeight();
+    return galleryListTopInset(this.floatingToolbarHeight());
   }
 
   private downloadListViewportHeight(): number {
-    if (this.viewportHeight <= 0) {
-      return 1;
-    }
-    return Math.max(1, this.viewportHeight - this.downloadContentStartOffset());
+    return galleryListViewportHeight(this.viewportHeight);
   }
 
   private advancedPanelMaxHeight(): number {
     if (this.viewportHeight <= 0) {
       return 520;
     }
-    return Math.max(360, this.viewportHeight - this.statusBarVp() - 56 - 28);
+    return Math.max(360, this.viewportHeight - this.floatingToolbarHeight() - 28);
   }
 
   private downloadToolActionsMaxHeight(): number {
-    const reservedTop = this.statusBarVp() + 56 + 8;
+    const reservedTop = this.statusBarVp() + uiAdaptiveToolbarHeight(this.downloadContentWidth) + 8;
     return floatingActionAvailableHeight(this.viewportHeight, reservedTop);
   }
 
   onHoldingHandSettingChanged(): void {
     this.syncHoldingHandSubscription();
+  }
+
+  private restoreEmbeddedContinuationIfPresent(): void {
+    const pending = peekPendingContinuationSnapshot();
+    if (pending === null || pending.kind !== 'embedded_reader' ||
+      pending.route !== GalleryRoute.Downloads.toString() || pending.readerSession === undefined) {
+      return;
+    }
+    const session = pending.readerSession;
+    if (session.detail.gid <= 0 || session.detail.token.length === 0) {
+      return;
+    }
+    readerSessionStore.setSession(session);
+    this.detail = cloneGalleryDetail(session.detail);
+    this.detailLink = createGalleryDetailLink(session.detail.gid, session.detail.token,
+      session.detail.title, session.site, session.detailRequestUrl);
+    this.detailRequestUrl = session.detailRequestUrl;
+    this.statusText = session.statusText;
+    this.showDetail = true;
+    this.showReader = true;
+    takePendingContinuationSnapshot();
   }
 
   onFloatingActionSideSettingChanged(): void {
@@ -660,10 +688,9 @@ export struct DownloadScene {
       return scrollOffset;
     }
     if (scrollOffset > 0 && this.toolbarVisibleHeight() > 0) {
-      const previousOffsetY = this.toolbarOffsetY;
+      this.toolbarRestoring = false;
       this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, offset, this.floatingToolbarHeight());
-      const consumedOffset = Math.max(0, previousOffsetY - this.toolbarOffsetY);
-      return Math.max(0, scrollOffset - consumedOffset);
+      return scrollOffset;
     }
     if (scrollOffset < 0 && this.toolbarOffsetY < 0) {
       this.restoreToolbarOnReverseScroll();
@@ -1223,7 +1250,7 @@ export struct DownloadScene {
   }
 
   private downloadContentPadding(): number {
-    return uiPageHorizontalPadding(this.downloadContentWidth);
+    return galleryListHorizontalPadding(this.downloadContentWidth);
   }
 
   private downloadColumnCount(): number {
@@ -1237,16 +1264,11 @@ export struct DownloadScene {
     }
     const preferred = this.downloadCardPreferredWidth();
     const gap = this.downloadCardGap();
-    return uiAdaptiveColumnCount(width, preferred, gap);
+    return galleryListColumnCount(width, preferred, gap);
   }
 
   private downloadWaterFlowColumnsTemplate(): string {
-    const columns = Math.max(1, this.downloadColumnCount());
-    let template = '';
-    for (let i = 0; i < columns; i++) {
-      template += '1fr ';
-    }
-    return template.trim();
+    return galleryListColumnsTemplate(this.downloadColumnCount());
   }
 
   private updateDownloadContentWidth(width: number): void {
@@ -1299,6 +1321,22 @@ export struct DownloadScene {
   private useSplitLayout(): boolean {
     return splitPaneModeEnabled() && this.availableSceneWidth() >= SPLIT_PANE_BREAKPOINT &&
       (this.showDetail || this.downloadLabelManagerVisible) && !this.showTagSearch;
+  }
+
+  private handleDownloadListDidScroll(): void {
+    const yOffset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
+    const delta = yOffset - this.lastToolbarScrollOffset;
+    this.lastToolbarScrollOffset = yOffset;
+    if (yOffset <= 4) {
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = 0;
+    } else if (delta > 0.1) {
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = -Math.min(yOffset, this.floatingToolbarHeight());
+    } else if (delta < -0.1) {
+      this.restoreToolbarOnReverseScroll();
+    }
+    this.rememberDownloadScrollOffset();
   }
 
   private availableSceneWidth(): number {
@@ -1919,9 +1957,16 @@ export struct DownloadScene {
   }
 
   @Builder
+  private downloadListTopPlaceholder() {
+    Row()
+      .width('100%')
+      .height(this.downloadContentStartOffset())
+  }
+
+  @Builder
   private downloadStandardList() {
     List({ space: 0, scroller: this.downloadScroller }) {
-      ListItemGroup({ header: this.downloadListEdgeSpacer() }) {
+      ListItemGroup({ header: this.downloadListTopPlaceholder() }) {
         ForEach(this.visibleItems, (item: DownloadInfo, index: number) => {
           ListItem() {
             this.downloadCardContent(item, index)
@@ -1937,14 +1982,15 @@ export struct DownloadScene {
       }
     }
     .width('100%')
-    .height(this.downloadListViewportHeight())
+    .height('100%')
     .lanes(this.downloadColumnCount(), this.downloadCardGap())
-    .cachedCount(4)
+    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
+    .cachedCount(10)
+    .scrollBar(BarState.Auto)
     .padding({
       left: this.downloadContentPadding(),
       right: this.downloadContentPadding()
     })
-    .translate({ y: this.downloadContentStartOffset() })
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       this.updateDownloadContentWidthFromArea(newArea.width as number);
     })
@@ -1955,7 +2001,10 @@ export struct DownloadScene {
       return { offsetRemain: this.updateToolbarForScrollFrame(offset) };
     })
     .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
-      this.rememberDownloadScrollOffset();
+      this.handleDownloadListDidScroll();
+    })
+    .onScrollIndex((first: number, _last: number) => {
+      this.toolbarOffsetY = first > 0 ? -this.floatingToolbarHeight() : 0;
     })
     .onScrollStop(() => {
       this.rememberDownloadScrollOffset();
@@ -1974,23 +2023,27 @@ export struct DownloadScene {
           this.downloadCardContent(item, index)
         }
         .width('100%')
-        .margin({ top: index < this.downloadColumnCount() ? this.downloadCardGap() : 0 })
+        .margin({ top: index < this.downloadColumnCount() ? this.downloadContentStartOffset() : 0 })
         .reuseId('download-thumb-flow-item')
+        .onVisibleAreaChange([0.0, 0.01], (visible: boolean, _ratio: number) => {
+          this.updateVisibleTranslationItem(index, visible);
+        })
         .animation({ duration: 220, curve: Curve.EaseOut })
         .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
-      }, (item: DownloadInfo) => item.gid.toString())
+      }, (item: DownloadInfo) => item.gid.toString() + ':' + this.downloadColumnCount().toString())
     }
     .columnsTemplate(this.downloadWaterFlowColumnsTemplate())
     .columnsGap(this.downloadCardGap())
     .rowsGap(this.downloadCardGap())
+    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
+    .scrollBar(BarState.Auto)
     .width('100%')
-    .height(this.downloadListViewportHeight())
-    .cachedCount(4)
+    .height('100%')
+    .cachedCount(10)
     .padding({
       left: this.downloadContentPadding(),
       right: this.downloadContentPadding()
     })
-    .translate({ y: this.downloadContentStartOffset() })
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       this.updateDownloadContentWidthFromArea(newArea.width as number);
     })
@@ -2001,7 +2054,7 @@ export struct DownloadScene {
       return { offsetRemain: this.updateToolbarForScrollFrame(offset) };
     })
     .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
-      this.rememberDownloadScrollOffset();
+      this.handleDownloadListDidScroll();
     })
     .onScrollIndex((first: number, last: number) => {
       this.setVisibleTranslationRange(first, last);
@@ -2144,16 +2197,18 @@ export struct DownloadScene {
           if (!this.searchSubmitted) {
             List({ space: 0 }) {
               ListItem() {
+                Row().width('100%').height(this.floatingToolbarHeight() + 8)
+              }
+              ListItem() {
                 this.downloadSearchSuggestionPlaceholder()
               }
             }
             .width('100%')
-            .height(this.downloadListViewportHeight())
+            .height('100%')
             .padding({
               left: this.downloadContentPadding(),
               right: this.downloadContentPadding()
             })
-            .translate({ y: this.downloadContentStartOffset() })
           } else if (this.visibleItems.length === 0) {
             Column() {
               Text(uiText('Downloads'))
@@ -2167,9 +2222,8 @@ export struct DownloadScene {
                 .margin({ top: 10 })
             }
             .width('100%')
-            .height(this.downloadListViewportHeight())
+            .height('100%')
             .justifyContent(FlexAlign.Center)
-            .translate({ y: this.downloadContentStartOffset() })
           } else {
             if (galleryListMode() === 'Thumb') {
               this.downloadThumbnailWaterFlow()
@@ -2194,7 +2248,7 @@ export struct DownloadScene {
             showCutout: this.downloadContentWidth > 20 && this.advancedPopupHeight > 0,
             positionedCutout: true,
             cutoutX: 10,
-            cutoutY: this.statusBarVp() + 64,
+            cutoutY: this.statusBarVp() + uiAdaptiveToolbarHeight(this.downloadContentWidth) + 8,
             cutoutWidth: Math.max(0, this.downloadContentWidth - 20),
             cutoutHeight: this.advancedPopupHeight,
             cutoutRadius: uiRadius(8),
@@ -2258,7 +2312,11 @@ export struct DownloadScene {
           }
             .width('100%')
             .height('100%')
-            .padding({ top: this.statusBarVp() + 56 + 8, left: 10, right: 10 })
+            .padding({
+              top: this.statusBarVp() + uiAdaptiveToolbarHeight(this.downloadContentWidth) + 8,
+              left: 10,
+              right: 10
+            })
             .hitTestBehavior(HitTestMode.Transparent)
             .zIndex(16)
         }
@@ -2375,11 +2433,10 @@ export struct DownloadScene {
                 .height(uiSearchFieldHeight())
                 .layoutWeight(1)
                 .type(InputType.Number)
-                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
                 .padding({ left: 10, right: 10 })
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.downloadJumpDraft = value;
                 })

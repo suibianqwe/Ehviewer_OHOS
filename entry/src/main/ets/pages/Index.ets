@@ -22,6 +22,11 @@ import {
   loadEhWebUrlWithAndroidCompatibility
 } from '../services/EhWebRuntime';
 import { TRANSLATION_ERROR_MESSAGE_KEY, TRANSLATION_ERROR_REVISION_KEY } from '../services/EhTranslationService';
+import {
+  peekPendingContinuationSnapshot,
+  rememberContinuationRoute,
+  takePendingContinuationSnapshot
+} from '../services/DistributedContinuationService';
 import { EhDrawer } from '../components/NavigationComponents';
 import { ConfirmActionOverlay } from '../components/ConfirmActionOverlay';
 import { UpdatePromptOverlay } from '../components/UpdatePromptOverlay';
@@ -189,6 +194,7 @@ struct Index {
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
     this.restoreRootRoute();
+    this.applyContinuationRouteIfPresent();
     const context = getAbilityContext();
     if (context === undefined) {
       this.setRootRoute(GalleryRoute.Home);
@@ -409,6 +415,22 @@ struct Index {
     this.routeResetVersion = rootNavigationCache.routeResetVersion;
   }
 
+  private applyContinuationRouteIfPresent(): void {
+    const snapshot = peekPendingContinuationSnapshot();
+    if (snapshot === null || snapshot.route.length === 0) {
+      return;
+    }
+    const routes: GalleryRoute[] = [GalleryRoute.Home, GalleryRoute.Subscription, GalleryRoute.WhatsHot,
+      GalleryRoute.TopLists, GalleryRoute.Favorites, GalleryRoute.History, GalleryRoute.Downloads,
+      GalleryRoute.Session, GalleryRoute.Migration, GalleryRoute.Settings];
+    if (routes.indexOf(snapshot.route as GalleryRoute) >= 0) {
+      this.setRootRoute(snapshot.route as GalleryRoute);
+      if (snapshot.kind === 'main') {
+        takePendingContinuationSnapshot();
+      }
+    }
+  }
+
   private applyInitialRoute(): void {
     if (rootNavigationCache.initialized) {
       this.restoreRootRoute();
@@ -434,6 +456,7 @@ struct Index {
   private setRootRoute(route: GalleryRoute): void {
     prepareSplitPaneRouteTransition();
     this.activeRoute = route;
+    rememberContinuationRoute(route.toString());
     this.routeResetVersion++;
     rootNavigationCache = {
       initialized: true,

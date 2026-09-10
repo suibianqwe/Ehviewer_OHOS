@@ -9,6 +9,7 @@ export const FILTER_MODE_TITLE: number = 0;
 export const FILTER_MODE_UPLOADER: number = 1;
 export const FILTER_MODE_TAG: number = 2;
 export const FILTER_MODE_RATING: number = 4;
+export const FILTER_RULE_REVISION_KEY: string = 'eh_filter_rule_revision';
 
 export interface FilterRule {
   id: number;
@@ -204,14 +205,17 @@ function galleryHasTag(gallery: GalleryInfo, text: string): boolean {
   }
   if (gallery.simpleTags !== undefined) {
     for (let i = 0; i < gallery.simpleTags.length; i++) {
-      if (gallery.simpleTags[i].toLowerCase() === text) {
+      const tag = normalizeTagText(gallery.simpleTags[i]);
+      const colon = tag.indexOf(':');
+      const tagOnly = colon >= 0 ? tag.substring(colon + 1).trim() : tag;
+      if (tagOnly === text || tag === text) {
         return true;
       }
     }
   }
   if (gallery.tagList !== undefined) {
     for (let i = 0; i < gallery.tagList.length; i++) {
-      const tag = gallery.tagList[i].toLowerCase();
+      const tag = normalizeTagText(gallery.tagList[i]);
       const colon = tag.indexOf(':');
       const tagOnly = colon >= 0 ? tag.substring(colon + 1).trim() : tag;
       if (tagOnly === text || tag === text) {
@@ -295,7 +299,7 @@ function parseRatingThreshold(text: string): number {
 }
 
 function normalizeTagText(text: string): string {
-  return text.replace(/\s+/g, ' ').trim().toLowerCase();
+  return text.replace(/[：]/g, ':').replace(/\s*:\s*/g, ':').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 function cloneRule(rule: FilterRule): FilterRule {

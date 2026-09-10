@@ -1,4 +1,4 @@
-import { Configuration, ConfigurationConstant, UIAbility, common } from '@kit.AbilityKit';
+import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want, common } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import {
   applyReaderBrightnessFromSettings,
@@ -14,6 +14,14 @@ import { cancelQueuedReaderImageRequests } from '../services/ReaderImageCache';
 import { applyWindowPrivacyMode } from '../services/EhWindowPrivacy';
 import { EH_SYSTEM_COLOR_MODE_DARK, EH_SYSTEM_COLOR_MODE_KEY } from '../shared/EhTheme';
 import { notifyLanguageChanged, notifyThemeChanged } from '../shared/EhShared';
+import {
+  buildReaderContinuationSnapshot,
+  putContinuationSnapshot,
+  readContinuationSnapshot,
+  applyMissionContinuationSetting,
+  isMultiDeviceContinuationEnabled
+} from '../services/DistributedContinuationService';
+import { readerSessionStore } from '../services/ReaderSessionStore';
 
 export const READER_ABILITY_CONTEXT_KEY: string = 'readerAbilityContext';
 
@@ -22,7 +30,45 @@ export default class ReaderAbility extends UIAbility {
   private appWasBackground: boolean = false;
   private windowStateRestoreStarted: boolean = false;
 
+  onCreate(want: Want): void {
+    this.restoreContinuationSession(want);
+  }
+
+  onNewWant(want: Want): void {
+    this.restoreContinuationSession(want);
+  }
+
+  onContinue(wantParam: Record<string, Object>): AbilityConstant.OnContinueResult {
+    if (!isMultiDeviceContinuationEnabled()) {
+      return AbilityConstant.OnContinueResult.REJECT;
+    }
+    const session = readerSessionStore.getSession();
+    if (session === null || session.pageIndex < 0) {
+      return AbilityConstant.OnContinueResult.REJECT;
+    }
+    const snapshot = buildReaderContinuationSnapshot('standalone_reader', 'reader', session);
+    return putContinuationSnapshot(wantParam, snapshot) ?
+      AbilityConstant.OnContinueResult.AGREE : AbilityConstant.OnContinueResult.REJECT;
+  }
+
+  onWindowStageRestore(stage: window.WindowStage): void {
+    this.onWindowStageCreate(stage);
+  }
+
+  private restoreContinuationSession(want: Want): void {
+    const snapshot = readContinuationSnapshot(want);
+    if (snapshot === null || snapshot.kind !== 'standalone_reader' || snapshot.readerSession === undefined) {
+      return;
+    }
+    readerSessionStore.setSession(snapshot.readerSession);
+  }
+
+  private enableMissionContinuation(): void {
+    applyMissionContinuationSetting(this.context);
+  }
+
   onWindowStageCreate(stage: window.WindowStage): void {
+    this.enableMissionContinuation();
     AppStorage.setOrCreate(READER_ABILITY_CONTEXT_KEY, this.context);
     this.updateSystemColorMode(this.context.config.colorMode);
     try {
@@ -69,6 +115,7 @@ export default class ReaderAbility extends UIAbility {
 
   private loadSettingsAndApplyReaderChrome(win: window.Window): void {
     ehSettingsStore.ensureLoaded(this.context).finally(() => {
+      applyMissionContinuationSetting(this.context);
       this.applyReaderChrome(win);
       applyWindowPrivacyMode(ehSettingsStore.getValue('enable_secure', 'Off') === 'On', undefined, this.context);
       this.scheduleReaderChrome(win, 80);

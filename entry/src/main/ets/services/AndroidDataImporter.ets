@@ -292,7 +292,12 @@ async function importQuickSearch(store: relationalStore.RdbStore): Promise<numbe
 }
 
 function normalizedAndroidBookmarkName(name: string, sourceKeyword: string, keyword: string): string {
-  if (name.length === 0 || name === sourceKeyword) {
+  // Let EhBookmarkStore derive a mode-specific fallback name for empty
+  // subscription/home bookmarks instead of rejecting them as unnamed.
+  if (name.length === 0) {
+    return keyword.length > 0 ? keyword : name;
+  }
+  if (name === sourceKeyword && keyword.length > 0) {
     return keyword;
   }
   return name;

@@ -142,7 +142,7 @@ export struct CommentsScene {
           ForEach(this.visibleCommentItems, (comment: GalleryComment, index: number) => {
             ListItem() {
               GalleryCommentRow({
-                comment: comment,
+                comment: this.visibleCommentItems[index],
                 maxLines: 1000,
                 compact: false,
                 openGalleryLinksInApp: true,
@@ -156,7 +156,7 @@ export struct CommentsScene {
               })
             }
             .reuseId('comment-row')
-          }, (comment: GalleryComment) => comment.id)
+          }, (comment: GalleryComment, index: number) => comment.id + ':' + index.toString())
           ListItem() {
             Divider()
               .height(1)

@@ -1,0 +1,3 @@
+# Copy this file to local.properties when DEVECO_SDK_HOME is not set.
+# Use an absolute path to the SDK bundled with DevEco Studio.
+sdk.dir=C:\\path\\to\\DevEco Studio\\sdk

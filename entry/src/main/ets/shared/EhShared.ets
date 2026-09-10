@@ -11,6 +11,7 @@ import {
   DEFAULT_DOWNLOAD_LABEL_SETTING_KEY,
   FLOATING_ACTION_HOLDING_HAND_SETTING_KEY,
   HISTORY_INFO_SIZE_KEY,
+  MULTI_DEVICE_CONTINUATION_SETTING_KEY,
   ehSettingsStore,
   historyInfoSizeLimitFromValue,
   historyInfoSizeOptions,
@@ -930,6 +931,9 @@ export function zhText(text: string): string {
     case 'Bookmarks': return '书签栏';
     case 'Bookmark settings': return '书签设置';
     case 'Add bookmark': return '添加书签';
+    case 'Edit bookmark': return '编辑书签';
+    case 'Multi-device continuation': return '多设备流转';
+    case 'Open the current comic page on another device': return '在另一台设备打开当前漫画的阅读页';
     case 'Bookmark name': return '书签名称';
     case 'No bookmarks': return '这里是书签栏';
     case 'Tap plus to bookmark the current gallery list': return '点击“+”添加当前画廊列表状态';
@@ -3272,6 +3276,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       optionSettingsRow('start_position', 'Start position', 'Where a gallery starts when opened', entries, ['Top left', 'Top right', 'Bottom left', 'Bottom right', 'Center']),
       optionSettingsRow('start_transfer_time', 'Auto transfer time', 'Delay before automatically advancing to the next page', entries, readerAutoTransferTimeOptions()),
       optionSettingsRow('reader_standalone', 'Standalone reader', 'Open reader in a standalone ability', entries, ON_OFF_OPTIONS),
+      optionSettingsRow(MULTI_DEVICE_CONTINUATION_SETTING_KEY, 'Multi-device continuation',
+        'Open the current comic page on another device', entries, ON_OFF_OPTIONS),
       optionSettingsRow('keep_screen_on', 'Keep screen on', 'Prevent screen sleep while reading', entries, ON_OFF_OPTIONS),
       optionSettingsRow('gallery_show_clock', 'Show clock', 'Show clock overlay in the reader', entries, ON_OFF_OPTIONS),
       optionSettingsRow('gallery_show_progress', 'Show progress', 'Show reader progress overlay', entries, ON_OFF_OPTIONS),

@@ -30,6 +30,7 @@ import {
 import {
   FLOATING_ACTION_HOLDING_HAND_REVISION_KEY,
   FLOATING_ACTION_HOLDING_HAND_SETTING_KEY,
+  MULTI_DEVICE_CONTINUATION_SETTING_KEY,
   HISTORY_INFO_SIZE_KEY,
   ehSettingsStore,
   historyInfoSizeLimitFromValue,
@@ -94,7 +95,7 @@ import {
 } from '../services/ReaderOcrDebugLog';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { CacheClearResult, CachePruneResult, readerImageCache } from '../services/ReaderImageCache';
-import { FilterRule, FILTER_MODE_RATING, FILTER_MODE_TITLE, ehFilterStore } from '../services/EhFilterStore';
+import { FilterRule, FILTER_MODE_RATING, FILTER_MODE_TITLE, FILTER_RULE_REVISION_KEY, ehFilterStore } from '../services/EhFilterStore';
 import { ehCommentBlacklistStore } from '../services/EhCommentBlacklistStore';
 import {
   applyAppChromeImmersiveMode,
@@ -104,6 +105,7 @@ import {
 } from '../services/EhWindowImmersive';
 import { applyWindowPrivacyMode } from '../services/EhWindowPrivacy';
 import { ehAppLog } from '../services/EhAppLog';
+import { applyMissionContinuationSetting } from '../services/DistributedContinuationService';
 import { ehParseErrorBodyStore, ParseErrorBodyEntry } from '../services/EhParseErrorBodyStore';
 import {
   AndroidDataImportSummary,
@@ -165,7 +167,6 @@ import {
   uiButtonHighlightBorderColor,
   uiRadius,
   uiSearchFieldHeight,
-  uiSearchMaterial,
   uiSelectDialogMaterial,
   uiSelectPopupBackground,
   uiSegmentMaterial,
@@ -236,9 +237,13 @@ interface SettingsNavigationCache {
   filterNewText: string;
   filterNewMode: number;
   sessionInitialMode: SessionMode;
+  homeScrollOffset: number;
+  detailScrollOffsets: Map<string, number>;
 }
 
 let settingsNavigationCache: SettingsNavigationCache | null = null;
+let settingsHomeScrollOffset: number = 0;
+const settingsDetailScrollOffsets: Map<string, number> = new Map<string, number>();
 
 @Component
 export struct SettingsScene {
@@ -449,6 +454,11 @@ export struct SettingsScene {
     this.filterNewText = settingsNavigationCache.filterNewText;
     this.filterNewMode = settingsNavigationCache.filterNewMode;
     this.sessionInitialMode = settingsNavigationCache.sessionInitialMode;
+    settingsHomeScrollOffset = Math.max(0, settingsNavigationCache.homeScrollOffset);
+    settingsDetailScrollOffsets.clear();
+    settingsNavigationCache.detailScrollOffsets.forEach((offset: number, key: string) => {
+      settingsDetailScrollOffsets.set(key, Math.max(0, offset));
+    });
     this.restorePanelWithFade = this.settingsDetailLayerPanel() !== SettingsPanel.Main && shouldFadeRestoredRightPane();
   }
 
@@ -461,12 +471,26 @@ export struct SettingsScene {
       webViewTitle: this.webViewTitle,
       filterNewText: this.filterNewText,
       filterNewMode: this.filterNewMode,
-      sessionInitialMode: this.sessionInitialMode
+      sessionInitialMode: this.sessionInitialMode,
+      homeScrollOffset: settingsHomeScrollOffset,
+      detailScrollOffsets: new Map<string, number>(settingsDetailScrollOffsets)
     };
+  }
+
+  private updateHomeScrollOffset(offset: number): void {
+    settingsHomeScrollOffset = Math.max(0, offset);
+    this.saveNavigationCache();
+  }
+
+  private updateDetailScrollOffset(panel: SettingsPanel, offset: number): void {
+    settingsDetailScrollOffsets.set(panel, Math.max(0, offset));
+    this.saveNavigationCache();
   }
 
   private clearNavigationCache(): void {
     settingsNavigationCache = null;
+    settingsHomeScrollOffset = 0;
+    settingsDetailScrollOffsets.clear();
   }
 
   private restoreBackHandler(): void {
@@ -477,8 +501,11 @@ export struct SettingsScene {
 
   private settingsDetailLayerPanel(): SettingsPanel {
     for (let i = this.panelStack.length - 1; i >= 0; i--) {
-      if (this.panelStack[i] !== SettingsPanel.Main) {
-        return this.panelStack[i];
+      // Keep the ordinary settings list mounted while a deeper page covers it.
+      for (let j = 0; j < SETTINGS_HEADERS.length; j++) {
+        if (this.panelStack[i] === SETTINGS_HEADERS[j].panel) {
+          return this.panelStack[i];
+        }
       }
     }
     return SettingsPanel.Main;
@@ -594,6 +621,9 @@ export struct SettingsScene {
     const normalizedValue = this.normalizedSettingValue(key, value);
     const previousValue = ehSettingsStore.getValue(key, '');
     ehSettingsStore.setValue(key, normalizedValue);
+    if (key === MULTI_DEVICE_CONTINUATION_SETTING_KEY) {
+      applyMissionContinuationSetting(getAbilityContext());
+    }
     if (key === FLOATING_ACTION_HOLDING_HAND_SETTING_KEY && normalizedValue !== previousValue) {
       const revision = AppStorage.get<number>(FLOATING_ACTION_HOLDING_HAND_REVISION_KEY) ?? 0;
       AppStorage.setOrCreate<number>(FLOATING_ACTION_HOLDING_HAND_REVISION_KEY, revision + 1);
@@ -2121,6 +2151,8 @@ export struct SettingsScene {
   }
 
   private saveFilterRules(): void {
+    const revision = AppStorage.get<number>(FILTER_RULE_REVISION_KEY) ?? 0;
+    AppStorage.setOrCreate<number>(FILTER_RULE_REVISION_KEY, revision + 1);
     const context = getAbilityContext();
     if (context !== undefined) {
       ehFilterStore.save(context).catch((error: Error) => {
@@ -2136,6 +2168,10 @@ export struct SettingsScene {
       // and returning to Main requires no enter animation — it's already there.
       SettingsHomePanel({
         onMenu: this.onMenu,
+        initialScrollOffset: settingsHomeScrollOffset,
+        onScrollPositionChange: (offset: number) => {
+          this.updateHomeScrollOffset(offset);
+        },
         onOpen: (panel: SettingsPanel) => {
           this.openPrimaryPanel(panel);
         }
@@ -2177,6 +2213,10 @@ export struct SettingsScene {
           themeName: this.themeName,
           renderRevision: this.settingsRenderRevision,
           settingEntries: this.settingEntries,
+          initialScrollOffset: settingsDetailScrollOffsets.get(this.settingsDetailLayerPanel()) ?? 0,
+          onScrollPositionChange: (offset: number) => {
+            this.updateDetailScrollOffset(this.settingsDetailLayerPanel(), offset);
+          },
           onBack: () => {
             this.closePanel();
           },
@@ -2693,10 +2733,9 @@ struct ProxySettingsOverlay {
               TextInput({ text: this.draftHost, placeholder: uiText('Host or IP address') })
                 .height(44)
                 .fontSize(14)
-                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.draftHost = value;
                 })
@@ -2707,10 +2746,9 @@ struct ProxySettingsOverlay {
               TextInput({ text: this.draftPort, placeholder: uiText('Proxy port') })
                 .height(44)
                 .fontSize(14)
-                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.draftPort = value;
                 })
@@ -2721,10 +2759,9 @@ struct ProxySettingsOverlay {
               TextInput({ text: this.draftUsername, placeholder: uiText('Optional authentication username') })
                 .height(44)
                 .fontSize(14)
-                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.draftUsername = value;
                 })
@@ -2736,10 +2773,9 @@ struct ProxySettingsOverlay {
                 .height(44)
                 .type(InputType.Password)
                 .fontSize(14)
-                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.draftPassword = value;
                 })
@@ -2751,10 +2787,9 @@ struct ProxySettingsOverlay {
                 placeholder: uiText('Comma-separated hosts that bypass the proxy') })
                 .height(44)
                 .fontSize(14)
-                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.draftExclusions = value;
                 })
@@ -2926,9 +2961,20 @@ struct DownloadMigrationConfirmOverlay {
 export struct SettingsHomePanel {
   onMenu: () => void = () => {};
   onOpen: (panel: SettingsPanel) => void = () => {};
+  initialScrollOffset: number = 0;
+  onScrollPositionChange: (offset: number) => void = (_offset: number) => {};
   @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   private settingsScroller: Scroller = new Scroller();
+
+  aboutToAppear(): void {
+    const offset = Math.max(0, this.initialScrollOffset);
+    if (offset > 0) {
+      setTimeout(() => {
+        this.settingsScroller.scrollTo({ xOffset: 0, yOffset: offset });
+      }, 0);
+    }
+  }
 
   private totalBarHeight(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx) + uiAdaptiveToolbarHeight(this.contentWidth);
@@ -2964,6 +3010,12 @@ export struct SettingsHomePanel {
       .padding({ left: uiPageHorizontalPadding(this.contentWidth),
         right: uiPageHorizontalPadding(this.contentWidth) })
       .edgeEffect(EdgeEffect.None)
+      .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
+        this.onScrollPositionChange(Math.max(0, this.settingsScroller.currentOffset().yOffset));
+      })
+      .onScrollStop(() => {
+        this.onScrollPositionChange(Math.max(0, this.settingsScroller.currentOffset().yOffset));
+      })
 
       AppToolbar({
         title: 'Settings',
@@ -3111,9 +3163,20 @@ export struct SettingsDetailPanel {
   onCycleSetting: (row: SettingsRowItem) => void = () => {};
   onSetSetting: (key: string, value: string) => void = () => {};
   onTextDraftChange: (key: string, value: string) => void = () => {};
+  initialScrollOffset: number = 0;
+  onScrollPositionChange: (offset: number) => void = (_offset: number) => {};
   @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
   private settingsScroller: Scroller = new Scroller();
+
+  aboutToAppear(): void {
+    const offset = Math.max(0, this.initialScrollOffset);
+    if (offset > 0) {
+      setTimeout(() => {
+        this.settingsScroller.scrollTo({ xOffset: 0, yOffset: offset });
+      }, 0);
+    }
+  }
 
   private totalBarHeight(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx) + uiAdaptiveToolbarHeight(this.contentWidth);
@@ -3222,6 +3285,12 @@ export struct SettingsDetailPanel {
         }
       }
       .edgeEffect(EdgeEffect.None)
+      .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
+        this.onScrollPositionChange(Math.max(0, this.settingsScroller.currentOffset().yOffset));
+      })
+      .onScrollStop(() => {
+        this.onScrollPositionChange(Math.max(0, this.settingsScroller.currentOffset().yOffset));
+      })
       .width('100%')
       .height('100%')
       .cachedCount(4)
@@ -3428,12 +3497,11 @@ struct TranslationPromptPanel {
             .height(44)
             .width('100%')
             .fontSize(14)
-            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+            .fontColor(themePrimaryText())
             .placeholderColor(themeSecondaryText())
             .caretColor(themeAccentTextColor())
-            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .backgroundColor(themeFieldBackground())
             .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.promptName = value;
             })
@@ -3448,12 +3516,11 @@ struct TranslationPromptPanel {
             .constraintSize({ minHeight: 80 })
             .width('100%')
             .fontSize(13)
-            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-            .placeholderColor(uiMaterialForegroundColor(themeSecondaryText()))
+            .fontColor(themePrimaryText())
+            .placeholderColor(themeSecondaryText())
             .caretColor(themeAccentTextColor())
-            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .backgroundColor(themeFieldBackground())
             .borderRadius(uiRadius(18))
-            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.promptText = value;
             })
@@ -3697,10 +3764,9 @@ export struct SettingsOptionPanel {
               .height(uiSearchFieldHeight())
               .layoutWeight(1)
               .fontSize(14)
-              .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-              .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+              .fontColor(themePrimaryText())
+              .backgroundColor(themeFieldBackground())
               .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-              .systemMaterial(uiSearchMaterial())
               .onChange((value: string) => {
                 this.customValue = value;
               })
@@ -3852,12 +3918,11 @@ export struct SettingsStaticRow {
             .height(uiSearchFieldHeight())
             .type(isSecretSettingKey(this.row.key) ? InputType.Password : InputType.Normal)
             .fontSize(13)
-            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-            .placeholderColor(uiMaterialForegroundColor(themeSecondaryText()))
-            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .fontColor(themePrimaryText())
+            .placeholderColor(themeSecondaryText())
+            .backgroundColor(themeFieldBackground())
             .margin({ left: 12 })
             .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.inputValue = value;
               if (this.row.key !== undefined && isDirectTranslationApiKey(this.row.key)) {

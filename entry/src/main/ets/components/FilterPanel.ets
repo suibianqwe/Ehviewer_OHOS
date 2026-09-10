@@ -32,7 +32,6 @@ import {
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius,
-  uiSearchMaterial,
   uiTabHeight
 } from '../shared/EhUiStyle';
 import {
@@ -310,10 +309,9 @@ export struct FilterPanel {
           .fontSize(15)
           .fontColor(themePrimaryText())
           .placeholderColor(themeTertiaryText())
-          .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+          .backgroundColor(themeFieldBackground())
           .padding({ left: 12, right: 12 })
           .borderRadius(uiRadius(22))
-          .systemMaterial(uiSearchMaterial())
           .onChange((value: string) => {
             this.updateDraftText(value);
           })

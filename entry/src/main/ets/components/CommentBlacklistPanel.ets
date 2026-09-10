@@ -25,7 +25,6 @@ import {
   uiMaterialBackground,
   uiMaterialForegroundColor,
   uiRadius,
-  uiSearchMaterial
 } from '../shared/EhUiStyle';
 import { ConfirmActionOverlay } from './ConfirmActionOverlay';
 import { SettingsSubToolbar } from './SessionSettingsScenes';
@@ -108,10 +107,9 @@ export struct CommentBlacklistPanel {
         .fontSize(15)
         .fontColor(themePrimaryText())
         .placeholderColor(themeTertiaryText())
-        .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+        .backgroundColor(themeFieldBackground())
         .padding({ left: 12, right: 12 })
         .borderRadius(uiRadius(22))
-        .systemMaterial(uiSearchMaterial())
         .onChange((value: string) => {
           this.draftUser = value;
         })
@@ -120,12 +118,11 @@ export struct CommentBlacklistPanel {
           .layoutWeight(1)
           .height(44)
           .fontSize(14)
-          .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+          .fontColor(themePrimaryText())
           .placeholderColor(themeTertiaryText())
-          .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+          .backgroundColor(themeFieldBackground())
           .padding({ left: 12, right: 12 })
           .borderRadius(uiRadius(22))
-          .systemMaterial(uiSearchMaterial())
           .onChange((value: string) => {
             this.draftReason = value;
           })

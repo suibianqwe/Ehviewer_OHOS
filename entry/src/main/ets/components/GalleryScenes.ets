@@ -15,7 +15,7 @@ import {
   ToggleFavoriteResult,
 } from '../services/EhHttpClient';
 import { DEFAULT_ADVANCE_SEARCH, EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder, buildJumpSeekUrl } from '../services/EhUrl';
-import { ehFilterStore } from '../services/EhFilterStore';
+import { FILTER_RULE_REVISION_KEY, ehFilterStore } from '../services/EhFilterStore';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { subscribeHoldingHandSide } from '../services/EhHoldingHandSupport';
@@ -58,10 +58,16 @@ import {
   mainContentWidthFallbackVp,
   rememberMainContentWidthVp
 } from '../services/EhWindowImmersive';
+import {
+  peekPendingContinuationSnapshot,
+  takePendingContinuationSnapshot
+} from '../services/DistributedContinuationService';
+import { readerSessionStore } from '../services/ReaderSessionStore';
 import { LANGUAGE_REVISION_KEY, pushActiveBackHandler, runDetailBackHandler } from '../shared/EhShared';
 import { sortedStringKey, toggleStringValue } from '../shared/StringCollectionSupport';
 import { GalleryCardScrollAnchor } from '../shared/GalleryCardScrollAnchor';
 import { ArrayDataSource } from '../shared/ListDataSource';
+import { galleryListColumnCount, galleryListHorizontalPadding, galleryListTopInset, galleryListViewportHeight } from '../shared/AdaptiveGalleryListLayout';
 import {
   themeDividerColor,
   themeFieldBackground,
@@ -101,15 +107,16 @@ import {
   uiMaterialSecondaryForegroundColor,
   uiRadius,
   uiSearchFieldHeight,
-  uiSearchMaterial,
   uiSwitchHeight,
   uiSwitchWidth,
   uiTitleBarFadeHeight
 } from '../shared/EhUiStyle';
 import { EhNavBar, EhTitleBarBackdrop } from '../components/NavigationComponents';
-import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard, galleryThumbnailAspectRatio } from './GalleryCards';
+import { CategoryBadge, GalleryListRow, GalleryThumb, GalleryThumbCard,
+  galleryThumbnailAspectRatio } from './GalleryCards';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { PopupScrim } from './PopupScrim';
+import { BookmarkEditor } from './BookmarkEditor';
 import { ReaderSessionScene } from './ReaderHostScene';
 import {
   RightSidePanelLayer,
@@ -146,6 +153,7 @@ import {
 } from './SplitPaneSupport';
 import {
   ActionBubble,
+  addSearchTagToken,
   applyTagSuggestionToKeyword,
   buildSearchSuggestions,
   composeSearchKeywordWithInput,
@@ -154,6 +162,7 @@ import {
   QuickActionColumn,
   SearchActionColumn,
   removeSearchTagToken,
+  normalizeSearchTagToken,
   normalizeSubmittedSearchKeyword,
   SearchAdvancedPanel,
   SearchSuggestionItem,
@@ -1007,20 +1016,20 @@ export struct SearchBookmarkDrawer {
         .alignItems(HorizontalAlign.Center)
       } else {
         List({ scroller: this.bookmarkScroller }) {
-          ForEach(this.bookmarks, (item: SearchBookmarkInfo) => {
+          ForEach(this.bookmarks, (item: SearchBookmarkInfo, index: number) => {
             ListItem() {
               SearchBookmarkDrawerRow({
-                item: item,
+                item: this.bookmarks[index],
                 onTap: () => {
-                  this.onSelect(item);
+                  this.onSelect(this.bookmarks[index]);
                 },
                 onDelete: () => {
-                  this.onDelete(item);
+                  this.onDelete(this.bookmarks[index]);
                 }
               })
             }
             .reuseId('search-bookmark-drawer-row')
-          }, (item: SearchBookmarkInfo) => item.id + ':' + item.time.toString())
+          }, (item: SearchBookmarkInfo, index: number) => item.id + ':' + index.toString())
         }
         .width('100%')
         .height('100%')
@@ -1048,7 +1057,7 @@ export struct SearchBookmarkDrawer {
 
 @Component
 export struct SearchBookmarkDrawerRow {
-  item: SearchBookmarkInfo = {
+  @Prop item: SearchBookmarkInfo = {
     id: '',
     name: '',
     mode: ListMode.Normal,
@@ -1088,6 +1097,7 @@ export struct SearchBookmarkManagerScene {
   @Prop statusBarHeight: number = 0;
   onBack: () => void = () => {};
   onRename: (bookmark: SearchBookmarkInfo, name: string) => void = (_bookmark: SearchBookmarkInfo, _name: string) => {};
+  onEdit: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
   onMoveIndex: (from: number, to: number) => void = (_from: number, _to: number) => {};
   onDelete: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
@@ -1124,35 +1134,40 @@ export struct SearchBookmarkManagerScene {
               .height(0)
           }
 
+          // Observe the current array entry, not the object captured when ForEach first created the row.
           ForEach(this.bookmarks, (item: SearchBookmarkInfo, index: number) => {
             ListItem() {
               SidePanelEditableManagerRow({
-                rowId: item.id,
-                value: item.name,
+                rowId: this.bookmarks[index].id,
+                value: this.bookmarks[index].name,
                 placeholder: 'Bookmark name',
-                subtitle: bookmarkSummary(item),
-                editing: this.editingBookmarkId === item.id,
+                subtitle: bookmarkSummary(this.bookmarks[index]),
+                editing: this.editingBookmarkId === this.bookmarks[index].id,
                 onStartEdit: () => {
-                  this.editingBookmarkId = item.id;
+                  this.editingBookmarkId = this.bookmarks[index].id;
                 },
                 onFinishEdit: () => {
-                  if (this.editingBookmarkId === item.id) {
+                  if (this.editingBookmarkId === this.bookmarks[index].id) {
                     this.editingBookmarkId = '';
                   }
                 },
                 onValueChange: (name: string) => {
-                  this.onRename(item, name);
+                  this.onRename(this.bookmarks[index], name);
                 },
                 onCommit: (name: string) => {
-                  this.onRename(item, name);
+                  this.onRename(this.bookmarks[index], name);
                 },
                 onDelete: () => {
-                  this.onDelete(item);
+                  this.onDelete(this.bookmarks[index]);
+                },
+                showEdit: true,
+                onEdit: () => {
+                  this.onEdit(this.bookmarks[index]);
                 }
               })
             }
             .reuseId('search-bookmark-manager-row')
-          }, (item: SearchBookmarkInfo) => item.id)
+          }, (item: SearchBookmarkInfo, index: number) => item.id + ':' + index.toString())
             .onMove((from: number, to: number) => {
               this.onMoveIndex(from, to);
             })
@@ -1287,7 +1302,7 @@ export struct GalleryListScene {
   @State addBookmarkPopupWidth: number = 0;
   @State addBookmarkPopupHeight: number = 0;
   @State showBookmarkManager: boolean = false;
-  @State addBookmarkName: string = '';
+  @State editingBookmarkId: string = '';
   @State addBookmarkDraft: SearchBookmarkInfo = {
     id: '',
     name: '',
@@ -1308,6 +1323,7 @@ export struct GalleryListScene {
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
   @StorageProp(SPLIT_PANE_RATIO_REVISION_KEY) @Watch('onSplitPaneRatioRevisionChange') splitPaneRatioRevision: number = 0;
+  @StorageProp(FILTER_RULE_REVISION_KEY) @Watch('onFilterRulesRevisionChanged') filterRulesRevision: number = 0;
   private listScrollOffset: number = 0;
   private detailScrollOffset: number = 0;
   private searchOriginShowDetail: boolean = false;
@@ -1595,6 +1611,7 @@ export struct GalleryListScene {
       this.localSearchBarVisible = false;
     }
     this.restoreNavigationCache();
+    this.restoreEmbeddedContinuationIfPresent();
     if (this.delegateDetailToHost) {
       this.clearDelegatedDetailLayer();
     } else {
@@ -1624,7 +1641,7 @@ export struct GalleryListScene {
         if (this.isSearchResultScene && this.initialSearchSubmitted && !this.hasFirstRefresh) {
           this.searchSubmitted = true;
         }
-        if (!this.isSearchResultScene || this.searchSubmitted) {
+        if ((!this.isSearchResultScene || this.searchSubmitted) && !this.showReader) {
           this.firstRefresh();
         }
       });
@@ -1636,11 +1653,42 @@ export struct GalleryListScene {
       if (this.isSearchResultScene && this.initialSearchSubmitted && !this.hasFirstRefresh) {
         this.searchSubmitted = true;
       }
-      if (!this.isSearchResultScene || this.searchSubmitted) {
+      if ((!this.isSearchResultScene || this.searchSubmitted) && !this.showReader) {
         this.firstRefresh();
       }
     }
     this.activateBackHandler();
+  }
+
+  private restoreEmbeddedContinuationIfPresent(): void {
+    const pending = peekPendingContinuationSnapshot();
+    if (pending === null || pending.kind !== 'embedded_reader' ||
+      pending.route !== this.sourceRoute.toString() || pending.readerSession === undefined) {
+      return;
+    }
+    const session = pending.readerSession;
+    if (session.detail.gid <= 0 || session.detail.token.length === 0 || session.pageIndex < 0) {
+      return;
+    }
+    readerSessionStore.setSession(session);
+    this.detail = cloneGalleryDetail(session.detail);
+    this.detailLink = createGalleryDetailLink(session.detail.gid, session.detail.token,
+      session.detail.title, session.site, session.detailRequestUrl);
+    this.detailRequestUrl = session.detailRequestUrl;
+    this.detailStatus = session.statusText;
+    this.showDetail = true;
+    this.showReader = true;
+    takePendingContinuationSnapshot();
+    this.renderVersion++;
+  }
+
+  onFilterRulesRevisionChanged(): void {
+    if (this.galleries.length === 0) {
+      return;
+    }
+    this.galleries = this.visibleRemoteGalleries(this.galleries);
+    this.renderVersion++;
+    this.saveListCache();
   }
 
   aboutToDisappear(): void {
@@ -1661,6 +1709,11 @@ export struct GalleryListScene {
   }
 
   private handleSystemBack(): boolean {
+    if (this.addBookmarkDialogVisible) {
+      this.addBookmarkDialogVisible = false;
+      this.editingBookmarkId = '';
+      return true;
+    }
     if (this.downloadLabelDialogVisible) {
       this.downloadLabelDialogVisible = false;
       return true;
@@ -1861,7 +1914,7 @@ export struct GalleryListScene {
       this.totalPages = result.pages;
       this.nextUrl = result.nextUrl;
       this.resultCount = result.resultCount;
-      this.appendExhausted = this.isAppendExhausted(result, pageIndex, this.galleries.length);
+      this.appendExhausted = this.isAppendExhausted(result, pageIndex, result.galleries.length);
       this.renderVersion++;
       this.saveListCache();
     }
@@ -2016,17 +2069,10 @@ export struct GalleryListScene {
       return;
     }
     this.requestUrl = result.url;
-    const incoming = this.visibleRemoteGalleries(result.galleries);
+    const unseen = this.uniqueAppendGalleries(result.galleries);
+    const unique = this.visibleRemoteGalleries(unseen);
     if (remote) {
       this.updateFavoriteCategories(result.favoriteCategories);
-    }
-    const unique = this.uniqueAppendGalleries(incoming);
-    if (unique.length === 0) {
-      this.statusText = uiText('All pages loaded');
-      this.appendExhausted = true;
-      this.isLoadingMore = false;
-      this.saveListCache();
-      return;
     }
     this.galleries = this.galleries.concat(unique);
     this.pageIndex = nextPage;
@@ -2036,7 +2082,7 @@ export struct GalleryListScene {
     this.nextUrl = result.nextUrl;
     this.resultCount = result.resultCount;
     this.statusText = result.ok || !remote ? result.message : galleryListFailureMessage(result, this.activeSite);
-    this.appendExhausted = this.isAppendExhausted(result, nextPage, unique.length);
+    this.appendExhausted = this.isAppendExhausted(result, nextPage, unseen.length);
     this.isLoadingMore = false;
     this.saveListCache();
   }
@@ -2115,8 +2161,12 @@ export struct GalleryListScene {
   }
 
   private shouldApplyLocalGalleryFilters(): boolean {
-    return !this.isSearchResultScene && !this.useLocalProvider && this.accountFilterEnabled &&
-      localGalleryFilterRoute(this.sourceRoute);
+    // Local rules are independent from the optional account/UConfig filters.
+    // Search results follow their own toggle, regardless of the entry route.
+    if (this.isSearchResultScene) {
+      return this.searchFilterEnabled;
+    }
+    return !this.useLocalProvider && localGalleryFilterRoute(this.sourceRoute);
   }
 
   private loadRoutePage(pageIndex: number, site: GallerySite): Promise<GalleryListLoadResult> {
@@ -2412,28 +2462,50 @@ export struct GalleryListScene {
       return;
     }
     this.addBookmarkDraft = draft;
-    this.addBookmarkName = name;
+    this.editingBookmarkId = '';
     this.addBookmarkDialogVisible = true;
   }
 
-  private confirmAddBookmark(): void {
-    const name = this.addBookmarkName.trim();
+  private openEditBookmarkDialog(bookmark: SearchBookmarkInfo): void {
+    this.addBookmarkDraft = {
+      id: bookmark.id,
+      name: bookmark.name,
+      mode: bookmark.mode,
+      category: bookmark.category,
+      keyword: bookmark.keyword,
+      advanceSearch: bookmark.advanceSearch,
+      minRating: bookmark.minRating,
+      pageFrom: bookmark.pageFrom,
+      pageTo: bookmark.pageTo,
+      filterEnabled: bookmark.filterEnabled,
+      location: bookmark.location,
+      time: bookmark.time
+    };
+    this.editingBookmarkId = bookmark.id;
+    this.addBookmarkDialogVisible = true;
+  }
+
+
+  private confirmAddBookmark(bookmark: SearchBookmarkInfo): void {
+    const name = bookmark.name.trim();
     if (name.length === 0) {
       this.statusText = 'Bookmark name is empty';
       return;
     }
-    const bookmark = ehBookmarkStore.createBookmark(name, this.addBookmarkDraft.mode, this.addBookmarkDraft.category,
-      this.addBookmarkDraft.keyword, this.addBookmarkDraft.advanceSearch, this.addBookmarkDraft.minRating,
-      this.addBookmarkDraft.pageFrom, this.addBookmarkDraft.pageTo, this.addBookmarkDraft.filterEnabled,
-      this.addBookmarkDraft.location);
-    if (!ehBookmarkStore.addBookmark(bookmark)) {
+    const wasEditing = this.editingBookmarkId.length > 0;
+    const saved = wasEditing ? ehBookmarkStore.updateBookmark(bookmark) :
+      ehBookmarkStore.addBookmark(ehBookmarkStore.createBookmark(name, bookmark.mode, bookmark.category,
+        bookmark.keyword, bookmark.advanceSearch, bookmark.minRating, bookmark.pageFrom, bookmark.pageTo,
+        bookmark.filterEnabled, bookmark.location));
+    if (!saved) {
       this.statusText = 'Duplicate bookmark';
-      this.showFloatingStatus('Duplicate bookmark');
+      this.showFloatingStatus(this.statusText);
       return;
     }
     this.addBookmarkDialogVisible = false;
+    this.editingBookmarkId = '';
     this.refreshSearchBookmarks();
-    this.statusText = 'Bookmark added';
+    this.statusText = wasEditing ? 'Bookmark updated' : 'Bookmark added';
   }
 
   private removeSearchBookmark(bookmark: SearchBookmarkInfo): void {
@@ -3203,6 +3275,8 @@ export struct GalleryListScene {
             advancedSearchEnabled: this.advancedSearchEnabled,
             advanceSearch: this.advanceSearch,
             minRating: this.minRating,
+            pageFrom: this.pageFrom,
+            pageTo: this.pageTo,
             pageIndex: this.pageIndex,
             totalPages: this.totalPages,
             resultCount: this.resultCount,
@@ -3294,6 +3368,20 @@ export struct GalleryListScene {
               }
               this.searchAdvancedPanelOpened = true;
               this.minRating = rating;
+              if (this.isSearchResultScene || this.useLocalProvider) {
+                this.searchSubmitted = false;
+              }
+            },
+            onPageFromChange: (value: number) => {
+              this.searchAdvancedPanelOpened = true;
+              this.pageFrom = value;
+              if (this.isSearchResultScene || this.useLocalProvider) {
+                this.searchSubmitted = false;
+              }
+            },
+            onPageToChange: (value: number) => {
+              this.searchAdvancedPanelOpened = true;
+              this.pageTo = value;
               if (this.isSearchResultScene || this.useLocalProvider) {
                 this.searchSubmitted = false;
               }
@@ -3422,6 +3510,9 @@ export struct GalleryListScene {
               onRename: (bookmark: SearchBookmarkInfo, name: string) => {
                 this.renameSearchBookmark(bookmark, name);
               },
+              onEdit: (bookmark: SearchBookmarkInfo) => {
+                this.openEditBookmarkDialog(bookmark);
+              },
               onMoveIndex: (from: number, to: number) => {
                 this.moveSearchBookmarkToIndex(from, to);
               },
@@ -3455,83 +3546,17 @@ export struct GalleryListScene {
                 }
               })
 
-              Column({ space: 12 }) {
-                Row() {
-                  Text(uiText('Add bookmark'))
-                    .fontSize(18)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor(themePrimaryText())
-                    .layoutWeight(1)
-                  Button({ type: ButtonType.Circle, stateEffect: true }) {
-                    SymbolGlyph($r('sys.symbol.xmark'))
-                      .fontSize(20)
-                      .fontColor([uiMaterialForegroundColor(themePrimaryText())])
-                  }
-                  .width(38)
-                  .height(38)
-                  .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
-                  .backgroundEffect(uiTransparentButtonBackgroundEffect())
-                  .systemMaterial(uiButtonMaterial())
-                  .onClick(() => {
-                    this.addBookmarkDialogVisible = false;
-                  })
-                }
-                .width('100%')
-                .alignItems(VerticalAlign.Center)
-
-                TextInput({ text: this.addBookmarkName, placeholder: uiText('Bookmark name') })
-                  .height(uiSearchFieldHeight())
-                  .width('100%')
-                  .fontSize(15)
-                  .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-                  .backgroundColor(uiMaterialBackground(themeFieldBackground()))
-                  .padding({ left: 12, right: 12 })
-                  .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-                  .systemMaterial(uiSearchMaterial())
-                  .onChange((value: string) => {
-                    this.addBookmarkName = value;
-                  })
-                  .onSubmit(() => {
-                    this.confirmAddBookmark();
-                  })
-
-                Text(bookmarkSummary(this.addBookmarkDraft))
-                  .fontSize(12)
-                  .fontColor(themeSecondaryText())
-                  .width('100%')
-                  .maxLines(2)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
-
-                Row({ space: 10 }) {
-                  Button(uiText('Cancel'))
-                    .height(40)
-                    .layoutWeight(1)
-                    .fontSize(14)
-                    .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-                    .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
-                    .borderRadius(uiRadius(20))
-                    .backgroundEffect(uiTransparentButtonBackgroundEffect())
-                    .systemMaterial(uiButtonMaterial())
-                    .onClick(() => {
-                      this.addBookmarkDialogVisible = false;
-                    })
-                  Button(uiText('Save'))
-                    .height(40)
-                    .layoutWeight(1)
-                    .fontSize(14)
-                    .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
-                    .backgroundColor(uiMaterialBackground(themePrimaryColor()))
-                    .borderRadius(uiRadius(20))
-                    .backgroundEffect(uiTransparentButtonBackgroundEffect())
-                    .systemMaterial(uiButtonMaterial())
-                    .onClick(() => {
-                      this.confirmAddBookmark();
-                    })
-                }
-                .width('100%')
+              Column() {
+                BookmarkEditor({
+                  bookmark: this.addBookmarkDraft,
+                  editing: this.editingBookmarkId.length > 0,
+                  onCancel: () => { this.addBookmarkDialogVisible = false; },
+                  onSave: (bookmark: SearchBookmarkInfo) => { this.confirmAddBookmark(bookmark); }
+                })
               }
-              .width('72%')
-              .constraintSize({ maxWidth: 340, minWidth: 280 })
+              .width('90%')
+              .height('85%')
+              .constraintSize({ maxWidth: 560, maxHeight: 780 })
               .padding(18)
               .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
               .shadow(uiDialogSurfaceShadow())
@@ -3553,7 +3578,7 @@ export struct GalleryListScene {
           if ((this.showDetail || this.showBookmarkManager) && !this.showReader) {
             SplitPaneDivider({
               x: this.useSplitLayout() ? this.splitListPaneWidth() : 0,
-              dividerVisible: this.useSplitLayout(),
+              dividerVisible: this.useSplitLayout() && !this.addBookmarkDialogVisible,
               dragging: this.splitDragging,
               fadeTransition: this.restoreDetailWithFade,
               onSplitDragStart: () => {
@@ -4087,6 +4112,8 @@ export struct GalleryListContent {
   @Prop advancedSearchEnabled: boolean = false;
   @Prop advanceSearch: number = DEFAULT_ADVANCE_SEARCH;
   @Prop minRating: number = -1;
+  @Prop pageFrom: number = -1;
+  @Prop pageTo: number = -1;
   @Prop @Watch('onPageChanged') pageIndex: number = 0;
   @Prop totalPages: number = 0;
   @Prop resultCount: string = '';
@@ -4126,6 +4153,8 @@ export struct GalleryListContent {
   };
   onMinRatingChange: (rating: number) => void = (_rating: number) => {
   };
+  onPageFromChange: (value: number) => void = (_value: number) => {};
+  onPageToChange: (value: number) => void = (_value: number) => {};
   onPageJump: (page: number) => void = (_page: number) => {
   };
   onSeekJump: (appendParam: string) => void = (_appendParam: string) => {
@@ -4162,6 +4191,7 @@ export struct GalleryListContent {
   onScrollUpdate: (offset: number) => void = () => {
   };
   @State contentWidth: number = 0;
+  private lastToolbarScrollOffset: number = 0;
   @State refreshing: boolean = false;
   @State refreshPullOffset: number = 0;
   @State advancedPanelVisible: boolean = false;
@@ -4197,6 +4227,8 @@ export struct GalleryListContent {
   private galleryThumbnailSource: ArrayDataSource<GalleryInfo> =
     new ArrayDataSource<GalleryInfo>([]);
   @State toolbarOffsetY: number = 0;
+  @State contentOpacity: number = 1;
+  private toolbarRestoring: boolean = false;
   @State translationVisibleStart: number = -1;
   @State translationVisibleEnd: number = -1;
   @State floatingActionSide: string = FLOATING_ACTION_SIDE_RIGHT;
@@ -4618,7 +4650,7 @@ export struct GalleryListContent {
   }
 
   private expandedTitleContentInset(): number {
-    return this.totalBarHeight() + uiTitleBarFadeHeight() * 0.68;
+    return galleryListTopInset(this.totalBarHeight());
   }
 
   private titleContentInset(): number {
@@ -4806,8 +4838,7 @@ export struct GalleryListContent {
   }
 
   private listViewportHeight(): number {
-    // 测量值仅用于预加载距离计算，不参与列表布局，避免首帧 1vp 高度被保留在渲染节点中。
-    return Math.max(0, this.viewportHeight - this.contentStartOffset());
+    return galleryListViewportHeight(this.viewportHeight - this.contentStartOffset());
   }
 
   private searchResultStripHeight(): number {
@@ -4837,7 +4868,7 @@ export struct GalleryListContent {
   private galleryContentPadding(): number {
     // Keep gallery edges visually stable across phone and wide layouts. The
     // page-level padding remains responsive for settings and other surfaces.
-    return 12;
+    return galleryListHorizontalPadding(this.effectiveContentWidth());
   }
 
   private snapListToTop(): void {
@@ -4895,7 +4926,7 @@ export struct GalleryListContent {
     }
     const preferred = this.galleryCardPreferredWidth();
     const gap = this.galleryCardGap();
-    return uiAdaptiveColumnCount(width, preferred, gap, this.galleryContentPadding());
+    return galleryListColumnCount(width, preferred, gap);
   }
 
   private galleryCardMinWidth(): number {
@@ -5036,10 +5067,10 @@ export struct GalleryListContent {
         .layoutWeight(1)
         .constraintSize({ minWidth: 96 })
         .backgroundColor(themeTransparentColor())
-        .placeholderColor(uiMaterialSecondaryForegroundColor(themeSecondaryText()))
+        .placeholderColor(themeSecondaryText())
         .fontSize(16)
         .lineHeight(22)
-        .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+        .fontColor(themePrimaryText())
         .caretColor(themeAccentTextColor())
         .padding({ left: this.selectedSearchTagTokens().length > 0 ? 4 : 8, right: 8, top: 0, bottom: 0 })
         .onFocus(() => {
@@ -5191,7 +5222,9 @@ export struct GalleryListContent {
 
   private applySearchSuggestion(suggestion: SearchSuggestionItem): void {
     if (suggestion.kind === 'tag') {
-      this.onKeywordChange(applyTagSuggestionToKeyword(this.keyword, suggestion.query, suggestion.namespace, true));
+      // query already contains the English namespace; title is only the translated label.
+      this.onKeywordChange(applyTagSuggestionToKeyword(this.keyword,
+        normalizeSearchTagToken(suggestion.query)));
       this.onSearchModeChange(ListMode.Normal);
       return;
     }
@@ -5464,6 +5497,9 @@ export struct GalleryListContent {
     .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
       this.handleGalleryListDidScroll();
     })
+    .onScrollIndex((first: number, _last: number) => {
+      this.toolbarOffsetY = first > 0 ? -this.totalBarHeight() : 0;
+    })
     .onScrollStop(() => {
       this.rememberListOffset(normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset));
     })
@@ -5515,6 +5551,9 @@ export struct GalleryListContent {
     .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
       this.handleGalleryListDidScroll();
     })
+    .onScrollIndex((first: number, _last: number) => {
+      this.toolbarOffsetY = first > 0 ? -this.totalBarHeight() : 0;
+    })
     .onScrollIndex((first: number, last: number) => {
       // 每列的顶部占位块也占用 FlowItem 索引，需先换算为画廊索引。
       const spacerCount = this.galleryTopSpacerIndexes().length;
@@ -5562,6 +5601,17 @@ export struct GalleryListContent {
 
   private handleGalleryListDidScroll(): void {
     const yOffset = normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset);
+    const delta = yOffset - this.lastToolbarScrollOffset;
+    this.lastToolbarScrollOffset = yOffset;
+    if (yOffset <= 4) {
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = 0;
+    } else if (delta > 0.1) {
+      this.toolbarRestoring = false;
+      this.toolbarOffsetY = -Math.min(yOffset, this.totalBarHeight());
+    } else if (delta < -0.1) {
+      this.restoreToolbarOnReverseScroll();
+    }
     this.rememberListOffset(yOffset);
     if (!this.shouldShowSearchSuggestions()) {
       this.triggerLoadMoreByOffset(yOffset);
@@ -5782,14 +5832,16 @@ export struct GalleryListContent {
             advanceSearch: this.advanceSearch,
             searchFilterEnabled: this.searchFilterEnabled,
             minRating: this.minRating,
-            pageFrom: -1,
-            pageTo: -1,
+            pageFrom: this.pageFrom,
+            pageTo: this.pageTo,
             panelMaxHeight: this.advancedPanelMaxHeight(),
             onSearchModeChange: this.onSearchModeChange,
             onSearchCategoryChange: this.onSearchCategoryChange,
             onAdvancedEnabledChange: this.onAdvancedEnabledChange,
             onAdvanceSearchChange: this.onAdvanceSearchChange,
             onMinRatingChange: this.onMinRatingChange,
+            onPageFromChange: this.onPageFromChange,
+            onPageToChange: this.onPageToChange,
             onClose: () => {
               this.closeAdvancedPanel();
             },
@@ -5906,11 +5958,10 @@ export struct GalleryListContent {
                 .height(uiSearchFieldHeight())
                 .layoutWeight(1.4)
                 .type(InputType.Number)
-                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
                 .padding({ left: 8, right: 8 })
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.seekYearDraft = value;
                 })
@@ -5918,11 +5969,10 @@ export struct GalleryListContent {
                 .height(uiSearchFieldHeight())
                 .layoutWeight(1)
                 .type(InputType.Number)
-                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
                 .padding({ left: 8, right: 8 })
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.seekMonthDraft = value;
                 })
@@ -5930,11 +5980,10 @@ export struct GalleryListContent {
                 .height(uiSearchFieldHeight())
                 .layoutWeight(1)
                 .type(InputType.Number)
-                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
                 .padding({ left: 8, right: 8 })
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.seekDayDraft = value;
                 })
@@ -5964,11 +6013,10 @@ export struct GalleryListContent {
                 .height(uiSearchFieldHeight())
                 .layoutWeight(1)
                 .type(InputType.Number)
-                .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-                .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+                .fontColor(themePrimaryText())
+                .backgroundColor(themeFieldBackground())
                 .padding({ left: 10, right: 10 })
                 .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-                .systemMaterial(uiSearchMaterial())
                 .onChange((value: string) => {
                   this.pageJumpDraft = value;
                 })

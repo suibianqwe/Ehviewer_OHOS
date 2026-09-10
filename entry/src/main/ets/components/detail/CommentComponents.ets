@@ -271,7 +271,7 @@ export struct CommentVoteButton {
 
 @Component
 export struct GalleryCommentRow {
-  comment: GalleryComment = {
+  @Prop comment: GalleryComment = {
     id: '',
     user: '',
     posted: '',

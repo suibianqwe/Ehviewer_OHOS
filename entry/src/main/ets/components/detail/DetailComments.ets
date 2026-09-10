@@ -68,9 +68,9 @@ export struct DetailComments {
           .fontSize(13)
           .fontColor(themeSecondaryText())
       } else {
-        ForEach(this.visibleCommentItems.slice(0, 2), (comment: GalleryComment) => {
+        ForEach(this.visibleCommentItems.slice(0, 2), (comment: GalleryComment, index: number) => {
           GalleryCommentRow({
-            comment: comment,
+            comment: this.visibleCommentItems[index],
             maxLines: 4,
             compact: true,
             openGalleryLinksInApp: true,
@@ -82,7 +82,7 @@ export struct DetailComments {
             onTapRow: this.onComments
           })
             .margin({ bottom: 6 })
-        }, (comment: GalleryComment) => comment.id)
+        }, (comment: GalleryComment, index: number) => comment.id + ':' + index.toString())
       }
     }
     .alignItems(HorizontalAlign.Start)

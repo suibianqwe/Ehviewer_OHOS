@@ -7,6 +7,7 @@ import {
   themeAccentTextColor,
   themeDangerBackground,
   themeDangerText,
+  themeFieldBackground,
   themeOnPrimaryText,
   themePrimaryColor,
   themePrimaryText,
@@ -34,7 +35,6 @@ import {
   uiReaderOptionButtonMaterial,
   uiRadius,
   uiSearchFieldHeight,
-  uiSearchMaterial,
   uiTabHeight,
   uiTintedButtonMaterial
 } from '../../../shared/EhUiStyle';
@@ -660,10 +660,9 @@ export struct ReaderSettingsMenuOverlay {
               .fontColor(themePrimaryText())
               .placeholderColor(themeSecondaryText())
               .caretColor(themeAccentTextColor())
-              .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
+              .backgroundColor(themeFieldBackground())
               .border({ width: this.presetNameError ? 1 : 0, color: '#F87171' })
               .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-              .systemMaterial(uiSearchMaterial())
               .onChange((value: string) => {
                 this.presetEditorName = value;
                 this.presetNameError = false;
@@ -1016,61 +1015,73 @@ export struct ReaderSettingsMenuOverlay {
           ReaderMenuDivider()
           ReaderMenuSlider({
             label: uiText('Exposure'), value: this.menuImageExposure, min: -100, max: 100, step: 1,
+            resetValue: 0,
             valueText: exposureValueText, onChange: this.onImageExposureChange
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
             label: uiText('Brightness'), value: this.menuImageBrightness, min: -100, max: 100, step: 1,
+            resetValue: 0,
             valueText: adjustmentValueText, onChange: this.onImageBrightnessChange
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
             label: uiText('Contrast'), value: this.menuImageContrast, min: -100, max: 100, step: 1,
+            resetValue: 0,
             valueText: adjustmentValueText, onChange: this.onImageContrastChange
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
             label: uiText('Highlights'), value: this.menuImageHighlights, min: -100, max: 100, step: 1,
+            resetValue: 0,
             valueText: adjustmentValueText, onChange: this.onImageHighlightsChange
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
             label: uiText('Shadows'), value: this.menuImageShadows, min: -100, max: 100, step: 1,
+            resetValue: 0,
             valueText: adjustmentValueText, onChange: this.onImageShadowsChange
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
             label: uiText('Clarity'), value: this.menuImageClarity, min: 0, max: 100, step: 1,
+            resetValue: 0,
             valueText: adjustmentValueText, onChange: this.onImageClarityChange
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
             label: uiText('Sharpening'), value: this.menuImageSharpening, min: 0, max: 100, step: 1,
+            resetValue: 0,
             valueText: adjustmentValueText, onChange: this.onImageSharpeningChange
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
             label: uiText('Saturation'), value: this.menuImageSaturation, min: -100, max: 100, step: 1,
+            resetValue: 0,
             valueText: adjustmentValueText, onChange: this.onImageSaturationChange
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
             label: uiText('Vibrance'), value: this.menuImageVibrance, min: -100, max: 100, step: 1,
+            resetValue: 0,
             valueText: adjustmentValueText, onChange: this.onImageVibranceChange
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
             label: uiText('Hue'), value: this.menuImageHue, min: -180, max: 180, step: 1,
+            resetValue: 0,
             valueText: degreeValueText, onChange: this.onImageHueChange
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
             label: uiText('Color temperature'), value: this.menuImageTemperature, min: -100, max: 100, step: 1,
+            resetValue: 0,
             valueText: adjustmentValueText, onChange: this.onImageTemperatureChange
           })
           ReaderMenuDivider()
           ReaderMenuSlider({
             label: uiText('Grayscale'), value: this.menuImageGrayscale, min: 0, max: 100, step: 1,
+            resetValue: 0,
             valueText: adjustmentValueText, onChange: this.onImageGrayscaleChange
           })
           ReaderMenuDivider()

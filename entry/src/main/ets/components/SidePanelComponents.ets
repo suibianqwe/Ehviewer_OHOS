@@ -27,7 +27,6 @@ import {
   uiPopupBlurOptions,
   uiPopupBlurStyle,
   uiSearchFieldHeight,
-  uiSearchMaterial
 } from '../shared/EhUiStyle';
 import { PopupScrim } from './PopupScrim';
 
@@ -347,6 +346,8 @@ export struct SidePanelEditableManagerRow {
   onFinishEdit: () => void = () => {};
   onValueChange: (value: string) => void = (_value: string) => {};
   onCommit: (value: string) => void = (_value: string) => {};
+  onEdit: () => void = () => {};
+  showEdit: boolean = false;
   onDelete: () => void = () => {};
   @State draftValue: string = '';
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
@@ -405,11 +406,10 @@ export struct SidePanelEditableManagerRow {
             .height(uiSearchFieldHeight())
             .layoutWeight(1)
             .fontSize(14)
-            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-            .backgroundColor(uiMaterialBackground(themeFieldBackground()))
+            .fontColor(themePrimaryText())
+            .backgroundColor(themeFieldBackground())
             .padding({ left: 10, right: 10 })
             .borderRadius(uiPillRadius(uiSearchFieldHeight() / 2))
-            .systemMaterial(uiSearchMaterial())
             .onChange((value: string) => {
               this.draftValue = value;
               this.onValueChange(value);
@@ -439,6 +439,22 @@ export struct SidePanelEditableManagerRow {
           })
         }
 
+        if (this.showEdit) {
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.square_and_pencil'))
+              .fontSize(18)
+              .fontColor([themeSecondaryText()])
+          }
+          .width(38)
+          .height(38)
+          .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
+          .onClick(() => {
+            this.onEdit();
+          })
+        }
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r('sys.symbol.trash'))
             .fontSize(18)
