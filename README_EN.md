@@ -12,8 +12,8 @@ EhViewer HarmonyOS is a HarmonyOS port of [Ehviewer_CN_SXJ](https://github.com/x
 
 Download the latest unsigned HAP from [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases). It can be installed with tools such as [Auto Installer](https://github.com/likuai2010/auto-installer).
 
-- Current version: `0.6.9`
-- Package: [`EhViewer_OHOS_0.6.9.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.6.9/EhViewer_OHOS_0.6.9.hap)
+- Current version: `0.7.0`
+- Package: [`EhViewer_OHOS_0.7.0.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.0/EhViewer_OHOS_0.7.0.hap)
 - Target API: `26.0.0`
 - Compatible API: `6.0.0(20)`
 
@@ -38,13 +38,16 @@ See the [complete English user guide](docs/USER_GUIDE_EN.md) for first launch, l
 - Migration: JSON/Android database import, legacy EhViewer download recovery, and selectable Wi-Fi Direct transfer of reading progress, app settings, login cookies, bookmarks, favorites, blocklists, download metadata, and images. Local `igneous` is never exported or overwritten by incoming data.
 - Personalization and network: multiple languages/themes, translated tags, filters, privacy controls, HTTP/SOCKS5 proxy, DoH, hosts, SNI fronting, direct-connect detection, and diagnostics.
 
-## 0.6.9 updates
+## 0.7.0 updates
 
-- Daily check-in now opens `news.php` in a background WebView with the saved Cookie session; a successful check-in still keeps the result dialog in the foreground.
-- The embedded reader overlays the current page while the underlying list remains mounted. Exiting the reader or gallery details now restores list state, scroll position, split-pane focus, and toolbar state.
-- Fixed search suggestions not refreshing after search history finishes loading asynchronously.
-- Because newer HarmonyOS APIs restrict immersive light effects, buttons, floating toolbars, and dialogs now use visible Gaussian-blur materials with compatible fallbacks for API 26 and older systems.
-- Gallery list edge insets are now stable on wide windows instead of growing with the window width.
+- New "Multi-device continuation" setting (off by default): continue the current page on another device, restoring the main route and reading progress for both the embedded and standalone readers.
+- New search bookmark editing: change the name, keyword, search mode, category, filter toggle, advanced search, rating, and page range while keeping the original bookmark ID, order, and source.
+- Gallery cards now show download and favorite badges.
+- Reader image-adjustment sliders reset to zero on double tap: exposure, brightness, contrast, highlights, shadows, clarity, sharpening, saturation, vibrance, hue, color temperature, and grayscale.
+- Settings pages remember their scroll position and restore it when returning or re-entering.
+- Improved thumbnail prefetching, pre-rendering, and caching to shorten the first gallery load; page switches rebuild and deep-copy less.
+- Unified Gaussian-blur materials and highlight borders for buttons, toolbars, and dialogs, improving contrast in light themes.
+- The search page floating button can be dragged to switch sides; the download page now matches the home page scroll and toolbar behavior.
 
 ## Screenshots
 
