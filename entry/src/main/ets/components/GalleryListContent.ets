@@ -1524,7 +1524,7 @@ export struct GalleryListContent {
           footer: this.galleryListFooter(),
           space: this.galleryCardGap()
         }) {
-          ForEach(this.galleries, (gallery: GalleryInfo, index: number) => {
+          LazyForEach(this.galleryThumbnailSource, (gallery: GalleryInfo, index: number) => {
             this.galleryItem(gallery, index)
           }, (gallery: GalleryInfo) => this.galleryCardKey(gallery))
         }
