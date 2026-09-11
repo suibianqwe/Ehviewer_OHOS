@@ -47,60 +47,148 @@ export async function startPublicDownload(context: common.UIAbilityContext, url:
     const notificationText: DownloadNotificationText = downloadNotificationText(displayName, 'Downloading');
     const notificationId = allocateArchiveNotificationId();
 
-    const config: request.agent.Config = {
-      action: request.agent.Action.DOWNLOAD,
-      url: url,
-      title: notificationText.fileName,
-      description: 'EhViewer archive download',
-      mode: request.agent.Mode.BACKGROUND,
-      overwrite: false,
-      method: 'GET',
-      headers: headers,
-      saveas: cachePath,
-      network: request.agent.Network.ANY,
-      metered: true,
-      roaming: true,
-      gauge: true,
-      notification: {
-        title: notificationText.title,
-        text: notificationText.fileName,
-        visibility: request.agent.VISIBILITY_PROGRESS
-      }
-    };
-    const task = await request.agent.create(context, config);
-    let terminalHandled = false;
-    const completed = (_progress: request.agent.Progress): void => {
-      if (terminalHandled) {
-        return;
-      }
-      terminalHandled = true;
-      const saved = finishPublicDownload(context, task, cachePath, path, completed, failed);
-      finishArchiveImport(context, path, directory, notificationId, displayName, saved, gallery, site);
-    };
-    const failed = (_progress: request.agent.Progress): void => {
-      if (terminalHandled) {
-        return;
-      }
-      terminalHandled = true;
-      ehAppLog.error(context, 'PublicDownload', 'Download task failed tid=' + task.tid + ', target=' + path);
-      removeFileQuietly(cachePath);
-      releasePublicDownloadTask(task, completed, failed);
-      publishDownloadResultNotification(context, notificationId, displayName, 'Download failed').catch(() => {});
-    };
-    task.on('completed', completed);
-    task.on('failed', failed);
-    ACTIVE_PUBLIC_DOWNLOAD_TASKS.push(task);
-    try {
-      await task.start();
-    } catch (error) {
-      releasePublicDownloadTask(task, completed, failed);
-      removeFileQuietly(cachePath);
-      throw new Error(String(error));
+    if (canIUse('SystemCapability.Request.FileTransferAgent')) {
+      return await startAgentPublicDownload(context, url, headers, cachePath, path, directory, notificationId,
+        displayName, notificationText, gallery, site);
     }
-    return { taskId: task.tid, path: path };
+    if (canIUse('SystemCapability.MiscServices.Download')) {
+      return await startLegacyPublicDownload(context, url, headers, cachePath, path, directory, notificationId,
+        displayName, gallery, site);
+    }
+    throw new Error('No public download capability is available on this device');
   } catch (error) {
     throw new Error(String(error));
   }
+}
+
+async function startAgentPublicDownload(context: common.UIAbilityContext, url: string,
+  headers: Record<string, string>, cachePath: string, path: string, directory: string, notificationId: number,
+  displayName: string, notificationText: DownloadNotificationText, gallery: GalleryInfo | undefined,
+  site: GallerySite): Promise<PublicDownloadStartResult> {
+  const config: request.agent.Config = {
+    action: request.agent.Action.DOWNLOAD,
+    url: url,
+    title: notificationText.fileName,
+    description: 'EhViewer archive download',
+    mode: request.agent.Mode.BACKGROUND,
+    overwrite: false,
+    method: 'GET',
+    headers: headers,
+    saveas: cachePath,
+    network: request.agent.Network.ANY,
+    metered: true,
+    roaming: true,
+    gauge: true,
+    notification: {
+      title: notificationText.title,
+      text: notificationText.fileName,
+      visibility: request.agent.VISIBILITY_PROGRESS
+    }
+  };
+  const task = await request.agent.create(context, config);
+  let terminalHandled = false;
+  const completed = (_progress: request.agent.Progress): void => {
+    if (terminalHandled) {
+      return;
+    }
+    terminalHandled = true;
+    const saved = finishPublicDownload(context, task, cachePath, path, completed, failed);
+    finishArchiveImport(context, path, directory, notificationId, displayName, saved, gallery, site);
+  };
+  const failed = (_progress: request.agent.Progress): void => {
+    if (terminalHandled) {
+      return;
+    }
+    terminalHandled = true;
+    ehAppLog.error(context, 'PublicDownload', 'Download task failed tid=' + task.tid + ', target=' + path);
+    removeFileQuietly(cachePath);
+    releasePublicDownloadTask(task, completed, failed);
+    publishDownloadResultNotification(context, notificationId, displayName, 'Download failed').catch(() => {});
+  };
+  task.on('completed', completed);
+  task.on('failed', failed);
+  ACTIVE_PUBLIC_DOWNLOAD_TASKS.push(task);
+  try {
+    await task.start();
+  } catch (error) {
+    releasePublicDownloadTask(task, completed, failed);
+    removeFileQuietly(cachePath);
+    throw new Error(String(error));
+  }
+  return { taskId: task.tid, path: path };
+}
+
+async function startLegacyPublicDownload(context: common.UIAbilityContext, url: string,
+  headers: Record<string, string>, cachePath: string, path: string, directory: string, notificationId: number,
+  displayName: string, gallery: GalleryInfo | undefined, site: GallerySite): Promise<PublicDownloadStartResult> {
+  const config: request.DownloadConfig = {
+    url: url,
+    header: headers,
+    filePath: cachePath,
+    enableMetered: true,
+    enableRoaming: true,
+    background: true,
+    title: displayName,
+    description: 'EhViewer archive download'
+  };
+  const task = await request.downloadFile(context, config);
+  let terminalHandled = false;
+  const release = (): void => {
+    try {
+      task.off('complete', completed);
+    } catch (error) {
+    }
+    try {
+      task.off('fail', failed);
+    } catch (error) {
+    }
+    try {
+      task.delete();
+    } catch (error) {
+    }
+  };
+  const completed = (): void => {
+    if (terminalHandled) {
+      return;
+    }
+    terminalHandled = true;
+    release();
+    const saved = finishLegacyPublicDownload(context, cachePath, path);
+    finishArchiveImport(context, path, directory, notificationId, displayName, saved, gallery, site);
+  };
+  const failed = (): void => {
+    if (terminalHandled) {
+      return;
+    }
+    terminalHandled = true;
+    release();
+    removeFileQuietly(cachePath);
+    ehAppLog.error(context, 'PublicDownload', 'Legacy download task failed, target=' + path);
+    publishDownloadResultNotification(context, notificationId, displayName, 'Download failed').catch(() => {});
+  };
+  task.on('complete', completed);
+  task.on('fail', failed);
+  return { taskId: 'legacy-' + Date.now().toString(), path: path };
+}
+
+function finishLegacyPublicDownload(context: common.UIAbilityContext, cachePath: string,
+  targetPath: string): boolean {
+  const partPath = targetPath + '.part';
+  let saved = false;
+  try {
+    removeFileQuietly(partPath);
+    fs.copyFileSync(cachePath, partPath);
+    fs.moveFileSync(partPath, targetPath);
+    saved = true;
+    ehAppLog.info(context, 'PublicDownload', 'Saved legacy download, target=' + targetPath);
+  } catch (error) {
+    removeFileQuietly(partPath);
+    ehAppLog.error(context, 'PublicDownload', 'Saving legacy download failed, target=' + targetPath + ': ' +
+      String(error));
+  } finally {
+    removeFileQuietly(cachePath);
+  }
+  return saved;
 }
 
 function finishArchiveImport(context: common.UIAbilityContext, path: string, directory: string,

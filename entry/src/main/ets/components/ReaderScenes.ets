@@ -22,7 +22,6 @@ import {
   readerOrientationFromImageMatch,
   readerOrientationFromSetting,
   readerScreenRotationSetting,
-  restoreAppWindowState,
   setEmbeddedReaderActive,
   setReaderTransientStatusBarVisible,
 } from '../services/EhWindowImmersive';
@@ -387,54 +386,11 @@ export struct ReaderScene {
   }
 
   aboutToDisappear(): void {
-    if (this.restoreAppChromeOnExit && !isEmbeddedReaderActive()) {
-      this.restoreAppWindowStateForReaderExit();
-      this.restoreSystemBarsForReaderExit();
-    }
     if (this.restoreAppChromeOnExit && isEmbeddedReaderActive()) {
       this.scheduleTransientDisappearCleanup();
       return;
     }
     this.cleanupReaderScene();
-  }
-
-  private restoreAppWindowStateForReaderExit(): void {
-    const hostContext = this.getUIContext().getHostContext() as common.UIAbilityContext | undefined;
-    if (hostContext === undefined) {
-      if (this.hostReaderWindow !== undefined) {
-        restoreAppWindowState(this.hostReaderWindow).catch(() => {});
-      }
-      return;
-    }
-    window.getLastWindow(hostContext).then((win: window.Window) => {
-      restoreAppWindowState(win).catch(() => {});
-    }).catch(() => {
-      if (this.hostReaderWindow !== undefined) {
-        restoreAppWindowState(this.hostReaderWindow).catch(() => {});
-      }
-    });
-  }
-
-  private restoreSystemBarsForReaderExit(): void {
-    const hostContext = this.getUIContext().getHostContext() as common.UIAbilityContext | undefined;
-    if (hostContext === undefined) {
-      return;
-    }
-    window.getLastWindow(hostContext).then(async (win: window.Window) => {
-      const visibleBars: Array<'status' | 'navigation'> = ['status'];
-      try {
-        await win.setWindowSystemBarEnable(visibleBars);
-      } catch (error) {
-      }
-      try {
-        await win.setSpecificSystemBarEnabled('status', true);
-      } catch (error) {
-      }
-      try {
-        await win.setSpecificSystemBarEnabled('navigationIndicator', false);
-      } catch (error) {
-      }
-    }).catch(() => {});
   }
 
   private scheduleTransientDisappearCleanup(): void {
