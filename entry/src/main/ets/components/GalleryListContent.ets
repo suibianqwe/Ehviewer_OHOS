@@ -59,7 +59,6 @@ import {
   uiSearchFieldHeight,
   uiTitleBarFadeHeight,
 } from '../shared/EhUiStyle';
-import { EhNavBar, EhTitleBarBackdrop } from '../components/NavigationComponents';
 import {
   GalleryListRow,
   GalleryThumbCard,
@@ -125,6 +124,11 @@ import {
   readThumbnailImageSize,
   normalizeGalleryListScrollOffset,
 } from './GalleryListSupport';
+import {
+  GalleryHomeNavBarHost,
+  GallerySearchNavBarHost,
+  GalleryToolbarOffset,
+} from './GalleryNavHosts';
 
 @Component
 export struct GalleryListContent {
@@ -270,7 +274,12 @@ export struct GalleryListContent {
   private thumbnailDimensionsGeneration: number = 0;
   private galleryThumbnailSource: ArrayDataSource<GalleryInfo> =
     new ArrayDataSource<GalleryInfo>([]);
-  @State toolbarOffsetY: number = 0;
+  private toolbarOffsetY: number = 0;
+  @State private toolbarOffsetHolder: GalleryToolbarOffset[] = [new GalleryToolbarOffset()];
+
+  private toolbarState(): GalleryToolbarOffset {
+    return this.toolbarOffsetHolder[0];
+  }
   @State contentOpacity: number = 1;
   private toolbarRestoring: boolean = false;
   @State translationVisibleStart: number = -1;
@@ -519,6 +528,7 @@ export struct GalleryListContent {
       this.contentOpacity = 0;
       this.toolbarOffsetY = -Math.min(this.initialScrollOffset, this.totalBarHeight());
     }
+    this.syncToolbarOffsetState();
     setTimeout(() => {
       this.syncContentWidthFromWindow();
     }, 0);
@@ -802,23 +812,18 @@ export struct GalleryListContent {
   }
 
   private visibleBarHeight(): number {
-    return immersiveChromeHeightFromOffset(this.toolbarOffsetY, this.totalBarHeight());
+    return immersiveChromeHeightFromOffset(this.toolbarState().offsetY, this.totalBarHeight());
   }
 
-  private toolbarVisible(): boolean {
-    return this.visibleBarHeight() > 0;
+  private syncToolbarOffsetState(): void {
+    if (this.toolbarState().offsetY !== this.toolbarOffsetY) {
+      this.toolbarState().offsetY = this.toolbarOffsetY;
+    }
   }
 
   private isInitialLoadingState(): boolean {
     return this.galleries.length === 0 && !this.shouldShowSearchSuggestions() &&
       this.statusText.toLowerCase().indexOf('loading') >= 0;
-  }
-
-  private titleBarBackdropHeight(): number {
-    const fadeHeight = uiTitleBarFadeHeight();
-    const minimumHeight = this.statusBarVp() + fadeHeight;
-    return Math.max(minimumHeight,
-      Math.min(this.totalBarHeight() + fadeHeight, this.totalBarHeight() + this.toolbarOffsetY + fadeHeight));
   }
 
   private handleScrollFrame(scrollOffset: number): number {
@@ -842,8 +847,9 @@ export struct GalleryListContent {
       return;
     }
     // 从当前收起位置展开；状态同步置为终点，后续下滑帧不会重复启动动画。
+    this.toolbarOffsetY = 0;
     this.getUIContext().animateTo({ curve: curves.springMotion(0.35, 1) }, () => {
-      this.toolbarOffsetY = 0;
+      this.toolbarState().offsetY = 0;
     });
   }
 
@@ -929,6 +935,7 @@ export struct GalleryListContent {
   private snapListToTop(): void {
     this.listScroller.scrollTo({ xOffset: 0, yOffset: 0 });
     this.toolbarOffsetY = 0;
+    this.syncToolbarOffsetState();
     this.onScrollUpdate(0);
   }
 
@@ -1169,66 +1176,55 @@ export struct GalleryListContent {
   }
 
   @Builder
-  private searchResultNavBar() {
-    Stack({ alignContent: Alignment.TopStart }) {
-      EhTitleBarBackdrop({ barBackdropHeight: this.searchSubmitted ? this.titleBarBackdropHeight() :
-        this.totalBarHeight() + uiTitleBarFadeHeight() })
-
-      Column() {
-        Column()
-          .height(this.statusBarVp())
-          .width('100%')
-          .backgroundColor(Color.Transparent)
-
-        Row({ space: 8 }) {
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.chevron_left'))
-            .fontSize(22)
-            .fontColor([galleryChromeForeground()])
-        }
-        .width(40)
-        .height(40)
-        .backgroundColor(uiMaterialBackground(galleryChromeBackground(themeOnPrimaryActionBackground())))
-        .flexShrink(0)
-        .backgroundEffect(uiTransparentButtonBackgroundEffect())
-        .systemMaterial(uiButtonMaterial())
-        .onClick(() => {
-          this.onBack();
-        })
-
-        this.searchKeywordEditor()
-
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r('sys.symbol.plus'))
-            .fontSize(22)
-            .fontColor([galleryChromeForeground()])
-        }
-        .width(40)
-        .height(40)
-        .backgroundColor(uiMaterialBackground(galleryChromeBackground(
-          this.advancedPanelVisible || this.advancedSearchEnabled ? themeOnPrimaryActionStrongBackground() :
-            themeOnPrimaryActionBackground())))
-        .flexShrink(0)
-        .backgroundEffect(uiTransparentButtonBackgroundEffect())
-        .systemMaterial(uiButtonMaterial())
-        .onClick(() => {
-          this.toggleAdvancedPanel();
-        })
-        }
+  private searchResultNavContent() {
+    Column() {
+      Column()
+        .height(this.statusBarVp())
         .width('100%')
-        .height(this.barHeight())
-        .padding({ left: 12, right: 12 })
-        .alignItems(VerticalAlign.Center)
         .backgroundColor(Color.Transparent)
+
+      Row({ space: 8 }) {
+      Button({ type: ButtonType.Circle, stateEffect: true }) {
+        SymbolGlyph($r('sys.symbol.chevron_left'))
+          .fontSize(22)
+          .fontColor([galleryChromeForeground()])
+      }
+      .width(40)
+      .height(40)
+      .backgroundColor(uiMaterialBackground(galleryChromeBackground(themeOnPrimaryActionBackground())))
+      .flexShrink(0)
+      .backgroundEffect(uiTransparentButtonBackgroundEffect())
+      .systemMaterial(uiButtonMaterial())
+      .onClick(() => {
+        this.onBack();
+      })
+
+      this.searchKeywordEditor()
+
+      Button({ type: ButtonType.Circle, stateEffect: true }) {
+        SymbolGlyph($r('sys.symbol.plus'))
+          .fontSize(22)
+          .fontColor([galleryChromeForeground()])
+      }
+      .width(40)
+      .height(40)
+      .backgroundColor(uiMaterialBackground(galleryChromeBackground(
+        this.advancedPanelVisible || this.advancedSearchEnabled ? themeOnPrimaryActionStrongBackground() :
+          themeOnPrimaryActionBackground())))
+      .flexShrink(0)
+      .backgroundEffect(uiTransparentButtonBackgroundEffect())
+      .systemMaterial(uiButtonMaterial())
+      .onClick(() => {
+        this.toggleAdvancedPanel();
+      })
       }
       .width('100%')
-      .translate({ y: this.searchSubmitted ? this.toolbarOffsetY : 0 })
-      .visibility(!this.searchSubmitted || this.toolbarVisible() ? Visibility.Visible : Visibility.Hidden)
+      .height(this.barHeight())
+      .padding({ left: 12, right: 12 })
+      .alignItems(VerticalAlign.Center)
+      .backgroundColor(Color.Transparent)
     }
     .width('100%')
-    .height(this.searchSubmitted ? this.titleBarBackdropHeight() : this.totalBarHeight() + uiTitleBarFadeHeight())
-    .backgroundColor(Color.Transparent)
-    .zIndex(10)
   }
 
   private shouldShowSearchSuggestions(): boolean {
@@ -1547,13 +1543,16 @@ export struct GalleryListContent {
       this.restoreInitialListOffset();
     })
     .onScrollFrameBegin((offset: number, _state: ScrollState) => {
-      return { offsetRemain: this.handleScrollFrame(offset) };
+      const remaining = this.handleScrollFrame(offset);
+      this.syncToolbarOffsetState();
+      return { offsetRemain: remaining };
     })
     .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
       this.handleGalleryListDidScroll();
     })
     .onScrollIndex((first: number, _last: number) => {
       this.toolbarOffsetY = first > 0 ? -this.totalBarHeight() : 0;
+      this.syncToolbarOffsetState();
     })
     .onScrollStop(() => {
       this.rememberListOffset(normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset));
@@ -1601,13 +1600,16 @@ export struct GalleryListContent {
       this.restoreInitialListOffset();
     })
     .onScrollFrameBegin((offset: number, _state: ScrollState) => {
-      return { offsetRemain: this.handleScrollFrame(offset) };
+      const remaining = this.handleScrollFrame(offset);
+      this.syncToolbarOffsetState();
+      return { offsetRemain: remaining };
     })
     .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
       this.handleGalleryListDidScroll();
     })
     .onScrollIndex((first: number, _last: number) => {
       this.toolbarOffsetY = first > 0 ? -this.totalBarHeight() : 0;
+      this.syncToolbarOffsetState();
     })
     .onScrollIndex((first: number, last: number) => {
       // 每列的顶部占位块也占用 FlowItem 索引，需先换算为画廊索引。
@@ -1667,6 +1669,7 @@ export struct GalleryListContent {
     } else if (delta < -0.1) {
       this.restoreToolbarOnReverseScroll();
     }
+    this.syncToolbarOffsetState();
     this.rememberListOffset(yOffset);
     if (!this.shouldShowSearchSuggestions()) {
       const now = Date.now();
@@ -2125,47 +2128,49 @@ export struct GalleryListContent {
       }
 
       // 浮动导航栏
-      Column() {
-        if (this.isSearchResultScene || this.useLocalSearchBar) {
-          this.searchResultNavBar()
-        } else {
-          EhNavBar({
-            statusBarHeight: this.statusBarVp(),
-            title: this.searchTitle.length > 0 ? this.searchTitle : this.sceneTitle,
-            searchMode: false,
-            keyword: this.keyword,
-            filterActive: this.filterActive,
-            showSearchButton: this.showSearchButton,
-            showFavoriteButton: this.showFavoriteButton,
-            showBookmarkButton: this.showBookmarkButton,
-            showRefreshButton: false,
-            showBackButton: this.showBackButton,
-            translateY: this.toolbarOffsetY,
-            onMenu: () => {
-              this.onMenu();
-            },
-            onBack: () => {
-              this.onBack();
-            },
-            onSearch: () => {
-              this.onSearch();
-            },
-            onFavoriteButton: () => {
-              this.openFavoriteDrawer();
-            },
-            onBookmarkButton: () => {
-              this.openBookmarkDrawer();
-            },
-            onKeywordChange: (v: string) => {
-              this.onKeywordChange(v);
-            },
-            onRefresh: () => {
-              this.onRefresh();
-            }
-          })
+      if (this.isSearchResultScene || this.useLocalSearchBar) {
+        GallerySearchNavBarHost({
+          toolbarState: this.toolbarState(),
+          searchSubmitted: this.searchSubmitted,
+          statusBarHeight: this.statusBarVp(),
+          totalBarHeight: this.totalBarHeight()
+        }) {
+          this.searchResultNavContent()
         }
+      } else {
+        GalleryHomeNavBarHost({
+          toolbarState: this.toolbarState(),
+          statusBarHeight: this.statusBarVp(),
+          title: this.searchTitle.length > 0 ? this.searchTitle : this.sceneTitle,
+          keyword: this.keyword,
+          filterActive: this.filterActive,
+          showSearchButton: this.showSearchButton,
+          showFavoriteButton: this.showFavoriteButton,
+          showBookmarkButton: this.showBookmarkButton,
+          showBackButton: this.showBackButton,
+          onMenu: () => {
+            this.onMenu();
+          },
+          onBack: () => {
+            this.onBack();
+          },
+          onSearch: () => {
+            this.onSearch();
+          },
+          onFavoriteButton: () => {
+            this.openFavoriteDrawer();
+          },
+          onBookmarkButton: () => {
+            this.openBookmarkDrawer();
+          },
+          onKeywordChange: (v: string) => {
+            this.onKeywordChange(v);
+          },
+          onRefresh: () => {
+            this.onRefresh();
+          }
+        })
       }
-      .hitTestBehavior(HitTestMode.Transparent)
 
       if (!this.isInitialLoadingState() && (this.refreshPullOffset > 0 || this.refreshing)) {
         Row() {
