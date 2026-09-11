@@ -79,7 +79,7 @@ class ReaderSuperResolutionService {
     return this.acquireEntry(key, sourcePath, undefined, priority, targetWidth, targetHeight, engine);
   }
 
-  acquirePixelMap(key: string, sourcePixelMap: image.PixelMap, priority: number = 0,
+  async acquirePixelMap(key: string, sourcePixelMap: image.PixelMap, priority: number = 0,
     targetWidth: number = 0, targetHeight: number = 0,
     engine: string = READER_SUPER_RESOLUTION_ENGINE_DETAIL): Promise<image.PixelMap | undefined> {
     if (key.length === 0) {
@@ -91,7 +91,7 @@ class ReaderSuperResolutionService {
       return this.acquireEntry(key, '', existing.sourcePixelMap, priority, targetWidth, targetHeight, engine, false);
     }
     try {
-      const ownedSourcePixelMap = readerHdr.createCompatibleSdrPixelMap(sourcePixelMap);
+      const ownedSourcePixelMap = await readerHdr.createCompatibleSdrPixelMap(sourcePixelMap);
       return this.acquireEntry(key, '', ownedSourcePixelMap, priority, targetWidth, targetHeight, engine, true);
     } catch (error) {
       hilog.warn(DOMAIN, TAG, `Copy adjusted image for super-resolution failed: ${String(error)}`);
@@ -364,9 +364,9 @@ class ReaderSuperResolutionService {
     plan: ReaderSuperResolutionPlan): Promise<image.PixelMap> {
     const outputInfo = outputPixelMap.getImageInfoSync();
     if (outputInfo.size.width === plan.width && outputInfo.size.height === plan.height) {
-      return readerHdr.createCompatibleSdrPixelMap(outputPixelMap);
+      return await readerHdr.createCompatibleSdrPixelMap(outputPixelMap);
     }
-    return readerHdr.createScaledCompatibleSdrPixelMap(outputPixelMap, plan.width, plan.height);
+    return await readerHdr.createScaledCompatibleSdrPixelMap(outputPixelMap, plan.width, plan.height);
   }
 
   private async runCoreVisionEnhancement(source: image.ImageSource, sourceWidth: number, sourceHeight: number,
@@ -577,7 +577,7 @@ class ReaderSuperResolutionService {
           }
           const segmentTargetWidth = Math.max(MIN_DIMENSION, Math.round(regionWidth * plan.scale));
           const segmentTargetHeight = Math.max(MIN_DIMENSION, Math.round(regionHeight * plan.scale));
-          scaledPixelMap = readerHdr.createScaledCompatibleSdrPixelMap(enhancedPixelMap,
+          scaledPixelMap = await readerHdr.createScaledCompatibleSdrPixelMap(enhancedPixelMap,
             segmentTargetWidth, segmentTargetHeight);
           const scaledInfo = scaledPixelMap.getImageInfoSync();
           const scaledStride = scaledPixelMap.getBytesNumberPerRow();

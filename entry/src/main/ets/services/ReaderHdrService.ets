@@ -241,7 +241,7 @@ class ReaderHdrService {
           !this.isEntryActive(entry)) {
           return undefined;
         }
-        sourcePixelMap = readerHdr.createCompatibleSdrPixelMap(entry.sourcePixelMap);
+        sourcePixelMap = await readerHdr.createCompatibleSdrPixelMap(entry.sourcePixelMap);
       } else {
         source = image.createImageSource(entry.sourcePath);
         const sourceInfo = source.getImageInfoSync();
@@ -286,7 +286,7 @@ class ReaderHdrService {
           return undefined;
         }
         const decodedPixelMap = sourcePixelMap;
-        sourcePixelMap = readerHdr.createCompatibleSdrPixelMap(decodedPixelMap);
+        sourcePixelMap = await readerHdr.createCompatibleSdrPixelMap(decodedPixelMap);
         await this.releasePixelMap(decodedPixelMap);
       }
       if (this.srgbColorSpace === undefined) {

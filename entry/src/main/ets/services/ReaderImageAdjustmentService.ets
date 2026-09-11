@@ -181,7 +181,7 @@ class ReaderImageAdjustmentService {
         if (info.isHdr || info.pixelFormat !== image.PixelMapFormat.RGBA_8888) {
           return undefined;
         }
-        pixelMap = readerHdr.createCompatibleSdrPixelMap(entry.sourcePixelMap);
+        pixelMap = await readerHdr.createCompatibleSdrPixelMap(entry.sourcePixelMap);
       } else {
         source = image.createImageSource(entry.sourcePath);
         const info = source.getImageInfoSync();
