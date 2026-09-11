@@ -261,6 +261,9 @@ export struct GalleryListContent {
   private searchTagEndScrollPending: boolean = false;
   private cardScrollAnchor: GalleryCardScrollAnchor = new GalleryCardScrollAnchor();
   private loadMorePending: boolean = false;
+  private lastLoadMoreOffsetCheck: number = 0;
+  private topSpacerIndexesCache: number[] = [];
+  private topSpacerIndexesCacheColumns: number = -1;
   private restoredScroll: boolean = false;
   private galleryThumbnailAspectRatioAverage: number = 0.75;
   @State thumbnailDimensionsReady: boolean = false;
@@ -529,8 +532,10 @@ export struct GalleryListContent {
       this.translationVisibleItems.splice(existing, 1);
     }
     if (this.translationVisibleItems.length === 0) {
-      this.translationVisibleStart = -1;
-      this.translationVisibleEnd = -1;
+      if (this.translationVisibleStart !== -1 || this.translationVisibleEnd !== -1) {
+        this.translationVisibleStart = -1;
+        this.translationVisibleEnd = -1;
+      }
       return;
     }
     let start = this.translationVisibleItems[0];
@@ -539,14 +544,18 @@ export struct GalleryListContent {
       start = Math.min(start, this.translationVisibleItems[i]);
       end = Math.max(end, this.translationVisibleItems[i]);
     }
-    this.translationVisibleStart = start;
-    this.translationVisibleEnd = end;
+    if (this.translationVisibleStart !== start || this.translationVisibleEnd !== end) {
+      this.translationVisibleStart = start;
+      this.translationVisibleEnd = end;
+    }
   }
 
   private setVisibleTranslationRange(start: number, end: number): void {
     this.translationVisibleItems = [];
-    this.translationVisibleStart = start;
-    this.translationVisibleEnd = end;
+    if (this.translationVisibleStart !== start || this.translationVisibleEnd !== end) {
+      this.translationVisibleStart = start;
+      this.translationVisibleEnd = end;
+    }
   }
 
   private translationPriorityFor(index: number): number {
@@ -898,11 +907,16 @@ export struct GalleryListContent {
   }
 
   private galleryTopSpacerIndexes(): number[] {
-    const indexes: number[] = [];
     const columns = Math.max(1, this.galleryColumnCount());
+    if (columns === this.topSpacerIndexesCacheColumns) {
+      return this.topSpacerIndexesCache;
+    }
+    const indexes: number[] = [];
     for (let index = 0; index < columns; index++) {
       indexes.push(index);
     }
+    this.topSpacerIndexesCache = indexes;
+    this.topSpacerIndexesCacheColumns = columns;
     return indexes;
   }
 
@@ -1655,7 +1669,11 @@ export struct GalleryListContent {
     }
     this.rememberListOffset(yOffset);
     if (!this.shouldShowSearchSuggestions()) {
-      this.triggerLoadMoreByOffset(yOffset);
+      const now = Date.now();
+      if (now - this.lastLoadMoreOffsetCheck >= 200) {
+        this.lastLoadMoreOffsetCheck = now;
+        this.triggerLoadMoreByOffset(yOffset);
+      }
     }
   }
 

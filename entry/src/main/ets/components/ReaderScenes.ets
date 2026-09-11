@@ -225,12 +225,21 @@ export struct ReaderScene {
   private readerPageIndexesReversed: boolean = false;
   private readerPageIndexesSignature: string = '';
   private readerPageGroupRevision: number = 0;
+  // Page grouping is rebuilt only when its inputs actually change; otherwise every build would
+  // recompute the O(pages) group list for each mounted viewport.
+  private readerGroupingCacheKey: string = '';
+  private readerGroupingAscending: number[] = [];
+  private readerGroupingVisual: number[] = [];
+  private readerGroupingVisualIndex: Map<number, number> = new Map<number, number>();
+  private readerGroupingSignature: string = '';
+  private readerPageSizeRevision: number = 0;
   private imageProcessingPrefetchScope: ReaderImageProcessingPrefetchScope =
     new ReaderImageProcessingPrefetchScope();
   private readerPageImageSizes: ReaderPageImageSize[] = [];
   private readerImageSizeGalleryId: number = -1;
   private pageGroupRefreshTimer: number = -1;
   private pageGroupRefreshPending: boolean = false;
+  private imageProcessingPrefetchTimer: number = -1;
   private swiperAnimating: boolean = false;
   private swiperSourceSyncTarget: number = -1;
   private swiperSourceSyncRevision: number = 0;
@@ -383,7 +392,7 @@ export struct ReaderScene {
     this.applyReaderWindowSettings();
     this.applyBrightnessFromSettings().catch(() => {});
     this.updateVolumePageBinding();
-    this.syncImageProcessingPrefetch();
+    this.scheduleImageProcessingPrefetch();
   }
 
   aboutToDisappear(): void {
@@ -419,6 +428,10 @@ export struct ReaderScene {
     }
     this.clearPageGroupRefreshTimer();
     this.pageGroupRefreshPending = false;
+    if (this.imageProcessingPrefetchTimer !== -1) {
+      clearTimeout(this.imageProcessingPrefetchTimer);
+      this.imageProcessingPrefetchTimer = -1;
+    }
     this.clearContinuousPageSync();
     this.clearSwiperSourceSync();
     this.swiperAnimating = false;
@@ -627,7 +640,7 @@ export struct ReaderScene {
 
   onRenderVersionChange(): void {
     this.applyReaderWindowSettings();
-    this.syncImageProcessingPrefetch();
+    this.scheduleImageProcessingPrefetch();
   }
 
   onGalleryIdChange(): void {
@@ -644,7 +657,7 @@ export struct ReaderScene {
     this.readerPageIndexesCount = -1;
     if (this.readerWindowActive) {
       this.syncReaderPageIndexSource();
-      this.syncImageProcessingPrefetch();
+      this.scheduleImageProcessingPrefetch();
       this.syncPairedViewport(this.currentIndex);
       if (this.isContinuousVerticalMode()) {
         this.scheduleContinuousPageSync(this.currentIndex, false);
@@ -653,7 +666,7 @@ export struct ReaderScene {
   }
 
   onReaderPagesChange(): void {
-    this.syncImageProcessingPrefetch();
+    this.scheduleImageProcessingPrefetch();
   }
 
   onReaderPreviewsChange(): void {
@@ -667,7 +680,7 @@ export struct ReaderScene {
     this.currentIndex = this.pageGroupAnchorForPageIndex(this.pageIndex);
     this.sliderLiveIndex = this.clampReaderPageIndex(this.currentIndex);
     this.syncReaderPageIndexSource();
-    this.syncImageProcessingPrefetch();
+    this.scheduleImageProcessingPrefetch();
     this.syncPairedViewport(this.currentIndex);
     if (this.readerWindowActive && this.isContinuousVerticalMode()) {
       this.scheduleContinuousPageSync(this.currentIndex, false);
@@ -744,9 +757,14 @@ export struct ReaderScene {
 
   private refreshBattery(): void {
     try {
-      this.batteryLevel = batteryInfo.batterySOC;
+      const level = batteryInfo.batterySOC;
+      if (level !== this.batteryLevel) {
+        this.batteryLevel = level;
+      }
     } catch (e) {
-      this.batteryLevel = -1;
+      if (this.batteryLevel !== -1) {
+        this.batteryLevel = -1;
+      }
     }
   }
 
@@ -755,7 +773,10 @@ export struct ReaderScene {
   }
 
   private refreshOverlayInfo(): void {
-    this.clockText = readerClockText();
+    const clock = readerClockText();
+    if (clock !== this.clockText) {
+      this.clockText = clock;
+    }
     this.overlayRefreshCount++;
     if (this.overlayRefreshCount % 10 === 0 || this.batteryLevel < 0) {
       this.refreshBattery();
@@ -793,7 +814,7 @@ export struct ReaderScene {
     this.imageActionsVisible = false;
     this.scheduleAutoTransfer();
     this.syncReaderPageIndexSource();
-    this.syncImageProcessingPrefetch();
+    this.scheduleImageProcessingPrefetch();
     this.syncPairedViewport(this.currentIndex);
     if (pageGroupChanged) {
       if (this.isContinuousVerticalMode()) {
@@ -806,7 +827,20 @@ export struct ReaderScene {
     }
   }
 
-  private pageGroupIndexesAscending(): number[] {
+  private readerGroupingKey(): string {
+    return this.totalPages.toString() + '|' + this.pageIndex.toString() + '|' +
+      (this.adaptiveDualPage ? '1' : '0') + (this.swiperVertical ? '1' : '0') + '|' +
+      normalizePageScalingOption(this.fitMode) + '|' +
+      this.readerLayoutWidth.toString() + 'x' + this.readerLayoutHeight.toString() + '|' +
+      this.readerPageSizeRevision.toString();
+  }
+
+  private ensureReaderPageGrouping(): void {
+    const key = this.readerGroupingKey();
+    if (key === this.readerGroupingCacheKey) {
+      return;
+    }
+    this.readerGroupingCacheKey = key;
     const count = this.totalPages <= 0 ? 1 : this.totalPages;
     const requestedPage = Math.max(0, Math.min(count - 1, this.pageIndex));
     const pages: number[] = [];
@@ -816,12 +850,25 @@ export struct ReaderScene {
       const wouldConsumeRequestedPage = index + 1 === requestedPage;
       index += !wouldConsumeRequestedPage && this.shouldPairPage(index) ? 2 : 1;
     }
-    return pages;
+    this.readerGroupingAscending = pages;
+    const visual = this.swiperReversed ? pages.slice().reverse() : pages.slice();
+    this.readerGroupingVisual = visual;
+    const visualIndex: Map<number, number> = new Map<number, number>();
+    for (let i = 0; i < visual.length; i++) {
+      visualIndex.set(visual[i], i);
+    }
+    this.readerGroupingVisualIndex = visualIndex;
+    this.readerGroupingSignature = visual.join(',');
+  }
+
+  private pageGroupIndexesAscending(): number[] {
+    this.ensureReaderPageGrouping();
+    return this.readerGroupingAscending;
   }
 
   private pageIndexes(): number[] {
-    const pages = this.pageGroupIndexesAscending();
-    return this.swiperReversed ? pages.reverse() : pages;
+    this.ensureReaderPageGrouping();
+    return this.readerGroupingVisual;
   }
 
   private pageImageSize(index: number): ReaderPageImageSize | null {
@@ -840,6 +887,7 @@ export struct ReaderScene {
     this.clearPageGroupRefreshTimer();
     this.pageGroupRefreshPending = false;
     this.readerPageImageSizes = [];
+    this.readerPageSizeRevision++;
     this.readerImageSizeGalleryId = this.galleryId;
     return true;
   }
@@ -859,6 +907,9 @@ export struct ReaderScene {
       });
       changed = true;
     }
+    if (changed) {
+      this.readerPageSizeRevision++;
+    }
     return changed;
   }
 
@@ -874,12 +925,14 @@ export struct ReaderScene {
         this.readerPageImageSizes[i].width = width;
         this.readerPageImageSizes[i].height = height;
         this.readerPageImageSizeRevision++;
+        this.readerPageSizeRevision++;
         this.schedulePageGroupRefresh();
         return;
       }
     }
     this.readerPageImageSizes.push({ index: index, width: width, height: height });
     this.readerPageImageSizeRevision++;
+    this.readerPageSizeRevision++;
     this.schedulePageGroupRefresh();
   }
 
@@ -917,7 +970,7 @@ export struct ReaderScene {
       }
       this.normalizeCurrentPageGroup();
       this.syncReaderPageIndexSource();
-      this.syncImageProcessingPrefetch();
+      this.scheduleImageProcessingPrefetch();
       this.syncPairedViewport(this.currentIndex);
     }, Math.max(0, delay)) as number;
   }
@@ -950,15 +1003,23 @@ export struct ReaderScene {
   }
 
   private pageGroupAnchorForPageIndex(index: number): number {
+    const groups = this.pageGroupIndexesAscending();
+    if (groups.length === 0) {
+      return 0;
+    }
     const count = this.totalPages <= 0 ? 1 : this.totalPages;
     const target = Math.max(0, Math.min(count - 1, index));
-    const groups = this.pageGroupIndexesAscending();
-    let result = 0;
-    for (let i = 0; i < groups.length; i++) {
-      if (groups[i] > target) {
-        break;
+    let low = 0;
+    let high = groups.length - 1;
+    let result = groups[0];
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (groups[mid] <= target) {
+        result = groups[mid];
+        low = mid + 1;
+      } else {
+        high = mid - 1;
       }
-      result = groups[i];
     }
     return result;
   }
@@ -1088,7 +1149,17 @@ export struct ReaderScene {
     return Math.max(0, target.width).toString() + 'x' + Math.max(0, target.height).toString();
   }
 
-  private syncImageProcessingPrefetch(): void {
+  private scheduleImageProcessingPrefetch(delay: number = 100): void {
+    if (this.imageProcessingPrefetchTimer !== -1) {
+      clearTimeout(this.imageProcessingPrefetchTimer);
+    }
+    this.imageProcessingPrefetchTimer = setTimeout(() => {
+      this.imageProcessingPrefetchTimer = -1;
+      this.applyImageProcessingPrefetch();
+    }, delay) as number;
+  }
+
+  private applyImageProcessingPrefetch(): void {
     if (!this.readerWindowActive || (!this.imageSuperResolutionEnabled && !this.sdrToHdrEnabled &&
       !this.imageAdjustmentSettings.requiresOfflineProcessing())) {
       this.imageProcessingPrefetchScope.clear();
@@ -1147,7 +1218,7 @@ export struct ReaderScene {
   private syncReaderPageIndexSource(): void {
     const count = this.totalPages <= 0 ? 1 : this.totalPages;
     const pages = this.pageIndexes();
-    const signature = pages.join(',');
+    const signature = this.readerGroupingSignature;
     if (count === this.readerPageIndexesCount && this.readerPageIndexesReversed === this.swiperReversed &&
       signature === this.readerPageIndexesSignature) {
       return;
@@ -1216,10 +1287,9 @@ export struct ReaderScene {
   }
 
   private visualIndexForPageIndex(index: number): number {
-    const pages = this.pageIndexes();
     const anchor = this.pageGroupAnchorForPageIndex(index);
-    const visualIndex = pages.indexOf(anchor);
-    return visualIndex < 0 ? 0 : visualIndex;
+    const visualIndex = this.readerGroupingVisualIndex.get(anchor);
+    return visualIndex === undefined ? 0 : visualIndex;
   }
 
   private pageIndexForVisualIndex(index: number): number {
@@ -1426,6 +1496,7 @@ export struct ReaderScene {
     }
     if (previousCropWhiteBorders !== this.cropWhiteBorders) {
       this.readerPageImageSizes = [];
+      this.readerPageSizeRevision++;
       if (!this.cropWhiteBorders) {
         this.syncReaderPreviewImageSizes();
       }
@@ -1445,7 +1516,7 @@ export struct ReaderScene {
     }
     this.applyReaderWindowSettings();
     this.updateVolumePageBinding();
-    this.syncImageProcessingPrefetch();
+    this.scheduleImageProcessingPrefetch();
     if (this.autoTransferPlaying) {
       this.scheduleAutoTransfer();
     }
@@ -2660,7 +2731,7 @@ export struct ReaderScene {
     this.resetPairedViewport();
     this.resetActiveImageSize();
     this.currentIndex = index;
-    this.syncImageProcessingPrefetch();
+    this.scheduleImageProcessingPrefetch();
     this.isDisableSwipe = false;
     this.zoomPercent = this.isFixedScaleMode() ? Math.round(this.fixedScale * 100) : 100;
     this.imageActionsVisible = false;
@@ -2691,7 +2762,7 @@ export struct ReaderScene {
     }
     this.currentIndex = pageIndex;
     this.sliderLiveIndex = pageIndex;
-    this.syncImageProcessingPrefetch();
+    this.scheduleImageProcessingPrefetch();
     this.onJump(pageIndex);
   }
 
@@ -3785,7 +3856,7 @@ export struct ReaderScene {
         this.normalizeCurrentPageGroup();
         this.syncReaderPageIndexSource();
         this.syncComicTranslationButtonPosition();
-        this.syncImageProcessingPrefetch();
+        this.scheduleImageProcessingPrefetch();
         this.syncPairedViewport(this.currentIndex);
       }
     })
