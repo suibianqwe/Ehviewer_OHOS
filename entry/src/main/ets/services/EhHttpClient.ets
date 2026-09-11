@@ -19,7 +19,7 @@ import { mergeGalleryApiMetadata } from './GalleryApiParser';
 import { FavoriteCategoryInfo, GalleryListParseResult, parseGalleryList } from './GalleryListParser';
 import { GalleryPageApiParseResult, parseGalleryPageApi } from './GalleryPageApiParser';
 import { GalleryPageParseResult, parseGalleryPage } from './GalleryPageParser';
-import { GalleryPageUrlInfo, parseGalleryPageUrl } from './GalleryPageUrlParser';
+import { GalleryPageUrlInfo, parseGalleryPageUrl } from './GalleryPageParser';
 import {
   parseArchiverContinueUrl,
   parseArchiverDownloadUrl,
@@ -47,7 +47,7 @@ import {
   buildAndroidChromeBrandHeader,
   buildAndroidChromeUserAgent,
   EH_ANDROID_CHROME_FALLBACK_VERSION
-} from './EhBrowserCompatibility';
+} from './EhWebRuntime';
 
 export interface EhHttpResponse {
   statusCode: number;

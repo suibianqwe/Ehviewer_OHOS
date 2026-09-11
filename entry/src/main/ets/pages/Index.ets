@@ -37,9 +37,12 @@ import {
 } from '../services/EhWindowImmersive';
 import { prepareSplitPaneRouteTransition, SPLIT_PANE_MODAL_Z_INDEX } from '../components/SplitPaneSupport';
 import { FavoriteGalleryScene, HomeGalleryScene, HotGalleryScene, SubscriptionGalleryScene } from '../components/GalleryScenes';
-import { HistoryScene, TopListScene } from '../components/HistoryTopScenes';
-import { DownloadScene, MigrationScene } from '../components/DownloadMigrationScenes';
-import { SessionScene, SettingsScene } from '../components/SessionSettingsScenes';
+import { HistoryScene } from '../components/HistoryScene';
+import { TopListScene } from '../components/TopListScene';
+import { DownloadScene } from '../components/DownloadScene';
+import { MigrationScene } from '../components/MigrationScene';
+import { SessionScene } from '../components/SessionScene';
+import { SettingsScene } from '../components/SettingsScene';
 import {
   captureEhAccountWebCookies,
   configureWebCookieAccess,

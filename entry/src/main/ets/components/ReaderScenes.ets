@@ -2,7 +2,7 @@ import { window } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 import { batteryInfo } from '@kit.BasicServicesKit';
-import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
+import { fileUri, picker } from '@kit.CoreFileKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { image } from '@kit.ImageKit';
 import { systemShare } from '@kit.ShareKit';
@@ -24,7 +24,7 @@ import {
   readerScreenRotationSetting,
   restoreAppWindowState,
   setEmbeddedReaderActive,
-  setReaderTransientStatusBarVisible
+  setReaderTransientStatusBarVisible,
 } from '../services/EhWindowImmersive';
 import { READER_TRANSLATION_BUTTON_VISIBLE_KEY, ehSettingsStore } from '../services/EhSettingsStore';
 import {
@@ -39,12 +39,12 @@ import {
   ReaderPresetValues,
   READER_CUSTOM_PRESETS_SETTING_KEY,
   saveCustomReaderPreset,
-  saveReaderPreset
+  saveReaderPreset,
 } from '../services/ReaderPresetSupport';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import {
   ReaderImageProcessingPrefetchPlan,
-  ReaderImageProcessingPrefetchScope
+  ReaderImageProcessingPrefetchScope,
 } from '../services/ReaderImageProcessingPrefetchService';
 import { IMAGE_DOWNLOAD_PRIORITY_READER, readerImageCache } from '../services/ReaderImageCache';
 import { readerHdrService } from '../services/ReaderHdrService';
@@ -54,14 +54,14 @@ import {
   ReaderImageAdjustmentSettings,
   readerImageAdjustmentSettingsFromStore,
   resetReaderImageAdjustmentSettings,
-  saveReaderImageAdjustmentSettings
+  saveReaderImageAdjustmentSettings,
 } from '../services/ReaderImageAdjustmentSupport';
 import { readerSuperResolutionService } from '../services/ReaderSuperResolutionService';
 import {
   effectiveReaderSuperResolutionEngine,
   readerSuperResolutionEngineCacheKey,
   readerSuperResolutionEngineOptions,
-  READER_SUPER_RESOLUTION_ENGINE_DETAIL
+  READER_SUPER_RESOLUTION_ENGINE_DETAIL,
 } from '../services/ReaderSuperResolutionSupport';
 import {
   createEmptyPage,
@@ -81,7 +81,7 @@ import {
   setReaderActiveBackHandler,
   BOTTOM_AVOID_HEIGHT_KEY,
   STATUS_BAR_HEIGHT_KEY,
-  uiText
+  uiText,
 } from '../shared/EhShared';
 import { ArrayDataSource } from '../shared/ListDataSource';
 import {
@@ -89,7 +89,7 @@ import {
   uiFloatingButtonBackgroundEffect,
   uiMaterialBackground,
   uiMaterialForegroundColor,
-  uiTintedButtonMaterial
+  uiTintedButtonMaterial,
 } from '../shared/EhUiStyle';
 import {
   READER_BASE_SCALE,
@@ -99,7 +99,7 @@ import {
   READER_OFFSCREEN_RENDER_SCREEN_COUNT,
   ReaderPreviewModel,
   readerBackgroundColor,
-  readerLocalSourceImagePath
+  readerLocalSourceImagePath,
 } from './reader/core/ReaderCore';
 import {
   addUniquePath,
@@ -110,112 +110,40 @@ import {
   readerImageFileName,
   readerProcessedImageFileName,
   removeFileIfExists,
-  stripFileScheme
+  stripFileScheme,
 } from './reader/io/ReaderImageFileOps';
 import { readerUltraDarkSliderValue } from './reader/menu/ReaderMenuControls';
 import {
   ReaderImageActionsOverlay,
   ReaderInfoOverlay,
   ReaderSettingsMenuOverlay,
-  ReaderSliderPanel
+  ReaderSliderPanel,
 } from './reader/overlays/ReaderOverlays';
 import { ReaderContinuousImageItem } from './reader/viewports/ReaderContinuousImageItem';
 import { ReaderImageViewport } from './reader/viewports/ReaderImageViewport';
-
+import {
+  SLIDER_AUTO_HIDE_DELAY,
+  READER_SCREEN_TAP_DELAY,
+  READER_PAIRED_TAP_DELAY,
+  READER_PAIRED_TAP_MOVE_TOLERANCE,
+  READER_PAIRED_DOUBLE_TAP_DISTANCE,
+  READER_DUAL_PAGE_OVERFLOW_RATIO,
+  READER_PAGE_GROUP_REFRESH_DELAY,
+  READER_TRANSLATION_BUTTON_SIZE,
+  READER_TRANSLATION_BUTTON_EDGE,
+  READER_AXIS_PAGE_INTERVAL,
+  mediaAssetTitle,
+  ReaderPageState,
+  ReaderPageImageSize,
+  ReaderSuperResolutionDisplayTarget,
+  ReaderPageGroupItem,
+  ReaderProcessedImageLease,
+  ReaderPairedTransformViewport,
+  usableReaderLocalPath,
+} from './ReaderSceneSupport';
 export { ReaderNavButton, ReaderToolButton } from './reader/controls/ReaderButtons';
 export { CommentsScene, PlaceholderScene } from './reader/scenes/ReaderAuxScenes';
-
-const SLIDER_AUTO_HIDE_DELAY: number = 3000;
-const READER_SCREEN_TAP_DELAY: number = 300;
-const READER_PAIRED_TAP_DELAY: number = 420;
-const READER_PAIRED_TAP_MOVE_TOLERANCE: number = 14;
-const READER_PAIRED_DOUBLE_TAP_DISTANCE: number = 48;
-const READER_DUAL_PAGE_OVERFLOW_RATIO: number = 1.15;
-const READER_PAGE_GROUP_REFRESH_DELAY: number = 220;
-const READER_TRANSLATION_BUTTON_SIZE: number = 52;
-const READER_TRANSLATION_BUTTON_EDGE: number = 8;
-const READER_AXIS_PAGE_INTERVAL: number = 140;
-
-function mediaAssetTitle(fileName: string): string {
-  const dotIndex = fileName.lastIndexOf('.');
-  const baseName = dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
-  const cleaned = baseName.replace(/[.\\/:*?"'`<>|{}\[\]]/g, '_').replace(/\s+/g, ' ').trim();
-  if (cleaned.length === 0) {
-    return 'ehviewer_page';
-  }
-  return cleaned.length > 120 ? cleaned.substring(0, 120).trim() : cleaned;
-}
-
-export interface ReaderPageState {
-  index: number;
-  page: GalleryPage;
-}
-
-interface ReaderPageImageSize {
-  index: number;
-  width: number;
-  height: number;
-}
-
-interface ReaderSuperResolutionDisplayTarget {
-  width: number;
-  height: number;
-}
-
-interface ReaderPageGroupItem {
-  index: number;
-  key: string;
-  paired: boolean;
-}
-
-class ReaderProcessedImageLease {
-  pixelMap: image.PixelMap | undefined = undefined;
-  superResolutionKey: string = '';
-  hdrKey: string = '';
-  adjustmentKey: string = '';
-
-  release(): void {
-    if (this.hdrKey.length > 0) {
-      readerHdrService.release(this.hdrKey);
-      this.hdrKey = '';
-    }
-    if (this.superResolutionKey.length > 0) {
-      readerSuperResolutionService.release(this.superResolutionKey);
-      this.superResolutionKey = '';
-    }
-    if (this.adjustmentKey.length > 0) {
-      readerImageAdjustmentService.release(this.adjustmentKey);
-      this.adjustmentKey = '';
-    }
-    this.pixelMap = undefined;
-  }
-}
-
-@Component
-struct ReaderPairedTransformViewport {
-  @ObjectLink model: ReaderPreviewModel;
-  @BuilderParam content: () => void = this.EmptyContent;
-
-  @Builder
-  private EmptyContent() {
-  }
-
-  build() {
-    Stack({ alignContent: Alignment.Center }) {
-      this.content()
-    }
-    .scale({
-      x: this.model.currentScale,
-      y: this.model.currentScale,
-      centerX: '50%',
-      centerY: '50%'
-    })
-    .translate({
-      x: this.model.currentOffsetX,
-      y: this.model.currentOffsetY
-    })
-  }
-}
+export { ReaderPageState } from './ReaderSceneSupport';
 
 @Component
 export struct ReaderScene {
@@ -3914,16 +3842,5 @@ export struct ReaderScene {
     const visualIndex = this.visualIndexForPageIndex(this.currentIndex);
     const targetVisualIndex = visualIndex + (direction < 0 ? 1 : -1);
     this.jumpTo(this.pageIndexForVisualIndex(targetVisualIndex));
-  }
-}
-
-function usableReaderLocalPath(path: string): string {
-  if (path.length === 0 || path.endsWith('.part')) {
-    return '';
-  }
-  try {
-    return fs.statSync(path).size > 0 ? path : '';
-  } catch (error) {
-    return '';
   }
 }

@@ -1,6 +1,6 @@
 import { GalleryCategory, GalleryDetail, GalleryRoute, GallerySite, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
 import { EhHttpClient, TopListLoadResult } from '../services/EhHttpClient';
-import { AsyncRequestGate } from '../services/AsyncRequestGate';
+import { AsyncRequestGate } from '../services/HttpRequestLifecycle';
 import {
   TRANSLATION_ENABLED_KEY,
   ehTranslationService,
@@ -8,13 +8,13 @@ import {
 } from '../services/EhTranslationService';
 import { TRANSLATION_BUTTONS_VISIBLE_KEY } from '../services/EhSettingsStore';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
-import { DetailSearchRequest } from '../services/GalleryDetailActionSupport';
+import { DetailSearchRequest } from '../services/GalleryDetailSupport';
 import {
   createGalleryDetailLink,
   createEmptyGalleryDetailLink,
   GalleryDetailLink,
   initialDetailForLink
-} from '../services/GalleryDetailModule';
+} from '../services/GalleryDetailSupport';
 import {
   applyAppChromeImmersiveMode,
   isEmbeddedReaderActive,

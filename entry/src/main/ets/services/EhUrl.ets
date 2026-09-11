@@ -1,4 +1,11 @@
-import { ALL_CATEGORY, GalleryCategory, GallerySite } from '../model/GalleryModels';
+import {
+  ALL_CATEGORY,
+  GalleryCategory,
+  GallerySite,
+} from '../model/GalleryModels';
+import {
+  ehCookieStore,
+} from './EhCookieStore';
 
 export interface QueryParam {
   key: string;
@@ -355,4 +362,11 @@ function safeDecode(value: string): string {
   } catch (error) {
     return '';
   }
+}
+
+export function gallerySiteCandidates(selectedSite: GallerySite): GallerySite[] {
+  if (selectedSite === GallerySite.E && ehCookieStore.hasCookies()) {
+    return [GallerySite.E, GallerySite.Ex];
+  }
+  return [selectedSite];
 }

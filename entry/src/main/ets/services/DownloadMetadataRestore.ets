@@ -6,7 +6,7 @@ import { ehHistoryStore } from './EhHistoryStore';
 import { EhHttpClient, GalleryDetailLoadResult } from './EhHttpClient';
 import { EhUrl } from './EhUrl';
 import { ehCookieStore } from './EhCookieStore';
-import { gallerySiteCandidates } from './EhGallerySiteFallback';
+import { gallerySiteCandidates } from './EhUrl';
 
 export interface DownloadMetadataRestoreResult {
   rebuilt: number;

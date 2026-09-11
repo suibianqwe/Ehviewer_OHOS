@@ -7,7 +7,7 @@ import {
   cloneReaderPageTranslation,
   cloneReaderPageTranslations
 } from '../model/ReaderTranslationModels';
-import { parseGalleryPageUrl } from './GalleryPageUrlParser';
+import { parseGalleryPageUrl } from './GalleryPageParser';
 import { ehSettingsStore } from './EhSettingsStore';
 
 interface GalleryMetadata {

@@ -35,7 +35,7 @@ import {
   DetailSearchRequest,
   detailArchiveReferer,
   detailCoverCacheKey
-} from '../services/GalleryDetailActionSupport';
+} from '../services/GalleryDetailSupport';
 import {
   createDownloadReaderSessionState,
   detailDownloadButtonText,
@@ -43,7 +43,7 @@ import {
   findDetailDownloadItem,
   refreshDetailDownloadItem,
   toggleDetailDownloadTask
-} from '../services/GalleryDetailDownloadSupport';
+} from '../services/GalleryDetailSupport';
 import {
   createEmptyGalleryDetailLink,
   createGalleryDetailLinkFromUrl,
@@ -51,10 +51,10 @@ import {
   GalleryDetailModuleLoadResult,
   initialDetailForLink,
   loadGalleryDetailModule
-} from '../services/GalleryDetailModule';
+} from '../services/GalleryDetailSupport';
 import { DetailPreviewPager, loadGalleryPreviewPage, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
 import { IMAGE_DOWNLOAD_PRIORITY_INTERACTIVE, readerImageCache } from '../services/ReaderImageCache';
-import { AsyncRequestGate } from '../services/AsyncRequestGate';
+import { AsyncRequestGate } from '../services/HttpRequestLifecycle';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import {
   DEFAULT_FAVORITE_SLOT_ASK,

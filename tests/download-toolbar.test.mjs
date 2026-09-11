@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const read = (path) => readFileSync(new URL('../entry/src/main/ets/' + path, import.meta.url), 'utf8');
 const download = read('components/DownloadScene.ets');
-const gallery = read('components/GalleryScenes.ets');
+const gallery = read('components/GalleryListContent.ets');
 const navigation = read('components/NavigationComponents.ets');
 const layout = read('shared/AdaptiveGalleryListLayout.ets');
 const shared = read('shared/EhShared.ets');

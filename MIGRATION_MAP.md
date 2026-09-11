@@ -28,7 +28,7 @@
 | `entry/src/main/ets/entryability/EntryAbility.ets` | Main HarmonyOS ability |
 | `entry/src/main/ets/pages/Index.ets` | ArkUI drawer/stage shell modeled after Android `MainActivity`, gallery list and detail scenes |
 | `entry/src/main/ets/model/GalleryModels.ets` | Initial shared data contracts |
-| `entry/src/main/ets/services/MigrationStatus.ets` | Visible migration checklist |
+| `entry/src/main/ets/components/MigrationScene.ets` | Migration scene with visible migration checklist |
 | `entry/src/main/ets/services/EhUrl.ets` | ArkTS port of core EhUrl, list URL and favorites URL builders |
 | `entry/src/main/ets/services/GalleryListUrlParser.ets` | ArkTS port of gallery list URL parsing |
 | `entry/src/main/ets/services/EhHttpClient.ets` | HarmonyOS HTTP wrapper using `@ohos.net.http`, password sign-in, gallery list pagination, detail loading and image-page loading |
@@ -41,12 +41,10 @@
 | `entry/src/main/ets/services/EhDownloadFileStore.ets` | HarmonyOS app-files gallery folder writer for downloaded page files and `.ehviewer` metadata |
 | `entry/src/main/ets/services/GalleryPageCache.ets` | In-memory reader page cache used by the HarmonyOS reader and adjacent-page preloading |
 | `entry/src/main/ets/services/GalleryListParser.ets` | ArkTS parser for minimal, extended and thumbnail gallery list rows |
-| `entry/src/main/ets/services/GalleryListFixture.ets` | Local parser fixtures rendered by `HomePanel` |
+| `entry/src/main/ets/services/GalleryFixtures.ets` | Local gallery list and detail parser fixtures |
 | `entry/src/main/ets/services/GalleryDetailParser.ets` | Lightweight ArkTS parser for gallery detail metadata, tags and previews |
-| `entry/src/main/ets/services/GalleryDetailFixture.ets` | Local gallery detail parser fixture |
-| `entry/src/main/ets/services/GalleryPageParser.ets` | ArkTS parser for image page URL, original image URL and retry key |
+| `entry/src/main/ets/services/GalleryPageParser.ets` | ArkTS parser for image page URL, original image URL, retry key and `/s/{pToken}/{gid}-{page}` reader page URLs |
 | `entry/src/main/ets/services/GalleryPageApiParser.ets` | ArkTS parser for the original app's `api.php` `showpage` JSON fast path |
-| `entry/src/main/ets/services/GalleryPageUrlParser.ets` | ArkTS parser for `/s/{pToken}/{gid}-{page}` reader page URLs |
 | `entry/src/main/ets/services/ReaderImageCache.ets` | HarmonyOS app-cache image downloader modeled after the first local-cache layer of Android `SpiderDen` |
 | `entry/src/main/ets/services/TopListParser.ets` | ArkTS port of the Android top-list parser for `toplist.php` ranking blocks |
 

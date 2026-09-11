@@ -8,7 +8,7 @@ import {
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { MAIN_CONTENT_WIDTH_VP_KEY } from '../services/EhWindowImmersive';
 import { shouldShowTagTranslations, STATUS_BAR_HEIGHT_KEY, uiText } from '../shared/EhShared';
-import { sortedStringKey, toggleStringValue } from '../shared/StringCollectionSupport';
+import { sortedStringKey, toggleStringValue } from '../shared/EhShared';
 import {
   themeAccentTextColor,
   themeDangerText,
@@ -41,7 +41,7 @@ import {
   SearchSuggestionList,
   SearchSummaryStrip
 } from './GallerySearchScenes';
-import { SettingsSubToolbar } from './SessionSettingsScenes';
+import { SettingsSubToolbar } from './SettingsScene';
 
 @Component
 export struct FilterPanel {

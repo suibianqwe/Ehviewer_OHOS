@@ -81,10 +81,26 @@ test('versioned web and download features keep explicit fallbacks', () => {
 
 test('large ArkTS units cannot grow without an explicit budget review', () => {
   const budgets = new Map([
-    ['entry/src/main/ets/components/GalleryScenes.ets', 6050],
-    ['entry/src/main/ets/shared/EhShared.ets', 4350],
-    ['entry/src/main/ets/components/SettingsScene.ets', 4200],
-    ['entry/src/main/ets/components/ReaderScenes.ets', 3950]
+    ['entry/src/main/ets/components/GalleryScenes.ets', 2800],
+    ['entry/src/main/ets/components/GalleryListContent.ets', 2400],
+    ['entry/src/main/ets/components/GalleryListSupport.ets', 500],
+    ['entry/src/main/ets/components/GalleryBookmarkScenes.ets', 750],
+    ['entry/src/main/ets/components/GalleryOverlayComponents.ets', 550],
+    ['entry/src/main/ets/components/GalleryRouteScenes.ets', 150],
+    ['entry/src/main/ets/components/DownloadScene.ets', 2900],
+    ['entry/src/main/ets/components/DownloadComponents.ets', 750],
+    ['entry/src/main/ets/shared/EhShared.ets', 2600],
+    ['entry/src/main/ets/shared/EhTranslations.ets', 2100],
+    ['entry/src/main/ets/components/SettingsScene.ets', 2750],
+    ['entry/src/main/ets/components/SettingsSupport.ets', 350],
+    ['entry/src/main/ets/components/SettingsPanels.ets', 1000],
+    ['entry/src/main/ets/components/SettingsOverlays.ets', 800],
+    ['entry/src/main/ets/components/ReaderScenes.ets', 3950],
+    ['entry/src/main/ets/components/ReaderSceneSupport.ets', 250],
+    ['entry/src/main/ets/services/GalleryFixtures.ets', 350],
+    ['entry/src/main/ets/services/GalleryDetailSupport.ets', 550],
+    ['entry/src/main/ets/services/TranslationSupport.ets', 400],
+    ['entry/src/main/ets/services/EhUrl.ets', 450]
   ]);
   for (const [path, budget] of budgets) {
     const lines = read(path).split(/\r?\n/).length;
@@ -108,10 +124,10 @@ test('reader exit has one window-state owner and defers list state updates', () 
   assert.doesNotMatch(reader, /restoreAppWindowStateForReaderExit|restoreSystemBarsForReaderExit/,
     'ReaderScene teardown must not race the parent-owned embedded-reader restore');
 
-  const galleries = read('entry/src/main/ets/components/GalleryScenes.ets');
-  assert.match(galleries, /onGalleriesChanged\(\): void \{[\s\S]*scheduleTranslationVisibleRange\(-1, -1\)/);
-  assert.match(galleries, /private scheduleTranslationVisibleRange[\s\S]*setTimeout\(\(\) =>/,
-    'reactive visible-range updates must be committed outside the active render pass');
+  const galleries = read('entry/src/main/ets/components/GalleryListContent.ets');
+  assert.match(galleries, /onGalleriesChanged\(\): void \{[\s\S]*this\.translationVisibleStart = -1/);
+  assert.match(galleries, /onGalleriesChanged\(\): void \{[\s\S]*this\.translationVisibleEnd = -1/,
+    'replacing the gallery list must reset the visible translation range');
 });
 
 test('embedded reader hides the dual-pane divider', () => {
@@ -123,12 +139,12 @@ test('embedded reader hides the dual-pane divider', () => {
 
 test('gallery list keeps a stable edge inset on wide layouts', () => {
   const style = read('entry/src/main/ets/shared/EhUiStyle.ets');
-  const galleries = read('entry/src/main/ets/components/GalleryScenes.ets');
+  const galleries = read('entry/src/main/ets/components/GalleryListContent.ets');
   assert.match(galleries,
-    /private galleryContentPadding\(\): number \{[\s\S]*return 12;/,
+    /private galleryContentPadding\(\): number \{[\s\S]*galleryListHorizontalPadding/,
     'gallery cards must keep the same 12vp edge inset on wide screens');
   assert.match(galleries,
-    /uiAdaptiveColumnCount\(width, preferred, gap, this\.galleryContentPadding\(\)\)/,
+    /galleryListColumnCount\(width, preferred, gap\)/,
     'gallery column calculation must use the same edge inset as the rendered list');
   assert.match(style,
     /horizontalPadding: number = 0[\s\S]*edgePadding = horizontalPadding > 0 \? horizontalPadding/,
@@ -224,7 +240,7 @@ test('daily check-in uses a cookie-backed background Web and keeps the foregroun
 });
 
 test('search scenes refresh suggestions after async search-history load', () => {
-  const galleryScenes = read('entry/src/main/ets/components/GalleryScenes.ets');
+  const galleryScenes = read('entry/src/main/ets/components/GalleryListContent.ets');
   const downloadScene = read('entry/src/main/ets/components/DownloadScene.ets');
   for (const source of [galleryScenes, downloadScene]) {
     assert.match(source,

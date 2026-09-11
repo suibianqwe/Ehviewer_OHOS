@@ -8,3 +8,7 @@
 *.iml
 *.hap
 *.app
+local.properties
+Crash_*.dmp
+/artifacts/
+/entry/.cxx/

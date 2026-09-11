@@ -5,6 +5,8 @@ import test from 'node:test';
 const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 const editor = read('entry/src/main/ets/components/BookmarkEditor.ets');
 const gallery = read('entry/src/main/ets/components/GalleryScenes.ets');
+const galleryContent = read('entry/src/main/ets/components/GalleryListContent.ets');
+const bookmarkScenes = read('entry/src/main/ets/components/GalleryBookmarkScenes.ets');
 const panel = read('entry/src/main/ets/components/GallerySearchScenes.ets');
 const url = read('entry/src/main/ets/services/EhUrl.ets');
 const defaultFlags = Function('return ' + url.match(/DEFAULT_ADVANCE_SEARCH: number = ([^;]+);/)[1])();
@@ -120,17 +122,16 @@ test('page limits are wired through search UI to request parameters', () => {
   for (const field of ['pageFrom', 'pageTo']) {
     const handler = 'on' + field[0].toUpperCase() + field.slice(1) + 'Change';
     assert.ok(editor.includes(`${handler}: (value: number) => { this.${field}Draft = value; }`));
-    assert.ok(gallery.includes(`${handler}: this.${handler}`));
+    assert.ok(galleryContent.includes(`${handler}: this.${handler}`));
     assert.ok(gallery.includes(`builder.${field} = this.${field};`));
-    assert.ok(gallery.includes(`${field}: this.${field}`));
+    assert.ok(galleryContent.includes(`${field}: this.${field}`));
   }
   assert.ok(url.includes("key: 'f_spf'"));
   assert.ok(url.includes("key: 'f_spt'"));
 });
 
 test('mounted bookmark rows observe replacements and actions use the updated bookmark', () => {
-  const manager = gallery.slice(gallery.indexOf('export struct SearchBookmarkManagerScene'),
-    gallery.indexOf('export struct GalleryListScene'));
+  const manager = bookmarkScenes.slice(bookmarkScenes.indexOf('export struct SearchBookmarkManagerScene'));
   const rowBody = bodyOf(manager, 'SidePanelEditableManagerRow(').replaceAll('(name: string)', '(name)');
   const bindRow = Function('item', 'index', 'bookmarkSummary', 'return ({' + rowBody + '});');
   const original = bookmark();
@@ -158,8 +159,8 @@ test('mounted bookmark rows observe replacements and actions use the updated boo
 });
 
 test('mounted bookmark drawer forwards current data through a reactive row property', () => {
-  const drawer = gallery.slice(gallery.indexOf('export struct SearchBookmarkDrawer {'),
-    gallery.indexOf('export struct SearchBookmarkDrawerRow'));
+  const drawer = bookmarkScenes.slice(bookmarkScenes.indexOf('export struct SearchBookmarkDrawer {'),
+    bookmarkScenes.indexOf('export struct SearchBookmarkDrawerRow'));
   const bindRow = Function('item', 'index', 'return ({' + bodyOf(drawer, 'SearchBookmarkDrawerRow(') + '});');
   const original = bookmark();
   const updated = { ...original, name: 'Updated', keyword: 'latest query', minRating: 5 };
@@ -170,7 +171,7 @@ test('mounted bookmark drawer forwards current data through a reactive row prope
   assert.equal(bindRow.call(state, original, 0).item, updated);
   mounted.onTap();
   assert.deepEqual(selections, [updated]);
-  assert.match(gallery, /export struct SearchBookmarkDrawerRow \{\s*@Prop item: SearchBookmarkInfo/);
+  assert.match(bookmarkScenes, /export struct SearchBookmarkDrawerRow \{\s*@Prop item: SearchBookmarkInfo/);
 });
 
 test('all text inputs have the shared search background, never transparent system material', () => {

@@ -5,7 +5,7 @@ import {
   parseSavedTranslationApis,
   serializeSavedTranslationApis,
   uniqueTranslationApiName
-} from './TranslationApiConfigSupport';
+} from './TranslationSupport';
 
 const PREFERENCES_NAME: string = 'ehviewer_settings';
 const VALUES_KEY: string = 'values';

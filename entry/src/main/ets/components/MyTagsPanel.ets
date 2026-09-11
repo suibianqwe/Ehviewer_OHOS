@@ -14,7 +14,7 @@ import {
   SearchSummaryStrip
 } from './GallerySearchScenes';
 import { LANGUAGE_REVISION_KEY, shouldShowTagTranslations, uiText } from '../shared/EhShared';
-import { sortedStringKey, toggleStringValue } from '../shared/StringCollectionSupport';
+import { sortedStringKey, toggleStringValue } from '../shared/EhShared';
 import {
   themeFieldBackground,
   themeOnPrimaryText,

@@ -6,7 +6,7 @@ import {
   tagNamespaceDisplayName,
   uiText
 } from '../../shared/EhShared';
-import { sortedStringKey, toggleStringValue } from '../../shared/StringCollectionSupport';
+import { sortedStringKey, toggleStringValue } from '../../shared/EhShared';
 import {
   themeAccentTextColor,
   themeFieldBackground,

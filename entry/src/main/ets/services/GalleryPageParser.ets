@@ -1,4 +1,6 @@
-import { GalleryPage } from '../model/GalleryModels';
+import {
+  GalleryPage,
+} from '../model/GalleryModels';
 
 const IMAGE_URL_PATTERN: RegExp = /<img[^>]*src=["']([^"']+)["'][^>]*style/i;
 const IMAGE_CONTAINER_SRC_PATTERN: RegExp =
@@ -105,4 +107,29 @@ function isImageUrlCandidate(value: string): boolean {
   const lower = value.split('?')[0].toLowerCase();
   return lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png') || lower.endsWith('.webp') ||
     lower.endsWith('.gif');
+}
+
+export interface GalleryPageUrlInfo {
+  pageToken: string;
+  gid: number;
+  pageIndex: number;
+}
+
+export function parseGalleryPageUrl(url: string): GalleryPageUrlInfo | null {
+  const match = /^https?:\/\/[^\/?#]+\/s\/([^\/?#]+)\/(\d+)-(\d+)/i.exec(url);
+  if (match === null) {
+    return null;
+  }
+
+  const gid = Number.parseInt(match[2]);
+  const page = Number.parseInt(match[3]);
+  if (Number.isNaN(gid) || Number.isNaN(page) || page <= 0) {
+    return null;
+  }
+
+  return {
+    pageToken: match[1],
+    gid: gid,
+    pageIndex: page - 1
+  };
 }

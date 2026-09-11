@@ -5,8 +5,8 @@ import {
   SavedTranslationApi,
   findSavedTranslationApi,
   parseSavedTranslationApis
-} from './TranslationApiConfigSupport';
-import { activeTranslationPromptProfile } from './TranslationPromptSupport';
+} from './TranslationSupport';
+import { activeTranslationPromptProfile } from './TranslationSupport';
 import { aiTranslationConversationLog } from './AiTranslationConversationLog';
 import { acquireHttpRequest, cancelHttpRequest, retireHttpRequest } from './HttpRequestLifecycle';
 

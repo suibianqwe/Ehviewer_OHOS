@@ -9,7 +9,7 @@ import { ehCookieStore } from './EhCookieStore';
 import { EhHttpClient, GalleryListLoadResult } from './EhHttpClient';
 import { ListUrlBuilder } from './EhUrl';
 import { rebuildRestoredDownloadMetadata } from './DownloadMetadataRestore';
-import { gallerySiteCandidates } from './EhGallerySiteFallback';
+import { gallerySiteCandidates } from './EhUrl';
 
 const ZIP_EXTENSION: string = '.zip';
 const MAX_METADATA_SEARCH_DEPTH: number = 5;

@@ -27,7 +27,7 @@ import {
   uiRadius,
 } from '../shared/EhUiStyle';
 import { ConfirmActionOverlay } from './ConfirmActionOverlay';
-import { SettingsSubToolbar } from './SessionSettingsScenes';
+import { SettingsSubToolbar } from './SettingsScene';
 
 @Component
 export struct CommentBlacklistPanel {

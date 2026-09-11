@@ -1,4 +1,6 @@
-import { http } from '@kit.NetworkKit';
+import {
+  http,
+} from '@kit.NetworkKit';
 
 const ACTIVE_HTTP_REQUESTS: http.HttpRequest[] = [];
 const RETIRED_HTTP_REQUESTS: http.HttpRequest[] = [];
@@ -131,5 +133,22 @@ function cleanupRetiredRequest(): void {
   }
   if (RETIRED_HTTP_REQUESTS.length > 0 || IDLE_HTTP_REQUESTS.length > 0) {
     scheduleCleanup(HTTP_REQUEST_CLEANUP_STEP_MS);
+  }
+}
+
+export class AsyncRequestGate {
+  private generation: number = 0;
+
+  begin(): number {
+    this.generation++;
+    return this.generation;
+  }
+
+  snapshot(): number {
+    return this.generation;
+  }
+
+  isCurrent(generation: number): boolean {
+    return generation === this.generation;
   }
 }

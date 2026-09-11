@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 const scenes = read('entry/src/main/ets/components/GallerySearchScenes.ets');
-const gallery = read('entry/src/main/ets/components/GalleryScenes.ets');
+const gallery = read('entry/src/main/ets/components/GalleryListContent.ets');
 
 // Only erase the types used by these pure functions, not their implementation.
 // Keep the test runner compatible with Node 20 (no native TS loader required).
