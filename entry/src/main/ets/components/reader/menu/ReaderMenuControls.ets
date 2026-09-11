@@ -7,7 +7,6 @@ import {
 } from '../../../shared/EhShared';
 import { readerSelectColors, selectArrowModifier } from '../../../shared/EhSelectStyle';
 import {
-  isDarkTheme,
   themeDividerColor,
   themePrimaryColor,
   themePrimaryText,
@@ -25,7 +24,7 @@ import {
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
   uiDialogSurfaceShadow,
-  uiPopupBackgroundEffect,
+  uiPopupBlurOptions,
   uiPopupBlurStyle,
   uiReaderOptionRowHeight,
   uiReaderSelectControlBackground,
@@ -36,16 +35,6 @@ import {
   uiSwitchWidth,
   uiMaterialBackground
 } from '../../../shared/EhUiStyle';
-
-class ReaderSelectMenuEffectModifier implements AttributeModifier<SelectAttribute> {
-  applyNormalAttribute(instance: SelectAttribute): void {
-    if (isHarmonyMaterialEnabled()) {
-      instance.menuBackgroundEffect(uiPopupBackgroundEffect());
-    }
-  }
-}
-
-const READER_SELECT_MENU_EFFECT_MODIFIER: ReaderSelectMenuEffectModifier = new ReaderSelectMenuEffectModifier();
 
 @Component
 export struct ReaderPopupBackdrop {
@@ -199,8 +188,8 @@ export struct ReaderMenuSelect {
         .optionFont({ size: 14 })
         .optionFontColor(readerSelectColors().optionText)
         .optionBgColor(readerSelectColors().optionBackground)
-        .attributeModifier(READER_SELECT_MENU_EFFECT_MODIFIER)
-        .menuBackgroundBlurStyle(isHarmonyMaterialEnabled() || isDarkTheme() ? BlurStyle.NONE : uiPopupBlurStyle())
+        .menuBackgroundBlurStyle(uiPopupBlurStyle())
+        .menuBackgroundBlurStyleOptions(uiPopupBlurOptions())
         .menuBackgroundColor(uiReaderSelectPopupBackground(readerSelectColors().menuBackground))
         .border({ width: 1, color: uiButtonHighlightBorderColor() })
         .systemMaterial(uiReaderOptionSegmentMaterial())

@@ -12,16 +12,16 @@ import {
   themeAccentTextColor,
   themeDangerText,
   themeInactiveActionText,
-  themeOnPrimaryText,
-  themePrimaryColor,
   themePrimaryText,
   themeSecondaryText,
+  themeSelectedButtonColor,
+  themeSelectedButtonTextColor,
   themeSuccessText,
   themeSurface,
   themeSurfaceVariant
 } from '../../shared/EhTheme';
 import { uiButtonMaterial, uiTransparentButtonBackgroundEffect, uiMaterialForegroundColor, uiRadius,
-  uiMaterialBackground
+  uiMaterialBackground, uiTintedButtonMaterial
 } from '../../shared/EhUiStyle';
 
 interface CommentTextSegment {
@@ -247,22 +247,41 @@ export struct CommentVoteButton {
   @Prop selected: boolean = false;
   onClickAction: () => void = () => {};
 
+  private voteForeground(): ResourceColor {
+    if (!this.enabledValue) {
+      return themeInactiveActionText();
+    }
+    if (this.selected) {
+      return themeSelectedButtonTextColor();
+    }
+    return uiMaterialForegroundColor(themePrimaryText());
+  }
+
+  private voteBackground(): ResourceColor {
+    if (this.selected) {
+      // Keep the selected fill visible on API 26 as well: uiMaterialBackground
+      // clears the authored color there, and the button opts out of system
+      // material, so a solid selected color cannot hide any material filter.
+      return themeSelectedButtonColor();
+    }
+    return uiMaterialBackground(themeSurfaceVariant());
+  }
+
   build() {
     Button({ type: ButtonType.Normal, stateEffect: true }) {
       SymbolGlyph(this.symbolIcon)
         .fontSize(22)
-        .fontColor([this.enabledValue ? uiMaterialForegroundColor(this.selected ? themeOnPrimaryText() :
-          themePrimaryText()) : themeInactiveActionText()])
+        .fontColor([this.voteForeground()])
     }
       .height(36)
       .width(46)
-      .backgroundColor(uiMaterialBackground(this.selected ? themePrimaryColor() : themeSurfaceVariant()))
+      .backgroundColor(this.voteBackground())
       .opacity(this.enabledValue ? 1 : 0.56)
       .enabled(this.enabledValue)
       .padding(0)
       .borderRadius(uiRadius(5))
     .backgroundEffect(uiTransparentButtonBackgroundEffect())
-    .systemMaterial(uiButtonMaterial())
+    .systemMaterial(this.selected ? uiTintedButtonMaterial(themeSelectedButtonColor()) : uiButtonMaterial())
       .onClick(() => {
         this.onClickAction();
       })

@@ -9,6 +9,7 @@ import {
   EMBEDDED_READER_ACTIVE_KEY,
   MAIN_WINDOW_KEY,
   applyAppChromeImmersiveMode,
+  applyAppColorMode,
   isEmbeddedReaderActive,
   prepareAppChromeBeforeContent,
   rememberMainWindow,
@@ -223,6 +224,7 @@ export default class EntryAbility extends UIAbility {
         return;
       }
       this.mainContentLoaded = true;
+      applyAppColorMode(this.context);
       resetCellularNetworkWarningConfirmation();
       this.checkAndPromptBiometricLock();
       this.showStartupCellularNetworkWarning();

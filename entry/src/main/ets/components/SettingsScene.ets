@@ -87,6 +87,7 @@ import { FilterRule, FILTER_MODE_RATING, FILTER_MODE_TITLE, FILTER_RULE_REVISION
 import { ehCommentBlacklistStore } from '../services/EhCommentBlacklistStore';
 import {
   applyAppChromeImmersiveMode,
+  applyAppColorMode,
   mainContentWidthFallbackVp,
   rememberMainContentWidthVp,
 } from '../services/EhWindowImmersive';
@@ -637,6 +638,7 @@ export struct SettingsScene {
       notifyThemeChanged();
       this.settingsRenderRevision++;
       applyAppChromeImmersiveMode();
+      applyAppColorMode(getAbilityContext());
     }
     if (key === 'pattern_protection') {
       if (normalizedValue === 'Off') {

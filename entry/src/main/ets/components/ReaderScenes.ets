@@ -12,6 +12,7 @@ import { KeyEvent as InputKeyEvent } from '@ohos.multimodalInput.keyEvent';
 import { GalleryPage, GalleryPreview } from '../model/GalleryModels';
 import { ReaderPageTranslation } from '../model/ReaderTranslationModels';
 import {
+  applyAppColorMode,
   applyReaderWindowState,
   applyReaderBrightnessFromSettings,
   getMainWindow,
@@ -1359,6 +1360,7 @@ export struct ReaderScene {
     ehSettingsStore.setValue('theme', normalized);
     notifyThemeChanged();
     const context = getAbilityContext();
+    applyAppColorMode(context);
     if (context !== undefined) {
       ehSettingsStore.save(context).catch(() => {});
     }

@@ -18,9 +18,10 @@ const HIGH_MIN_INPUT_DIMENSION: number = 180;
 const HIGH_MIN_OUTPUT_DIMENSION: number = 512;
 const HIGH_MAX_DIMENSION: number = 2000;
 const SEGMENT_OVERLAP: number = 32;
-const CORE_VISION_MAX_INPUT_DIMENSION: number = 3000;
+// The Core Vision super-resolution model only accepts inputs with 16px < width and height < 2048px.
+const CORE_VISION_MAX_INPUT_DIMENSION: number = 2047;
 const CORE_VISION_MAX_INPUT_PIXELS: number = 2500000;
-const CORE_VISION_MAX_ASPECT_RATIO: number = 10;
+const CORE_VISION_TIMEOUT_MS: number = 15000;
 
 interface ReaderSuperResolutionEntry {
   key: string;
@@ -310,14 +311,52 @@ class ReaderSuperResolutionService {
     }
   }
 
+  // The remote analyzer can stall without settling while the AI service is busy. Without a
+  // deadline the whole queue would stay blocked and later pages would silently keep the
+  // decoded image, so fall back to the local detail enhancer after the timeout.
+  private processCoreVision(analyzer: imageSuperResolution.ImageSRAnalyzer,
+    request: visionBase.Request): Promise<imageSuperResolution.ISPResponse> {
+    return new Promise<imageSuperResolution.ISPResponse>(
+      (resolve: (value: imageSuperResolution.ISPResponse | PromiseLike<imageSuperResolution.ISPResponse>) => void,
+        reject: (reason?: Object) => void) => {
+        let finished = false;
+        const timer = setTimeout(() => {
+          if (finished) {
+            return;
+          }
+          finished = true;
+          this.coreVisionAnalyzer = undefined;
+          this.coreVisionAnalyzerPromise = undefined;
+          analyzer.destroy().catch(() => {});
+          reject(new Error('Core Vision AI request timed out'));
+        }, CORE_VISION_TIMEOUT_MS);
+        analyzer.process(request).then((response: imageSuperResolution.ISPResponse) => {
+          if (finished) {
+            this.releasePixelMap(response.pixelMap);
+            return;
+          }
+          finished = true;
+          clearTimeout(timer);
+          resolve(response);
+        }).catch((error: Error) => {
+          if (finished) {
+            return;
+          }
+          finished = true;
+          clearTimeout(timer);
+          reject(error);
+        });
+      });
+  }
+
   private coreVisionInputSize(width: number, height: number): image.Size {
     const pixelScale = Math.sqrt(CORE_VISION_MAX_INPUT_PIXELS / Math.max(1, width * height));
     const dimensionScale = Math.min(CORE_VISION_MAX_INPUT_DIMENSION / Math.max(1, width),
       CORE_VISION_MAX_INPUT_DIMENSION / Math.max(1, height));
     const scale = Math.min(1, pixelScale, dimensionScale);
     return {
-      width: Math.max(MIN_DIMENSION, Math.round(width * scale)),
-      height: Math.max(MIN_DIMENSION, Math.round(height * scale))
+      width: Math.max(MIN_DIMENSION, Math.min(CORE_VISION_MAX_INPUT_DIMENSION, Math.round(width * scale))),
+      height: Math.max(MIN_DIMENSION, Math.min(CORE_VISION_MAX_INPUT_DIMENSION, Math.round(height * scale)))
     };
   }
 
@@ -332,15 +371,31 @@ class ReaderSuperResolutionService {
 
   private async runCoreVisionEnhancement(source: image.ImageSource, sourceWidth: number, sourceHeight: number,
     plan: ReaderSuperResolutionPlan, entry: ReaderSuperResolutionEntry): Promise<image.PixelMap | undefined> {
-    const aspectRatio = Math.max(sourceWidth / Math.max(1, sourceHeight),
-      sourceHeight / Math.max(1, sourceWidth));
-    if (aspectRatio > CORE_VISION_MAX_ASPECT_RATIO || !await this.ensureCoreVisionAnalyzer() ||
-      !this.isEntryActive(entry)) {
+    if (!await this.ensureCoreVisionAnalyzer() || !this.isEntryActive(entry)) {
       return undefined;
     }
     const analyzer = this.coreVisionAnalyzer;
     if (analyzer === undefined) {
       return undefined;
+    }
+    if (this.coreVisionNeedsTiling(sourceWidth, sourceHeight)) {
+      let tiledSource: image.PixelMap | undefined = undefined;
+      try {
+        tiledSource = await source.createPixelMapUsingAllocator({
+          editable: false,
+          index: 0,
+          desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
+          desiredDynamicRange: image.DecodingDynamicRange.SDR
+        }, image.AllocatorType.DMA);
+        return await this.runCoreVisionTiledPixelMap(tiledSource, sourceWidth, sourceHeight, plan, entry);
+      } catch (error) {
+        hilog.warn(DOMAIN, TAG, `Core Vision AI tiled super-resolution failed: ${String(error)}`);
+        return undefined;
+      } finally {
+        if (tiledSource !== undefined) {
+          await this.releasePixelMap(tiledSource);
+        }
+      }
     }
     const inputSize = this.coreVisionInputSize(sourceWidth, sourceHeight);
     let inputPixelMap: image.PixelMap | undefined = undefined;
@@ -367,7 +422,7 @@ class ReaderSuperResolutionService {
       }
       const imageData: visionBase.ImageData = { pixelMap: inputPixelMap };
       const request: visionBase.Request = { inputData: imageData };
-      const response = await analyzer.process(request);
+      const response = await this.processCoreVision(analyzer, request);
       outputPixelMap = response.pixelMap;
       if (!this.isEntryActive(entry)) {
         return undefined;
@@ -400,15 +455,15 @@ class ReaderSuperResolutionService {
   private async runCoreVisionPixelMapEnhancement(sourcePixelMap: image.PixelMap, sourceWidth: number,
     sourceHeight: number, plan: ReaderSuperResolutionPlan,
     entry: ReaderSuperResolutionEntry): Promise<image.PixelMap | undefined> {
-    const aspectRatio = Math.max(sourceWidth / Math.max(1, sourceHeight),
-      sourceHeight / Math.max(1, sourceWidth));
-    if (aspectRatio > CORE_VISION_MAX_ASPECT_RATIO || !await this.ensureCoreVisionAnalyzer() ||
-      !this.isEntryActive(entry)) {
+    if (!await this.ensureCoreVisionAnalyzer() || !this.isEntryActive(entry)) {
       return undefined;
     }
     const analyzer = this.coreVisionAnalyzer;
     if (analyzer === undefined) {
       return undefined;
+    }
+    if (this.coreVisionNeedsTiling(sourceWidth, sourceHeight)) {
+      return await this.runCoreVisionTiledPixelMap(sourcePixelMap, sourceWidth, sourceHeight, plan, entry);
     }
     const inputSize = this.coreVisionInputSize(sourceWidth, sourceHeight);
     let ownedInput: image.PixelMap | undefined = undefined;
@@ -426,7 +481,7 @@ class ReaderSuperResolutionService {
       }
       const imageData: visionBase.ImageData = { pixelMap: inputPixelMap };
       const request: visionBase.Request = { inputData: imageData };
-      const response = await analyzer.process(request);
+      const response = await this.processCoreVision(analyzer, request);
       outputPixelMap = response.pixelMap;
       if (!this.isEntryActive(entry)) {
         return undefined;
@@ -451,6 +506,138 @@ class ReaderSuperResolutionService {
       if (ownedInput !== undefined) {
         await this.releasePixelMap(ownedInput);
       }
+    }
+  }
+
+  // Core Vision caps every input dimension at 2048px, so long or wide pages are split into
+  // overlapping tiles, super-resolved one by one and stitched into the display target.
+  private coreVisionNeedsTiling(width: number, height: number): boolean {
+    return width > CORE_VISION_MAX_INPUT_DIMENSION || height > CORE_VISION_MAX_INPUT_DIMENSION ||
+      width * height > CORE_VISION_MAX_INPUT_PIXELS;
+  }
+
+  private coreVisionTileCoreDimension(): number {
+    const dimensionLimit = CORE_VISION_MAX_INPUT_DIMENSION - SEGMENT_OVERLAP * 2;
+    const areaLimit = Math.floor(Math.sqrt(CORE_VISION_MAX_INPUT_PIXELS)) - SEGMENT_OVERLAP * 2;
+    return Math.max(MIN_DIMENSION, Math.min(dimensionLimit, areaLimit));
+  }
+
+  private async runCoreVisionTiledPixelMap(sourcePixelMap: image.PixelMap, sourceWidth: number,
+    sourceHeight: number, plan: ReaderSuperResolutionPlan,
+    entry: ReaderSuperResolutionEntry): Promise<image.PixelMap | undefined> {
+    const analyzer = this.coreVisionAnalyzer;
+    if (analyzer === undefined) {
+      return undefined;
+    }
+    const sourceBuffer = await this.tightRgbaBuffer(sourcePixelMap);
+    const sourcePixels = new Uint8Array(sourceBuffer);
+    const sourceRowBytes = sourceWidth * 4;
+    const outputBuffer = new ArrayBuffer(plan.width * plan.height * 4);
+    const outputPixels = new Uint8Array(outputBuffer);
+    const coreDimension = this.coreVisionTileCoreDimension();
+    let tileCount = 0;
+    let coreStartY = 0;
+    while (coreStartY < sourceHeight) {
+      if (!this.isEntryActive(entry)) {
+        return undefined;
+      }
+      const coreEndY = Math.min(sourceHeight, coreStartY + coreDimension);
+      const regionY = this.segmentRegion(coreStartY, coreEndY, sourceHeight, MIN_DIMENSION);
+      let coreStartX = 0;
+      while (coreStartX < sourceWidth) {
+        if (!this.isEntryActive(entry)) {
+          return undefined;
+        }
+        const coreEndX = Math.min(sourceWidth, coreStartX + coreDimension);
+        const regionX = this.segmentRegion(coreStartX, coreEndX, sourceWidth, MIN_DIMENSION);
+        const regionWidth = regionX.end - regionX.start;
+        const regionHeight = regionY.end - regionY.start;
+        const regionRowBytes = regionWidth * 4;
+        const regionBuffer = new ArrayBuffer(regionRowBytes * regionHeight);
+        const regionPixels = new Uint8Array(regionBuffer);
+        for (let row = 0; row < regionHeight; row++) {
+          const sourceOffset = (regionY.start + row) * sourceRowBytes + regionX.start * 4;
+          regionPixels.set(sourcePixels.subarray(sourceOffset, sourceOffset + regionRowBytes), row * regionRowBytes);
+        }
+        let regionPixelMap: image.PixelMap | undefined = undefined;
+        let enhancedPixelMap: image.PixelMap | undefined = undefined;
+        let scaledPixelMap: image.PixelMap | undefined = undefined;
+        try {
+          regionPixelMap = await image.createPixelMap(regionBuffer, {
+            editable: false,
+            pixelFormat: image.PixelMapFormat.RGBA_8888,
+            size: { width: regionWidth, height: regionHeight }
+          });
+          const imageData: visionBase.ImageData = { pixelMap: regionPixelMap };
+          const request: visionBase.Request = { inputData: imageData };
+          const response = await this.processCoreVision(analyzer, request);
+          enhancedPixelMap = response.pixelMap;
+          if (!this.isEntryActive(entry)) {
+            return undefined;
+          }
+          const segmentTargetWidth = Math.max(MIN_DIMENSION, Math.round(regionWidth * plan.scale));
+          const segmentTargetHeight = Math.max(MIN_DIMENSION, Math.round(regionHeight * plan.scale));
+          scaledPixelMap = readerHdr.createScaledCompatibleSdrPixelMap(enhancedPixelMap,
+            segmentTargetWidth, segmentTargetHeight);
+          const scaledInfo = scaledPixelMap.getImageInfoSync();
+          const scaledStride = scaledPixelMap.getBytesNumberPerRow();
+          const scaledBuffer = new ArrayBuffer(scaledPixelMap.getPixelBytesNumber());
+          await scaledPixelMap.readPixelsToBuffer(scaledBuffer);
+          const scaledPixels = new Uint8Array(scaledBuffer);
+          const copyStartX = Math.max(0, Math.round((coreStartX - regionX.start) * plan.scale));
+          const copyStartY = Math.max(0, Math.round((coreStartY - regionY.start) * plan.scale));
+          const destinationX = Math.round(coreStartX * plan.scale);
+          const destinationY = Math.round(coreStartY * plan.scale);
+          const desiredCopyWidth = coreEndX >= sourceWidth ? plan.width - destinationX :
+            Math.round((coreEndX - coreStartX) * plan.scale);
+          const desiredCopyHeight = coreEndY >= sourceHeight ? plan.height - destinationY :
+            Math.round((coreEndY - coreStartY) * plan.scale);
+          const copyWidth = Math.max(0, Math.min(desiredCopyWidth,
+            scaledInfo.size.width - copyStartX, plan.width - destinationX));
+          const copyHeight = Math.max(0, Math.min(desiredCopyHeight,
+            scaledInfo.size.height - copyStartY, plan.height - destinationY));
+          const copyRowBytes = copyWidth * 4;
+          const outputRowBytes = plan.width * 4;
+          for (let row = 0; row < copyHeight; row++) {
+            const sourceOffset = (copyStartY + row) * scaledStride + copyStartX * 4;
+            const destinationOffset = (destinationY + row) * outputRowBytes + destinationX * 4;
+            outputPixels.set(scaledPixels.subarray(sourceOffset, sourceOffset + copyRowBytes), destinationOffset);
+          }
+          tileCount++;
+        } catch (error) {
+          hilog.warn(DOMAIN, TAG, `Core Vision AI tiled super-resolution segment failed: ${String(error)}`);
+          return undefined;
+        } finally {
+          if (scaledPixelMap !== undefined) {
+            await this.releasePixelMap(scaledPixelMap);
+          }
+          if (enhancedPixelMap !== undefined) {
+            await this.releasePixelMap(enhancedPixelMap);
+          }
+          if (regionPixelMap !== undefined) {
+            await this.releasePixelMap(regionPixelMap);
+          }
+        }
+        coreStartX = coreEndX;
+      }
+      coreStartY = coreEndY;
+    }
+    if (!this.isEntryActive(entry)) {
+      return undefined;
+    }
+    try {
+      const result = await image.createPixelMap(outputBuffer, {
+        editable: false,
+        pixelFormat: image.PixelMapFormat.RGBA_8888,
+        size: { width: plan.width, height: plan.height }
+      });
+      hilog.info(DOMAIN, TAG,
+        `Core Vision AI tiled super-resolution succeeded: source=${sourceWidth}x${sourceHeight}, ` +
+        `tiles=${tileCount}, output=${plan.width}x${plan.height}`);
+      return result;
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, `Core Vision AI tiled super-resolution stitching failed: ${String(error)}`);
+      return undefined;
     }
   }
 

@@ -1,4 +1,5 @@
 import { ColorMetrics, window } from '@kit.ArkUI';
+import { common, ConfigurationConstant } from '@kit.AbilityKit';
 import { ehSettingsStore } from './EhSettingsStore';
 import {
   isDarkTheme,
@@ -128,6 +129,28 @@ export function setReaderTransientStatusBarVisible(visible: boolean): void {
 
 function isReaderTransientStatusBarVisible(): boolean {
   return AppStorage.get<boolean>(READER_TRANSIENT_STATUS_BAR_VISIBLE_KEY) === true;
+}
+
+// Align the platform color mode with the app theme so system-rendered surfaces
+// (Select dropdowns, pickers, dialogs) do not follow the system dark mode while
+// the app itself draws its own light palette.
+export function applyAppColorMode(context: common.UIAbilityContext | undefined): void {
+  if (context === undefined) {
+    return;
+  }
+  try {
+    const followSystem = ehSettingsStore.getValue('follow_system_dark_mode', 'Off') === 'On';
+    const themeName = ehSettingsStore.getValue('theme', 'Light');
+    let mode: ConfigurationConstant.ColorMode = ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
+    if (!followSystem) {
+      mode = themeName === 'Dark' || themeName === 'Black' ?
+        ConfigurationConstant.ColorMode.COLOR_MODE_DARK :
+        ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT;
+    }
+    context.getApplicationContext().setColorMode(mode);
+  } catch (error) {
+    logWindowError('apply app color mode', error);
+  }
 }
 
 // Normal app pages: window-level immersive layout with status bar visible and navigation indicator hidden.

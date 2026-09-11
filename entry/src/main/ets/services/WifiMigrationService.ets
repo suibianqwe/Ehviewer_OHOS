@@ -13,7 +13,7 @@ import { CommentBlacklistBackupEntry, ehCommentBlacklistStore } from './EhCommen
 import { ehCookieStore } from './EhCookieStore';
 import { ReadingProgressBackupInfo, ehHistoryStore } from './EhHistoryStore';
 import { ehSettingsStore, SettingEntry, SettingImportResult } from './EhSettingsStore';
-import { applyAppChromeImmersiveMode } from './EhWindowImmersive';
+import { applyAppChromeImmersiveMode, applyAppColorMode } from './EhWindowImmersive';
 import { readerImageCache } from './ReaderImageCache';
 import { notifyGalleryTitleChanged, notifyLanguageChanged, notifyThemeChanged } from '../shared/EhShared';
 
@@ -1086,6 +1086,7 @@ function applyImportedSettingEffects(context: common.UIAbilityContext, result: S
   if (result.themeChanged) {
     notifyThemeChanged();
     applyAppChromeImmersiveMode();
+    applyAppColorMode(context);
   }
   if (result.titleChanged) {
     notifyGalleryTitleChanged();

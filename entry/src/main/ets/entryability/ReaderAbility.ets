@@ -1,6 +1,7 @@
 import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want, common } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import {
+  applyAppColorMode,
   applyReaderBrightnessFromSettings,
   applyReaderFullscreenImmersiveMode,
   clearReaderWindow,
@@ -85,6 +86,7 @@ export default class ReaderAbility extends UIAbility {
         ehAppLog.error(this.context, 'ReaderAbility', 'Failed to load reader page: ' + error.message);
         return;
       }
+      applyAppColorMode(this.context);
       const win = this.ensureReaderWindow(stage);
       if (win !== undefined) {
         this.applyReaderChrome(win);
