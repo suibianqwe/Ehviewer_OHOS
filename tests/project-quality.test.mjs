@@ -86,7 +86,6 @@ test('large ArkTS units cannot grow without an explicit budget review', () => {
     ['entry/src/main/ets/components/GalleryListSupport.ets', 500],
     ['entry/src/main/ets/components/GalleryBookmarkScenes.ets', 750],
     ['entry/src/main/ets/components/GalleryOverlayComponents.ets', 550],
-    ['entry/src/main/ets/components/GalleryRouteScenes.ets', 150],
     ['entry/src/main/ets/components/DownloadScene.ets', 2900],
     ['entry/src/main/ets/components/DownloadComponents.ets', 750],
     ['entry/src/main/ets/shared/EhShared.ets', 2600],

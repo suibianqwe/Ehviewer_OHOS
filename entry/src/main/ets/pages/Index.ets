@@ -36,7 +36,7 @@ import {
   isEmbeddedReaderActive
 } from '../services/EhWindowImmersive';
 import { prepareSplitPaneRouteTransition, SPLIT_PANE_MODAL_Z_INDEX } from '../components/SplitPaneSupport';
-import { FavoriteGalleryScene, HomeGalleryScene, HotGalleryScene, SubscriptionGalleryScene } from '../components/GalleryScenes';
+import { GalleryListScene } from '../components/GalleryScenes';
 import { HistoryScene } from '../components/HistoryScene';
 import { TopListScene } from '../components/TopListScene';
 import { DownloadScene } from '../components/DownloadScene';
@@ -629,18 +629,39 @@ struct Index {
   @Builder
   private RouteContent() {
     if (this.activeRoute === GalleryRoute.Home) {
-      HomeGalleryScene({
+      GalleryListScene({
+        sceneTitle: 'Homepage',
+        listMode: 'Search',
+        sourceRoute: GalleryRoute.Home,
         resetVersion: this.routeResetVersion,
         onMenu: () => { this.openDrawer(); }
       })
     } else if (this.activeRoute === GalleryRoute.Subscription) {
-      SubscriptionGalleryScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
+      GalleryListScene({
+        sceneTitle: 'Subscription',
+        listMode: 'Watched tags',
+        sourceRoute: GalleryRoute.Subscription,
+        resetVersion: this.routeResetVersion,
+        onMenu: () => { this.openDrawer(); }
+      })
     } else if (this.activeRoute === GalleryRoute.WhatsHot) {
-      HotGalleryScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
+      GalleryListScene({
+        sceneTitle: 'What\'s Hot',
+        listMode: 'Popular',
+        sourceRoute: GalleryRoute.WhatsHot,
+        resetVersion: this.routeResetVersion,
+        onMenu: () => { this.openDrawer(); }
+      })
     } else if (this.activeRoute === GalleryRoute.TopLists) {
       TopListScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
     } else if (this.activeRoute === GalleryRoute.Favorites) {
-      FavoriteGalleryScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
+      GalleryListScene({
+        sceneTitle: 'Favourite',
+        listMode: 'Favorites',
+        sourceRoute: GalleryRoute.Favorites,
+        resetVersion: this.routeResetVersion,
+        onMenu: () => { this.openDrawer(); }
+      })
     } else if (this.activeRoute === GalleryRoute.History) {
       HistoryScene({ resetVersion: this.routeResetVersion, onMenu: () => { this.openDrawer(); } })
     } else if (this.activeRoute === GalleryRoute.Downloads) {

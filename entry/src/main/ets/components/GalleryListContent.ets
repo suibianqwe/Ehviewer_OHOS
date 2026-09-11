@@ -266,6 +266,8 @@ export struct GalleryListContent {
   private cardScrollAnchor: GalleryCardScrollAnchor = new GalleryCardScrollAnchor();
   private loadMorePending: boolean = false;
   private lastLoadMoreOffsetCheck: number = 0;
+  private topSpacerIndexesCache: number[] = [];
+  private topSpacerIndexesCacheColumns: number = -1;
   private restoredScroll: boolean = false;
   private galleryThumbnailAspectRatioAverage: number = 0.75;
   @State thumbnailDimensionsReady: boolean = false;
@@ -908,6 +910,20 @@ export struct GalleryListContent {
 
   private galleryCardGap(): number {
     return uiListGap();
+  }
+
+  private galleryTopSpacerIndexes(): number[] {
+    const columns = Math.max(1, this.galleryColumnCount());
+    if (columns === this.topSpacerIndexesCacheColumns) {
+      return this.topSpacerIndexesCache;
+    }
+    const indexes: number[] = [];
+    for (let index = 0; index < columns; index++) {
+      indexes.push(index);
+    }
+    this.topSpacerIndexesCache = indexes;
+    this.topSpacerIndexesCacheColumns = columns;
+    return indexes;
   }
 
   private galleryContentPadding(): number {
@@ -1555,6 +1571,13 @@ export struct GalleryListContent {
       scroller: this.listScroller,
       layoutMode: WaterFlowLayoutMode.SLIDING_WINDOW
     }) {
+      ForEach(this.galleryTopSpacerIndexes(), (index: number) => {
+        FlowItem() {
+          Row()
+            .width('100%')
+            .height(this.expandedTitleContentInset())
+        }
+      }, (index: number) => 'gallery-top-spacer-' + index.toString())
       LazyForEach(this.galleryThumbnailSource, (gallery: GalleryInfo, index: number) => {
         this.galleryFlowItem(gallery, index)
       }, (gallery: GalleryInfo) => this.galleryCardKey(gallery))
@@ -1568,7 +1591,6 @@ export struct GalleryListContent {
     .cachedCount(GALLERY_THUMBNAIL_CACHE_COUNT, true)
     .clip(true)
     .padding({
-      top: this.expandedTitleContentInset(),
       left: this.galleryContentPadding(),
       right: this.galleryContentPadding()
     })
@@ -1590,8 +1612,10 @@ export struct GalleryListContent {
       this.syncToolbarOffsetState();
     })
     .onScrollIndex((first: number, last: number) => {
-      const galleryFirst = Math.max(0, first);
-      const galleryLast = Math.min(this.galleries.length - 1, last);
+      // 每列的顶部占位块也占用 FlowItem 索引，需先换算为画廊索引。
+      const spacerCount = this.galleryTopSpacerIndexes().length;
+      const galleryFirst = Math.max(0, first - spacerCount);
+      const galleryLast = Math.min(this.galleries.length - 1, last - spacerCount);
       this.setVisibleTranslationRange(galleryFirst, galleryLast);
       this.prefetchGalleryThumbnailRange(galleryFirst, galleryLast);
     })

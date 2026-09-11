@@ -159,8 +159,6 @@ export { CommentsScene,
   ReaderPageState,
   ReaderScene,
   ReaderToolButton } from './ReaderScenes';
-export { FavoriteGalleryScene, HomeGalleryScene, HotGalleryScene, SubscriptionGalleryScene } from './GalleryRouteScenes';
-
 export { GalleryListContent, GalleryListStateView } from './GalleryListContent';
 
 let recentFavoriteCat: number = FavListUrlBuilder.FAV_CAT_ALL;
@@ -2221,8 +2219,7 @@ export struct GalleryListScene {
   }
 
   build() {
-    Column() {
-      Stack({ alignContent: Alignment.TopStart }) {
+    Stack({ alignContent: Alignment.TopStart }) {
           GalleryListContent({
             sceneTitle: this.sceneTitle,
             listMode: this.listMode,
@@ -2671,11 +2668,8 @@ export struct GalleryListScene {
         }
       .width('100%')
       .height('100%')
-    }
-    .width('100%')
-    .height('100%')
-    .onAreaChange((_oldArea: Area, newArea: Area) => {
-      this.updateSceneContentWidth(areaDimensionToVp(newArea.width, (value: number) => this.getUIContext().px2vp(value)));
-    })
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.updateSceneContentWidth(areaDimensionToVp(newArea.width, (value: number) => this.getUIContext().px2vp(value)));
+      })
   }
 }
