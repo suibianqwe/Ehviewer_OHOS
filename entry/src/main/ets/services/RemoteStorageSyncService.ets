@@ -32,7 +32,7 @@ const FINGERPRINT_INTERVAL_MS: number = 60000;
 const DIRTY_DEBOUNCE_MS: number = 15000;
 const RETRY_DELAY_MS: number = 90000;
 const MAX_SYNC_HISTORY_ITEMS: number = 1000;
-const DOWNLOADS_FOLDER: string = 'downloads';
+const DOWNLOADS_FOLDER: string = 'download';
 const MAX_MIRROR_GALLERIES_PER_CYCLE: number = 2;
 const MAX_MIRROR_FILES_PER_CYCLE: number = 60;
 
@@ -209,6 +209,9 @@ export class RemoteStorageSyncService {
       await this.performSync(context, profile, client, true);
       return;
     }
+    // Downloads mirror on every poll so newly finished galleries are uploaded even when the
+    // JSON sync sections did not change.
+    await this.syncDownloadFiles(context, profile, client);
     this.schedule(FINGERPRINT_INTERVAL_MS);
   }
 
@@ -370,6 +373,7 @@ export class RemoteStorageSyncService {
     } catch (error) {
       return;
     }
+    logRemoteStorageInfo('download mirror scan root=' + root + ' entries=' + galleryNames.length.toString());
     let uploaded = 0;
     let galleries = 0;
     for (let i = 0; i < galleryNames.length; i++) {
