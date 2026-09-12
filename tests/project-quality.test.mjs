@@ -259,3 +259,16 @@ test('the standard gallery list keeps LazyForEach as a direct child of List', ()
     /List\(\{ space: this\.galleryStandardListSpace\(\), scroller: this\.listScroller \}\) \{[\s\S]*LazyForEach\(this\.galleryThumbnailSource/,
     'the lazy gallery items must sit directly under List so each row height can be measured');
 });
+
+test('the standard gallery list clears the toolbar exactly once', () => {
+  const galleries = read('entry/src/main/ets/components/GalleryListContent.ets');
+  const standardList = galleries.match(/private galleryStandardList\(\) \{[\s\S]*?\n  \}/);
+  assert.ok(standardList, 'galleryStandardList must exist');
+  assert.match(standardList[0], /ListItem\(\) \{\s*this\.galleryListEdgeSpacer\(\)/,
+    'the standard list must clear the toolbar with its leading spacer item');
+  const padding = standardList[0].match(/\.padding\(\{[\s\S]*?\}\)/);
+  assert.ok(padding, 'the standard list must keep horizontal padding for its cards');
+  assert.doesNotMatch(padding[0], /\btop\s*:/,
+    'stacking padding.top above the leading spacer item adds a second navigation-bar-high blank ' +
+    'strip that the thumbnail water flow does not have');
+});

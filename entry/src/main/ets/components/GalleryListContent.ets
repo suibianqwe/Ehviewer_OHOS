@@ -1545,8 +1545,9 @@ export struct GalleryListContent {
     .edgeEffect(this.isInitialLoadingState() ? EdgeEffect.None : EdgeEffect.Spring,
       { alwaysEnabled: !this.isInitialLoadingState(), effectEdge: EffectEdge.START | EffectEdge.END })
     .cachedCount(10)
+    // 顶部避让只由首个 ListItem（galleryListEdgeSpacer）承担。此前这里还叠了一层
+    // padding.top，导致详情/扩展模式比缩略图模式多出一整段导航栏高度的空白。
     .padding({
-      top: this.shouldShowSearchSuggestions() ? this.titleContentInset() : this.expandedTitleContentInset(),
       left: this.galleries.length > 0 ? this.galleryContentPadding() : 0,
       right: this.galleries.length > 0 ? this.galleryContentPadding() : 0
     })
