@@ -363,9 +363,8 @@ export class RemoteStorageSyncService {
     if (!profile.useForDownloads) {
       return;
     }
-    if (ehSettingsStore.getValue('download_location', 'App files') !== 'Remote server') {
-      return;
-    }
+    logRemoteStorageInfo('download mirror start profile=' +
+      (profile.name.length > 0 ? profile.name : profile.url));
     const root = ehDownloadFileStore.appDownloadRoot(context);
     let galleryNames: string[] = [];
     try {

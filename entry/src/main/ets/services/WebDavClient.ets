@@ -59,6 +59,7 @@ export function webDavAuthorizationValue(username: string, password: string): st
 
 export class WebDavClient {
   private readonly profile: RemoteStorageProfile;
+  private ensuredDirectories: string[] = [];
 
   constructor(profile: RemoteStorageProfile) {
     this.profile = profile;
@@ -101,6 +102,9 @@ export class WebDavClient {
     if (normalized.length === 0) {
       return { ok: true, statusCode: 200, message: '' };
     }
+    if (this.ensuredDirectories.indexOf(normalized) >= 0) {
+      return { ok: true, statusCode: 200, message: '' };
+    }
     const segments = normalized.split('/');
     let current = '';
     let lastStatus = 200;
@@ -116,6 +120,7 @@ export class WebDavClient {
         return { ok: false, statusCode: response.statusCode, message: response.message };
       }
     }
+    this.ensuredDirectories.push(normalized);
     return { ok: true, statusCode: lastStatus, message: '' };
   }
 
