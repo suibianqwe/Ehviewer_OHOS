@@ -18,14 +18,16 @@ const support = Function(executable(read('entry/src/main/ets/services/RemoteStor
   '\nreturn { normalizeRemoteStorageUrl, normalizeRemoteStorageBasePath, remoteStorageJoinPath,' +
   ' remoteStorageUrlForPath, remoteStorageRelativePathFromHref, decodeWebDavXmlEntities,' +
   ' webDavStatusMessage, parseWebDavMultiStatus, createRemoteStorageProfileId, isValidRemoteStorageUrl,' +
-  ' remoteStorageHost };')();
+  ' remoteStorageHost, normalizeRemoteStoragePort, remoteStoragePortFromUrl, remoteStorageUrlWithoutPort,' +
+  ' remoteStorageApplyPort };')();
 
 const profiles = Function('createRemoteStorageProfileId', 'isValidRemoteStorageUrl', 'normalizeRemoteStorageBasePath',
-  'normalizeRemoteStorageUrl', 'remoteStorageHost',
+  'normalizeRemoteStorageUrl', 'remoteStorageHost', 'normalizeRemoteStoragePort', 'remoteStorageApplyPort',
   executable(read('entry/src/main/ets/services/RemoteStorageProfiles.ets')) +
   '\nreturn { parseRemoteStorageProfiles, normalizeRemoteStorageProfile, remoteStorageProfileForPurpose,' +
   ' remoteStorageProfileSummary };')(support.createRemoteStorageProfileId, support.isValidRemoteStorageUrl,
-  support.normalizeRemoteStorageBasePath, support.normalizeRemoteStorageUrl, support.remoteStorageHost);
+  support.normalizeRemoteStorageBasePath, support.normalizeRemoteStorageUrl, support.remoteStorageHost,
+  support.normalizeRemoteStoragePort, support.remoteStorageApplyPort);
 
 test('remote storage paths normalize and join for WebDAV URLs', () => {
   assert.equal(support.normalizeRemoteStorageUrl('dav.example.com/dav/'), 'https://dav.example.com/dav');
@@ -38,6 +40,20 @@ test('remote storage paths normalize and join for WebDAV URLs', () => {
     'https://host/dav/backup/a.json');
   assert.equal(support.isValidRemoteStorageUrl('https://host/dav'), true);
   assert.equal(support.isValidRemoteStorageUrl('not a url'), false);
+});
+
+test('remote storage ports can be supplied separately from the URL', () => {
+  assert.equal(support.normalizeRemoteStoragePort('8443'), '8443');
+  assert.equal(support.normalizeRemoteStoragePort('0'), '');
+  assert.equal(support.normalizeRemoteStoragePort('70000'), '');
+  assert.equal(support.normalizeRemoteStoragePort('abc'), '');
+  assert.equal(support.remoteStoragePortFromUrl('https://host:1234/dav'), '1234');
+  assert.equal(support.remoteStoragePortFromUrl('https://host/dav'), '');
+  assert.equal(support.remoteStorageUrlWithoutPort('https://host:1234/dav'), 'https://host/dav');
+  assert.equal(support.remoteStorageUrlWithoutPort('https://host/dav'), 'https://host/dav');
+  assert.equal(support.remoteStorageApplyPort('https://host/dav', '8443'), 'https://host:8443/dav');
+  assert.equal(support.remoteStorageApplyPort('https://host:1234/dav', '8443'), 'https://host:8443/dav');
+  assert.equal(support.remoteStorageApplyPort('https://host:1234/dav', ''), 'https://host:1234/dav');
 });
 
 test('WebDAV hrefs resolve relative to the configured base folder', () => {
@@ -82,8 +98,9 @@ test('WebDAV status messages cover authentication and protocol failures', () => 
 test('remote storage profiles parse defensively and resolve by purpose', () => {
   const raw = JSON.stringify([
     {
-      id: 'p1', name: 'NAS', kind: 'webdav', url: 'dav.example.com/dav/', username: 'u', password: 'p',
-      basePath: '/ehviewer/backup/', useForBackup: true, useForSync: false, useForDownloads: true, updatedAt: 5
+      id: 'p1', name: 'NAS', kind: 'webdav', url: 'dav.example.com/dav/', port: '8443',
+      username: 'u', password: 'p', basePath: '/ehviewer/backup/', useForBackup: true,
+      useForSync: false, useForDownloads: true, updatedAt: 5
     },
     { id: 'broken', url: '' },
     'noise'
@@ -92,11 +109,12 @@ test('remote storage profiles parse defensively and resolve by purpose', () => {
   assert.equal(parsed.length, 1);
   assert.equal(parsed[0].url, 'https://dav.example.com/dav');
   assert.equal(parsed[0].basePath, 'ehviewer/backup');
+  assert.equal(parsed[0].port, '8443');
   assert.equal(parsed[0].updatedAt, 5);
   assert.equal(profiles.parseRemoteStorageProfiles('not json').length, 0);
   const backupProfile = profiles.remoteStorageProfileForPurpose(parsed, 'backup');
   assert.ok(backupProfile !== null);
   assert.equal(backupProfile.id, 'p1');
   assert.equal(profiles.remoteStorageProfileForPurpose(parsed, 'sync'), null);
-  assert.equal(profiles.remoteStorageProfileSummary(parsed[0]), 'dav.example.com · ehviewer/backup');
+  assert.equal(profiles.remoteStorageProfileSummary(parsed[0]), 'dav.example.com:8443 · ehviewer/backup');
 });

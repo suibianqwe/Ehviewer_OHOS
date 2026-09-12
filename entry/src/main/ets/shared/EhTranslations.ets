@@ -1018,6 +1018,7 @@ export function zhText(text: string): string {
     case 'Display name': return '显示名称';
     case 'Server URL': return '服务器地址';
     case 'Optional': return '可选';
+    case 'Optional, default 80/443': return '可选，默认 80/443';
     case 'Remote folder': return '远程目录';
     case 'Folder created for EhViewer data': return '用于存放 EhViewer 数据的远程目录';
     case 'Use for backup': return '用作备份目录';

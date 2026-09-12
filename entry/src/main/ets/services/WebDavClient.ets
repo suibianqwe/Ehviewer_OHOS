@@ -6,6 +6,7 @@ import {
   normalizeRemoteStorageBasePath,
   normalizeRemoteStorageUrl,
   parseWebDavMultiStatus,
+  remoteStorageApplyPort,
   remoteStorageUrlForPath,
   webDavStatusMessage
 } from './RemoteStorageSupport';
@@ -63,7 +64,7 @@ export class WebDavClient {
   }
 
   baseUrl(): string {
-    const url = normalizeRemoteStorageUrl(this.profile.url);
+    const url = remoteStorageApplyPort(normalizeRemoteStorageUrl(this.profile.url), this.profile.port);
     const base = normalizeRemoteStorageBasePath(this.profile.basePath);
     return base.length > 0 ? url + '/' + base : url;
   }
@@ -180,10 +181,27 @@ function parentRemotePath(path: string): string {
   return index <= 0 ? '' : normalized.substring(0, index);
 }
 
+interface RemoteStorageErrorInfo {
+  code?: number;
+  message?: string;
+}
+
 function remoteStorageErrorMessage(error: Object): string {
-  const message = error instanceof Error ? error.message : String(error);
-  if (message.length === 0) {
-    return 'Remote connection failed';
+  const info = error as RemoteStorageErrorInfo;
+  if (typeof info.code === 'number' && typeof info.message === 'string' && info.message.length > 0) {
+    return 'Remote connection failed (' + info.code.toString() + '): ' + info.message;
   }
-  return 'Remote connection failed: ' + message;
+  if (error instanceof Error) {
+    const message = error.message;
+    return message.length > 0 ? 'Remote connection failed: ' + message : 'Remote connection failed';
+  }
+  try {
+    const serialized = JSON.stringify(error);
+    if (serialized !== undefined && serialized !== null && serialized.length > 0 && serialized !== '{}') {
+      return 'Remote connection failed: ' + serialized.substring(0, 200);
+    }
+  } catch (serializationError) {
+  }
+  const fallback = String(error);
+  return fallback.length > 0 ? 'Remote connection failed: ' + fallback : 'Remote connection failed';
 }

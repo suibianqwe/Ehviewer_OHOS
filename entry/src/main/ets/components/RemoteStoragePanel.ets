@@ -5,7 +5,11 @@ import {
   remoteStorageProfileSummary,
   remoteStorageProfileStore
 } from '../services/RemoteStorageProfiles';
-import { createRemoteStorageProfileId } from '../services/RemoteStorageSupport';
+import {
+  createRemoteStorageProfileId,
+  remoteStoragePortFromUrl,
+  remoteStorageUrlWithoutPort
+} from '../services/RemoteStorageSupport';
 import { WebDavClient } from '../services/WebDavClient';
 import { getAbilityContext } from '../shared/EhShared';
 import { uiText } from '../shared/EhTranslations';
@@ -248,6 +252,7 @@ struct RemoteStorageEditorOverlay {
   onRemove: (profile: RemoteStorageProfile) => void = (_profile: RemoteStorageProfile) => {};
   @State draftName: string = '';
   @State draftUrl: string = '';
+  @State draftPort: string = '';
   @State draftUsername: string = '';
   @State draftPassword: string = '';
   @State draftBasePath: string = '';
@@ -262,6 +267,14 @@ struct RemoteStorageEditorOverlay {
   aboutToAppear(): void {
     this.draftName = this.profile.name;
     this.draftUrl = this.profile.url;
+    this.draftPort = this.profile.port;
+    if (this.draftPort.length === 0) {
+      const extractedPort = remoteStoragePortFromUrl(this.draftUrl);
+      if (extractedPort.length > 0) {
+        this.draftPort = extractedPort;
+        this.draftUrl = remoteStorageUrlWithoutPort(this.draftUrl);
+      }
+    }
     this.draftUsername = this.profile.username;
     this.draftPassword = this.profile.password;
     this.draftBasePath = this.profile.basePath;
@@ -276,6 +289,7 @@ struct RemoteStorageEditorOverlay {
       name: this.draftName,
       kind: REMOTE_STORAGE_KIND_WEBDAV,
       url: this.draftUrl,
+      port: this.draftPort,
       username: this.draftUsername,
       password: this.draftPassword,
       basePath: this.draftBasePath,
@@ -376,6 +390,18 @@ struct RemoteStorageEditorOverlay {
               .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
               .onChange((value: string) => {
                 this.draftUrl = value;
+              })
+
+            this.fieldLabel('Port')
+            TextInput({ text: this.draftPort, placeholder: uiText('Optional, default 80/443') })
+              .height(44)
+              .fontSize(14)
+              .type(InputType.Number)
+              .fontColor(themePrimaryText())
+              .backgroundColor(themeFieldBackground())
+              .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+              .onChange((value: string) => {
+                this.draftPort = value;
               })
 
             this.fieldLabel('Username')
@@ -512,6 +538,7 @@ function emptyRemoteStorageProfile(): RemoteStorageProfile {
     name: '',
     kind: REMOTE_STORAGE_KIND_WEBDAV,
     url: '',
+    port: '',
     username: '',
     password: '',
     basePath: 'ehviewer',

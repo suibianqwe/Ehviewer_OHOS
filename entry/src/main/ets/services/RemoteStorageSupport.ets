@@ -8,6 +8,8 @@ const CONTENT_LENGTH_PATTERN: RegExp =
 const LAST_MODIFIED_PATTERN: RegExp =
   /<(?:[A-Za-z0-9_-]+:)?getlastmodified[^>]*>([\s\S]*?)<\/(?:[A-Za-z0-9_-]+:)?getlastmodified>/i;
 const ABSOLUTE_HREF_PATTERN: RegExp = /^https?:\/\/[^/]+(\/.*)$/i;
+const URL_AUTHORITY_PATTERN: RegExp = /^(https?:\/\/)([^/:]+|\[[^\]]+\])(?::(\d+))?([\s\S]*)$/i;
+const PORT_ONLY_PATTERN: RegExp = /^\d+$/;
 const URL_SCHEME_PATTERN: RegExp = /^https?:\/\//i;
 const VALID_URL_PATTERN: RegExp = /^https?:\/\/[^/\s]+(?:\/[^\s]*)?$/i;
 const HOST_PATTERN: RegExp = /^https?:\/\/([^/]+)/i;
@@ -50,6 +52,46 @@ export function normalizeRemoteStorageBasePath(value: string): string {
 export function remoteStorageHost(url: string): string {
   const match = HOST_PATTERN.exec(url.trim());
   return match === null ? '' : match[1];
+}
+
+export function normalizeRemoteStoragePort(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || !PORT_ONLY_PATTERN.test(trimmed)) {
+    return '';
+  }
+  const port = Number.parseInt(trimmed);
+  return port >= 1 && port <= 65535 ? port.toString() : '';
+}
+
+export function remoteStoragePortFromUrl(url: string): string {
+  const match = URL_AUTHORITY_PATTERN.exec(url.trim());
+  if (match === null || match[3] === undefined) {
+    return '';
+  }
+  return normalizeRemoteStoragePort(match[3]);
+}
+
+export function remoteStorageUrlWithoutPort(url: string): string {
+  const match = URL_AUTHORITY_PATTERN.exec(url.trim());
+  if (match === null) {
+    return url.trim();
+  }
+  const rest = match[4] === undefined ? '' : match[4];
+  return match[1] + match[2] + rest;
+}
+
+export function remoteStorageApplyPort(url: string, port: string): string {
+  const normalizedPort = normalizeRemoteStoragePort(port);
+  const normalizedUrl = url.trim();
+  if (normalizedPort.length === 0) {
+    return normalizedUrl;
+  }
+  const match = URL_AUTHORITY_PATTERN.exec(normalizedUrl);
+  if (match === null) {
+    return normalizedUrl;
+  }
+  const rest = match[4] === undefined ? '' : match[4];
+  return match[1] + match[2] + ':' + normalizedPort + rest;
 }
 
 export function isValidRemoteStorageUrl(url: string): boolean {

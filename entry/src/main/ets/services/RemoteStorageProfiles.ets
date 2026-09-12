@@ -4,7 +4,9 @@ import {
   createRemoteStorageProfileId,
   isValidRemoteStorageUrl,
   normalizeRemoteStorageBasePath,
+  normalizeRemoteStoragePort,
   normalizeRemoteStorageUrl,
+  remoteStorageApplyPort,
   remoteStorageHost
 } from './RemoteStorageSupport';
 
@@ -23,6 +25,7 @@ export interface RemoteStorageProfile {
   name: string;
   kind: string;
   url: string;
+  port: string;
   username: string;
   password: string;
   basePath: string;
@@ -42,6 +45,7 @@ export function normalizeRemoteStorageProfile(profile: RemoteStorageProfile): Re
     name: profile.name.trim(),
     kind: profile.kind === REMOTE_STORAGE_KIND_WEBDAV ? profile.kind : REMOTE_STORAGE_KIND_WEBDAV,
     url: normalizeRemoteStorageUrl(profile.url),
+    port: typeof profile.port === 'string' ? normalizeRemoteStoragePort(profile.port) : '',
     username: profile.username.trim(),
     password: profile.password,
     basePath: normalizeRemoteStorageBasePath(profile.basePath),
@@ -75,7 +79,7 @@ export function remoteStorageProfilePurposeLabels(profile: RemoteStorageProfile)
 }
 
 export function remoteStorageProfileSummary(profile: RemoteStorageProfile): string {
-  const host = remoteStorageHost(profile.url);
+  const host = remoteStorageHost(remoteStorageApplyPort(profile.url, profile.port));
   const base = profile.basePath.length > 0 ? profile.basePath : '/';
   return host.length > 0 ? host + ' · ' + base : base;
 }
