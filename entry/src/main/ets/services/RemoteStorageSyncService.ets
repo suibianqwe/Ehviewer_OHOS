@@ -10,6 +10,9 @@ import { ehSettingsStore, HISTORY_INFO_SIZE_KEY, historyInfoSizeLimitFromValue, 
 import { REMOTE_STORAGE_PURPOSE_SYNC, RemoteStorageProfile, remoteStorageProfileStore } from './RemoteStorageProfiles';
 import { logRemoteStorageError, logRemoteStorageInfo, logRemoteStorageWarn } from './RemoteStorageLog';
 import { WebDavClient } from './WebDavClient';
+import { RemoteStorageListEntry } from './RemoteStorageSupport';
+import { ehDownloadFileStore } from './EhDownloadFileStore';
+import { fileIo as fs } from '@kit.CoreFileKit';
 import { GalleryInfo } from '../model/GalleryModels';
 import { uiText } from '../shared/EhTranslations';
 
@@ -22,12 +25,16 @@ const PREFERENCES_NAME: string = 'ehviewer_remote_sync';
 const LAST_SYNC_KEY: string = 'lastSyncAt';
 const LAST_PULL_KEY: string = 'lastPulledAt';
 const FINGERPRINT_KEY: string = 'lastFingerprint';
+const SERVER_TIMES_KEY: string = 'serverTimes';
 const SYNC_FOLDER: string = 'sync';
 const MANIFEST_FILE: string = SYNC_FOLDER + '/manifest.json';
-const FINGERPRINT_INTERVAL_MS: number = 45000;
+const FINGERPRINT_INTERVAL_MS: number = 60000;
 const DIRTY_DEBOUNCE_MS: number = 15000;
 const RETRY_DELAY_MS: number = 90000;
 const MAX_SYNC_HISTORY_ITEMS: number = 1000;
+const DOWNLOADS_FOLDER: string = 'downloads';
+const MAX_MIRROR_GALLERIES_PER_CYCLE: number = 2;
+const MAX_MIRROR_FILES_PER_CYCLE: number = 60;
 
 interface RemoteSyncManifest {
   version: number;
@@ -40,6 +47,11 @@ interface RemoteSyncSection {
   data: string;
 }
 
+interface RemoteSyncServerTime {
+  name: string;
+  time: number;
+}
+
 export class RemoteStorageSyncService {
   private context: common.UIAbilityContext | null = null;
   private timer: number = -1;
@@ -49,6 +61,7 @@ export class RemoteStorageSyncService {
   private lastSyncAt: number = 0;
   private lastPulledAt: number = 0;
   private fingerprint: string = '';
+  private serverTimes: RemoteSyncServerTime[] = [];
 
   async initialize(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
@@ -88,13 +101,33 @@ export class RemoteStorageSyncService {
       this.setStatus(uiText('Sync disabled'), uiText('Enable a sync folder in Download settings'));
       return;
     }
+    await this.performSync(context, profile, new WebDavClient(profile), true);
+  }
+
+  private async performSync(context: common.UIAbilityContext, profile: RemoteStorageProfile,
+    client: WebDavClient, pullRemote: boolean): Promise<void> {
+    if (this.busy) {
+      return;
+    }
     this.busy = true;
     this.publishStatus(profile, uiText('Syncing...'), '', true);
     try {
-      const client = new WebDavClient(profile);
       const directory = await client.ensureDirectory(SYNC_FOLDER);
       if (!directory.ok) {
         throw new Error(directory.message);
+      }
+      if (pullRemote) {
+        const listing = await client.list(SYNC_FOLDER);
+        if (listing.ok) {
+          for (let i = 0; i < listing.entries.length; i++) {
+            const entry = listing.entries[i];
+            if (entry.isDirectory || !entry.name.endsWith('.json') || entry.name === 'manifest.json') {
+              continue;
+            }
+            await this.applySection(context, client, entry.name.substring(0, entry.name.length - 5));
+          }
+          this.recordServerTimes(listing.entries);
+        }
       }
       const sections = await this.buildSections(context);
       for (let i = 0; i < sections.length; i++) {
@@ -112,9 +145,14 @@ export class RemoteStorageSyncService {
       if (!manifestUpload.ok) {
         throw new Error(manifestUpload.message);
       }
+      const afterListing = await client.list(SYNC_FOLDER);
+      if (afterListing.ok) {
+        this.recordServerTimes(afterListing.entries);
+      }
       this.lastSyncAt = manifest.updatedAt;
       this.lastPulledAt = manifest.updatedAt;
       this.fingerprint = await this.computeFingerprint(context);
+      await this.syncDownloadFiles(context, profile, client);
       await this.persistState(context);
       this.busy = false;
       this.dirty = false;
@@ -158,12 +196,55 @@ export class RemoteStorageSyncService {
       this.setStatus(uiText('Sync disabled'), uiText('Enable a sync folder in Download settings'));
       return;
     }
+    const client = new WebDavClient(profile);
+    const listing = await client.list(SYNC_FOLDER);
     const fingerprint = await this.computeFingerprint(context);
-    if (this.dirty || fingerprint !== this.fingerprint) {
-      await this.syncNow();
+    const localChanged = this.dirty || fingerprint !== this.fingerprint;
+    if (!listing.ok) {
+      this.schedule(localChanged ? RETRY_DELAY_MS : FINGERPRINT_INTERVAL_MS);
+      return;
+    }
+    const remoteChanged = this.listingHasNewer(listing.entries);
+    if (remoteChanged || localChanged) {
+      await this.performSync(context, profile, client, true);
       return;
     }
     this.schedule(FINGERPRINT_INTERVAL_MS);
+  }
+
+  private listingHasNewer(entries: RemoteStorageListEntry[]): boolean {
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      if (entry.isDirectory || !entry.name.endsWith('.json') || entry.name === 'manifest.json') {
+        continue;
+      }
+      const name = entry.name.substring(0, entry.name.length - 5);
+      if (entry.modifiedAt > 0 && entry.modifiedAt > this.serverTimeFor(name)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private serverTimeFor(name: string): number {
+    for (let i = 0; i < this.serverTimes.length; i++) {
+      if (this.serverTimes[i].name === name) {
+        return this.serverTimes[i].time;
+      }
+    }
+    return 0;
+  }
+
+  private recordServerTimes(entries: RemoteStorageListEntry[]): void {
+    const next: RemoteSyncServerTime[] = [];
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      if (entry.isDirectory || !entry.name.endsWith('.json')) {
+        continue;
+      }
+      next.push({ name: entry.name.substring(0, entry.name.length - 5), time: entry.modifiedAt });
+    }
+    this.serverTimes = next;
   }
 
   private async buildSections(context: common.UIAbilityContext): Promise<RemoteSyncSection[]> {
@@ -274,6 +355,82 @@ export class RemoteStorageSyncService {
     }
   }
 
+  private async syncDownloadFiles(context: common.UIAbilityContext, profile: RemoteStorageProfile,
+    client: WebDavClient): Promise<void> {
+    if (!profile.useForDownloads) {
+      return;
+    }
+    if (ehSettingsStore.getValue('download_location', 'App files') !== 'Remote server') {
+      return;
+    }
+    const root = ehDownloadFileStore.appDownloadRoot(context);
+    let galleryNames: string[] = [];
+    try {
+      galleryNames = fs.listFileSync(root);
+    } catch (error) {
+      return;
+    }
+    let uploaded = 0;
+    let galleries = 0;
+    for (let i = 0; i < galleryNames.length; i++) {
+      if (galleries >= MAX_MIRROR_GALLERIES_PER_CYCLE || uploaded >= MAX_MIRROR_FILES_PER_CYCLE) {
+        break;
+      }
+      const galleryName = galleryNames[i];
+      const localDir = root + '/' + galleryName;
+      let directory = false;
+      try {
+        directory = fs.statSync(localDir).isDirectory();
+      } catch (error) {
+        directory = false;
+      }
+      if (!directory) {
+        continue;
+      }
+      const remoteDir = DOWNLOADS_FOLDER + '/' + galleryName;
+      const existing: string[] = [];
+      const listing = await client.list(remoteDir);
+      if (listing.ok) {
+        for (let j = 0; j < listing.entries.length; j++) {
+          if (!listing.entries[j].isDirectory) {
+            existing.push(listing.entries[j].name);
+          }
+        }
+      }
+      let fileNames: string[] = [];
+      try {
+        fileNames = fs.listFileSync(localDir);
+      } catch (error) {
+        continue;
+      }
+      let uploadedHere = 0;
+      for (let j = 0; j < fileNames.length; j++) {
+        if (uploaded >= MAX_MIRROR_FILES_PER_CYCLE) {
+          break;
+        }
+        const fileName = fileNames[j];
+        if (existing.indexOf(fileName) >= 0) {
+          continue;
+        }
+        const data = readFileBuffer(localDir + '/' + fileName);
+        if (data === null) {
+          continue;
+        }
+        const result = await client.putBinary(remoteDir + '/' + fileName, data);
+        if (result.ok) {
+          uploaded++;
+          uploadedHere++;
+        }
+      }
+      if (uploadedHere > 0) {
+        galleries++;
+      }
+    }
+    if (uploaded > 0) {
+      logRemoteStorageInfo('download mirror uploaded files=' + uploaded.toString());
+    }
+  }
+
   private async computeFingerprint(context: common.UIAbilityContext): Promise<string> {
     const historyLength = ehHistoryStore.getItems().length;
     const parts: string[] = [
@@ -294,9 +451,17 @@ export class RemoteStorageSyncService {
       const lastSync = await prefs.get(LAST_SYNC_KEY, 0);
       const lastPull = await prefs.get(LAST_PULL_KEY, 0);
       const fingerprint = await prefs.get(FINGERPRINT_KEY, '');
+      const serverTimes = await prefs.get(SERVER_TIMES_KEY, '[]');
       this.lastSyncAt = typeof lastSync === 'number' ? lastSync : 0;
       this.lastPulledAt = typeof lastPull === 'number' ? lastPull : 0;
       this.fingerprint = typeof fingerprint === 'string' ? fingerprint : '';
+      if (typeof serverTimes === 'string') {
+        try {
+          this.serverTimes = JSON.parse(serverTimes) as RemoteSyncServerTime[];
+        } catch (parseError) {
+          this.serverTimes = [];
+        }
+      }
     } catch (error) {
     }
   }
@@ -307,6 +472,7 @@ export class RemoteStorageSyncService {
       await prefs.put(LAST_SYNC_KEY, this.lastSyncAt);
       await prefs.put(LAST_PULL_KEY, this.lastPulledAt);
       await prefs.put(FINGERPRINT_KEY, this.fingerprint);
+      await prefs.put(SERVER_TIMES_KEY, JSON.stringify(this.serverTimes));
       await prefs.flush();
     } catch (error) {
     }
@@ -356,6 +522,29 @@ function syncTimeText(timestamp: number): string {
   const minutes = date.getMinutes();
   return (hours < 10 ? '0' + hours.toString() : hours.toString()) + ':' +
     (minutes < 10 ? '0' + minutes.toString() : minutes.toString());
+}
+
+function readFileBuffer(path: string): ArrayBuffer | null {
+  let fd = -1;
+  try {
+    const size = fs.statSync(path).size;
+    if (size <= 0) {
+      return null;
+    }
+    const buffer = new ArrayBuffer(size);
+    fd = fs.openSync(path, fs.OpenMode.READ_ONLY).fd;
+    fs.readSync(fd, buffer);
+    return buffer;
+  } catch (error) {
+    return null;
+  } finally {
+    if (fd >= 0) {
+      try {
+        fs.closeSync(fd);
+      } catch (error) {
+      }
+    }
+  }
 }
 
 export const remoteStorageSyncService = new RemoteStorageSyncService();

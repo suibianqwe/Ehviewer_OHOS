@@ -142,6 +142,57 @@ export class WebDavClient {
     };
   }
 
+  async putBinary(path: string, data: ArrayBuffer): Promise<RemoteStorageResult> {
+    const parent = parentRemotePath(path);
+    if (parent.length > 0) {
+      const directory = await this.ensureDirectory(parent);
+      if (!directory.ok) {
+        return directory;
+      }
+    }
+    const url = remoteStorageUrlForPath(this.baseUrl(), path);
+    const hasCredentials = this.profile.username.length > 0 || this.profile.password.length > 0;
+    const header: WebDavHeader = hasCredentials ? {
+      'Accept': '*/*',
+      'Authorization': webDavAuthorizationValue(this.profile.username, this.profile.password),
+      'Depth': '',
+      'Content-Type': 'application/octet-stream'
+    } : {
+      'Accept': '*/*',
+      'Depth': '',
+      'Content-Type': 'application/octet-stream'
+    };
+    const options: http.HttpRequestOptions = {
+      method: http.RequestMethod.PUT,
+      customMethod: 'PUT',
+      header: header,
+      expectDataType: http.HttpDataType.STRING,
+      extraData: data,
+      connectTimeout: REMOTE_STORAGE_CONNECT_TIMEOUT_MS,
+      readTimeout: REMOTE_STORAGE_UPLOAD_TIMEOUT_MS
+    };
+    let request: http.HttpRequest | null = null;
+    const startedAt = Date.now();
+    logRemoteStorageInfo('request PUT ' + url + ' bodyBytes=' + data.byteLength.toString());
+    try {
+      request = http.createHttp();
+      const response = await request.request(url, options);
+      const statusCode = Number(response.responseCode);
+      const ok = statusCode >= 200 && statusCode < 300;
+      logRemoteStorageInfo('response PUT ' + url + ' -> ' + statusCode.toString() + ' in ' +
+        (Date.now() - startedAt).toString() + 'ms');
+      return { ok: ok, statusCode: statusCode, message: ok ? '' : webDavStatusMessage(statusCode) };
+    } catch (error) {
+      const message = remoteStorageErrorMessage(error);
+      logRemoteStorageError('request PUT ' + url + ' failed: ' + message);
+      return { ok: false, statusCode: 0, message: message };
+    } finally {
+      if (request !== null) {
+        request.destroy();
+      }
+    }
+  }
+
   async deleteFile(path: string): Promise<RemoteStorageResult> {
     const response = await this.send('DELETE', path, '', '', '');
     if (response.ok || response.statusCode === 404) {
