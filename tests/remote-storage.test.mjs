@@ -30,7 +30,7 @@ const profiles = Function('createRemoteStorageProfileId', 'isValidRemoteStorageU
   support.normalizeRemoteStoragePort, support.remoteStorageApplyPort);
 
 test('remote storage paths normalize and join for WebDAV URLs', () => {
-  assert.equal(support.normalizeRemoteStorageUrl('dav.example.com/dav/'), 'https://dav.example.com/dav');
+  assert.equal(support.normalizeRemoteStorageUrl('dav.example.com/dav/'), 'http://dav.example.com/dav');
   assert.equal(support.normalizeRemoteStorageUrl('http://host/dav//'), 'http://host/dav');
   assert.equal(support.normalizeRemoteStorageUrl('  '), '');
   assert.equal(support.normalizeRemoteStorageBasePath('/eh\\viewer// data/'), 'eh/viewer/data');
@@ -107,7 +107,7 @@ test('remote storage profiles parse defensively and resolve by purpose', () => {
   ]);
   const parsed = profiles.parseRemoteStorageProfiles(raw);
   assert.equal(parsed.length, 1);
-  assert.equal(parsed[0].url, 'https://dav.example.com/dav');
+  assert.equal(parsed[0].url, 'http://dav.example.com/dav');
   assert.equal(parsed[0].basePath, 'ehviewer/backup');
   assert.equal(parsed[0].port, '8443');
   assert.equal(parsed[0].updatedAt, 5);

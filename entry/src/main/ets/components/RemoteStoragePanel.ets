@@ -263,8 +263,6 @@ struct RemoteStorageEditorOverlay {
   @State popupHeight: number = 0;
   @State busy: boolean = false;
   @State statusText: string = '';
-  @State floatingMessage: string = '';
-  private floatingTimer: number = -1;
 
   aboutToAppear(): void {
     this.draftName = this.profile.name;
@@ -303,14 +301,15 @@ struct RemoteStorageEditorOverlay {
   }
 
   private showFloating(message: string): void {
-    this.floatingMessage = message;
-    if (this.floatingTimer !== -1) {
-      clearTimeout(this.floatingTimer);
+    this.getUIContext().getPromptAction().showToast({ message: message });
+  }
+
+  private localizedRemoteMessage(message: string): string {
+    const prefix = 'Remote connection failed';
+    if (message.startsWith(prefix)) {
+      return uiText(prefix) + message.substring(prefix.length);
     }
-    this.floatingTimer = setTimeout(() => {
-      this.floatingMessage = '';
-      this.floatingTimer = -1;
-    }, 2800) as number;
+    return uiText(message);
   }
 
   private async testConnection(): Promise<void> {
@@ -320,7 +319,7 @@ struct RemoteStorageEditorOverlay {
     const client = new WebDavClient(this.currentDraft());
     const result = await client.testConnection();
     this.busy = false;
-    this.statusText = result.ok ? uiText('Connection OK') : uiText(result.message);
+    this.statusText = result.ok ? uiText('Connection OK') : this.localizedRemoteMessage(result.message);
     this.showFloating(this.statusText);
   }
 
@@ -397,7 +396,7 @@ struct RemoteStorageEditorOverlay {
               })
 
             this.fieldLabel('Server URL')
-            TextInput({ text: this.draftUrl, placeholder: 'https://dav.example.com/remote.php/dav/files/user' })
+            TextInput({ text: this.draftUrl, placeholder: 'http://dav.example.com/remote.php/dav/files/user' })
               .height(44)
               .fontSize(14)
               .fontColor(themePrimaryText())
@@ -514,7 +513,7 @@ struct RemoteStorageEditorOverlay {
             .height(42)
             .layoutWeight(1)
             .fontSize(14)
-            .fontColor(themeOnPrimaryText())
+            .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
             .backgroundColor(uiMaterialBackground(themePrimaryColor()))
             .borderRadius(uiRadius(21))
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
@@ -541,24 +540,6 @@ struct RemoteStorageEditorOverlay {
         this.popupHeight = Number.parseFloat(newArea.height.toString());
       })
 
-      if (this.floatingMessage.length > 0) {
-        Column() {
-          Blank()
-          Text(this.floatingMessage)
-            .fontSize(13)
-            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-            .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
-            .border({ width: 1, color: uiButtonHighlightBorderColor() })
-            .borderRadius(uiRadius(18))
-            .padding({ left: 16, right: 16, top: 8, bottom: 8 })
-            .constraintSize({ maxWidth: '86%' })
-            .margin({ bottom: 46 })
-        }
-        .width('100%')
-        .height('100%')
-        .hitTestBehavior(HitTestMode.None)
-        .zIndex(30)
-      }
     }
     .width('100%')
     .height('100%')

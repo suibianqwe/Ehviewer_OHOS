@@ -29,7 +29,7 @@ export function normalizeRemoteStorageUrl(value: string): string {
   }
   let url = trimmed;
   if (!URL_SCHEME_PATTERN.test(url)) {
-    url = 'https://' + url;
+    url = 'http://' + url;
   }
   while (url.endsWith('/')) {
     url = url.substring(0, url.length - 1);

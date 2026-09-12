@@ -11,6 +11,7 @@ import { REMOTE_STORAGE_PURPOSE_SYNC, RemoteStorageProfile, remoteStorageProfile
 import { logRemoteStorageError, logRemoteStorageInfo, logRemoteStorageWarn } from './RemoteStorageLog';
 import { WebDavClient } from './WebDavClient';
 import { GalleryInfo } from '../model/GalleryModels';
+import { uiText } from '../shared/EhTranslations';
 
 export const REMOTE_SYNC_STATUS_TEXT_KEY: string = 'remoteSyncStatusText';
 export const REMOTE_SYNC_STATUS_DETAIL_KEY: string = 'remoteSyncStatusDetail';
@@ -55,10 +56,10 @@ export class RemoteStorageSyncService {
     await remoteStorageProfileStore.ensureLoaded(context);
     const profile = remoteStorageProfileStore.profileForPurpose(REMOTE_STORAGE_PURPOSE_SYNC);
     if (profile === null) {
-      this.setStatus('同步未启用', '在设置 → 下载 → 远程存储 中启用同步目录');
+      this.setStatus(uiText('Sync disabled'), uiText('Enable a sync folder in Download settings'));
       return;
     }
-    this.publishStatus(profile, '待同步', '');
+    this.publishStatus(profile, uiText('Pending sync'), '');
     this.pullIfNewer(context, profile);
     this.schedule(FINGERPRINT_INTERVAL_MS);
   }
@@ -83,11 +84,11 @@ export class RemoteStorageSyncService {
     }
     const profile = remoteStorageProfileStore.profileForPurpose(REMOTE_STORAGE_PURPOSE_SYNC);
     if (profile === null) {
-      this.setStatus('同步未启用', '在设置 → 下载 → 远程存储 中启用同步目录');
+      this.setStatus(uiText('Sync disabled'), uiText('Enable a sync folder in Download settings'));
       return;
     }
     this.busy = true;
-    this.publishStatus(profile, '同步中…', '');
+    this.publishStatus(profile, uiText('Syncing...'), '');
     try {
       const client = new WebDavClient(profile);
       const directory = await client.ensureDirectory(SYNC_FOLDER);
@@ -117,13 +118,13 @@ export class RemoteStorageSyncService {
       this.busy = false;
       this.dirty = false;
       logRemoteStorageInfo('sync completed sections=' + sections.length.toString());
-      this.publishStatus(profile, '已同步 ' + syncTimeText(this.lastSyncAt), '');
+      this.publishStatus(profile, uiText('Synced at') + ' ' + syncTimeText(this.lastSyncAt), '');
       this.schedule(FINGERPRINT_INTERVAL_MS);
     } catch (error) {
       this.busy = false;
       const message = error instanceof Error ? error.message : String(error);
       logRemoteStorageWarn('sync failed: ' + message);
-      this.publishStatus(profile, '离线，稍后重试', message);
+      this.publishStatus(profile, uiText('Offline, retrying soon'), message);
       this.schedule(RETRY_DELAY_MS);
     }
   }
@@ -153,7 +154,7 @@ export class RemoteStorageSyncService {
     }
     const profile = remoteStorageProfileStore.profileForPurpose(REMOTE_STORAGE_PURPOSE_SYNC);
     if (profile === null) {
-      this.setStatus('同步未启用', '在设置 → 下载 → 远程存储 中启用同步目录');
+      this.setStatus(uiText('Sync disabled'), uiText('Enable a sync folder in Download settings'));
       return;
     }
     const fingerprint = await this.computeFingerprint(context);
@@ -216,7 +217,7 @@ export class RemoteStorageSyncService {
       this.lastPulledAt = manifest.updatedAt;
       await this.persistState(context);
       logRemoteStorageInfo('sync pulled sections=' + manifest.sections.length.toString());
-      this.publishStatus(profile, '已同步 ' + syncTimeText(this.lastSyncAt), '');
+      this.publishStatus(profile, uiText('Synced at') + ' ' + syncTimeText(this.lastSyncAt), '');
     } catch (error) {
       logRemoteStorageWarn('sync pull failed: ' + (error instanceof Error ? error.message : String(error)));
     }
@@ -311,7 +312,7 @@ export class RemoteStorageSyncService {
   }
 
   private publishStatus(profile: RemoteStorageProfile, text: string, detail: string): void {
-    this.setStatus(text, detail.length > 0 ? detail : ('服务器：' + profile.url));
+    this.setStatus(text, detail.length > 0 ? detail : (uiText('Server: ') + profile.url));
   }
 
   private setStatus(text: string, detail: string): void {

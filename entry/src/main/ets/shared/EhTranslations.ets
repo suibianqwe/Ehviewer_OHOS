@@ -1032,6 +1032,26 @@ export function zhText(text: string): string {
     case 'Test': return '测试';
     case 'Backup': return '备份';
     case 'Sync': return '同步';
+    case 'WebDAV profiles for backup, sync and download mirror': return 'WebDAV 服务器配置，用于备份、同步与下载镜像';
+    case 'App files, public Downloads, or a configured remote storage server':
+      return '应用内部存储、公共下载目录，或已配置的远程服务器';
+    case 'Authentication failed': return '身份验证失败';
+    case 'Access denied': return '访问被拒绝';
+    case 'Remote path not found': return '远程路径不存在';
+    case 'WebDAV is not supported by this server': return '该服务器不支持 WebDAV';
+    case 'Parent folder is missing': return '上级文件夹不存在';
+    case 'Remote resource is locked': return '远程资源被锁定';
+    case 'Remote storage is full': return '远程存储空间已满';
+    case 'Server error': return '服务器错误';
+    case 'Request failed': return '请求失败';
+    case 'Remote connection failed': return '远程连接失败';
+    case 'Sync disabled': return '同步未启用';
+    case 'Enable a sync folder in Download settings': return '在 设置 → 下载 → 远程存储 中启用同步目录';
+    case 'Pending sync': return '待同步';
+    case 'Syncing...': return '同步中…';
+    case 'Synced at': return '已同步';
+    case 'Offline, retrying soon': return '离线，稍后重试';
+    case 'Server: ': return '服务器：';
     case 'Block comments from selected user names': return '屏蔽指定用户的评论';
     case 'Block comments by user name': return '按用户名屏蔽评论';
     case 'User name': return '用户名';
