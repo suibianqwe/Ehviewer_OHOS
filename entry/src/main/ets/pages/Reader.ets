@@ -1,6 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
-import { ReaderHostScene } from '../components/ReaderHostScene';
+import { ReaderSessionScene } from '../components/ReaderHostScene';
 import {
   applyReaderBrightnessFromSettings,
   applyReaderFullscreenImmersiveMode,
@@ -91,9 +91,9 @@ struct ReaderPage {
   build() {
     Column() {
       if (this.themeRevision % 2 === 0) {
-        ReaderHostScene()
+        ReaderSessionScene({ restoreAppChromeOnExit: false })
       } else {
-        ReaderHostScene()
+        ReaderSessionScene({ restoreAppChromeOnExit: false })
       }
     }
     .width('100%')

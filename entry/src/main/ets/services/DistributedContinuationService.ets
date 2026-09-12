@@ -1,6 +1,7 @@
 import { AbilityConstant, common, Want } from '@kit.AbilityKit';
 import { deviceInfo } from '@kit.BasicServicesKit';
 import { GalleryDetail, GalleryPage } from '../model/GalleryModels';
+import { cloneGalleryDetail } from '../shared/EhShared';
 import { ReaderSessionPageState, ReaderSessionState } from './ReaderSessionStore';
 import { ehSettingsStore, MULTI_DEVICE_CONTINUATION_SETTING_KEY } from './EhSettingsStore';
 
@@ -154,7 +155,7 @@ function compactReaderSession(session: ReaderSessionState): ReaderSessionState {
 function compactDetail(detail: GalleryDetail): GalleryDetail {
   // Preview metadata is needed to paint the reader immediately. Keep it
   // bounded; missing previews are fetched again on the destination device.
-  const copy = JSON.parse(JSON.stringify(detail)) as GalleryDetail;
+  const copy = cloneGalleryDetail(detail);
   if (copy.previewSet.length > 80) {
     copy.previewSet = copy.previewSet.slice(0, 80);
   }

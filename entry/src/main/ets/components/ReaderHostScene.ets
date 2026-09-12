@@ -620,12 +620,13 @@ export struct ReaderSessionScene {
   }
 
   private requestReaderTranslationWindow(forceCurrent: boolean = false): void {
-    const first = Math.max(0, this.pageIndex - 1);
-    const last = Math.min(this.readerTotalPages() - 1, this.pageIndex + 2);
+    const currentPageIndex = this.pageIndex;
+    const first = Math.max(0, currentPageIndex - 1);
+    const last = Math.min(this.readerTotalPages() - 1, currentPageIndex + 2);
     for (let index = first; index <= last; index++) {
       const page = this.readerPageForTranslation(index);
       if (page !== null) {
-        this.queueReaderTranslationIfNeeded(index, page, forceCurrent && index === this.pageIndex);
+        this.queueReaderTranslationIfNeeded(index, page, forceCurrent && index === currentPageIndex);
       }
     }
   }
@@ -915,9 +916,4 @@ export struct ReaderSessionScene {
   }
 }
 
-@Component
-export struct ReaderHostScene {
-  build() {
-    ReaderSessionScene({ restoreAppChromeOnExit: false })
-  }
-}
+

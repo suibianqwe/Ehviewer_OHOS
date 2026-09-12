@@ -917,18 +917,24 @@ export struct ReaderScene {
     if (width <= 0 || height <= 0) {
       return;
     }
+    let matchedIndex = -1;
     for (let i = 0; i < this.readerPageImageSizes.length; i++) {
       if (this.readerPageImageSizes[i].index === index) {
-        if (this.readerPageImageSizes[i].width === width && this.readerPageImageSizes[i].height === height) {
-          return;
-        }
-        this.readerPageImageSizes[i].width = width;
-        this.readerPageImageSizes[i].height = height;
-        this.readerPageImageSizeRevision++;
-        this.readerPageSizeRevision++;
-        this.schedulePageGroupRefresh();
+        matchedIndex = i;
+        break;
+      }
+    }
+    if (matchedIndex >= 0) {
+      if (this.readerPageImageSizes[matchedIndex].width === width &&
+        this.readerPageImageSizes[matchedIndex].height === height) {
         return;
       }
+      this.readerPageImageSizes[matchedIndex].width = width;
+      this.readerPageImageSizes[matchedIndex].height = height;
+      this.readerPageImageSizeRevision++;
+      this.readerPageSizeRevision++;
+      this.schedulePageGroupRefresh();
+      return;
     }
     this.readerPageImageSizes.push({ index: index, width: width, height: height });
     this.readerPageImageSizeRevision++;
@@ -1167,47 +1173,53 @@ export struct ReaderScene {
     }
     const pageIndexes = this.imageProcessingPrefetchPageIndexes();
     const plans: ReaderImageProcessingPrefetchPlan[] = [];
+    const preferOriginal = this.preferOriginal;
+    const superResolutionEnabled = this.imageSuperResolutionEnabled;
+    const sdrToHdrEnabled = this.sdrToHdrEnabled;
+    const superResolutionEngine = this.imageSuperResolutionEngine;
+    const currentIndex = this.currentIndex;
+    const adjustmentSettings = this.imageAdjustmentSettings;
     for (let i = 0; i < pageIndexes.length; i++) {
       const pageIndex = pageIndexes[i];
       const page = this.pageForIndex(pageIndex);
-      const sourcePath = readerLocalSourceImagePath(page, this.preferOriginal);
+      const sourcePath = readerLocalSourceImagePath(page, preferOriginal);
       if (sourcePath.length === 0) {
         continue;
       }
-      const original = this.preferOriginal && page.originImageUrl.length > 0;
+      const original = preferOriginal && page.originImageUrl.length > 0;
       const sourceKey = readerPageImageCacheKey(page, original);
       const target = this.superResolutionDisplayTarget(pageIndex);
       const targetKey = this.superResolutionTargetKey(target);
-      const engineKey = readerSuperResolutionEngineCacheKey(this.imageSuperResolutionEngine);
+      const engineKey = readerSuperResolutionEngineCacheKey(superResolutionEngine);
       const sourceInputKey = sourceKey + '|' + sourcePath;
-      const adjustmentKey = sourceInputKey + '|adjust|' + this.imageAdjustmentSettings.detailCacheKey() +
+      const adjustmentKey = sourceInputKey + '|adjust|' + adjustmentSettings.detailCacheKey() +
         '|target|' + targetKey;
-      const offlineAdjustment = this.imageAdjustmentSettings.requiresOfflineProcessing();
+      const offlineAdjustment = adjustmentSettings.requiresOfflineProcessing();
       const superResolutionInputKey = offlineAdjustment ? adjustmentKey : sourceInputKey;
       const superResolutionKey = superResolutionInputKey + '|sr|' + engineKey + '|' + targetKey;
       const fallbackSuperResolutionKey = sourceInputKey + '|sr|' + engineKey + '|' + targetKey;
-      const hdrInputKey = this.imageSuperResolutionEnabled ? superResolutionKey :
+      const hdrInputKey = superResolutionEnabled ? superResolutionKey :
         (offlineAdjustment ? adjustmentKey : sourceInputKey);
       const hdrKey = hdrInputKey + '|hdr';
       const fallbackHdrKey = sourceKey + '|' + sourcePath + '|hdr';
-      const priority = this.isContinuousVerticalMode() ? Math.abs(pageIndex - this.currentIndex) :
-        Math.abs(this.visualIndexForPageIndex(pageIndex) - this.visualIndexForPageIndex(this.currentIndex));
+      const priority = this.isContinuousVerticalMode() ? Math.abs(pageIndex - currentIndex) :
+        Math.abs(this.visualIndexForPageIndex(pageIndex) - this.visualIndexForPageIndex(currentIndex));
       plans.push({
         id: pageIndex.toString() + '|' + superResolutionKey + '|' + hdrKey + '|' +
-          adjustmentKey + '|' + (this.imageSuperResolutionEnabled ? '1' : '0') +
-          (this.sdrToHdrEnabled ? '1' : '0') + (offlineAdjustment ? '1' : '0'),
+          adjustmentKey + '|' + (superResolutionEnabled ? '1' : '0') +
+          (sdrToHdrEnabled ? '1' : '0') + (offlineAdjustment ? '1' : '0'),
         sourcePath: sourcePath,
         superResolutionKey: superResolutionKey,
         fallbackSuperResolutionKey: fallbackSuperResolutionKey,
         hdrKey: hdrKey,
         fallbackHdrKey: fallbackHdrKey,
         adjustmentKey: adjustmentKey,
-        adjustmentSettings: this.imageAdjustmentSettings,
+        adjustmentSettings: adjustmentSettings,
         targetWidth: target.width,
         targetHeight: target.height,
-        superResolutionEngine: this.imageSuperResolutionEngine,
-        superResolution: this.imageSuperResolutionEnabled,
-        hdr: this.sdrToHdrEnabled,
+        superResolutionEngine: superResolutionEngine,
+        superResolution: superResolutionEnabled,
+        hdr: sdrToHdrEnabled,
         adjustment: offlineAdjustment,
         priority: priority
       });
@@ -3314,6 +3326,8 @@ export struct ReaderScene {
         }) {
           LazyForEach(this.readerPageIndexSource(), (item: ReaderPageGroupItem) => {
             ListItem() {
+              // The item owns per-page async image pipelines; reuse would risk state bleed.
+              // eslint-disable-next-line @performance/hp-arkui-use-reusable-component
               ReaderContinuousImageItem({
                 page: this.pageForIndex(item.index),
                 statusText: item.index === this.pageIndex ? this.statusText : uiText('Image page is loading'),

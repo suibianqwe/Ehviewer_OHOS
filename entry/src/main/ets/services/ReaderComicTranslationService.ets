@@ -248,10 +248,9 @@ export class ReaderComicTranslationService {
     if (this.initialized) {
       return;
     }
-    if (this.initPromise === null) {
-      this.initPromise = textRecognition.init();
-    }
-    const ready = await this.initPromise;
+    const pendingInit = this.initPromise ?? textRecognition.init();
+    this.initPromise = pendingInit;
+    const ready = await pendingInit;
     this.initPromise = null;
     if (!ready) {
       throw new Error('OCR service initialization failed');

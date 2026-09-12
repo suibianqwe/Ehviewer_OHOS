@@ -181,7 +181,9 @@ class ReaderImageAdjustmentService {
         if (info.isHdr || info.pixelFormat !== image.PixelMapFormat.RGBA_8888) {
           return undefined;
         }
-        pixelMap = await readerHdr.createCompatibleSdrPixelMap(entry.sourcePixelMap);
+        const compatibleSource: Promise<image.PixelMap> =
+          readerHdr.createCompatibleSdrPixelMap(entry.sourcePixelMap);
+        pixelMap = await compatibleSource;
       } else {
         source = image.createImageSource(entry.sourcePath);
         const info = source.getImageInfoSync();
@@ -201,7 +203,7 @@ class ReaderImageAdjustmentService {
       }
       const value = entry.settings;
       const adjustmentEnabled = value.enabled;
-      const result = await readerHdr.adjustPixelMap(pixelMap,
+      const adjustment: Promise<number> = readerHdr.adjustPixelMap(pixelMap,
         entry.bakeColorAdjustments && adjustmentEnabled ? value.contrast : 0,
         adjustmentEnabled ? value.clarity : 0, adjustmentEnabled ? value.sharpening : 0,
         entry.bakeColorAdjustments && adjustmentEnabled ? value.exposure : 0,
@@ -213,6 +215,7 @@ class ReaderImageAdjustmentService {
         entry.bakeColorAdjustments && adjustmentEnabled ? value.temperature : 0,
         entry.bakeColorAdjustments && adjustmentEnabled ? value.grayscale : 0,
         moireReductionMode(value.moireReduction), entry.targetWidth, entry.targetHeight);
+      const result = await adjustment;
       if (result !== 0 || !this.isActive(entry)) {
         return undefined;
       }

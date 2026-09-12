@@ -53,6 +53,8 @@ const TRANSLATION_REFERENCE_MAX_FONT_SIZE: number = 84;
 const TRANSLATION_HORIZONTAL_MAX_WIDTH_RATIO: number = 0.96;
 
 @Component
+// The overlay caches per-page layout state and cannot be expressed as a @Builder.
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 export struct ReaderTranslationOverlay {
   @Prop translation: ReaderPageTranslation | null = null;
   @Prop displayWidth: number = 1;

@@ -51,7 +51,7 @@ export struct MigrationScene {
           .borderRadius(uiRadius(6))
         }
         .reuseId('migration-task')
-      })
+      }, (task: MigrationTask): string => task.name)
     }
     .width('100%')
     .height('100%')

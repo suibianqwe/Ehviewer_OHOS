@@ -200,6 +200,8 @@ export struct CommentsScene {
 
 
 @Component
+// Reader auxiliary scenes share this placeholder from several hosts.
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 export struct PlaceholderScene {
   title: string = '';
   detail: string = '';

@@ -82,8 +82,9 @@ class EhHomeLimitsService {
   }
 
   private async resetAfterPendingLoad(): Promise<EhHomeLimitsResult> {
-    if (this.pendingLoad !== null) {
-      await this.pendingLoad;
+    const inFlight = this.pendingLoad;
+    if (inFlight !== null) {
+      return inFlight.then(() => this.requestLimits(true));
     }
     return this.requestLimits(true);
   }

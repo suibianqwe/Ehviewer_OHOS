@@ -241,7 +241,9 @@ class ReaderHdrService {
           !this.isEntryActive(entry)) {
           return undefined;
         }
-        sourcePixelMap = await readerHdr.createCompatibleSdrPixelMap(entry.sourcePixelMap);
+        const compatiblePromise: Promise<image.PixelMap> =
+          readerHdr.createCompatibleSdrPixelMap(entry.sourcePixelMap);
+        sourcePixelMap = await compatiblePromise;
       } else {
         source = image.createImageSource(entry.sourcePath);
         const sourceInfo = source.getImageInfoSync();
@@ -286,7 +288,9 @@ class ReaderHdrService {
           return undefined;
         }
         const decodedPixelMap = sourcePixelMap;
-        sourcePixelMap = await readerHdr.createCompatibleSdrPixelMap(decodedPixelMap);
+        const compatibleDecoded: Promise<image.PixelMap> =
+          readerHdr.createCompatibleSdrPixelMap(decodedPixelMap);
+        sourcePixelMap = await compatibleDecoded;
         await this.releasePixelMap(decodedPixelMap);
       }
       if (this.srgbColorSpace === undefined) {
@@ -304,7 +308,8 @@ class ReaderHdrService {
       if (!this.isEntryActive(entry)) {
         return undefined;
       }
-      const result = await readerHdr.convertSdrToHdr(sourcePixelMap, destinationPixelMap);
+      const conversion: Promise<number> = readerHdr.convertSdrToHdr(sourcePixelMap, destinationPixelMap);
+      const result = await conversion;
       if (result !== 0) {
         hilog.warn(DOMAIN, TAG, `SDR to HDR conversion failed, result=${result}, mime=${mimeType}`);
         return undefined;

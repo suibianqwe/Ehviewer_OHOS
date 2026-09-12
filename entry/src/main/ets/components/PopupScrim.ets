@@ -5,6 +5,8 @@ import { themeScrimColor } from '../shared/EhTheme';
  * This prevents ArkUI blur/material effects from sampling the gray scrim below.
  */
 @Component
+// Shared by every popup host and combined with host-specific modifiers; component form is intentional.
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 export struct PopupScrim {
   @Prop showCutout: boolean = false;
   @Prop cutoutWidth: Length = 0;

@@ -52,6 +52,8 @@ function downloadLabelItemCount(items: DownloadInfo[], label: string): number {
 }
 
 @Component
+// Drawer spans many host states and is instantiated once per page; component form is intentional.
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 export struct DownloadLabelDrawer {
   @Prop statusBarHeight: number = 0;
   @Prop labels: DownloadLabel[] = [];

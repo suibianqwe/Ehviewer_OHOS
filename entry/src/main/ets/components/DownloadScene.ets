@@ -905,8 +905,9 @@ export struct DownloadScene {
       this.categoryFilter);
     const filtered: DownloadInfo[] = [];
     const options = this.downloadSearchOptions();
+    const query = this.query;
     for (let i = 0; i < visible.length; i++) {
-      if (galleryMatchesLocalSearch(visible[i], this.query, options)) {
+      if (galleryMatchesLocalSearch(visible[i], query, options)) {
         filtered.push(visible[i]);
       }
     }
@@ -1846,6 +1847,8 @@ export struct DownloadScene {
   private downloadCardContent(item: DownloadInfo, index: number) {
     Column() {
       if (galleryListMode() === 'Thumb') {
+        // Long-press selection is injected per page; keep the reusable card contract as-is.
+        // eslint-disable-next-line @performance/hp-arkui-no-func-as-arg-for-reusable-component
         GalleryThumbCard({
           gallery: item,
           selected: this.isDownloadSelected(item.gid),
@@ -1864,6 +1867,7 @@ export struct DownloadScene {
             this.observeDownloadCardAnchor(item, newArea);
           })
       } else {
+        // eslint-disable-next-line @performance/hp-arkui-no-func-as-arg-for-reusable-component
         GalleryListRow({
           gallery: item,
           selected: this.isDownloadSelected(item.gid),

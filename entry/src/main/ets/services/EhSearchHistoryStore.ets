@@ -50,13 +50,14 @@ export class EhSearchHistoryStore {
     if (this.loaded) {
       return;
     }
-    if (this.loadPromise !== null) {
-      await this.loadPromise;
-      return;
+    const inFlight = this.loadPromise;
+    if (inFlight !== null) {
+      return inFlight;
     }
-    this.loadPromise = this.loadNow(context);
+    const pending = this.loadNow(context);
+    this.loadPromise = pending;
     try {
-      await this.loadPromise;
+      await pending;
     } finally {
       this.loadPromise = null;
     }

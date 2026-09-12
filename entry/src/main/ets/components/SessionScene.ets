@@ -870,6 +870,7 @@ export struct SessionScene {
 }
 
 @Component
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 export struct SignInMark {
   label: string = '';
 

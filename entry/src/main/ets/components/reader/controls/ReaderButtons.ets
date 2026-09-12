@@ -9,6 +9,8 @@ import {
 } from '../../../shared/EhUiStyle';
 
 @Component
+// Reader buttons carry material/blur styling reused across reader hosts.
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 export struct ReaderToolButton {
   text: string = '';
   active: boolean = true;
@@ -33,6 +35,7 @@ export struct ReaderToolButton {
 }
 
 @Component
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 export struct ReaderNavButton {
   text: string = '';
   active: boolean = true;

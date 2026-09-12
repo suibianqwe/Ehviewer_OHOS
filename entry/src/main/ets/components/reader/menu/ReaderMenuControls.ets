@@ -37,6 +37,8 @@ import {
 } from '../../../shared/EhUiStyle';
 
 @Component
+// Reader menu leaves keep component form because hosts reuse them with different modifiers.
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 export struct ReaderPopupBackdrop {
   @Prop cutoutWidth: number = 0;
   @Prop cutoutHeight: number = 0;
@@ -58,6 +60,7 @@ export struct ReaderPopupBackdrop {
 }
 
 @Component
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 export struct ReaderImageActionDialog {
   onRefresh: () => void = () => {};
   onShare: () => void = () => {};
@@ -117,6 +120,7 @@ export struct ReaderImageActionDialog {
 }
 
 @Component
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 struct ReaderImageActionButton {
   label: string = '';
   symbolIcon: Resource = $r('sys.symbol.circle');
@@ -151,6 +155,7 @@ struct ReaderImageActionButton {
 }
 
 @Component
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 export struct ReaderMenuDivider {
   build() {
     Divider()
@@ -161,6 +166,7 @@ export struct ReaderMenuDivider {
 }
 
 @Component
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 export struct ReaderMenuSelect {
   @Prop label: string = '';
   @Prop options: string[] = [];
@@ -327,6 +333,7 @@ export function readerUltraDarkValue(value: number): string {
 
 
 @Component
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 export struct ReaderMenuToggle {
   label: string = '';
   @Prop value: boolean = false;

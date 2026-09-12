@@ -113,12 +113,11 @@ export struct ImageSearchPanel {
     this.statusText = 'Preparing image...';
     const path = await copyImageSearchSourceToCache(uri);
     this.busy = false;
-    if (path.length === 0) {
-      this.statusText = 'Image selection failed';
-      return;
+    if (path.length > 0) {
+      this.selectedPath = path;
     }
-    this.selectedPath = path;
-    this.statusText = isOriginalPhoto ? 'Original image selected' : 'Compatible image selected';
+    this.statusText = path.length === 0 ? 'Image selection failed' :
+      (isOriginalPhoto ? 'Original image selected' : 'Compatible image selected');
   }
 
   private submit(): void {

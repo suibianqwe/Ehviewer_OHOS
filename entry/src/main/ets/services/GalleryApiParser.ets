@@ -145,14 +145,17 @@ function categoryNameToValue(category: string): number {
   }
 }
 
+const postedDateFormatter: Date = new Date(0);
+
 function parsePosted(value: string | undefined): string {
   const seconds = parseIntSafe(value, 0);
   if (seconds <= 0) {
     return '';
   }
-  const date = new Date(seconds * 1000);
-  return date.getFullYear().toString() + '-' + pad2(date.getMonth() + 1) + '-' + pad2(date.getDate()) + ' ' +
-    pad2(date.getHours()) + ':' + pad2(date.getMinutes());
+  postedDateFormatter.setTime(seconds * 1000);
+  return postedDateFormatter.getFullYear().toString() + '-' + pad2(postedDateFormatter.getMonth() + 1) + '-' +
+    pad2(postedDateFormatter.getDate()) + ' ' + pad2(postedDateFormatter.getHours()) + ':' +
+    pad2(postedDateFormatter.getMinutes());
 }
 
 function pad2(value: number): string {

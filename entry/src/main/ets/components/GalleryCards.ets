@@ -351,11 +351,14 @@ export struct GalleryListRow {
       .layoutWeight(1)
 
       Column({ space: this.isLooseLayout() ? 6 : 4 }) {
+        // Leaf badge components are stateful or exported; keep them as components.
+        // eslint-disable-next-line @performance/hp-arkui-replace-nested-reusable-component-by-builder
         GalleryRatingStars({
           rating: this.gallery.rating,
           widthValue: this.ratingWidth(),
           heightValue: this.ratingHeight()
         })
+        // eslint-disable-next-line @performance/hp-arkui-replace-nested-reusable-component-by-builder
         CategoryBadge({
           category: this.gallery.category,
           fontSizeValue: this.categoryFontSize(),
@@ -374,6 +377,8 @@ export struct GalleryListRow {
   private detailArea() {
     Row() {
       Stack({ alignContent: Alignment.BottomStart }) {
+        // GalleryThumb owns the async URL fallback state and cannot be a @Builder.
+        // eslint-disable-next-line @performance/hp-arkui-replace-nested-reusable-component-by-builder
         GalleryThumb({
           url: this.gallery.thumb === undefined ? '' : this.gallery.thumb,
           widthValue: this.cardThumbWidth(),
@@ -381,6 +386,7 @@ export struct GalleryListRow {
           radiusValue: 6
         })
           .height('100%')
+        // eslint-disable-next-line @performance/hp-arkui-replace-nested-reusable-component-by-builder
         GalleryStatusBadges({ gallery: this.gallery })
           .margin({ left: 4, bottom: 4 })
       }
@@ -389,6 +395,8 @@ export struct GalleryListRow {
 
       Column() {
         Column() {
+          // TranslationText is a shared component with its own async translation state.
+          // eslint-disable-next-line @performance/hp-arkui-replace-nested-reusable-component-by-builder
           TranslationText({
             sourceText: galleryDisplayTitle(this.gallery),
             translationEnabled: this.translateTitle,
@@ -428,6 +436,8 @@ export struct GalleryListRow {
     Scroll() {
       Row({ space: this.isLooseLayout() ? 6 : 4 }) {
         ForEach(this.previewTags(), (tag: string, index: number) => {
+          // GalleryTagChip is exported and reused outside the card list as well.
+          // eslint-disable-next-line @performance/hp-arkui-replace-nested-reusable-component-by-builder
           GalleryTagChip({
             text: this.tagDisplayText(tag),
             backgroundColorValue: this.tagColor(index),
@@ -763,6 +773,7 @@ export struct GalleryThumbCard {
     Stack({ alignContent: Alignment.TopStart }) {
       Column() {
         Stack({ alignContent: Alignment.BottomStart }) {
+          // eslint-disable-next-line @performance/hp-arkui-replace-nested-reusable-component-by-builder
           GalleryThumb({
             url: this.gallery.thumb === undefined ? '' : this.gallery.thumb,
             widthValue: 0,
@@ -773,6 +784,7 @@ export struct GalleryThumbCard {
           })
             .width('100%')
             .height('100%')
+          // eslint-disable-next-line @performance/hp-arkui-replace-nested-reusable-component-by-builder
           GalleryStatusBadges({ gallery: this.gallery })
             .margin({ left: 4, bottom: 4 })
         }
@@ -781,6 +793,7 @@ export struct GalleryThumbCard {
 
         Column() {
           Column() {
+            // eslint-disable-next-line @performance/hp-arkui-replace-nested-reusable-component-by-builder
             TranslationText({
               sourceText: galleryDisplayTitle(this.gallery),
               translationEnabled: this.translateTitle,
@@ -799,8 +812,10 @@ export struct GalleryThumbCard {
           Row() {
             Column({ space: 6 }) {
               if (showGalleryRating()) {
+                // eslint-disable-next-line @performance/hp-arkui-replace-nested-reusable-component-by-builder
                 GalleryRatingStars({ rating: this.gallery.rating, widthValue: 86, heightValue: 16 })
               }
+              // eslint-disable-next-line @performance/hp-arkui-replace-nested-reusable-component-by-builder
               CategoryBadge({ category: this.gallery.category })
             }
             .alignItems(HorizontalAlign.Start)

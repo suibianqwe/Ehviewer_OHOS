@@ -245,13 +245,14 @@ export class EhCookieStore {
     if (this.loaded) {
       return;
     }
-    if (this.ensurePromise !== null) {
-      await this.ensurePromise;
-      return;
+    const inFlight = this.ensurePromise;
+    if (inFlight !== null) {
+      return inFlight;
     }
-    this.ensurePromise = this.load(context);
+    const pending = this.load(context);
+    this.ensurePromise = pending;
     try {
-      await this.ensurePromise;
+      await pending;
       this.loaded = true;
     } finally {
       this.ensurePromise = null;

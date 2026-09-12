@@ -79,6 +79,11 @@ class ReaderSuperResolutionService {
     return this.acquireEntry(key, sourcePath, undefined, priority, targetWidth, targetHeight, engine);
   }
 
+  private async copyCompatibleSdrPixelMap(source: image.PixelMap): Promise<image.PixelMap> {
+    const copied: Promise<image.PixelMap> = readerHdr.createCompatibleSdrPixelMap(source);
+    return copied;
+  }
+
   async acquirePixelMap(key: string, sourcePixelMap: image.PixelMap, priority: number = 0,
     targetWidth: number = 0, targetHeight: number = 0,
     engine: string = READER_SUPER_RESOLUTION_ENGINE_DETAIL): Promise<image.PixelMap | undefined> {
@@ -91,7 +96,7 @@ class ReaderSuperResolutionService {
       return this.acquireEntry(key, '', existing.sourcePixelMap, priority, targetWidth, targetHeight, engine, false);
     }
     try {
-      const ownedSourcePixelMap = await readerHdr.createCompatibleSdrPixelMap(sourcePixelMap);
+      const ownedSourcePixelMap = await this.copyCompatibleSdrPixelMap(sourcePixelMap);
       return this.acquireEntry(key, '', ownedSourcePixelMap, priority, targetWidth, targetHeight, engine, true);
     } catch (error) {
       hilog.warn(DOMAIN, TAG, `Copy adjusted image for super-resolution failed: ${String(error)}`);
@@ -577,8 +582,9 @@ class ReaderSuperResolutionService {
           }
           const segmentTargetWidth = Math.max(MIN_DIMENSION, Math.round(regionWidth * plan.scale));
           const segmentTargetHeight = Math.max(MIN_DIMENSION, Math.round(regionHeight * plan.scale));
-          scaledPixelMap = await readerHdr.createScaledCompatibleSdrPixelMap(enhancedPixelMap,
-            segmentTargetWidth, segmentTargetHeight);
+          const scaledSource: Promise<image.PixelMap> = readerHdr.createScaledCompatibleSdrPixelMap(
+            enhancedPixelMap, segmentTargetWidth, segmentTargetHeight);
+          scaledPixelMap = await scaledSource;
           const scaledInfo = scaledPixelMap.getImageInfoSync();
           const scaledStride = scaledPixelMap.getBytesNumberPerRow();
           const scaledBuffer = new ArrayBuffer(scaledPixelMap.getPixelBytesNumber());

@@ -785,6 +785,11 @@ export struct GalleryDetailHostScene {
     });
   }
 
+  private setDetailStatus(message: string): void {
+    this.detailStatus = message;
+    this.renderVersion++;
+  }
+
   private toggleFavoriteDetail(): void {
     if (this.detail.gid <= 0 || this.favoriteBusy) {
       return;
@@ -797,59 +802,53 @@ export struct GalleryDetailHostScene {
     if (this.detail.favoriteSlot === -1) {
       const context = getAbilityContext();
       if (context === undefined) {
-        this.detailStatus = 'Local favorites unavailable';
-        this.renderVersion++;
+        this.setDetailStatus('Local favorites unavailable');
         return;
       }
       const targetGid = this.detail.gid;
       this.favoriteBusy = true;
-      this.detailStatus = 'Removing from local favorites...';
+      this.setDetailStatus('Removing from local favorites...');
       this.optimisticFavorite = false;
       this.applyDetailFavoriteState(false, -2);
-      this.renderVersion++;
       ehLocalFavoritesStore.ensureLoaded(context).then(() => {
         ehLocalFavoritesStore.removeGallery(targetGid);
         this.favoriteBusy = false;
         if (this.detail.gid !== targetGid) {
           return;
         }
-        this.detailStatus = 'Removed from local favorites';
-        this.showToast(this.detailStatus);
-        this.renderVersion++;
+        const removedMessage = 'Removed from local favorites';
+        this.setDetailStatus(removedMessage);
+        this.showToast(removedMessage);
       }).catch((error: Error) => {
         this.favoriteBusy = false;
         if (this.detail.gid !== targetGid) {
           return;
         }
-        this.detailStatus = 'Favorite failed: ' + error.message;
+        this.setDetailStatus('Favorite failed: ' + error.message);
         this.optimisticFavorite = true;
         this.applyDetailFavoriteState(true, -1);
-        this.renderVersion++;
       });
       return;
     }
-    this.detailStatus = 'Removing from favorites...';
+    this.setDetailStatus('Removing from favorites...');
     this.favoriteBusy = true;
     this.optimisticFavorite = false;
     this.applyDetailFavoriteState(false, -2);
-    this.renderVersion++;
     this.removeLocalFavoriteIfNeeded();
     this.client.toggleFavorite(this.detail.gid, this.detail.token, wasFavorited, this.detailLink.site)
       .then((result: ToggleFavoriteResult) => {
-        this.detailStatus = result.message;
+        this.setDetailStatus(result.message);
         this.optimisticFavorite = result.ok ? result.nowFavorited : wasFavorited;
         this.applyDetailFavoriteState(this.optimisticFavorite, this.optimisticFavorite ? 0 : -2);
         this.favoriteBusy = false;
         if (result.ok) {
           this.showToast(result.message);
         }
-        this.renderVersion++;
       }).catch((error: Error) => {
-        this.detailStatus = 'Favorite failed: ' + error.message;
+        this.setDetailStatus('Favorite failed: ' + error.message);
         this.optimisticFavorite = wasFavorited;
         this.applyDetailFavoriteState(wasFavorited, wasFavorited ? Math.max(0, this.detail.favoriteSlot) : -2);
         this.favoriteBusy = false;
-        this.renderVersion++;
       });
   }
 

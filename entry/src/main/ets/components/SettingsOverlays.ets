@@ -479,8 +479,10 @@ export struct TranslationPromptPanel {
 
   private selectedProfileName(): string {
     const names = this.profileNames();
-    for (let i = 0; i < this.profiles.length; i++) {
-      if (this.profiles[i].id === this.activeId) {
+    const profiles = this.profiles;
+    const activeId = this.activeId;
+    for (let i = 0; i < profiles.length; i++) {
+      if (profiles[i].id === activeId) {
         return names[i];
       }
     }
