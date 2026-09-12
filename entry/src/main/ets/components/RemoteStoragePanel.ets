@@ -263,6 +263,8 @@ struct RemoteStorageEditorOverlay {
   @State popupHeight: number = 0;
   @State busy: boolean = false;
   @State statusText: string = '';
+  @State floatingMessage: string = '';
+  private floatingTimer: number = -1;
 
   aboutToAppear(): void {
     this.draftName = this.profile.name;
@@ -300,13 +302,26 @@ struct RemoteStorageEditorOverlay {
     };
   }
 
+  private showFloating(message: string): void {
+    this.floatingMessage = message;
+    if (this.floatingTimer !== -1) {
+      clearTimeout(this.floatingTimer);
+    }
+    this.floatingTimer = setTimeout(() => {
+      this.floatingMessage = '';
+      this.floatingTimer = -1;
+    }, 2800) as number;
+  }
+
   private async testConnection(): Promise<void> {
     this.busy = true;
     this.statusText = uiText('Testing connection...');
+    this.showFloating(this.statusText);
     const client = new WebDavClient(this.currentDraft());
     const result = await client.testConnection();
     this.busy = false;
     this.statusText = result.ok ? uiText('Connection OK') : uiText(result.message);
+    this.showFloating(this.statusText);
   }
 
   @Builder
@@ -393,7 +408,7 @@ struct RemoteStorageEditorOverlay {
               })
 
             this.fieldLabel('Port')
-            TextInput({ text: this.draftPort, placeholder: uiText('Optional, default 80/443') })
+            TextInput({ text: this.draftPort, placeholder: uiText('Optional, for example 5005') })
               .height(44)
               .fontSize(14)
               .type(InputType.Number)
@@ -467,13 +482,13 @@ struct RemoteStorageEditorOverlay {
 
         Row({ space: 8 }) {
           if (!this.isNew) {
-            Button(uiText('Remove'), { type: ButtonType.Normal, stateEffect: true })
+            Button(uiText('Remove'), { type: ButtonType.Capsule, stateEffect: true })
               .height(42)
               .layoutWeight(1)
               .fontSize(14)
               .fontColor(themePrimaryText())
               .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
-              .borderRadius(uiRadius(6))
+              .borderRadius(uiRadius(21))
               .border({ width: 1, color: uiButtonHighlightBorderColor() })
               .backgroundEffect(uiTransparentButtonBackgroundEffect())
               .systemMaterial(uiButtonMaterial())
@@ -481,13 +496,13 @@ struct RemoteStorageEditorOverlay {
                 this.onRemove(this.currentDraft());
               })
           }
-          Button(uiText('Test'), { type: ButtonType.Normal, stateEffect: true })
+          Button(uiText(this.busy ? 'Testing connection...' : 'Test'), { type: ButtonType.Capsule, stateEffect: true })
             .height(42)
             .layoutWeight(1)
             .fontSize(14)
             .fontColor(themePrimaryText())
             .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
-            .borderRadius(uiRadius(6))
+            .borderRadius(uiRadius(21))
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .systemMaterial(uiButtonMaterial())
@@ -495,13 +510,13 @@ struct RemoteStorageEditorOverlay {
             .onClick(() => {
               this.testConnection();
             })
-          Button(uiText('Save'), { type: ButtonType.Normal, stateEffect: true })
+          Button(uiText('Save'), { type: ButtonType.Capsule, stateEffect: true })
             .height(42)
             .layoutWeight(1)
             .fontSize(14)
             .fontColor(themeOnPrimaryText())
             .backgroundColor(uiMaterialBackground(themePrimaryColor()))
-            .borderRadius(uiRadius(6))
+            .borderRadius(uiRadius(21))
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .systemMaterial(uiButtonMaterial())
@@ -525,6 +540,25 @@ struct RemoteStorageEditorOverlay {
         this.popupWidth = Number.parseFloat(newArea.width.toString());
         this.popupHeight = Number.parseFloat(newArea.height.toString());
       })
+
+      if (this.floatingMessage.length > 0) {
+        Column() {
+          Blank()
+          Text(this.floatingMessage)
+            .fontSize(13)
+            .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+            .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
+            .border({ width: 1, color: uiButtonHighlightBorderColor() })
+            .borderRadius(uiRadius(18))
+            .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+            .constraintSize({ maxWidth: '86%' })
+            .margin({ bottom: 46 })
+        }
+        .width('100%')
+        .height('100%')
+        .hitTestBehavior(HitTestMode.None)
+        .zIndex(30)
+      }
     }
     .width('100%')
     .height('100%')
@@ -538,7 +572,7 @@ function emptyRemoteStorageProfile(): RemoteStorageProfile {
     name: '',
     kind: REMOTE_STORAGE_KIND_WEBDAV,
     url: '',
-    port: '',
+    port: '5005',
     username: '',
     password: '',
     basePath: 'ehviewer',

@@ -29,6 +29,7 @@ import {
   resumeBackgroundImageRequests
 } from '../services/ReaderImageCache';
 import { ehDownloadManager } from '../services/EhDownloadManager';
+import { remoteStorageSyncService } from '../services/RemoteStorageSyncService';
 import { DAILY_CHECK_IN_FOREGROUND_REVISION_KEY } from '../services/EhDailyCheckInService';
 import {
   buildReaderContinuationSnapshot,
@@ -399,6 +400,7 @@ export default class EntryAbility extends UIAbility {
 
   onForeground(): void {
     this.notifyDailyCheckInForeground();
+    remoteStorageSyncService.initialize(this.context);
     if (this.appWasBackground) {
       this.appWasBackground = false;
       refreshEhConnectionsAfterForeground();
@@ -470,6 +472,7 @@ export default class EntryAbility extends UIAbility {
 
   onBackground(): void {
     this.appWasBackground = true;
+    remoteStorageSyncService.pause();
     pauseBackgroundImageRequests();
     ehDownloadManager.onAppBackground(this.context);
     if (this.authPending) {

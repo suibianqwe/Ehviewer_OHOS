@@ -1,6 +1,7 @@
 import { http } from '@kit.NetworkKit';
 import { util } from '@kit.ArkTS';
 import { RemoteStorageProfile } from './RemoteStorageProfiles';
+import { logRemoteStorageError, logRemoteStorageInfo, logRemoteStorageWarn } from './RemoteStorageLog';
 import {
   RemoteStorageListEntry,
   normalizeRemoteStorageBasePath,
@@ -70,10 +71,15 @@ export class WebDavClient {
   }
 
   async testConnection(): Promise<RemoteStorageResult> {
+    logRemoteStorageInfo('test connection base=' + this.baseUrl() + ' user=' +
+      (this.profile.username.length > 0 ? 'set' : 'anonymous'));
     const response = await this.send('PROPFIND', '', '0', '', '');
     if (response.ok) {
+      logRemoteStorageInfo('test connection succeeded status=' + response.statusCode.toString());
       return { ok: true, statusCode: response.statusCode, message: '' };
     }
+    logRemoteStorageWarn('test connection failed status=' + response.statusCode.toString() +
+      ' message=' + response.message);
     return { ok: false, statusCode: response.statusCode, message: response.message };
   }
 
@@ -91,11 +97,26 @@ export class WebDavClient {
   }
 
   async ensureDirectory(path: string): Promise<RemoteStorageResult> {
-    const response = await this.send('MKCOL', path, '', '', '');
-    if (response.ok || response.statusCode === 405) {
-      return { ok: true, statusCode: response.statusCode, message: '' };
+    const normalized = path.trim().replace(/^\/+|\/+$/g, '');
+    if (normalized.length === 0) {
+      return { ok: true, statusCode: 200, message: '' };
     }
-    return { ok: false, statusCode: response.statusCode, message: response.message };
+    const segments = normalized.split('/');
+    let current = '';
+    let lastStatus = 200;
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i].trim();
+      if (segment.length === 0) {
+        continue;
+      }
+      current = current.length > 0 ? current + '/' + segment : segment;
+      const response = await this.send('MKCOL', current, '', '', '');
+      lastStatus = response.statusCode;
+      if (!response.ok && response.statusCode !== 405 && response.statusCode !== 301) {
+        return { ok: false, statusCode: response.statusCode, message: response.message };
+      }
+    }
+    return { ok: true, statusCode: lastStatus, message: '' };
   }
 
   async putText(path: string, text: string): Promise<RemoteStorageResult> {
@@ -106,6 +127,7 @@ export class WebDavClient {
         return directory;
       }
     }
+    logRemoteStorageInfo('put text path=' + path + ' bytes=' + text.length.toString());
     const response = await this.send('PUT', path, '', text, 'application/json; charset=utf-8');
     return { ok: response.ok, statusCode: response.statusCode, message: response.message };
   }
@@ -154,19 +176,35 @@ export class WebDavClient {
       options.extraData = body;
     }
     let request: http.HttpRequest | null = null;
+    const startedAt = Date.now();
+    logRemoteStorageInfo('request ' + customMethod + ' ' + url +
+      (depth.length > 0 ? ' depth=' + depth : '') +
+      (body.length > 0 ? ' bodyBytes=' + body.length.toString() : ''));
     try {
       request = http.createHttp();
       const response = await request.request(url, options);
       const statusCode = Number(response.responseCode);
       const ok = statusCode >= 200 && statusCode < 300;
+      const responseText = typeof response.result === 'string' ? response.result : '';
+      const elapsed = Date.now() - startedAt;
+      if (ok) {
+        logRemoteStorageInfo('response ' + customMethod + ' ' + url + ' -> ' + statusCode.toString() +
+          ' in ' + elapsed.toString() + 'ms bytes=' + responseText.length.toString());
+      } else {
+        logRemoteStorageWarn('response ' + customMethod + ' ' + url + ' -> ' + statusCode.toString() +
+          ' in ' + elapsed.toString() + 'ms ' + webDavStatusMessage(statusCode));
+      }
       return {
         ok: ok,
         statusCode: statusCode,
         message: ok ? '' : webDavStatusMessage(statusCode),
-        body: typeof response.result === 'string' ? response.result : ''
+        body: responseText
       };
     } catch (error) {
-      return { ok: false, statusCode: 0, message: remoteStorageErrorMessage(error), body: '' };
+      const message = remoteStorageErrorMessage(error);
+      logRemoteStorageError('request ' + customMethod + ' ' + url + ' failed in ' +
+        (Date.now() - startedAt).toString() + 'ms: ' + message);
+      return { ok: false, statusCode: 0, message: message, body: '' };
     } finally {
       if (request !== null) {
         request.destroy();

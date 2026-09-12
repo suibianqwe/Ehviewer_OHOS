@@ -1394,7 +1394,9 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
 
   if (panel === SettingsPanel.Download) {
     return [
-      optionSettingsRow('download_location', 'Download location', 'App internal storage or public Downloads directory', entries, ['App files', 'Downloads']),
+      optionSettingsRow('download_location', 'Download location',
+        'App files, public Downloads, or a configured remote storage server',
+        entries, ['App files', 'Downloads', 'Remote server']),
       staticSettingsRow('remote_storage', 'Remote storage',
         'WebDAV profiles for backup, sync and download mirror', '', 'navigation'),
       optionSettingsRow('download_thread', 'Multi-thread download', 'Number of images downloaded at the same time',

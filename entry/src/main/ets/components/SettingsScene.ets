@@ -563,6 +563,10 @@ export struct SettingsScene {
 
   private saveSettingValue(key: string, value: string): void {
     if (key === 'download_location') {
+      if (value === 'Remote server') {
+        this.commitSettingValue(key, value);
+        return;
+      }
       this.requestDownloadLocationChange(value);
       return;
     }
