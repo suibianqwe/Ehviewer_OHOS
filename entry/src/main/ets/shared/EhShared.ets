@@ -160,6 +160,7 @@ export enum SettingsPanel {
   ReaderPresets = 'reader_presets',
   Advanced = 'advanced',
   WifiTransfer = 'wifi_transfer',
+  RemoteStorage = 'remote_storage',
   About = 'about',
   Session = 'session',
   WebView = 'webview',
@@ -1271,6 +1272,9 @@ export function settingsPanelTitle(panel: SettingsPanel): string {
   if (panel === SettingsPanel.CommentBlacklist) {
     return 'Comment blacklist';
   }
+  if (panel === SettingsPanel.RemoteStorage) {
+    return 'Remote storage';
+  }
   return 'Settings';
 }
 
@@ -1391,6 +1395,8 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
   if (panel === SettingsPanel.Download) {
     return [
       optionSettingsRow('download_location', 'Download location', 'App internal storage or public Downloads directory', entries, ['App files', 'Downloads']),
+      staticSettingsRow('remote_storage', 'Remote storage',
+        'WebDAV profiles for backup, sync and download mirror', '', 'navigation'),
       optionSettingsRow('download_thread', 'Multi-thread download', 'Number of images downloaded at the same time',
         entries, ['1', '2', '3', '4', '5', '8', '10']),
       optionSettingsRow('preload_image', 'Preload image', 'Number of following reader images loaded in advance',

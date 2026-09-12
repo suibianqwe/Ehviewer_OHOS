@@ -137,6 +137,7 @@ import {
 } from './SessionScene';
 import { UpdatePromptOverlay } from './UpdatePromptOverlay';
 import { WifiMigrationPanel } from './WifiMigrationPanel';
+import { RemoteStoragePanel } from './RemoteStoragePanel';
 import { CommentBlacklistPanel } from './CommentBlacklistPanel';
 import {
   areaDimensionToVp,
@@ -1101,6 +1102,10 @@ export struct SettingsScene {
     }
     if (key === 'proxy_settings') {
       this.openProxySettings();
+      return true;
+    }
+    if (key === 'remote_storage') {
+      this.openPanel(SettingsPanel.RemoteStorage);
       return true;
     }
     if (key === 'restore_download_items') {
@@ -2280,6 +2285,24 @@ export struct SettingsScene {
             .animation({ duration: 300, curve: Curve.EaseOut }))
       } else if (this.panel === SettingsPanel.WifiTransfer) {
         WifiMigrationPanel({
+          onBack: () => {
+            this.closePanel();
+          }
+        })
+          .width(this.settingsLayerWidth())
+          .height('100%')
+          .position({ x: this.settingsLayerTranslateX(), y: 0 })
+          .onTouch((event: TouchEvent) => {
+            if (shouldUpdateSplitPaneFocus(event)) {
+              this.activeSplitPane = SPLIT_PANE_FOCUS_RIGHT;
+            }
+          })
+          .zIndex(10)
+          .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
+          .transition(TransitionEffect.move(TransitionEdge.END)
+            .animation({ duration: 300, curve: Curve.EaseOut }))
+      } else if (this.panel === SettingsPanel.RemoteStorage) {
+        RemoteStoragePanel({
           onBack: () => {
             this.closePanel();
           }
