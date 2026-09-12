@@ -491,40 +491,32 @@ struct Index {
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       if (this.dailyCheckInWebMounted) {
-        Stack() {
-          Web({ src: '', controller: this.dailyCheckInWebController, incognitoMode: false })
-            .javaScriptAccess(true)
-            .domStorageAccess(true)
-            .javaScriptOnDocumentStart(EH_WEB_COMPATIBILITY_SCRIPTS)
-            .onControllerAttached(() => {
-              this.handleDailyCheckInWebAttached();
-            })
-            .onPageEnd((event: OnPageEndEvent) => {
-              this.handleDailyCheckInWebPageEnd(event.url);
-            })
-            .onRenderExited(() => {
-              this.finishDailyCheckIn(dailyCheckInFailureResult(
-                'Background Web render process exited', 'web-render-exited'));
-            })
-            .width(2)
-            .height(2)
-        }
-        .width(2)
-        .height(2)
-        .clip(true)
-        .opacity(0.01)
-        .hitTestBehavior(HitTestMode.None)
-        .zIndex(0)
+        Web({ src: '', controller: this.dailyCheckInWebController, incognitoMode: false })
+          .javaScriptAccess(true)
+          .domStorageAccess(true)
+          .javaScriptOnDocumentStart(EH_WEB_COMPATIBILITY_SCRIPTS)
+          .onControllerAttached(() => {
+            this.handleDailyCheckInWebAttached();
+          })
+          .onPageEnd((event: OnPageEndEvent) => {
+            this.handleDailyCheckInWebPageEnd(event.url);
+          })
+          .onRenderExited(() => {
+            this.finishDailyCheckIn(dailyCheckInFailureResult(
+              'Background Web render process exited', 'web-render-exited'));
+          })
+          .width(2)
+          .height(2)
+          .clip(true)
+          .opacity(0.01)
+          .hitTestBehavior(HitTestMode.None)
+          .zIndex(0)
       }
 
       // ---- Main content ----
-      Column() {
+      Stack({ alignContent: Alignment.TopStart }) {
         if (this.settingsReady) {
-          Stack({ alignContent: Alignment.TopStart }) {
-            this.RouteContent()
-          }
-          .width('100%')
-          .height('100%')
+          this.RouteContent()
         }
       }
       .width('100%')
