@@ -1533,7 +1533,7 @@ export struct GalleryListContent {
       { alwaysEnabled: !this.isInitialLoadingState(), effectEdge: EffectEdge.START | EffectEdge.END })
     .cachedCount(10)
     .padding({
-      top: this.shouldShowSearchSuggestions() ? this.titleContentInset() : this.expandedTitleContentInset(),
+      top: this.galleries.length > 0 ? 0 : this.expandedTitleContentInset(),
       left: this.galleries.length > 0 ? this.galleryContentPadding() : 0,
       right: this.galleries.length > 0 ? this.galleryContentPadding() : 0
     })
