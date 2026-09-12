@@ -9,7 +9,7 @@ import { ehSearchHistoryStore } from './EhSearchHistoryStore';
 import { ehSettingsStore, HISTORY_INFO_SIZE_KEY, historyInfoSizeLimitFromValue, SettingEntry } from './EhSettingsStore';
 import { REMOTE_STORAGE_PURPOSE_SYNC, RemoteStorageProfile, remoteStorageProfileStore } from './RemoteStorageProfiles';
 import { logRemoteStorageError, logRemoteStorageInfo, logRemoteStorageWarn } from './RemoteStorageLog';
-import { WebDavClient } from './WebDavClient';
+import { RemoteStorageResult, WebDavClient } from './WebDavClient';
 import { RemoteStorageListEntry } from './RemoteStorageSupport';
 import { ehDownloadFileStore } from './EhDownloadFileStore';
 import { fileIo as fs } from '@kit.CoreFileKit';
@@ -33,8 +33,10 @@ const DIRTY_DEBOUNCE_MS: number = 15000;
 const RETRY_DELAY_MS: number = 90000;
 const MAX_SYNC_HISTORY_ITEMS: number = 1000;
 const DOWNLOADS_FOLDER: string = 'download';
-const MAX_MIRROR_GALLERIES_PER_CYCLE: number = 2;
-const MAX_MIRROR_FILES_PER_CYCLE: number = 60;
+const MAX_MIRROR_GALLERIES_PER_CYCLE: number = 6;
+const MAX_MIRROR_FILES_PER_CYCLE: number = 300;
+const MIRROR_CONCURRENCY: number = 4;
+const MIRROR_TIME_BUDGET_MS: number = 25000;
 
 interface RemoteSyncManifest {
   version: number;
@@ -375,8 +377,10 @@ export class RemoteStorageSyncService {
     logRemoteStorageInfo('download mirror scan root=' + root + ' entries=' + galleryNames.length.toString());
     let uploaded = 0;
     let galleries = 0;
+    const startedAt = Date.now();
     for (let i = 0; i < galleryNames.length; i++) {
-      if (galleries >= MAX_MIRROR_GALLERIES_PER_CYCLE || uploaded >= MAX_MIRROR_FILES_PER_CYCLE) {
+      if (galleries >= MAX_MIRROR_GALLERIES_PER_CYCLE || uploaded >= MAX_MIRROR_FILES_PER_CYCLE ||
+        Date.now() - startedAt >= MIRROR_TIME_BUDGET_MS) {
         break;
       }
       const galleryName = galleryNames[i];
@@ -406,23 +410,31 @@ export class RemoteStorageSyncService {
       } catch (error) {
         continue;
       }
-      let uploadedHere = 0;
+      const pending: string[] = [];
       for (let j = 0; j < fileNames.length; j++) {
-        if (uploaded >= MAX_MIRROR_FILES_PER_CYCLE) {
+        if (existing.indexOf(fileNames[j]) < 0) {
+          pending.push(fileNames[j]);
+        }
+      }
+      let uploadedHere = 0;
+      for (let j = 0; j < pending.length; j += MIRROR_CONCURRENCY) {
+        if (uploaded >= MAX_MIRROR_FILES_PER_CYCLE || Date.now() - startedAt >= MIRROR_TIME_BUDGET_MS) {
           break;
         }
-        const fileName = fileNames[j];
-        if (existing.indexOf(fileName) >= 0) {
-          continue;
-        }
-        const data = readFileBuffer(localDir + '/' + fileName);
-        if (data === null) {
-          continue;
-        }
-        const result = await client.putBinary(remoteDir + '/' + fileName, data);
-        if (result.ok) {
-          uploaded++;
-          uploadedHere++;
+        const batch: string[] = pending.slice(j, j + MIRROR_CONCURRENCY);
+        const results = await Promise.all(batch.map((fileName: string): Promise<boolean> => {
+          const data = readFileBuffer(localDir + '/' + fileName);
+          if (data === null) {
+            return Promise.resolve(false);
+          }
+          return client.putBinary(remoteDir + '/' + fileName, data)
+            .then((result: RemoteStorageResult): boolean => result.ok);
+        }));
+        for (let k = 0; k < results.length; k++) {
+          if (results[k]) {
+            uploaded++;
+            uploadedHere++;
+          }
         }
       }
       if (uploadedHere > 0) {
