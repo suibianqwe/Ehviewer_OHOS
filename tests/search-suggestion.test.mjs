@@ -103,3 +103,23 @@ test('history selection is passed through without adding a namespace or terminat
   assert.equal(result.keyword, 'saved query');
   assert.equal(result.mode, -1);
 });
+
+test('imported Android keywords terminate every known bare tag', () => {
+  const logic = loadLogic();
+  const normalize = normalization.normalizeSubmittedSearchKeywordValue;
+  assert.equal(normalize('female:sole_female language:chinese'),
+    'female:sole_female$ language:chinese$');
+  assert.equal(normalize('f:sole_female l:chinese'),
+    'female:sole_female$ language:chinese$');
+  assert.equal(normalize('female:sole_female$ language:chinese'),
+    'female:sole_female$ language:chinese$');
+  assert.equal(normalize('female:"big breasts" language:chinese'),
+    'female:big breasts$ language:chinese$');
+  assert.equal(normalize('unknown:foo bar language:chinese'),
+    'unknown:foo bar language:chinese$');
+  assert.equal(normalize('artist:foo bar baz'), 'artist:foo$ bar baz');
+  const keyword = normalize('f:sole_female l:chinese');
+  assert.deepEqual(logic.searchTagTokens(keyword), ['female:sole_female$', 'language:chinese$']);
+  assert.equal(logic.searchKeywordWithoutTagTokens(keyword), '');
+  assert.equal(logic.searchKeywordForRequest(keyword), 'female:sole_female$ language:chinese$');
+});

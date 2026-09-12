@@ -2,8 +2,10 @@ const TERMINATED_TAG_PATTERN: RegExp =
   /(^|\s)([A-Za-z0-9_]+)\s*[:：]\s*([^$]+?)\$(?=\s|$)/g;
 const QUOTED_TAG_PATTERN: RegExp =
   /(^|\s)([A-Za-z0-9_]+)\s*[:：]\s*(?:"([^"]+)"|“([^”]+)”|＂([^＂]+)＂)\$?(?=\s|$)/g;
-const TRAILING_PLAIN_TAG_PATTERN: RegExp =
-  /(^|\s)([A-Za-z0-9_]+)\s*[:：]\s*([^$\s"“”＂]+)$/g;
+const BARE_TAG_PATTERN: RegExp =
+  /(^|\s)([A-Za-z0-9_]+)\s*[:：]\s*([^$\s"“”＂]+)(?=\s|$)/g;
+const TERMINATED_TAG_SPAN_PATTERN: RegExp =
+  /(^|\s)([A-Za-z0-9_]+:[^$]+?\$)(?=\s|$)/g;
 
 const TAG_NAMESPACES: string[] = [
   'artist', 'group', 'parody', 'character', 'female', 'male', 'mixed', 'language', 'cosplayer', 'other',
@@ -72,10 +74,9 @@ export function normalizeLegacySearchKeywordValue(keyword: string): string {
   return normalized.replace(/\s+/g, ' ').trim();
 }
 
-export function normalizeSubmittedSearchKeywordValue(keyword: string): string {
-  const legacyNormalized = normalizeLegacySearchKeywordValue(keyword);
-  TRAILING_PLAIN_TAG_PATTERN.lastIndex = 0;
-  const normalized = legacyNormalized.replace(TRAILING_PLAIN_TAG_PATTERN,
+function normalizeBareSearchTags(keyword: string): string {
+  BARE_TAG_PATTERN.lastIndex = 0;
+  const normalized = keyword.replace(BARE_TAG_PATTERN,
     (_all: string, leading: string, namespace: string, rawTag: string): string => {
       if (!isKnownTagNamespace(namespace)) {
         return _all;
@@ -86,6 +87,31 @@ export function normalizeSubmittedSearchKeywordValue(keyword: string): string {
       }
       return leading + fullTagNamespace(namespace) + ':' + tag + '$';
     });
-  TRAILING_PLAIN_TAG_PATTERN.lastIndex = 0;
+  BARE_TAG_PATTERN.lastIndex = 0;
+  return normalized;
+}
+
+// Terminates every known bare tag, not just the trailing one. Quoted or already-terminated tags
+// can contain spaces (parody:genshin impact$), so their spans are protected from the bare pass.
+function normalizeBareTagsOutsideTerminatedTags(keyword: string): string {
+  TERMINATED_TAG_SPAN_PATTERN.lastIndex = 0;
+  let result = '';
+  let cursor = 0;
+  let match: RegExpExecArray | null = TERMINATED_TAG_SPAN_PATTERN.exec(keyword);
+  while (match !== null) {
+    const spanStart = match.index + match[1].length;
+    const spanEnd = match.index + match[0].length;
+    result += normalizeBareSearchTags(keyword.substring(cursor, spanStart));
+    result += keyword.substring(spanStart, spanEnd);
+    cursor = spanEnd;
+    match = TERMINATED_TAG_SPAN_PATTERN.exec(keyword);
+  }
+  result += normalizeBareSearchTags(keyword.substring(cursor));
+  return result.replace(/\s+/g, ' ').trim();
+}
+
+export function normalizeSubmittedSearchKeywordValue(keyword: string): string {
+  const legacyNormalized = normalizeLegacySearchKeywordValue(keyword);
+  const normalized = normalizeBareTagsOutsideTerminatedTags(legacyNormalized);
   return normalizeLegacySearchKeywordValue(normalized);
 }
