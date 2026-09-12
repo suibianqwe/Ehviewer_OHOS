@@ -12,8 +12,8 @@ EhViewer HarmonyOS is a HarmonyOS port of [Ehviewer_CN_SXJ](https://github.com/x
 
 Download the latest unsigned HAP from [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases). It can be installed with tools such as [Auto Installer](https://github.com/likuai2010/auto-installer).
 
-- Current version: `0.7.0`
-- Package: [`EhViewer_OHOS_0.7.0.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.0/EhViewer_OHOS_0.7.0.hap)
+- Current version: `0.7.1`
+- Package: [`EhViewer_OHOS_0.7.1.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.1/EhViewer_OHOS_0.7.1.hap)
 - Target API: `26.0.0`
 - Compatible API: `6.0.0(20)`
 
@@ -37,6 +37,16 @@ See the [complete English user guide](docs/USER_GUIDE_EN.md) for first launch, l
 - Wide screens: resizable split panes with independent routes and focus-aware Back behavior.
 - Migration: JSON/Android database import, legacy EhViewer download recovery, and selectable Wi-Fi Direct transfer of reading progress, app settings, login cookies, bookmarks, favorites, blocklists, download metadata, and images. Local `igneous` is never exported or overwritten by incoming data.
 - Personalization and network: multiple languages/themes, translated tags, filters, privacy controls, HTTP/SOCKS5 proxy, DoH, hosts, SNI fronting, direct-connect detection, and diagnostics.
+
+## 0.7.1 updates
+
+- The standard gallery list now uses LazyForEach with fixed content spacing, avoiding full-list relayout while scrolling; the floating navigation bar is a standalone component that refreshes incrementally with the scroll offset.
+- The reader prefetches page groups more efficiently, moves SDR-compatible PixelMap creation off the main thread, and supports tiled super-resolution for long images; fixed reader menu colors and comment vote selection.
+- Adaptive moiré removal now uses omni-directional texture detection with edge protection: screentones are smoothed while line art and text stay sharp.
+- The download page now shares the home page scaffold (toolbar host, immersive scrolling, search mode, overlay structure), with the floating action and toolbar bindings extracted for both pages.
+- Calmer smart-grip adaptation: a candidate holding hand must stay stable before switching, consecutive switches are rate-limited, and two-hand or unknown samples keep the current side. Home and downloads share one floating-action controller.
+- Fixed every `await` misuse reported by etscheck and followed its advice on deep clones, state reads inside loops, and other performance pitfalls.
+- Removed redundant page-top and Index root wrappers to reduce unnecessary rendering.
 
 ## 0.7.0 updates
 

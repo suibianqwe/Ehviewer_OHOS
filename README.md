@@ -12,8 +12,8 @@
 
 请在 [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases) 下载最新的未签名 HAP，可使用 [小白调试助手](https://github.com/likuai2010/auto-installer) 安装。
 
-- 当前版本：`0.7.0`
-- 安装包：[`EhViewer_OHOS_0.7.0.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.0/EhViewer_OHOS_0.7.0.hap)
+- 当前版本：`0.7.1`
+- 安装包：[`EhViewer_OHOS_0.7.1.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.1/EhViewer_OHOS_0.7.1.hap)
 - 目标 API：`26.0.0`
 - 兼容 API：`6.0.0(20)`
 
@@ -42,6 +42,16 @@ API 20 起可安装；低于 API 23 的设备会自动跳过不兼容的 SNI 域
 - 迁移：支持 JSON/安卓数据库导入、原 EhViewer 下载目录恢复，以及阅读进度、应用设置、登录 Cookie、收藏、书签、图片文件和评论黑名单的 Wi-Fi 直连多选传输；本机 `igneous` 不会导出或被传入值覆盖。
 - 个性化：支持简体中文、繁体中文、明暗主题、多种主题色、标签翻译、过滤规则、评论黑名单和隐私保护。
 - 网络：支持系统/HTTP/SOCKS5 代理、DoH、内置 Hosts、SNI 域名前置、直连检测和网络诊断。
+
+## 0.7.1 更新
+
+- 标准画廊列表改用 LazyForEach 懒加载并固定内容间距，减少滚动时整表重排；浮动导航栏拆为独立组件，按滚动偏移增量刷新。
+- 阅读器优化分组与预取，SDR 兼容像素图创建移出主线程，长图支持分块超分；修复阅读器菜单配色与评论投票选中态。
+- 重写去摩尔纹为全向纹理检测与边缘保护混合：细密网点明显抚平，线条与文字保持清晰。
+- 下载页结构与首页统一（工具栏宿主、沉浸滚动、搜索模式与浮层骨架），并抽出两页公用的悬浮动作与工具栏绑定。
+- 智感握持降低灵敏度：候选握持手需稳定后才切换，连续换手限流，双手或未识别时保持当前侧；主页与下载页共用同一套悬浮动作控制。
+- 修复 etscheck 报告的全部 await 误用，并按检查建议消除深拷贝、循环内状态读取等性能隐患。
+- 移除页面顶部与 Index 根节点的冗余层级，减少无谓渲染。
 
 ## 0.7.0 更新
 
