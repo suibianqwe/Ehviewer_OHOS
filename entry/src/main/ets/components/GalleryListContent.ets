@@ -1577,6 +1577,7 @@ export struct GalleryListContent {
             .width('100%')
             .height(this.expandedTitleContentInset())
         }
+        .width('100%')
       }, (index: number) => 'gallery-top-spacer-' + index.toString())
       LazyForEach(this.galleryThumbnailSource, (gallery: GalleryInfo, index: number) => {
         this.galleryFlowItem(gallery, index)
