@@ -247,3 +247,15 @@ test('search scenes refresh suggestions after async search-history load', () => 
       'search suggestions must refresh after the persisted history store becomes ready');
   }
 });
+
+test('the standard gallery list keeps LazyForEach as a direct child of List', () => {
+  const galleries = read('entry/src/main/ets/components/GalleryListContent.ets');
+  const standardList = galleries.match(/private galleryStandardList\(\) \{[\s\S]*?\n  \}/);
+  assert.ok(standardList, 'galleryStandardList must exist');
+  assert.doesNotMatch(standardList[0], /ListItemGroup\(/,
+    'wrapping LazyForEach in ListItemGroup hides the group height, so List keeps re-estimating ' +
+    'row positions while scrolling and the gallery page jitters');
+  assert.match(standardList[0],
+    /List\(\{ space: this\.galleryStandardListSpace\(\), scroller: this\.listScroller \}\) \{[\s\S]*LazyForEach\(this\.galleryThumbnailSource/,
+    'the lazy gallery items must sit directly under List so each row height can be measured');
+});

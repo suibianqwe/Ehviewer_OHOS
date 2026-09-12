@@ -1493,9 +1493,19 @@ export struct GalleryListContent {
     .width('100%')
   }
 
+  private galleryStandardListSpace(): number {
+    if (this.shouldShowSearchSuggestions() || this.galleries.length === 0) {
+      return 0;
+    }
+    // 卡片间距原先由 ListItemGroup 的 space 提供，改由 List 自身的主轴间距承担。
+    return this.galleryCardGap();
+  }
+
   @Builder
   private galleryStandardList() {
-    List({ space: 0, scroller: this.listScroller }) {
+    // LazyForEach 必须是 List 的直接子组件：一旦包进 ListItemGroup，List 在懒加载
+    // 阶段拿不到分组高度，滚动中会反复重算可见行位置并回弹，表现为整页抖动且滑不动。
+    List({ space: this.galleryStandardListSpace(), scroller: this.listScroller }) {
       if (this.shouldShowSearchSuggestions()) {
         ListItem() {
           Row().width('100%').height(this.searchSuggestionTopInset())
@@ -1515,15 +1525,18 @@ export struct GalleryListContent {
         }
         .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
       } else {
-        ListItemGroup({
-          header: this.galleryListEdgeSpacer(),
-          footer: this.galleryListFooter(),
-          space: this.galleryCardGap()
-        }) {
-          LazyForEach(this.galleryThumbnailSource, (gallery: GalleryInfo, index: number) => {
-            this.galleryItem(gallery, index)
-          }, (gallery: GalleryInfo) => this.galleryCardKey(gallery))
+        // 顶部占位与尾部加载提示改为普通列表项，保留原 ListItemGroup header/footer 的间距。
+        ListItem() {
+          this.galleryListEdgeSpacer()
         }
+        .reuseId('gallery-list-edge-spacer')
+        LazyForEach(this.galleryThumbnailSource, (gallery: GalleryInfo, index: number) => {
+          this.galleryItem(gallery, index)
+        }, (gallery: GalleryInfo) => this.galleryCardKey(gallery))
+        ListItem() {
+          this.galleryListFooter()
+        }
+        .reuseId('gallery-list-footer')
       }
     }
     .scrollBar(BarState.Auto)
