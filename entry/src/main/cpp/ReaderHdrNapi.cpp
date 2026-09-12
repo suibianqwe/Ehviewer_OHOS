@@ -99,7 +99,7 @@ private:
 void ReduceMoire(uint8_t *pixels, const OhosPixelMapInfos &info, const AdjustmentWork *adjustment)
 {
     if (pixels == nullptr || adjustment == nullptr || adjustment->moireReduction <= 0 ||
-        info.width < 8 || info.height < 8) {
+        info.width < 16 || info.height < 16) {
         return;
     }
     float displayScale = 1.0f;
@@ -109,22 +109,24 @@ void ReduceMoire(uint8_t *pixels, const OhosPixelMapInfos &info, const Adjustmen
         displayScale = static_cast<float>(adjustment->targetHeight) / static_cast<float>(info.height);
     }
     displayScale = std::max(0.05f, std::min(4.0f, displayScale));
-    if (adjustment->moireReduction == 1 && displayScale >= 0.92f) {
-        return;
-    }
-
     const float downsample = std::max(1.0f, 1.0f / displayScale);
-    int32_t radius = std::max(1, std::min(4, static_cast<int32_t>(
-        std::ceil((downsample - 1.0f) * 0.65f))));
-    if (adjustment->moireReduction == 3) {
-        radius = std::min(4, radius + 1);
+
+    int32_t radius = 3;
+    float strength = 0.85f;
+    if (adjustment->moireReduction == 2) {
+        radius = 3;
+        strength = 0.92f;
+    } else if (adjustment->moireReduction == 3) {
+        radius = 4;
+        strength = 1.0f;
     } else if (adjustment->moireReduction >= 4) {
-        radius = std::min(5, radius + 2);
+        radius = 5;
+        strength = 1.0f;
     }
-    const float baseBlend = adjustment->moireReduction == 2 ? 0.38f :
-        (adjustment->moireReduction == 3 ? 0.56f : (adjustment->moireReduction >= 4 ? 0.74f : 0.50f));
-    const float deltaLimit = adjustment->moireReduction == 2 ? 14.0f :
-        (adjustment->moireReduction == 3 ? 22.0f : (adjustment->moireReduction >= 4 ? 32.0f : 19.0f));
+    if (downsample > 1.05f) {
+        radius = std::max(radius, std::min(8, static_cast<int32_t>(std::lround(downsample * 0.6f))));
+    }
+    radius = std::max(1, std::min(8, radius));
     const size_t width = info.width;
     const size_t height = info.height;
     const size_t pixelCount = width * height;
@@ -181,37 +183,33 @@ void ReduceMoire(uint8_t *pixels, const OhosPixelMapInfos &info, const Adjustmen
         }
     }
 
-    for (uint32_t y = 2; y + 2 < info.height; ++y) {
+    const uint32_t margin = static_cast<uint32_t>(std::max(3, radius));
+    for (uint32_t y = margin; y + margin < info.height; ++y) {
         auto *row = pixels + static_cast<size_t>(y) * info.rowSize;
-        for (uint32_t x = 2; x + 2 < info.width; ++x) {
+        for (uint32_t x = margin; x + margin < info.width; ++x) {
             const size_t centerIndex = static_cast<size_t>(y) * width + x;
             const int32_t center = luminance[centerIndex];
-            const int32_t left = luminance[centerIndex - 1];
-            const int32_t right = luminance[centerIndex + 1];
-            const int32_t up = luminance[centerIndex - width];
-            const int32_t down = luminance[centerIndex + width];
-            const int32_t horizontalResponse = std::abs(2 * center - left - right);
-            const int32_t verticalResponse = std::abs(2 * center - up - down);
-            const int32_t gradient = std::abs(left - right) + std::abs(up - down);
-            int32_t periodicAxes = 0;
-            if ((center - left) * (center - right) > 0 &&
-                std::abs(2 * center - luminance[centerIndex - 2] - luminance[centerIndex + 2]) < 56) {
-                periodicAxes++;
-            }
-            if ((center - up) * (center - down) > 0 &&
-                std::abs(2 * center - luminance[centerIndex - 2 * width] -
-                luminance[centerIndex + 2 * width]) < 56) {
-                periodicAxes++;
-            }
-            const int32_t response = horizontalResponse + verticalResponse;
-            if (periodicAxes == 0 ||
-                (periodicAxes < 2 && (response < 42 || gradient * 5 > response * 6))) {
+            const int32_t horizontalDetail = std::abs(2 * center - luminance[centerIndex - 1] -
+                luminance[centerIndex + 1]);
+            const int32_t verticalDetail = std::abs(2 * center - luminance[centerIndex - width] -
+                luminance[centerIndex + width]);
+            const int32_t textureDetail = std::max(horizontalDetail, verticalDetail);
+            if (textureDetail < 6) {
                 continue;
             }
-            const float responseWeight = std::max(0.15f, std::min(1.0f,
-                static_cast<float>(response - 12) / 72.0f));
-            const float delta = std::max(-deltaLimit, std::min(deltaLimit,
-                (static_cast<float>(blurred[centerIndex]) - center) * baseBlend * responseWeight));
+            const int32_t blurredGradient = std::max(
+                std::abs(static_cast<int32_t>(blurred[centerIndex + 1]) -
+                    static_cast<int32_t>(blurred[centerIndex - 1])),
+                std::abs(static_cast<int32_t>(blurred[centerIndex + width]) -
+                    static_cast<int32_t>(blurred[centerIndex - width])));
+            const float edgeProtection = 1.0f - std::max(0.0f, std::min(1.0f,
+                static_cast<float>(blurredGradient - 8) / 32.0f));
+            const float weight = std::max(0.0f, std::min(1.0f,
+                static_cast<float>(textureDetail - 6) / 42.0f)) * edgeProtection;
+            const float delta = (static_cast<float>(blurred[centerIndex]) - center) * strength * weight;
+            if (std::abs(delta) < 0.5f) {
+                continue;
+            }
             auto *pixel = row + static_cast<size_t>(x) * 4;
             pixel[0] = static_cast<uint8_t>(ClampByte(pixel[0] + delta) + 0.5f);
             pixel[1] = static_cast<uint8_t>(ClampByte(pixel[1] + delta) + 0.5f);
