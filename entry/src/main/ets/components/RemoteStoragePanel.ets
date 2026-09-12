@@ -2,9 +2,11 @@ import { common } from '@kit.AbilityKit';
 import {
   RemoteStorageProfile,
   REMOTE_STORAGE_KIND_WEBDAV,
+  remoteStorageProfileDisplayName,
   remoteStorageProfileSummary,
   remoteStorageProfileStore
 } from '../services/RemoteStorageProfiles';
+import { remoteStorageSyncService } from '../services/RemoteStorageSyncService';
 import {
   createRemoteStorageProfileId,
   remoteStoragePortFromUrl,
@@ -99,6 +101,7 @@ export struct RemoteStoragePanel {
     this.editorVisible = false;
     this.panelStatus = uiText('Saved');
     await this.reloadProfiles();
+    remoteStorageSyncService.refreshConfiguration();
   }
 
   private async removeProfile(profile: RemoteStorageProfile): Promise<void> {
@@ -110,6 +113,7 @@ export struct RemoteStoragePanel {
       this.editorVisible = false;
       this.panelStatus = uiText('Removed');
       await this.reloadProfiles();
+      remoteStorageSyncService.refreshConfiguration();
     }
   }
 
@@ -127,13 +131,26 @@ export struct RemoteStoragePanel {
     return labels.join(' · ');
   }
 
+  private profileRowTitle(profile: RemoteStorageProfile): string {
+    return remoteStorageProfileDisplayName(profile);
+  }
+
+  private profileRowSummary(profile: RemoteStorageProfile): string {
+    const purposes = this.purposeSummary(profile);
+    if (profile.name.length > 0) {
+      return purposes.length > 0 ?
+        remoteStorageProfileSummary(profile) + ' · ' + purposes : remoteStorageProfileSummary(profile);
+    }
+    return purposes;
+  }
+
   @Builder
   private profileRow(profile: RemoteStorageProfile, index: number) {
     Column() {
       Row() {
         SettingsTextBlock({
-          title: remoteStorageProfileSummary(profile),
-          summary: this.purposeSummary(profile)
+          title: this.profileRowTitle(profile),
+          summary: this.profileRowSummary(profile)
         })
           .layoutWeight(1)
         SymbolGlyph($r('sys.symbol.chevron_right'))

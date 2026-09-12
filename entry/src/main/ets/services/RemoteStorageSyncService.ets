@@ -16,6 +16,7 @@ import { uiText } from '../shared/EhTranslations';
 export const REMOTE_SYNC_STATUS_TEXT_KEY: string = 'remoteSyncStatusText';
 export const REMOTE_SYNC_STATUS_DETAIL_KEY: string = 'remoteSyncStatusDetail';
 export const REMOTE_SYNC_STATUS_REVISION_KEY: string = 'remoteSyncStatusRevision';
+export const REMOTE_SYNC_ACTIVE_KEY: string = 'remoteSyncActive';
 
 const PREFERENCES_NAME: string = 'ehviewer_remote_sync';
 const LAST_SYNC_KEY: string = 'lastSyncAt';
@@ -88,7 +89,7 @@ export class RemoteStorageSyncService {
       return;
     }
     this.busy = true;
-    this.publishStatus(profile, uiText('Syncing...'), '');
+    this.publishStatus(profile, uiText('Syncing...'), '', true);
     try {
       const client = new WebDavClient(profile);
       const directory = await client.ensureDirectory(SYNC_FOLDER);
@@ -311,14 +312,31 @@ export class RemoteStorageSyncService {
     }
   }
 
-  private publishStatus(profile: RemoteStorageProfile, text: string, detail: string): void {
-    this.setStatus(text, detail.length > 0 ? detail : (uiText('Server: ') + profile.url));
+  refreshConfiguration(): void {
+    const profile = remoteStorageProfileStore.profileForPurpose(REMOTE_STORAGE_PURPOSE_SYNC);
+    if (profile === null) {
+      this.setStatus(uiText('Sync disabled'), uiText('Enable a sync folder in Download settings'), false);
+      return;
+    }
+    this.publishStatus(profile, uiText('Pending sync'), '');
+    this.dirty = true;
+    if (this.started && !this.busy) {
+      this.schedule(DIRTY_DEBOUNCE_MS);
+    }
   }
 
-  private setStatus(text: string, detail: string): void {
+  private publishStatus(profile: RemoteStorageProfile, text: string, detail: string,
+    active: boolean = false): void {
+    const serverDetail = detail.length > 0 ? detail :
+      (uiText('Server: ') + (profile.name.length > 0 ? profile.name + ' · ' : '') + profile.url);
+    this.setStatus(text, serverDetail, active);
+  }
+
+  private setStatus(text: string, detail: string, active: boolean = false): void {
     const revision = AppStorage.get<number>(REMOTE_SYNC_STATUS_REVISION_KEY) ?? 0;
     AppStorage.setOrCreate<string>(REMOTE_SYNC_STATUS_TEXT_KEY, text);
     AppStorage.setOrCreate<string>(REMOTE_SYNC_STATUS_DETAIL_KEY, detail);
+    AppStorage.setOrCreate<boolean>(REMOTE_SYNC_ACTIVE_KEY, active);
     AppStorage.setOrCreate<number>(REMOTE_SYNC_STATUS_REVISION_KEY, revision + 1);
   }
 }

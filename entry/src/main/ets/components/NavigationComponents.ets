@@ -5,7 +5,11 @@ import { EhHomeLimits, EhHomeLimitsResult, ehHomeLimitsService } from '../servic
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { MAIN_CONTENT_WIDTH_VP_KEY } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, THEME_REVISION_KEY, downloadQueueSummary, getAbilityContext, uiText, uiStatusText, DrawerItem, DRAWER_ITEMS } from '../shared/EhShared';
-import { REMOTE_SYNC_STATUS_DETAIL_KEY, REMOTE_SYNC_STATUS_TEXT_KEY } from '../services/RemoteStorageSyncService';
+import {
+  REMOTE_SYNC_ACTIVE_KEY,
+  REMOTE_SYNC_STATUS_DETAIL_KEY,
+  REMOTE_SYNC_STATUS_TEXT_KEY
+} from '../services/RemoteStorageSyncService';
 import {
   themeDividerColor,
   themeFieldBackground,
@@ -75,6 +79,7 @@ export struct EhDrawer {
   @State downloadSummary: string = '';
   @StorageProp(REMOTE_SYNC_STATUS_TEXT_KEY) remoteSyncText: string = '';
   @StorageProp(REMOTE_SYNC_STATUS_DETAIL_KEY) remoteSyncDetail: string = '';
+  @StorageProp(REMOTE_SYNC_ACTIVE_KEY) remoteSyncActive: boolean = false;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
   private unsubscribeDownloadStore: () => void = () => {};
@@ -167,9 +172,16 @@ export struct EhDrawer {
       // ---- Footer: remote sync status ----
       if (this.remoteSyncText.length > 0) {
         Row() {
-          SymbolGlyph($r('sys.symbol.arrow_clockwise'))
-            .fontSize(15)
-            .fontColor([themeSecondaryText()])
+          if (this.remoteSyncActive) {
+            LoadingProgress()
+              .width(15)
+              .height(15)
+              .color(themeSecondaryText())
+          } else {
+            SymbolGlyph($r('sys.symbol.arrow_clockwise'))
+              .fontSize(15)
+              .fontColor([themeSecondaryText()])
+          }
           Column({ space: 2 }) {
             Text(this.remoteSyncText)
               .fontSize(12)
