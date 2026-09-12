@@ -20,11 +20,19 @@ export struct GalleryHomeNavBarHost {
   @Prop showFavoriteButton: boolean = false;
   @Prop showBookmarkButton: boolean = false;
   @Prop showBackButton: boolean = false;
+  @Prop searchMode: boolean = false;
+  @Prop searchPlaceholder: string = '';
+  @Prop searchShowsAdvancedButton: boolean = false;
+  @Prop toolbarHeight: number = 0;
   onMenu: () => void = () => {
   };
   onBack: () => void = () => {
   };
   onSearch: () => void = () => {
+  };
+  onSearchFocus: () => void = () => {
+  };
+  onAdvanced: () => void = () => {
   };
   onFavoriteButton: () => void = () => {
   };
@@ -38,15 +46,18 @@ export struct GalleryHomeNavBarHost {
   build() {
     EhNavBar({
       statusBarHeight: this.statusBarHeight,
+      toolbarHeight: this.toolbarHeight,
       title: this.title,
-      searchMode: false,
+      searchMode: this.searchMode,
       keyword: this.keyword,
+      searchPlaceholder: this.searchPlaceholder,
       filterActive: this.filterActive,
       showSearchButton: this.showSearchButton,
       showFavoriteButton: this.showFavoriteButton,
       showBookmarkButton: this.showBookmarkButton,
       showRefreshButton: false,
       showBackButton: this.showBackButton,
+      searchShowsAdvancedButton: this.searchShowsAdvancedButton,
       translateY: this.toolbarState.offsetY,
       onMenu: () => {
         this.onMenu();
@@ -56,6 +67,12 @@ export struct GalleryHomeNavBarHost {
       },
       onSearch: () => {
         this.onSearch();
+      },
+      onSearchFocus: () => {
+        this.onSearchFocus();
+      },
+      onAdvanced: () => {
+        this.onAdvanced();
       },
       onFavoriteButton: () => {
         this.onFavoriteButton();

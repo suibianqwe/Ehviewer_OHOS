@@ -44,6 +44,7 @@ function state(height) {
     floatingToolbarHeight() { return height; }, totalBarHeight() { return height; },
     toolbarVisibleHeight() { return visibleHeight(this.toolbarOffsetY, height); },
     visibleBarHeight() { return visibleHeight(this.toolbarOffsetY, height); },
+    syncToolbarOffsetState() {},
     restoreToolbarOnReverseScroll() { this.restores++; this.toolbarOffsetY = 0; }
   };
   model.downloadScroller = model.listScroller = { currentOffset: () => ({ yOffset: model.contentOffset }) };

@@ -111,7 +111,7 @@ import {
   uiRadius,
   uiSearchFieldHeight,
 } from '../shared/EhUiStyle';
-import { FloatingToolbarHost } from './NavigationComponents';
+import { GalleryHomeNavBarHost, GalleryToolbarOffset } from './GalleryNavHosts';
 import { PopupScrim } from './PopupScrim';
 import { GalleryListRow, GalleryThumbCard } from './GalleryCards';
 import { GalleryListScene } from './GalleryScenes';
@@ -297,9 +297,20 @@ export struct DownloadScene {
   @State splitDragging: boolean = false;
   @State activeSplitPane: string = SPLIT_PANE_FOCUS_LEFT;
   @State selectedDownloadGids: string = '';
-  @State toolbarOffsetY: number = 0;
+  private toolbarOffsetY: number = 0;
+  @State private toolbarOffsetHolder: GalleryToolbarOffset[] = [new GalleryToolbarOffset()];
   private lastToolbarScrollOffset: number = 0;
   private toolbarRestoring: boolean = false;
+
+  private toolbarState(): GalleryToolbarOffset {
+    return this.toolbarOffsetHolder[0];
+  }
+
+  private syncToolbarOffsetState(): void {
+    if (this.toolbarState().offsetY !== this.toolbarOffsetY) {
+      this.toolbarState().offsetY = this.toolbarOffsetY;
+    }
+  }
   @State downloadActionsExpanded: boolean = false;
   @State floatingActionSide: string = FLOATING_ACTION_SIDE_RIGHT;
   @State statusHintText: string = '';
@@ -675,6 +686,7 @@ export struct DownloadScene {
     if (scrollOffset > 0 && this.toolbarVisibleHeight() > 0) {
       this.toolbarRestoring = false;
       this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, offset, this.floatingToolbarHeight());
+      this.syncToolbarOffsetState();
       return scrollOffset;
     }
     if (scrollOffset < 0 && this.toolbarOffsetY < 0) {
@@ -689,6 +701,7 @@ export struct DownloadScene {
     }
     this.getUIContext().animateTo({ curve: curves.springMotion(0.35, 1) }, () => {
       this.toolbarOffsetY = 0;
+      this.syncToolbarOffsetState();
     });
   }
 
@@ -1115,6 +1128,7 @@ export struct DownloadScene {
     this.downloadJumpDraft = targetPage.toString();
     this.downloadScrollOffset = 0;
     this.toolbarOffsetY = 0;
+    this.syncToolbarOffsetState();
     try {
       this.downloadScroller.scrollToIndex(rowIndex + 1);
       this.statusText = 'Page ' + targetPage.toString() + '/' + total.toString();
@@ -1315,9 +1329,11 @@ export struct DownloadScene {
     if (yOffset <= 4) {
       this.toolbarRestoring = false;
       this.toolbarOffsetY = 0;
+      this.syncToolbarOffsetState();
     } else if (delta > 0.1) {
       this.toolbarRestoring = false;
       this.toolbarOffsetY = -Math.min(yOffset, this.floatingToolbarHeight());
+      this.syncToolbarOffsetState();
     } else if (delta < -0.1) {
       this.restoreToolbarOnReverseScroll();
     }
@@ -1990,6 +2006,7 @@ export struct DownloadScene {
     })
     .onScrollIndex((first: number, _last: number) => {
       this.toolbarOffsetY = first > 0 ? -this.floatingToolbarHeight() : 0;
+      this.syncToolbarOffsetState();
     })
     .onScrollStop(() => {
       this.rememberDownloadScrollOffset();
@@ -2130,54 +2147,6 @@ export struct DownloadScene {
           TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }))
     } else {
       Stack({ alignContent: Alignment.TopStart }) {
-      Column() {
-      FloatingToolbarHost({
-        kind: this.searchBarVisible ? 'search' : 'title',
-        title: this.selectedDownloadLabel === DOWNLOAD_LABEL_FILTER_ALL ? 'Downloads' :
-          (this.selectedDownloadLabel.length === 0 ? 'Default' : this.selectedDownloadLabel),
-        keyword: this.query,
-        searchPlaceholder: 'Search downloads',
-        filterActive: this.advancedPanelVisible || this.advancedSearchEnabled ||
-          this.searchCategory !== GalleryCategory.None || this.minRating > 0,
-        showSearchButton: !this.searchBarVisible,
-        showBackButton: this.searchBarVisible,
-        showRefreshButton: false,
-        showFavoriteButton: !this.searchBarVisible,
-        searchShowsAdvancedButton: true,
-        toolbarOffsetY: this.toolbarOffsetY,
-        toolbarHeight: uiAdaptiveToolbarHeight(this.downloadContentWidth),
-        retainCollapsedBackdrop: true,
-            onMenu: () => {
-              if (this.searchBarVisible) {
-                this.closeDownloadSearchBar();
-              } else {
-                this.onMenu();
-              }
-            },
-            onBack: () => {
-              this.closeDownloadSearchBar();
-            },
-            onKeywordChange: (value: string) => {
-              this.updateDownloadKeyword(value);
-            },
-            onSearchFocus: () => {
-              this.openDownloadSearchSuggestions();
-            },
-            onSearch: () => {
-              if (this.searchBarVisible) {
-                this.applyDownloadSearch();
-              } else {
-                this.openDownloadSearchBar();
-              }
-            },
-            onAdvanced: () => {
-              this.toggleAdvancedPanel();
-            },
-            onFavoriteButton: () => {
-              this.openDownloadLabelDrawer();
-            }
-      }) {
-      Stack({ alignContent: Alignment.BottomEnd }) {
         Column() {
           if (!this.searchSubmitted) {
             List({ space: 0 }) {
@@ -2219,12 +2188,62 @@ export struct DownloadScene {
         }
         .width('100%')
         .height('100%')
+        .backgroundColor(themePageBackground())
         .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
+        .transition(TransitionEffect.asymmetric(
+          TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }),
+          TransitionEffect.OPACITY.animation({ duration: 1, delay: 300, curve: Curve.Linear })))
         .onAreaChange((_oldArea: Area, newArea: Area) => {
           this.updateDownloadContentWidthFromArea(newArea.width as number);
           const height = newArea.height as number;
           if (height > 0 && !Number.isNaN(height)) {
             this.viewportHeight = height;
+          }
+        })
+
+        GalleryHomeNavBarHost({
+          toolbarState: this.toolbarState(),
+          statusBarHeight: this.statusBarVp(),
+          title: this.selectedDownloadLabel === DOWNLOAD_LABEL_FILTER_ALL ? 'Downloads' :
+            (this.selectedDownloadLabel.length === 0 ? 'Default' : this.selectedDownloadLabel),
+          keyword: this.query,
+          filterActive: this.advancedPanelVisible || this.advancedSearchEnabled ||
+            this.searchCategory !== GalleryCategory.None || this.minRating > 0,
+          showSearchButton: !this.searchBarVisible,
+          showFavoriteButton: !this.searchBarVisible,
+          showBackButton: this.searchBarVisible,
+          searchMode: this.searchBarVisible,
+          searchPlaceholder: 'Search downloads',
+          searchShowsAdvancedButton: true,
+          toolbarHeight: uiAdaptiveToolbarHeight(this.downloadContentWidth),
+          onMenu: () => {
+            if (this.searchBarVisible) {
+              this.closeDownloadSearchBar();
+            } else {
+              this.onMenu();
+            }
+          },
+          onBack: () => {
+            this.closeDownloadSearchBar();
+          },
+          onKeywordChange: (value: string) => {
+            this.updateDownloadKeyword(value);
+          },
+          onSearchFocus: () => {
+            this.openDownloadSearchSuggestions();
+          },
+          onSearch: () => {
+            if (this.searchBarVisible) {
+              this.applyDownloadSearch();
+            } else {
+              this.openDownloadSearchBar();
+            }
+          },
+          onAdvanced: () => {
+            this.toggleAdvancedPanel();
+          },
+          onFavoriteButton: () => {
+            this.openDownloadLabelDrawer();
           }
         })
 
@@ -2499,30 +2518,6 @@ export struct DownloadScene {
             .height('100%')
             .zIndex(50)
         }
-      }
-      .width('100%')
-      .height('100%')
-      .backgroundColor(themePageBackground())
-      .transition(TransitionEffect.asymmetric(
-        TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }),
-        TransitionEffect.OPACITY.animation({ duration: 1, delay: 300, curve: Curve.Linear })))
-      }
-      }
-      .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
-      .height('100%')
-      .onTouch((event: TouchEvent) => {
-        if (shouldUpdateSplitPaneFocus(event)) {
-          this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
-        }
-      })
-      .gesture(
-        PanGesture({ fingers: 1, direction: PanDirection.Left, distance: 28 })
-          .onActionEnd((event: GestureEvent | undefined) => {
-            this.handleOpenDownloadLabelDrawerPan(event);
-          })
-      )
-      .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
-
       if (this.showDetail || this.downloadLabelManagerVisible) {
         SplitPaneDivider({
           x: this.useSplitLayout() ? this.splitListPaneWidth() : 0,
@@ -2707,9 +2702,22 @@ export struct DownloadScene {
           .zIndex(36)
       }
       }
-      .width('100%')
+      .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
       .height('100%')
       .backgroundColor(themePageBackground())
+      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
+      .onTouch((event: TouchEvent) => {
+        if (shouldUpdateSplitPaneFocus(event)) {
+          this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
+        }
+      })
+      .gesture(
+        PanGesture({ fingers: 1, direction: PanDirection.Left, distance: 28 })
+          .onActionEnd((event: GestureEvent | undefined) => {
+            this.handleOpenDownloadLabelDrawerPan(event);
+          })
+      )
+      .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.updateSceneContentWidth(areaDimensionToVp(newArea.width, (value: number) => this.getUIContext().px2vp(value)));
       })
