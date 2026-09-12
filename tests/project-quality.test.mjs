@@ -247,3 +247,33 @@ test('search scenes refresh suggestions after async search-history load', () => 
       'search suggestions must refresh after the persisted history store becomes ready');
   }
 });
+
+test('holding-hand adaptation debounces noisy grip switches', () => {
+  const support = read('entry/src/main/ets/services/EhHoldingHandSupport.ets');
+  const settle = Number(/SIDE_SETTLE_DELAY_MS: number = (\d+)/.exec(support)?.[1]);
+  const minimum = Number(/SIDE_MIN_SWITCH_INTERVAL_MS: number = (\d+)/.exec(support)?.[1]);
+  assert.ok(settle > 0, 'the grip adaptation must keep a settle delay');
+  assert.ok(minimum >= settle, 'consecutive grip switches must be rate limited');
+  const match = /export function holdingHandSwitchDelay\(elapsedSinceLastSwitchMs: number\): number \{\n([\s\S]*?)\n\}/.exec(support);
+  assert.ok(match, 'holdingHandSwitchDelay must exist');
+  const delay = new Function('SIDE_SETTLE_DELAY_MS', 'SIDE_MIN_SWITCH_INTERVAL_MS',
+    'elapsedSinceLastSwitchMs', match[1]);
+  assert.equal(delay(settle, minimum, 0), minimum,
+    'a switch right after another one must wait for the minimum interval');
+  assert.equal(delay(settle, minimum, minimum), settle,
+    'a later switch only has to wait for the settle window');
+  assert.equal(delay(settle, minimum, minimum * 10), settle,
+    'an idle page must still settle a candidate before switching');
+  assert.match(support, /BOTH_HANDS_HELD[\s\S]*UNKNOWN_STATUS[\s\S]*return;/,
+    'two-hand holds and unknown samples must keep the current side instead of flipping');
+  const galleryPage = read('entry/src/main/ets/components/GalleryListContent.ets');
+  const downloadPage = read('entry/src/main/ets/components/DownloadScene.ets');
+  for (const page of [galleryPage, downloadPage]) {
+    assert.match(page, /FloatingActionSideController/,
+      'gallery-style pages must share the floating-action side controller');
+    assert.doesNotMatch(page, /subscribeHoldingHandSide\(/,
+      'pages must not subscribe to the grip sensor on their own');
+    assert.match(page, /GalleryToolbarOffsetBinding/,
+      'gallery-style pages must share the floating toolbar offset binding');
+  }
+});

@@ -13,15 +13,13 @@ import {
   ehDownloadFileStore,
 } from '../services/EhDownloadFileStore';
 import { ehDownloadManager } from '../services/EhDownloadManager';
-import { subscribeHoldingHandSide } from '../services/EhHoldingHandSupport';
+import { FloatingActionSideController } from '../services/EhFloatingActionSideSupport';
 import { BrowsePosition, ehBrowsePositionStore } from '../services/EhBrowsePositionStore';
 import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import {
   FLOATING_ACTION_HOLDING_HAND_REVISION_KEY,
-  FLOATING_ACTION_HOLDING_HAND_SETTING_KEY,
   FLOATING_ACTION_SIDE_REVISION_KEY,
-  FLOATING_ACTION_SIDE_SETTING_KEY,
   TRANSLATION_BUTTONS_VISIBLE_KEY,
   ehSettingsStore,
 } from '../services/EhSettingsStore';
@@ -111,7 +109,7 @@ import {
   uiRadius,
   uiSearchFieldHeight,
 } from '../shared/EhUiStyle';
-import { GalleryHomeNavBarHost, GalleryToolbarOffset } from './GalleryNavHosts';
+import { GalleryHomeNavBarHost, GalleryToolbarOffset, GalleryToolbarOffsetBinding } from './GalleryNavHosts';
 import { PopupScrim } from './PopupScrim';
 import { GalleryListRow, GalleryThumbCard } from './GalleryCards';
 import { GalleryListScene } from './GalleryScenes';
@@ -147,7 +145,6 @@ import {
 import {
   FLOATING_ACTION_SIDE_RIGHT,
   floatingActionAvailableHeight,
-  normalizeFloatingActionSide,
 } from './FloatingActionLayoutSupport';
 import {
   areaDimensionToVp,
@@ -298,18 +295,16 @@ export struct DownloadScene {
   @State activeSplitPane: string = SPLIT_PANE_FOCUS_LEFT;
   @State selectedDownloadGids: string = '';
   private toolbarOffsetY: number = 0;
-  @State private toolbarOffsetHolder: GalleryToolbarOffset[] = [new GalleryToolbarOffset()];
+  @State private toolbarOffsetBinding: GalleryToolbarOffsetBinding = new GalleryToolbarOffsetBinding();
   private lastToolbarScrollOffset: number = 0;
   private toolbarRestoring: boolean = false;
 
   private toolbarState(): GalleryToolbarOffset {
-    return this.toolbarOffsetHolder[0];
+    return this.toolbarOffsetBinding.state();
   }
 
   private syncToolbarOffsetState(): void {
-    if (this.toolbarState().offsetY !== this.toolbarOffsetY) {
-      this.toolbarState().offsetY = this.toolbarOffsetY;
-    }
+    this.toolbarOffsetBinding.set(this.toolbarOffsetY);
   }
   @State downloadActionsExpanded: boolean = false;
   @State floatingActionSide: string = FLOATING_ACTION_SIDE_RIGHT;
@@ -341,8 +336,10 @@ export struct DownloadScene {
   private downloadBrowsePositionLoaded: boolean = false;
   private downloadBrowsePositionRestored: boolean = false;
   private restoringDownloadBrowsePosition: boolean = false;
-  private holdingHandActionSide: string = '';
-  private unsubscribeHoldingHandSide: () => void = () => {};
+  private floatingActionSideController: FloatingActionSideController = new FloatingActionSideController(
+    (side: string): void => {
+      this.animateFloatingActionSide(side);
+    });
   private cellularWarningDialogOpen: boolean = false;
   private deleteConfirmationDialogOpen: boolean = false;
   private downloadCardStates: Map<number, DownloadCardState> = new Map<number, DownloadCardState>();
@@ -351,7 +348,7 @@ export struct DownloadScene {
   aboutToAppear(): void {
     applyAppChromeImmersiveMode();
     this.restoreEmbeddedContinuationIfPresent();
-    this.syncHoldingHandSubscription();
+    this.floatingActionSideController.syncFromSettings();
     this.restoreNavigationCache();
     this.syncSceneContentWidthFromWindow();
     this.syncDownloadContentWidthFromWindow();
@@ -391,8 +388,7 @@ export struct DownloadScene {
     this.saveNavigationCache();
     this.unsubscribeStore();
     this.unsubscribeDownloadManager();
-    this.unsubscribeHoldingHandSide();
-    this.unsubscribeHoldingHandSide = () => {};
+    this.floatingActionSideController.dispose();
   }
 
   onResetVersionChanged(): void {
@@ -599,7 +595,7 @@ export struct DownloadScene {
   }
 
   onHoldingHandSettingChanged(): void {
-    this.syncHoldingHandSubscription();
+    this.floatingActionSideController.syncFromSettings();
   }
 
   private restoreEmbeddedContinuationIfPresent(): void {
@@ -624,47 +620,7 @@ export struct DownloadScene {
   }
 
   onFloatingActionSideSettingChanged(): void {
-    if (this.holdingHandActionSide.length > 0) {
-      return;
-    }
-    this.animateFloatingActionSide(normalizeFloatingActionSide(
-      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT)));
-  }
-
-  private syncHoldingHandSubscription(): void {
-    this.unsubscribeHoldingHandSide();
-    this.unsubscribeHoldingHandSide = () => {};
-    this.holdingHandActionSide = '';
-    const fallback = normalizeFloatingActionSide(
-      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT));
-    this.animateFloatingActionSide(fallback);
-    if (ehSettingsStore.getValue(FLOATING_ACTION_HOLDING_HAND_SETTING_KEY, 'On') !== 'On') {
-      return;
-    }
-    this.unsubscribeHoldingHandSide = subscribeHoldingHandSide((side: string) => {
-      this.applyHoldingHandActionSide(side);
-    });
-  }
-
-  private setFloatingActionSide(side: string): void {
-    const normalized = normalizeFloatingActionSide(side);
-    ehSettingsStore.setValue(FLOATING_ACTION_SIDE_SETTING_KEY, normalized);
-    const revision = AppStorage.get<number>(FLOATING_ACTION_SIDE_REVISION_KEY) ?? 0;
-    AppStorage.setOrCreate<number>(FLOATING_ACTION_SIDE_REVISION_KEY, revision + 1);
-    const context = getAbilityContext();
-    if (context !== undefined) {
-      ehSettingsStore.save(context).catch(() => {});
-    }
-    if (this.holdingHandActionSide.length === 0) {
-      this.animateFloatingActionSide(normalized);
-    }
-  }
-
-  private applyHoldingHandActionSide(side: string): void {
-    this.holdingHandActionSide = side;
-    const fallback = normalizeFloatingActionSide(
-      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT));
-    this.animateFloatingActionSide(side.length > 0 ? normalizeFloatingActionSide(side) : fallback);
+    this.floatingActionSideController.handleManualSettingChanged();
   }
 
   private animateFloatingActionSide(side: string): void {
@@ -2333,7 +2289,7 @@ export struct DownloadScene {
                 this.applyDownloadSearch();
               },
               onSideChange: (side: string) => {
-                this.setFloatingActionSide(side);
+                this.floatingActionSideController.handleManualSide(side);
               }
             })
           } else {
@@ -2384,7 +2340,7 @@ export struct DownloadScene {
                 this.openMoveSelectedDownloadLabel();
               },
               onSideChange: (side: string) => {
-                this.setFloatingActionSide(side);
+                this.floatingActionSideController.handleManualSide(side);
               }
             })
           }

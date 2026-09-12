@@ -4,14 +4,12 @@ import { GalleryCategory, GalleryInfo } from '../model/GalleryModels';
 import { SearchBookmarkInfo } from '../services/EhBookmarkStore';
 import { DEFAULT_ADVANCE_SEARCH, FavListUrlBuilder, ListMode } from '../services/EhUrl';
 import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
-import { subscribeHoldingHandSide } from '../services/EhHoldingHandSupport';
+import { FloatingActionSideController } from '../services/EhFloatingActionSideSupport';
 import {
   DEFAULT_FAVORITE_SLOT_ASK,
   DEFAULT_FAVORITE_SLOT_SETTING_KEY,
   FLOATING_ACTION_HOLDING_HAND_REVISION_KEY,
-  FLOATING_ACTION_HOLDING_HAND_SETTING_KEY,
   FLOATING_ACTION_SIDE_REVISION_KEY,
-  FLOATING_ACTION_SIDE_SETTING_KEY,
   TRANSLATION_BUTTONS_VISIBLE_KEY,
   defaultFavoriteSlotSettingValue,
   ehSettingsStore,
@@ -91,7 +89,6 @@ import {
 import {
   FLOATING_ACTION_SIDE_RIGHT,
   floatingActionAvailableHeight,
-  normalizeFloatingActionSide,
 } from './FloatingActionLayoutSupport';
 import {
   uiText,
@@ -128,6 +125,7 @@ import {
   GalleryHomeNavBarHost,
   GallerySearchNavBarHost,
   GalleryToolbarOffset,
+  GalleryToolbarOffsetBinding,
 } from './GalleryNavHosts';
 
 @Component
@@ -275,10 +273,10 @@ export struct GalleryListContent {
   private galleryThumbnailSource: ArrayDataSource<GalleryInfo> =
     new ArrayDataSource<GalleryInfo>([]);
   private toolbarOffsetY: number = 0;
-  @State private toolbarOffsetHolder: GalleryToolbarOffset[] = [new GalleryToolbarOffset()];
+  @State private toolbarOffsetBinding: GalleryToolbarOffsetBinding = new GalleryToolbarOffsetBinding();
 
   private toolbarState(): GalleryToolbarOffset {
-    return this.toolbarOffsetHolder[0];
+    return this.toolbarOffsetBinding.state();
   }
   @State contentOpacity: number = 1;
   private toolbarRestoring: boolean = false;
@@ -293,8 +291,10 @@ export struct GalleryListContent {
   @State bookmarkDrawerVisible: boolean = false;
   @State bookmarkDrawerOffsetX: number = 288;
   @State bookmarkDrawerOverlayOpacity: number = 0;
-  private holdingHandActionSide: string = '';
-  private unsubscribeHoldingHandSide: () => void = () => {};
+  private floatingActionSideController: FloatingActionSideController = new FloatingActionSideController(
+    (side: string): void => {
+      this.animateFloatingActionSide(side);
+    });
   private translationVisibleItems: number[] = [];
   private unregisterActiveBackHandler: () => void = () => {};
   private barHeight(): number {
@@ -513,7 +513,7 @@ export struct GalleryListContent {
       this.prefetchGalleryThumbnail(gallery);
     });
     this.onLayoutWidthHintChanged();
-    this.syncHoldingHandSubscription();
+    this.floatingActionSideController.syncFromSettings();
     this.syncContentWidthFromWindow();
     this.syncPageJumpDraft();
     this.searchTagTokenCount = this.selectedSearchTagTokens().length;
@@ -586,8 +586,7 @@ export struct GalleryListContent {
     this.cardScrollAnchor.clear();
     this.unregisterActiveBackHandler();
     this.unregisterActiveBackHandler = () => {};
-    this.unsubscribeHoldingHandSide();
-    this.unsubscribeHoldingHandSide = () => {};
+    this.floatingActionSideController.dispose();
   }
 
   private handleContentBack(): boolean {
@@ -754,51 +753,11 @@ export struct GalleryListContent {
   }
 
   onHoldingHandSettingChanged(): void {
-    this.syncHoldingHandSubscription();
+    this.floatingActionSideController.syncFromSettings();
   }
 
   onFloatingActionSideSettingChanged(): void {
-    if (this.holdingHandActionSide.length > 0) {
-      return;
-    }
-    this.animateFloatingActionSide(normalizeFloatingActionSide(
-      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT)));
-  }
-
-  private syncHoldingHandSubscription(): void {
-    this.unsubscribeHoldingHandSide();
-    this.unsubscribeHoldingHandSide = () => {};
-    this.holdingHandActionSide = '';
-    const fallback = normalizeFloatingActionSide(
-      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT));
-    this.animateFloatingActionSide(fallback);
-    if (ehSettingsStore.getValue(FLOATING_ACTION_HOLDING_HAND_SETTING_KEY, 'On') !== 'On') {
-      return;
-    }
-    this.unsubscribeHoldingHandSide = subscribeHoldingHandSide((side: string) => {
-      this.applyHoldingHandActionSide(side);
-    });
-  }
-
-  private setFloatingActionSide(side: string): void {
-    const normalized = normalizeFloatingActionSide(side);
-    ehSettingsStore.setValue(FLOATING_ACTION_SIDE_SETTING_KEY, normalized);
-    const revision = AppStorage.get<number>(FLOATING_ACTION_SIDE_REVISION_KEY) ?? 0;
-    AppStorage.setOrCreate<number>(FLOATING_ACTION_SIDE_REVISION_KEY, revision + 1);
-    const context = getAbilityContext();
-    if (context !== undefined) {
-      ehSettingsStore.save(context).catch(() => {});
-    }
-    if (this.holdingHandActionSide.length === 0) {
-      this.animateFloatingActionSide(normalized);
-    }
-  }
-
-  private applyHoldingHandActionSide(side: string): void {
-    this.holdingHandActionSide = side;
-    const fallback = normalizeFloatingActionSide(
-      ehSettingsStore.getValue(FLOATING_ACTION_SIDE_SETTING_KEY, FLOATING_ACTION_SIDE_RIGHT));
-    this.animateFloatingActionSide(side.length > 0 ? normalizeFloatingActionSide(side) : fallback);
+    this.floatingActionSideController.handleManualSettingChanged();
   }
 
   private animateFloatingActionSide(side: string): void {
@@ -816,9 +775,7 @@ export struct GalleryListContent {
   }
 
   private syncToolbarOffsetState(): void {
-    if (this.toolbarState().offsetY !== this.toolbarOffsetY) {
-      this.toolbarState().offsetY = this.toolbarOffsetY;
-    }
+    this.toolbarOffsetBinding.set(this.toolbarOffsetY);
   }
 
   private isInitialLoadingState(): boolean {
@@ -1832,7 +1789,7 @@ export struct GalleryListContent {
               ehTranslationService.setEnabled(!this.translationEnabled);
             },
             onSideChange: (side: string) => {
-              this.setFloatingActionSide(side);
+              this.floatingActionSideController.handleManualSide(side);
             }
           })
         } else {
@@ -1865,7 +1822,7 @@ export struct GalleryListContent {
               this.onAddBookmark();
             },
             onSideChange: (side: string) => {
-              this.setFloatingActionSide(side);
+              this.floatingActionSideController.handleManualSide(side);
             }
           })
         }

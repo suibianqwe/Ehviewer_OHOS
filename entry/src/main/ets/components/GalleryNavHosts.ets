@@ -9,6 +9,22 @@ export class GalleryToolbarOffset {
   offsetY: number = 0;
 }
 
+// Shared holder for pages that drive the floating chrome from their scroll handlers. Mutating the
+// observed offset refreshes only the navigation host instead of re-running the whole page.
+export class GalleryToolbarOffsetBinding {
+  private holder: GalleryToolbarOffset[] = [new GalleryToolbarOffset()];
+
+  state(): GalleryToolbarOffset {
+    return this.holder[0];
+  }
+
+  set(offsetY: number): void {
+    if (this.holder[0].offsetY !== offsetY) {
+      this.holder[0].offsetY = offsetY;
+    }
+  }
+}
+
 @Component
 export struct GalleryHomeNavBarHost {
   @ObjectLink toolbarState: GalleryToolbarOffset;
