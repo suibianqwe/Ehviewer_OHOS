@@ -38,6 +38,8 @@ test('remote storage paths normalize and join for WebDAV URLs', () => {
   assert.equal(support.remoteStorageJoinPath('a/b', 'c//d/'), 'a/b/c/d');
   assert.equal(support.remoteStorageUrlForPath('https://host/dav/', 'backup/a.json'),
     'https://host/dav/backup/a.json');
+  assert.equal(support.remoteStorageUrlForPath('http://host:5005', 'download/中文 目录/a b.jpg'),
+    'http://host:5005/download/' + encodeURIComponent('中文 目录') + '/' + encodeURIComponent('a b.jpg'));
   assert.equal(support.isValidRemoteStorageUrl('https://host/dav'), true);
   assert.equal(support.isValidRemoteStorageUrl('not a url'), false);
 });

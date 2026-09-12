@@ -112,7 +112,15 @@ export function remoteStorageJoinPath(base: string, child: string): string {
 export function remoteStorageUrlForPath(baseUrl: string, path: string): string {
   const base = baseUrl.replace(/\/+$/, '');
   const relative = remoteStorageJoinPath('', path);
-  return relative.length > 0 ? base + '/' + relative : base;
+  if (relative.length === 0) {
+    return base;
+  }
+  const segments = relative.split('/');
+  const encoded: string[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    encoded.push(encodeURIComponent(segments[i]));
+  }
+  return base + '/' + encoded.join('/');
 }
 
 export function remoteStorageRelativePathFromHref(href: string, basePath: string): string {
