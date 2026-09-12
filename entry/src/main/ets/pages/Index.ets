@@ -521,13 +521,6 @@ struct Index {
       Column() {
         if (this.settingsReady) {
           Stack({ alignContent: Alignment.TopStart }) {
-            // Keep the transition underlay neutral. Material app bars are rendered by
-            // each scene; a primary-color underlay can flash through between frames.
-            Column()
-              .width('100%')
-              .height(this.statusBarVp() + 56)
-              .backgroundColor(this.currentPageBackground())
-
             this.RouteContent()
           }
           .width('100%')
