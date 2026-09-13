@@ -1,6 +1,5 @@
-import { EhNavBar, EhTitleBarBackdrop } from './NavigationComponents';
+import { EhNavBar } from './NavigationComponents';
 import { immersiveChromeHeightFromOffset } from '../shared/EhShared';
-import { uiTitleBarFadeHeight } from '../shared/EhUiStyle';
 
 // The floating navigation bars observe this offset directly so a per-frame scroll update only
 // refreshes the chrome instead of re-executing the whole gallery list component.
@@ -122,20 +121,8 @@ export struct GallerySearchNavBarHost {
     return immersiveChromeHeightFromOffset(this.toolbarState.offsetY, this.totalBarHeight);
   }
 
-  private backdropHeight(): number {
-    const fadeHeight = uiTitleBarFadeHeight();
-    const minimumHeight = this.statusBarHeight + fadeHeight;
-    return Math.max(minimumHeight,
-      Math.min(this.totalBarHeight + fadeHeight, this.totalBarHeight + this.toolbarState.offsetY + fadeHeight));
-  }
-
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      EhTitleBarBackdrop({
-        barBackdropHeight: this.searchSubmitted ? this.backdropHeight() :
-          this.totalBarHeight + uiTitleBarFadeHeight()
-      })
-
       Column() {
         this.content()
       }
@@ -144,8 +131,9 @@ export struct GallerySearchNavBarHost {
       .visibility(!this.searchSubmitted || this.visibleBarHeight() > 0 ? Visibility.Visible : Visibility.Hidden)
     }
     .width('100%')
-    .height(this.searchSubmitted ? this.backdropHeight() : this.totalBarHeight + uiTitleBarFadeHeight())
+    .height(this.searchSubmitted ? this.visibleBarHeight() : this.totalBarHeight)
     .backgroundColor(Color.Transparent)
+    .hitTestBehavior(HitTestMode.Transparent)
     .zIndex(10)
   }
 }
