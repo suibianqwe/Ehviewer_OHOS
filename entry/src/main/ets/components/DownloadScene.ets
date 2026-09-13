@@ -1964,10 +1964,6 @@ export struct DownloadScene {
     .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
       this.handleDownloadListDidScroll();
     })
-    .onScrollIndex((first: number, _last: number) => {
-      this.toolbarOffsetY = first > 0 ? -this.floatingToolbarHeight() : 0;
-      this.syncToolbarOffsetState();
-    })
     .onScrollStop(() => {
       this.rememberDownloadScrollOffset();
     })

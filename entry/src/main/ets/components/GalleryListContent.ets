@@ -1507,10 +1507,6 @@ export struct GalleryListContent {
     .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
       this.handleGalleryListDidScroll();
     })
-    .onScrollIndex((first: number, _last: number) => {
-      this.toolbarOffsetY = first > 0 ? -this.totalBarHeight() : 0;
-      this.syncToolbarOffsetState();
-    })
     .onScrollStop(() => {
       this.rememberListOffset(normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset));
     })
@@ -1564,10 +1560,6 @@ export struct GalleryListContent {
     })
     .onDidScroll((_scrollOffset: number, _scrollState: ScrollState) => {
       this.handleGalleryListDidScroll();
-    })
-    .onScrollIndex((first: number, _last: number) => {
-      this.toolbarOffsetY = first > 0 ? -this.totalBarHeight() : 0;
-      this.syncToolbarOffsetState();
     })
     .onScrollIndex((first: number, last: number) => {
       // 每列的顶部占位块也占用 FlowItem 索引，需先换算为画廊索引。

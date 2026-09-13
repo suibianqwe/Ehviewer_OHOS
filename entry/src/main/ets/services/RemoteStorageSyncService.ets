@@ -134,7 +134,7 @@ export class RemoteStorageSyncService {
     await remoteStorageProfileStore.ensureLoaded(context);
     const profile = remoteStorageProfileStore.profileForPurpose(REMOTE_STORAGE_PURPOSE_SYNC);
     if (profile === null) {
-      this.setStatus(uiText('Sync disabled'), uiText('Enable a sync folder in Download settings'));
+      this.setStatus('', '', false);
       return;
     }
     this.publishSyncedOrPending(profile);
@@ -162,7 +162,7 @@ export class RemoteStorageSyncService {
     }
     const profile = remoteStorageProfileStore.profileForPurpose(REMOTE_STORAGE_PURPOSE_SYNC);
     if (profile === null) {
-      this.setStatus(uiText('Sync disabled'), uiText('Enable a sync folder in Download settings'));
+      this.setStatus('', '', false);
       return;
     }
     await this.performSync(context, profile, new WebDavClient(profile), true);
@@ -268,7 +268,7 @@ export class RemoteStorageSyncService {
     }
     const profile = remoteStorageProfileStore.profileForPurpose(REMOTE_STORAGE_PURPOSE_SYNC);
     if (profile === null) {
-      this.setStatus(uiText('Sync disabled'), uiText('Enable a sync folder in Download settings'));
+      this.setStatus('', '', false);
       return;
     }
     const client = new WebDavClient(profile);
