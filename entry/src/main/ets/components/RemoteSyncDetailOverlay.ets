@@ -32,6 +32,7 @@ import { PopupScrim } from './PopupScrim';
 // Drawer footer row. Values arrive as @Prop so the row re-renders whenever the page-level
 // AppStorage observers change, without the drawer rebuilding its list.
 @Component
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 export struct RemoteSyncStatusRow {
   @Prop text: string = '';
   @Prop detail: string = '';
