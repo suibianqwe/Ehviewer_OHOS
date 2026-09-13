@@ -48,10 +48,53 @@ function matchesRating(item: GalleryInfo, options: LocalGallerySearchOptions): b
   return item.rating >= options.minRating;
 }
 
+const TAGGED_TERM_PATTERN: RegExp =
+  /(^|\s)([A-Za-z0-9_]+)\s*[:：]\s*(?:"([^"]+)"|([^$]+?)\$(?=\s|$)|([^$\s]+)(?=\s|$))/g;
+
+interface LocalTagQueryParts {
+  terms: string[];
+  text: string;
+}
+
+function extractTagQueryParts(query: string): LocalTagQueryParts {
+  const terms: string[] = [];
+  TAGGED_TERM_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null = TAGGED_TERM_PATTERN.exec(query);
+  while (match !== null) {
+    const value = match[3] !== undefined ? match[3] : (match[4] !== undefined ? match[4] : match[5]);
+    const tag = normalizeTagTerm(value);
+    if (tag.length > 0) {
+      terms.push(match[2].toLowerCase() + ':' + tag);
+    }
+    match = TAGGED_TERM_PATTERN.exec(query);
+  }
+  let text = query;
+  if (terms.length > 0) {
+    TAGGED_TERM_PATTERN.lastIndex = 0;
+    text = query.replace(TAGGED_TERM_PATTERN, ' ').replace(/\s+/g, ' ').trim();
+    TAGGED_TERM_PATTERN.lastIndex = 0;
+  }
+  return { terms: terms, text: text };
+}
+
 function matchesKeyword(item: GalleryInfo, keyword: string, mode: ListMode): boolean {
   const query = keyword.trim().toLowerCase();
   if (query.length === 0) {
     return true;
+  }
+  // Namespaced tag filters (parody:genshin impact$, female:"sole female", language:chinese)
+  // work in every local search mode, including history and download lists.
+  const parts = extractTagQueryParts(query);
+  if (parts.terms.length > 0) {
+    for (let i = 0; i < parts.terms.length; i++) {
+      if (!matchesTagTerm(item, parts.terms[i])) {
+        return false;
+      }
+    }
+    if (parts.text.length === 0) {
+      return true;
+    }
+    return mode === ListMode.Uploader ? textContains(item.uploader, parts.text) : matchesPlainText(item, parts.text);
   }
   if (mode === ListMode.Tag) {
     return matchesTagQuery(item, query);
