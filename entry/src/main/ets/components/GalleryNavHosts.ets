@@ -1,5 +1,6 @@
-import { EhNavBar } from './NavigationComponents';
+import { EhNavBar, EhTitleBarBackdrop } from './NavigationComponents';
 import { immersiveChromeHeightFromOffset } from '../shared/EhShared';
+import { uiTitleBarFadeHeight } from '../shared/EhUiStyle';
 
 // The floating navigation bars observe this offset directly so a per-frame scroll update only
 // refreshes the chrome instead of re-executing the whole gallery list component.
@@ -121,8 +122,19 @@ export struct GallerySearchNavBarHost {
     return immersiveChromeHeightFromOffset(this.toolbarState.offsetY, this.totalBarHeight);
   }
 
+  private backdropHeight(): number {
+    const fadeHeight = uiTitleBarFadeHeight();
+    const minimumHeight = this.statusBarHeight + fadeHeight;
+    return Math.max(minimumHeight,
+      Math.min(this.totalBarHeight + fadeHeight, this.totalBarHeight + this.toolbarState.offsetY + fadeHeight));
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
+      if (this.searchSubmitted) {
+        EhTitleBarBackdrop({ barBackdropHeight: this.backdropHeight() })
+      }
+
       Column() {
         this.content()
       }
