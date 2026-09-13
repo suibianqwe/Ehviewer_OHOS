@@ -238,6 +238,20 @@ test('daily check-in uses a cookie-backed background Web and keeps the foregroun
     'daily check-in must not bypass ArkWeb with a raw HTTP request');
 });
 
+test('history backups import oldest-first so order and trimming stay stable', () => {
+  const history = read('entry/src/main/ets/services/EhHistoryStore.ets');
+  assert.match(history, /importHistoryBackupItems\(items: GalleryInfo\[\], maxSize: number/,
+    'history imports must replay backups through the dedicated importer');
+  assert.match(history, /for \(let i = items\.length - 1; i >= 0; i--\)/,
+    'history backups must be replayed oldest-first');
+  const settings = read('entry/src/main/ets/components/SettingsScene.ets');
+  assert.match(settings, /ehHistoryStore\.importHistoryBackupItems\(importedHistory, importedHistoryLimit\)/,
+    'JSON backup import must use the history backup importer');
+  const sync = read('entry/src/main/ets/services/RemoteStorageSyncService.ets');
+  assert.match(sync, /ehHistoryStore\.importHistoryBackupItems\(items, limit\)/,
+    'remote sync must use the history backup importer');
+});
+
 test('search scenes refresh suggestions after async search-history load', () => {
   const galleryScenes = read('entry/src/main/ets/components/GalleryListContent.ets');
   const downloadScene = read('entry/src/main/ets/components/DownloadScene.ets');

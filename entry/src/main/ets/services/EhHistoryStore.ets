@@ -121,6 +121,24 @@ export class EhHistoryStore {
     this.queueSave();
   }
 
+  // Backups store history newest-first. Importing must replay it oldest-first so prepending in
+  // addGallery reconstructs the original order and keeps the newest entries when the cap applies.
+  importHistoryBackupItems(items: GalleryInfo[], maxSize: number = HISTORY_DEFAULT_MAX_SIZE): number {
+    if (!Array.isArray(items)) {
+      return 0;
+    }
+    let imported = 0;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item !== null && item !== undefined && typeof item.gid === 'number' && item.gid > 0 &&
+        typeof item.token === 'string' && item.token.length > 0) {
+        this.addGallery(item, maxSize);
+        imported++;
+      }
+    }
+    return imported;
+  }
+
   updateGallery(gallery: GalleryInfo): boolean {
     if (gallery.gid <= 0 || gallery.token.length === 0) {
       return false;

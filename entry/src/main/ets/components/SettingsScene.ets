@@ -1625,9 +1625,7 @@ export struct SettingsScene {
 
         if (importedHistory.length > 0 || importedReadingProgress.length > 0) {
           saves.push(ehHistoryStore.ensureLoaded(context).then(async () => {
-            for (let i = 0; i < importedHistory.length; i++) {
-              ehHistoryStore.addGallery(importedHistory[i], importedHistoryLimit);
-            }
+            ehHistoryStore.importHistoryBackupItems(importedHistory, importedHistoryLimit);
             ehHistoryStore.importReadingProgressBackupItems(importedReadingProgress);
             if (importedHistory.length === 0) {
               await ehHistoryStore.save(context);

@@ -347,11 +347,7 @@ export class RemoteStorageSyncService {
       } else if (name === 'history') {
         const items = JSON.parse(file.text) as GalleryInfo[];
         const limit = historyInfoSizeLimitFromValue(ehSettingsStore.getValue(HISTORY_INFO_SIZE_KEY, '100'));
-        for (let i = 0; i < items.length; i++) {
-          if (typeof items[i].gid === 'number' && items[i].gid > 0) {
-            ehHistoryStore.addGallery(items[i], limit);
-          }
-        }
+        ehHistoryStore.importHistoryBackupItems(items, limit);
         await ehHistoryStore.save(context);
       }
     } catch (error) {
