@@ -79,7 +79,7 @@ export class RemoteStorageSyncService {
       this.setStatus(uiText('Sync disabled'), uiText('Enable a sync folder in Download settings'));
       return;
     }
-    this.publishStatus(profile, uiText('Pending sync'), '');
+    this.publishSyncedOrPending(profile);
     this.pullIfNewer(context, profile);
     this.schedule(FINGERPRINT_INTERVAL_MS);
   }
@@ -224,7 +224,16 @@ export class RemoteStorageSyncService {
     // Downloads mirror on every poll so newly finished galleries are uploaded even when the
     // JSON sync sections did not change.
     await this.syncDownloadFiles(context, profile, client);
+    this.publishSyncedOrPending(profile);
     this.schedule(FINGERPRINT_INTERVAL_MS);
+  }
+
+  private publishSyncedOrPending(profile: RemoteStorageProfile): void {
+    if (this.lastSyncAt > 0) {
+      this.publishStatus(profile, uiText('Synced at') + ' ' + syncTimeText(this.lastSyncAt), '');
+      return;
+    }
+    this.publishStatus(profile, uiText('Pending sync'), '');
   }
 
   private listingHasNewer(entries: RemoteStorageListEntry[]): boolean {
@@ -312,6 +321,9 @@ export class RemoteStorageSyncService {
         await this.applySection(context, client, manifest.sections[i]);
       }
       this.lastPulledAt = manifest.updatedAt;
+      if (this.lastSyncAt <= 0) {
+        this.lastSyncAt = manifest.updatedAt;
+      }
       await this.persistState(context);
       logRemoteStorageInfo('sync pulled sections=' + manifest.sections.length.toString());
       this.publishStatus(profile, uiText('Synced at') + ' ' + syncTimeText(this.lastSyncAt), '');
