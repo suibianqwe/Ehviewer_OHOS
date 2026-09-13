@@ -19,6 +19,7 @@ export interface GalleryInfo {
   tagList?: string[];
   detailTags?: GalleryTagGroup[];
   detailLanguage?: string;
+  historyTime?: number;
 }
 
 export interface GalleryDetail extends GalleryInfo {

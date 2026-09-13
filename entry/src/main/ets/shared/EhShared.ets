@@ -538,7 +538,8 @@ export function cloneGalleryInfo(gallery: GalleryInfo): GalleryInfo {
     favoriteName: gallery.favoriteName,
     tagList: cloneStringArray(gallery.tagList),
     detailTags: galleryDetailTags(gallery),
-    detailLanguage: galleryDetailLanguage(gallery)
+    detailLanguage: galleryDetailLanguage(gallery),
+    historyTime: gallery.historyTime
   };
 }
 

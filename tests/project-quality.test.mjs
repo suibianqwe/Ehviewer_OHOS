@@ -238,6 +238,18 @@ test('daily check-in uses a cookie-backed background Web and keeps the foregroun
     'daily check-in must not bypass ArkWeb with a raw HTTP request');
 });
 
+test('history entries keep viewed timestamps through clone, storage and sorting', () => {
+  const models = read('entry/src/main/ets/model/GalleryModels.ets');
+  assert.match(models, /historyTime\?: number;/, 'gallery info must carry a viewed timestamp');
+  const shared = read('entry/src/main/ets/shared/EhShared.ets');
+  assert.match(shared, /historyTime: gallery\.historyTime/, 'gallery clones must copy the timestamp');
+  const history = read('entry/src/main/ets/services/EhHistoryStore.ets');
+  assert.match(history, /entry\.historyTime = gallery\.historyTime !== undefined && gallery\.historyTime > 0/,
+    'new history entries must be stamped with the view time');
+  assert.match(history, /rightTime - leftTime/, 'history lists must sort by the viewed timestamp');
+  assert.match(history, /historyTime: item\.historyTime/, 'history persistence must store the timestamp');
+});
+
 test('history backups import oldest-first so order and trimming stay stable', () => {
   const history = read('entry/src/main/ets/services/EhHistoryStore.ets');
   assert.match(history, /importHistoryBackupItems\(items: GalleryInfo\[\], maxSize: number/,

@@ -42,6 +42,7 @@ interface StoredGalleryInfo {
   tagList?: string[];
   detailTags?: StoredGalleryTagGroup[];
   detailLanguage?: string;
+  historyTime?: number;
 }
 
 interface StoredGalleryTagGroup {
@@ -99,7 +100,13 @@ export class EhHistoryStore {
   private loadPromise: Promise<void> | null = null;
 
   getItems(): GalleryInfo[] {
-    return cloneGalleryInfos(this.items);
+    const cloned = cloneGalleryInfos(this.items);
+    cloned.sort((left: GalleryInfo, right: GalleryInfo): number => {
+      const leftTime = left.historyTime === undefined ? 0 : left.historyTime;
+      const rightTime = right.historyTime === undefined ? 0 : right.historyTime;
+      return rightTime - leftTime;
+    });
+    return cloned;
   }
 
   addGallery(gallery: GalleryInfo, maxSize: number = HISTORY_DEFAULT_MAX_SIZE): void {
@@ -107,7 +114,10 @@ export class EhHistoryStore {
       return;
     }
 
-    const next: GalleryInfo[] = [cloneGalleryInfo(gallery)];
+    const entry = cloneGalleryInfo(gallery);
+    entry.historyTime = gallery.historyTime !== undefined && gallery.historyTime > 0 ?
+      gallery.historyTime : Date.now();
+    const next: GalleryInfo[] = [entry];
     const limit = Math.min(HISTORY_ABSOLUTE_MAX_SIZE, Math.max(1, maxSize));
     for (let i = 0; i < this.items.length; i++) {
       if (this.items[i].gid !== gallery.gid) {
@@ -119,6 +129,18 @@ export class EhHistoryStore {
     }
     this.items = next;
     this.queueSave();
+  }
+
+  // Old history files have no timestamps. Assign falling times so the stored newest-first order is
+  // preserved until the entry is revisited.
+  private ensureHistoryTimes(): void {
+    const now = Date.now();
+    for (let i = 0; i < this.items.length; i++) {
+      const item = this.items[i];
+      if (item.historyTime === undefined || item.historyTime <= 0) {
+        item.historyTime = now - i;
+      }
+    }
   }
 
   // Backups store history newest-first. Importing must replay it oldest-first so prepending in
@@ -145,7 +167,11 @@ export class EhHistoryStore {
     }
     for (let i = 0; i < this.items.length; i++) {
       if (this.items[i].gid === gallery.gid) {
-        this.items[i] = cloneGalleryInfo(gallery);
+        const entry = cloneGalleryInfo(gallery);
+        if (entry.historyTime === undefined || entry.historyTime <= 0) {
+          entry.historyTime = this.items[i].historyTime;
+        }
+        this.items[i] = entry;
         this.queueSave();
         return true;
       }
@@ -371,6 +397,7 @@ export class EhHistoryStore {
       const chosen = main.items.length > 0 || main.readPositions.length > 0 ? main : backup;
       this.items = chosen.items;
       this.readPositions = chosen.readPositions;
+      this.ensureHistoryTimes();
       if (this.items.length === 0 && this.readPositions.length === 0) {
         await this.restoreFromLegacyPreferences(context);
       }
@@ -585,7 +612,8 @@ function storedToGalleryInfo(item: StoredGalleryInfo): GalleryInfo {
     favoriteName: item.favoriteName,
     tagList: item.tagList,
     detailTags: storedToGalleryTagGroups(item.detailTags),
-    detailLanguage: item.detailLanguage
+    detailLanguage: item.detailLanguage,
+    historyTime: typeof item.historyTime === 'number' && item.historyTime > 0 ? item.historyTime : undefined
   };
 }
 
@@ -634,7 +662,8 @@ function galleryInfoToStored(item: GalleryInfo): StoredGalleryInfo {
     favoriteName: item.favoriteName,
     tagList: item.tagList,
     detailTags: galleryTagGroupsToStored(tags),
-    detailLanguage: language
+    detailLanguage: language,
+    historyTime: item.historyTime
   };
 }
 
