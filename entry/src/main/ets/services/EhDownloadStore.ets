@@ -120,7 +120,7 @@ export class EhDownloadStore {
     return this.findIndex(gid) >= 0;
   }
 
-  addGallery(gallery: GalleryInfo, label: string = ''): DownloadInfo | null {
+  addGallery(gallery: GalleryInfo, label: string = '', time: number = 0): DownloadInfo | null {
     if (gallery.gid <= 0 || gallery.token.length === 0) {
       return null;
     }
@@ -130,7 +130,7 @@ export class EhDownloadStore {
       const updated = galleryToDownloadInfo(gallery, this.items[index].label);
       updated.state = this.items[index].state;
       updated.legacy = this.items[index].legacy;
-      updated.time = this.items[index].time;
+      updated.time = time > 0 ? time : this.items[index].time;
       updated.archiveUri = this.items[index].archiveUri;
       updated.speed = this.items[index].speed;
       updated.remaining = this.items[index].remaining;
@@ -144,6 +144,9 @@ export class EhDownloadStore {
     }
 
     const item = galleryToDownloadInfo(gallery, label);
+    if (time > 0) {
+      item.time = time;
+    }
     this.items.unshift(item);
     this.notifyChanged();
     return cloneDownloadInfo(item);

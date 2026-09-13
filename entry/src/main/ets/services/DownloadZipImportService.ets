@@ -75,7 +75,7 @@ export async function importDownloadedArchiveAndRegister(context: common.UIAbili
   let restored = 0;
   for (let i = 0; i < result.importedGalleries.length; i++) {
     const imported = result.importedGalleries[i];
-    const item = ehDownloadStore.addGallery(imported.gallery, '');
+    const item = ehDownloadStore.addGallery(imported.gallery, '', directoryModifiedTimeMs(imported.directory));
     if (item === null) {
       continue;
     }
@@ -89,6 +89,15 @@ export async function importDownloadedArchiveAndRegister(context: common.UIAbili
   }
   await ehDownloadStore.save(context);
   return restored;
+}
+
+function directoryModifiedTimeMs(directory: string): number {
+  try {
+    const stat = fs.statSync(directory);
+    return stat.mtime > 0 ? Math.round(stat.mtime * 1000) : 0;
+  } catch (error) {
+    return 0;
+  }
 }
 
 export async function restoreDownloadedItemsAndArchives(context: common.UIAbilityContext, site: GallerySite,
@@ -105,7 +114,7 @@ export async function restoreDownloadedItemsAndArchives(context: common.UIAbilit
   for (let i = 0; i < restored.length; i++) {
     const source = restored[i];
     const existed = ehDownloadStore.contains(source.gallery.gid);
-    const item = ehDownloadStore.addGallery(source.gallery, '');
+    const item = ehDownloadStore.addGallery(source.gallery, '', directoryModifiedTimeMs(source.directory));
     if (item === null) {
       continue;
     }
