@@ -31,6 +31,7 @@ import { CommentBlacklistBackupEntry } from '../services/EhCommentBlacklistStore
 import { readerSuperResolutionEngineOptions } from '../services/ReaderSuperResolutionSupport';
 import { LocalFavoriteBackupInfo } from '../services/EhLocalFavoritesStore';
 import { SearchBookmarkBackupInfo } from '../services/EhBookmarkStore';
+import { RemoteStorageProfile } from '../services/RemoteStorageProfiles';
 import { EH_AUTHOR_NAME, EH_RELEASE_TAG } from '../services/EhBuildInfo';
 import { normalizeGalleryLanguageCode } from '../services/GalleryLanguageSupport';
 import {
@@ -100,6 +101,7 @@ export interface EhBackupBundle {
   localFavorites?: LocalFavoriteBackupInfo[];
   bookmarks?: SearchBookmarkBackupInfo[];
   commentBlacklist?: CommentBlacklistBackupEntry[];
+  remoteStorage?: RemoteStorageProfile[];
 }
 
 export const IDENTITY_AUTH_LOCKED_KEY: string = 'ehviewer_identity_auth_locked';

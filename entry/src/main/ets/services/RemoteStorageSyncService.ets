@@ -14,6 +14,7 @@ import { logRemoteStorageError, logRemoteStorageInfo, logRemoteStorageWarn } fro
 import { RemoteStorageResult, WebDavClient } from './WebDavClient';
 import { RemoteStorageListEntry } from './RemoteStorageSupport';
 import { ehDownloadFileStore } from './EhDownloadFileStore';
+import { ehDownloadStore } from './EhDownloadStore';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { GalleryInfo } from '../model/GalleryModels';
 import { uiText } from '../shared/EhTranslations';
@@ -332,7 +333,8 @@ export class RemoteStorageSyncService {
       ehSearchHistoryStore.load(context),
       ehBrowsePositionStore.ensureLoaded(context),
       ehHistoryStore.ensureLoaded(context),
-      ehLocalFavoritesStore.ensureLoaded(context)
+      ehLocalFavoritesStore.ensureLoaded(context),
+      ehDownloadStore.load(context)
     ]);
     const history: GalleryInfo[] = ehHistoryStore.getItems();
     const historySlice = history.length > MAX_SYNC_HISTORY_ITEMS ?
@@ -346,7 +348,9 @@ export class RemoteStorageSyncService {
       { name: 'searchHistory', data: JSON.stringify(ehSearchHistoryStore.getKeywords()) },
       { name: 'browsePositions', data: JSON.stringify(ehBrowsePositionStore.getBackupInfo()) },
       { name: 'readingProgress', data: JSON.stringify(ehHistoryStore.getReadingProgressBackupItems()) },
-      { name: 'history', data: this.wrapSection(historySlice) }
+      { name: 'history', data: this.wrapSection(historySlice) },
+      { name: 'downloadLabels', data: JSON.stringify(ehDownloadStore.getLabels()) },
+      { name: 'remoteStorage', data: JSON.stringify(profilesWithoutPasswords(remoteStorageProfileStore.getProfiles())) }
     ];
     return sections;
   }
@@ -437,6 +441,21 @@ export class RemoteStorageSyncService {
       } else if (name === 'blacklist') {
         ehCommentBlacklistStore.importBackupItems(JSON.parse(content) as CommentBlacklistBackupEntry[]);
         await ehCommentBlacklistStore.save(context);
+      } else if (name === 'downloadLabels') {
+        const labels = JSON.parse(content) as string[];
+        for (let i = 0; i < labels.length; i++) {
+          if (typeof labels[i] === 'string') {
+            ehDownloadStore.addLabel(labels[i]);
+          }
+        }
+        await ehDownloadStore.save(context);
+      } else if (name === 'remoteStorage') {
+        const profiles = JSON.parse(content) as RemoteStorageProfile[];
+        for (let i = 0; i < profiles.length; i++) {
+          if (remoteStorageProfileStore.getProfile(profiles[i].id) === null) {
+            await remoteStorageProfileStore.upsert(context, profiles[i]);
+          }
+        }
       } else if (name === 'localFavorites') {
         ehLocalFavoritesStore.importBackupItems(JSON.parse(content) as LocalFavoriteBackupInfo[]);
         await ehLocalFavoritesStore.save(context);
@@ -851,6 +870,28 @@ function sanitizeDeviceToken(value: string): string {
   const trimmed = value.trim().replace(/\s+/g, '-');
   const safe = trimmed.replace(/[^A-Za-z0-9_-]/g, '');
   return safe.length > 0 ? safe.substring(0, 48) : 'unknown';
+}
+
+function profilesWithoutPasswords(profiles: RemoteStorageProfile[]): RemoteStorageProfile[] {
+  const result: RemoteStorageProfile[] = [];
+  for (let i = 0; i < profiles.length; i++) {
+    const profile = profiles[i];
+    result.push({
+      id: profile.id,
+      name: profile.name,
+      kind: profile.kind,
+      url: profile.url,
+      port: profile.port,
+      username: profile.username,
+      password: '',
+      basePath: profile.basePath,
+      useForBackup: profile.useForBackup,
+      useForSync: profile.useForSync,
+      useForDownloads: profile.useForDownloads,
+      updatedAt: profile.updatedAt
+    });
+  }
+  return result;
 }
 
 function fileMtimeMsOrZero(path: string): number {

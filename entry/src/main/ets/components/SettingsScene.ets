@@ -14,6 +14,8 @@ import {
   ehDownloadFileStore,
 } from '../services/EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, ehDownloadStore } from '../services/EhDownloadStore';
+import { RemoteStorageProfile, remoteStorageProfileStore } from '../services/RemoteStorageProfiles';
+import { remoteStorageSyncService } from '../services/RemoteStorageSyncService';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
@@ -1350,7 +1352,8 @@ export struct SettingsScene {
       ehLocalFavoritesStore.ensureLoaded(context),
       ehBookmarkStore.ensureLoaded(context),
       ehCommentBlacklistStore.ensureLoaded(context),
-      ehBrowsePositionStore.ensureLoaded(context)
+      ehBrowsePositionStore.ensureLoaded(context),
+      remoteStorageProfileStore.ensureLoaded(context)
     ]).then(() => {
       const bundle: EhBackupBundle = {
         version: 2,
@@ -1366,7 +1369,8 @@ export struct SettingsScene {
         filterRules: ehFilterStore.getRules(),
         localFavorites: ehLocalFavoritesStore.getBackupItems(),
         bookmarks: ehBookmarkStore.getBackupItems(),
-        commentBlacklist: ehCommentBlacklistStore.getBackupItems()
+        commentBlacklist: ehCommentBlacklistStore.getBackupItems(),
+        remoteStorage: remoteStorageProfileStore.getProfiles()
       };
       const json = JSON.stringify(bundle, null, 2);
 
@@ -1697,7 +1701,17 @@ export struct SettingsScene {
           }));
         }
 
+        if (Array.isArray(bundle.remoteStorage)) {
+          const remoteProfiles = bundle.remoteStorage;
+          saves.push(remoteStorageProfileStore.ensureLoaded(context).then(async () => {
+            for (let i = 0; i < remoteProfiles.length; i++) {
+              await remoteStorageProfileStore.upsert(context, remoteProfiles[i] as RemoteStorageProfile);
+            }
+          }));
+        }
+
         Promise.all(saves).then(() => {
+          remoteStorageSyncService.refreshConfiguration();
           this.showFloatingStatus('Import complete');
         }).catch((error: Error) => {
           this.showFloatingStatus('Import save failed: ' + error.message);
