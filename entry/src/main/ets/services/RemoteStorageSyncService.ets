@@ -4,6 +4,7 @@ import { ehBookmarkStore, SearchBookmarkBackupInfo } from './EhBookmarkStore';
 import { ehBrowsePositionStore, BrowsePositionsBackupInfo } from './EhBrowsePositionStore';
 import { ehCommentBlacklistStore, CommentBlacklistBackupEntry } from './EhCommentBlacklistStore';
 import { ehFilterStore } from './EhFilterStore';
+import { ehLocalFavoritesStore, LocalFavoriteBackupInfo } from './EhLocalFavoritesStore';
 import { ehHistoryStore, ReadingProgressBackupInfo } from './EhHistoryStore';
 import { ehSearchHistoryStore } from './EhSearchHistoryStore';
 import { ehSettingsStore, HISTORY_INFO_SIZE_KEY, historyInfoSizeLimitFromValue, SettingEntry } from './EhSettingsStore';
@@ -33,6 +34,7 @@ const LAST_PULL_KEY: string = 'lastPulledAt';
 const FINGERPRINT_KEY: string = 'lastFingerprint';
 const SERVER_TIMES_KEY: string = 'serverTimes';
 const MIRROR_CHECKS_KEY: string = 'mirrorChecks';
+const DEVICE_ID_KEY: string = 'deviceId';
 const SYNC_FOLDER: string = 'sync';
 const MANIFEST_FILE: string = SYNC_FOLDER + '/manifest.json';
 const FINGERPRINT_INTERVAL_MS: number = 60000;
@@ -86,6 +88,12 @@ interface DownloadManifest {
   files: DownloadManifestEntry[];
 }
 
+interface SyncSectionEnvelope {
+  deviceId?: string;
+  updatedAt?: number;
+  payload?: string;
+}
+
 const DOWNLOAD_MANIFEST_FILE: string = 'download/manifest.json';
 
 export class RemoteStorageSyncService {
@@ -101,6 +109,7 @@ export class RemoteStorageSyncService {
   private mirrorChecks: MirrorCheckRecord[] = [];
   private downloadManifestEntries: DownloadManifestEntry[] = [];
   private downloadManifestMtime: number = 0;
+  private deviceId: string = '';
 
   async initialize(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
@@ -163,7 +172,12 @@ export class RemoteStorageSyncService {
             if (entry.isDirectory || !entry.name.endsWith('.json') || entry.name === 'manifest.json') {
               continue;
             }
-            await this.applySection(context, client, entry.name.substring(0, entry.name.length - 5));
+            const sectionName = entry.name.substring(0, entry.name.length - 5);
+            if (sectionName.indexOf('settings') === 0) {
+              // Settings stay per device: never apply another device's preferences.
+              continue;
+            }
+            await this.applySection(context, client, sectionName);
           }
           this.recordServerTimes(listing.entries);
         }
@@ -316,22 +330,35 @@ export class RemoteStorageSyncService {
       ehCommentBlacklistStore.ensureLoaded(context),
       ehSearchHistoryStore.load(context),
       ehBrowsePositionStore.ensureLoaded(context),
-      ehHistoryStore.ensureLoaded(context)
+      ehHistoryStore.ensureLoaded(context),
+      ehLocalFavoritesStore.ensureLoaded(context)
     ]);
     const history: GalleryInfo[] = ehHistoryStore.getItems();
     const historySlice = history.length > MAX_SYNC_HISTORY_ITEMS ?
       history.slice(history.length - MAX_SYNC_HISTORY_ITEMS) : history;
     const sections: RemoteSyncSection[] = [
-      { name: 'settings', data: JSON.stringify(ehSettingsStore.getTransferEntries()) },
-      { name: 'bookmarks', data: JSON.stringify(ehBookmarkStore.getBackupItems()) },
+      { name: 'settings_' + this.deviceId, data: JSON.stringify(ehSettingsStore.getTransferEntries()) },
+      { name: 'bookmarks', data: this.wrapSection(ehBookmarkStore.getBackupItems()) },
+      { name: 'localFavorites', data: this.wrapSection(ehLocalFavoritesStore.getBackupItems()) },
+      { name: 'blacklist', data: this.wrapSection(ehCommentBlacklistStore.getBackupItems()) },
       { name: 'filters', data: JSON.stringify(ehFilterStore.getRules()) },
-      { name: 'blacklist', data: JSON.stringify(ehCommentBlacklistStore.getBackupItems()) },
       { name: 'searchHistory', data: JSON.stringify(ehSearchHistoryStore.getKeywords()) },
       { name: 'browsePositions', data: JSON.stringify(ehBrowsePositionStore.getBackupInfo()) },
       { name: 'readingProgress', data: JSON.stringify(ehHistoryStore.getReadingProgressBackupItems()) },
-      { name: 'history', data: JSON.stringify(historySlice) }
+      { name: 'history', data: this.wrapSection(historySlice) }
     ];
     return sections;
+  }
+
+  // Shared lists are wrapped with the writing device and timestamp: the same device can just
+  // overwrite its own copy, while other devices merge before writing back.
+  private wrapSection(payload: Object): string {
+    const envelope: SyncSectionEnvelope = {
+      deviceId: this.deviceId,
+      updatedAt: Date.now(),
+      payload: JSON.stringify(payload)
+    };
+    return JSON.stringify(envelope);
   }
 
   private async pullIfNewer(context: common.UIAbilityContext, profile: RemoteStorageProfile): Promise<void> {
@@ -374,15 +401,30 @@ export class RemoteStorageSyncService {
     if (!file.ok || file.text.length === 0) {
       return;
     }
+    let content = file.text;
+    let remoteDevice = '';
+    try {
+      const envelope = JSON.parse(content) as SyncSectionEnvelope;
+      if (envelope !== null && typeof envelope.deviceId === 'string' && typeof envelope.payload === 'string') {
+        remoteDevice = envelope.deviceId;
+        content = envelope.payload;
+      }
+    } catch (error) {
+      content = file.text;
+    }
+    if (remoteDevice.length > 0 && remoteDevice === this.deviceId) {
+      // Our own copy: local data is authoritative, the merged result is uploaded afterwards.
+      return;
+    }
     try {
       if (name === 'settings') {
-        ehSettingsStore.importEntries(JSON.parse(file.text) as SettingEntry[]);
+        ehSettingsStore.importEntries(JSON.parse(content) as SettingEntry[]);
         await ehSettingsStore.save(context);
       } else if (name === 'bookmarks') {
-        ehBookmarkStore.importBackupItems(JSON.parse(file.text) as SearchBookmarkBackupInfo[]);
+        ehBookmarkStore.importBackupItems(JSON.parse(content) as SearchBookmarkBackupInfo[]);
         await ehBookmarkStore.save(context);
       } else if (name === 'filters') {
-        const rules = JSON.parse(file.text) as FilterRuleLike[];
+        const rules = JSON.parse(content) as FilterRuleLike[];
         for (let i = 0; i < rules.length; i++) {
           const ruleMode = rules[i].mode;
           const ruleText = rules[i].text;
@@ -392,19 +434,22 @@ export class RemoteStorageSyncService {
         }
         await ehFilterStore.save(context);
       } else if (name === 'blacklist') {
-        ehCommentBlacklistStore.importBackupItems(JSON.parse(file.text) as CommentBlacklistBackupEntry[]);
+        ehCommentBlacklistStore.importBackupItems(JSON.parse(content) as CommentBlacklistBackupEntry[]);
         await ehCommentBlacklistStore.save(context);
+      } else if (name === 'localFavorites') {
+        ehLocalFavoritesStore.importBackupItems(JSON.parse(content) as LocalFavoriteBackupInfo[]);
+        await ehLocalFavoritesStore.save(context);
       } else if (name === 'searchHistory') {
-        ehSearchHistoryStore.importKeywords(JSON.parse(file.text) as string[]);
+        ehSearchHistoryStore.importKeywords(JSON.parse(content) as string[]);
         await ehSearchHistoryStore.save(context);
       } else if (name === 'browsePositions') {
-        ehBrowsePositionStore.importBackupInfo(JSON.parse(file.text) as BrowsePositionsBackupInfo);
+        ehBrowsePositionStore.importBackupInfo(JSON.parse(content) as BrowsePositionsBackupInfo);
         await ehBrowsePositionStore.save(context);
       } else if (name === 'readingProgress') {
-        ehHistoryStore.importReadingProgressBackupItems(JSON.parse(file.text) as ReadingProgressBackupInfo[]);
+        ehHistoryStore.importReadingProgressBackupItems(JSON.parse(content) as ReadingProgressBackupInfo[]);
         await ehHistoryStore.save(context);
       } else if (name === 'history') {
-        const items = JSON.parse(file.text) as GalleryInfo[];
+        const items = JSON.parse(content) as GalleryInfo[];
         const limit = historyInfoSizeLimitFromValue(ehSettingsStore.getValue(HISTORY_INFO_SIZE_KEY, '100'));
         ehHistoryStore.importHistoryBackupItems(items, limit);
         await ehHistoryStore.save(context);
@@ -511,9 +556,14 @@ export class RemoteStorageSyncService {
           continue;
         }
         const remoteEntry = manifestByPath.get(galleryName + '/' + fileName);
-        if (remoteEntry !== undefined && remoteEntry.size === size &&
-          Math.abs(remoteEntry.mtime - mtime) <= 1500) {
-          continue;
+        if (remoteEntry !== undefined) {
+          if (remoteEntry.size === size) {
+            continue;
+          }
+          // Size differs: keep whichever side is newer, never overwrite a newer remote file.
+          if (remoteEntry.mtime > mtime) {
+            continue;
+          }
         }
         pending.push(fileName);
         pendingBytes += size;
@@ -654,6 +704,7 @@ export class RemoteStorageSyncService {
       const fingerprint = await prefs.get(FINGERPRINT_KEY, '');
       const serverTimes = await prefs.get(SERVER_TIMES_KEY, '[]');
       const mirrorChecks = await prefs.get(MIRROR_CHECKS_KEY, '[]');
+      const deviceId = await prefs.get(DEVICE_ID_KEY, '');
       this.lastSyncAt = typeof lastSync === 'number' ? lastSync : 0;
       this.lastPulledAt = typeof lastPull === 'number' ? lastPull : 0;
       this.fingerprint = typeof fingerprint === 'string' ? fingerprint : '';
@@ -671,6 +722,8 @@ export class RemoteStorageSyncService {
           this.mirrorChecks = [];
         }
       }
+      this.deviceId = typeof deviceId === 'string' && deviceId.length > 0 ? deviceId :
+        ('device_' + Date.now().toString() + '_' + Math.floor(Math.random() * 100000).toString());
     } catch (error) {
     }
   }
@@ -683,6 +736,7 @@ export class RemoteStorageSyncService {
       await prefs.put(FINGERPRINT_KEY, this.fingerprint);
       await prefs.put(SERVER_TIMES_KEY, JSON.stringify(this.serverTimes));
       await prefs.put(MIRROR_CHECKS_KEY, JSON.stringify(this.mirrorChecks));
+      await prefs.put(DEVICE_ID_KEY, this.deviceId);
       await prefs.flush();
     } catch (error) {
     }
