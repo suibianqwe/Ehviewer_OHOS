@@ -1,5 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { preferences } from '@kit.ArkData';
+import { deviceInfo, settings } from '@kit.BasicServicesKit';
 import { ehBookmarkStore, SearchBookmarkBackupInfo } from './EhBookmarkStore';
 import { ehBrowsePositionStore, BrowsePositionsBackupInfo } from './EhBrowsePositionStore';
 import { ehCommentBlacklistStore, CommentBlacklistBackupEntry } from './EhCommentBlacklistStore';
@@ -722,8 +723,10 @@ export class RemoteStorageSyncService {
           this.mirrorChecks = [];
         }
       }
-      this.deviceId = typeof deviceId === 'string' && deviceId.length > 0 ? deviceId :
-        ('device_' + Date.now().toString() + '_' + Math.floor(Math.random() * 100000).toString());
+      const nameId = resolveDeviceIdentity(context);
+      this.deviceId = nameId.length > 0 ? nameId :
+        (typeof deviceId === 'string' && deviceId.length > 0 ? deviceId :
+          ('device_' + Date.now().toString() + '_' + Math.floor(Math.random() * 100000).toString()));
     } catch (error) {
     }
   }
@@ -823,6 +826,31 @@ function syncTimeText(timestamp: number): string {
   const minutes = date.getMinutes();
   return (hours < 10 ? '0' + hours.toString() : hours.toString()) + ':' +
     (minutes < 10 ? '0' + minutes.toString() : minutes.toString());
+}
+
+// Device name is user visible and stable across reinstalls (renaming produces a new identity and
+// one extra merge). Falls back to the market/model pair when the setting is not readable.
+function resolveDeviceIdentity(context: common.UIAbilityContext): string {
+  let name = '';
+  try {
+    name = settings.getValueSync(context, settings.general.DEVICE_NAME, '');
+  } catch (error) {
+    name = '';
+  }
+  if (name.length === 0) {
+    name = deviceInfo.marketName;
+  }
+  const model = deviceInfo.productModel.length > 0 ? deviceInfo.productModel : deviceInfo.hardwareModel;
+  if (name.length === 0 && model.length === 0) {
+    return '';
+  }
+  return 'device_' + sanitizeDeviceToken(name) + '_' + sanitizeDeviceToken(model);
+}
+
+function sanitizeDeviceToken(value: string): string {
+  const trimmed = value.trim().replace(/\s+/g, '-');
+  const safe = trimmed.replace(/[^A-Za-z0-9_-]/g, '');
+  return safe.length > 0 ? safe.substring(0, 48) : 'unknown';
 }
 
 function fileMtimeMsOrZero(path: string): number {
