@@ -23,6 +23,8 @@ export const REMOTE_SYNC_ACTIVE_KEY: string = 'remoteSyncActive';
 export const REMOTE_SYNC_PROGRESS_TITLE_KEY: string = 'remoteSyncProgressTitle';
 export const REMOTE_SYNC_PROGRESS_DETAIL_KEY: string = 'remoteSyncProgressDetail';
 export const REMOTE_SYNC_PROGRESS_PERCENT_KEY: string = 'remoteSyncProgressPercent';
+export const REMOTE_SYNC_PROGRESS_SPEED_KEY: string = 'remoteSyncProgressSpeed';
+export const REMOTE_SYNC_PROGRESS_BYTES_KEY: string = 'remoteSyncProgressBytes';
 export const REMOTE_SYNC_DETAIL_VISIBLE_KEY: string = 'remoteSyncDetailVisible';
 
 const PREFERENCES_NAME: string = 'ehviewer_remote_sync';
@@ -56,6 +58,13 @@ interface RemoteSyncSection {
 interface RemoteSyncServerTime {
   name: string;
   time: number;
+}
+
+interface MirrorGalleryPlan {
+  name: string;
+  localDir: string;
+  remoteDir: string;
+  files: string[];
 }
 
 export class RemoteStorageSyncService {
@@ -138,13 +147,13 @@ export class RemoteStorageSyncService {
       const sections = await this.buildSections(context);
       for (let i = 0; i < sections.length; i++) {
         this.publishProgress(uiText('Syncing configuration…'), this.sectionLabel(sections[i].name),
-          Math.round(i * 100 / sections.length));
+          Math.round(i * 30 / sections.length));
         const uploaded = await client.putText(SYNC_FOLDER + '/' + sections[i].name + '.json', sections[i].data);
         if (!uploaded.ok) {
           throw new Error(sections[i].name + ': ' + uploaded.message);
         }
         this.publishProgress(uiText('Syncing configuration…'), this.sectionLabel(sections[i].name),
-          Math.round((i + 1) * 100 / sections.length));
+          Math.round((i + 1) * 30 / sections.length));
       }
       const manifest: RemoteSyncManifest = {
         version: 1,
@@ -229,6 +238,10 @@ export class RemoteStorageSyncService {
   }
 
   private publishSyncedOrPending(profile: RemoteStorageProfile): void {
+    if (this.busy) {
+      this.publishStatus(profile, uiText('Syncing...'), '', true);
+      return;
+    }
     if (this.lastSyncAt > 0) {
       this.publishStatus(profile, uiText('Synced at') + ' ' + syncTimeText(this.lastSyncAt), '');
       return;
@@ -393,11 +406,13 @@ export class RemoteStorageSyncService {
       return;
     }
     logRemoteStorageInfo('download mirror scan root=' + root + ' entries=' + galleryNames.length.toString());
-    let uploaded = 0;
-    let galleries = 0;
     const startedAt = Date.now();
+    // Plan first so the total progress bar and transfer rate cover the whole batch.
+    const plan: MirrorGalleryPlan[] = [];
+    let totalFiles = 0;
+    let totalBytes = 0;
     for (let i = 0; i < galleryNames.length; i++) {
-      if (galleries >= MAX_MIRROR_GALLERIES_PER_CYCLE || uploaded >= MAX_MIRROR_FILES_PER_CYCLE ||
+      if (plan.length >= MAX_MIRROR_GALLERIES_PER_CYCLE || totalFiles >= MAX_MIRROR_FILES_PER_CYCLE ||
         Date.now() - startedAt >= MIRROR_TIME_BUDGET_MS) {
         break;
       }
@@ -429,43 +444,71 @@ export class RemoteStorageSyncService {
         continue;
       }
       const pending: string[] = [];
+      let pendingBytes = 0;
       for (let j = 0; j < fileNames.length; j++) {
-        if (existing.indexOf(fileNames[j]) < 0) {
-          pending.push(fileNames[j]);
+        if (existing.indexOf(fileNames[j]) >= 0) {
+          continue;
         }
-      }
-      let uploadedHere = 0;
-      if (pending.length > 0) {
-        this.publishProgress(uiText('Downloading files'), galleryName, 0);
-      }
-      for (let j = 0; j < pending.length; j += MIRROR_CONCURRENCY) {
-        if (uploaded >= MAX_MIRROR_FILES_PER_CYCLE || Date.now() - startedAt >= MIRROR_TIME_BUDGET_MS) {
+        if (totalFiles + pending.length >= MAX_MIRROR_FILES_PER_CYCLE) {
           break;
         }
-        const batch: string[] = pending.slice(j, j + MIRROR_CONCURRENCY);
-        const results = await Promise.all(batch.map((fileName: string): Promise<boolean> => {
-          const data = readFileBuffer(localDir + '/' + fileName);
-          if (data === null) {
-            return Promise.resolve(false);
-          }
-          return client.putBinary(remoteDir + '/' + fileName, data)
-            .then((result: RemoteStorageResult): boolean => result.ok);
-        }));
-        for (let k = 0; k < results.length; k++) {
-          if (results[k]) {
-            uploaded++;
-            uploadedHere++;
-          }
-        }
-        this.publishProgress(uiText('Downloading files'), galleryName + ' · ' + batch[batch.length - 1],
-          Math.min(100, Math.round(uploadedHere * 100 / Math.max(1, pending.length))));
+        pending.push(fileNames[j]);
+        pendingBytes += fileSizeOrZero(localDir + '/' + fileNames[j]);
       }
-      if (uploadedHere > 0) {
-        galleries++;
+      if (pending.length > 0) {
+        plan.push({ name: galleryName, localDir: localDir, remoteDir: remoteDir, files: pending });
+        totalFiles += pending.length;
+        totalBytes += pendingBytes;
       }
     }
-    if (uploaded > 0) {
-      logRemoteStorageInfo('download mirror uploaded files=' + uploaded.toString());
+    if (totalFiles === 0) {
+      this.publishProgress('', '', -1);
+      return;
+    }
+    let uploadedFiles = 0;
+    let uploadedBytes = 0;
+    let speedSampleAt = startedAt;
+    let speedSampleBytes = 0;
+    let speedText = '';
+    for (let i = 0; i < plan.length; i++) {
+      const gallery = plan[i];
+      for (let j = 0; j < gallery.files.length; j += MIRROR_CONCURRENCY) {
+        if (Date.now() - startedAt >= MIRROR_TIME_BUDGET_MS) {
+          break;
+        }
+        const batch: string[] = gallery.files.slice(j, j + MIRROR_CONCURRENCY);
+        const results = await Promise.all(batch.map((fileName: string): Promise<number> => {
+          const data = readFileBuffer(gallery.localDir + '/' + fileName);
+          if (data === null) {
+            return Promise.resolve(-1);
+          }
+          const byteLength = data.byteLength;
+          return client.putBinary(gallery.remoteDir + '/' + fileName, data)
+            .then((result: RemoteStorageResult): number => result.ok ? byteLength : -1);
+        }));
+        for (let k = 0; k < results.length; k++) {
+          if (results[k] >= 0) {
+            uploadedFiles++;
+            uploadedBytes += results[k];
+          }
+        }
+        const now = Date.now();
+        const sampleElapsed = now - speedSampleAt;
+        if (sampleElapsed >= 1000) {
+          speedText = formatTransferRate((uploadedBytes - speedSampleBytes) / (sampleElapsed / 1000));
+          speedSampleAt = now;
+          speedSampleBytes = uploadedBytes;
+        }
+        const percent = 30 + Math.round(70 * uploadedFiles / Math.max(1, totalFiles));
+        const progressDetail = gallery.name + ' · ' + batch[batch.length - 1];
+        const byteText = formatTransferBytes(uploadedBytes) + ' / ' + formatTransferBytes(totalBytes) +
+          ' · ' + uploadedFiles.toString() + '/' + totalFiles.toString();
+        this.publishProgress(uiText('Downloading files'), progressDetail, percent, speedText, byteText);
+      }
+    }
+    if (uploadedFiles > 0) {
+      logRemoteStorageInfo('download mirror uploaded files=' + uploadedFiles.toString() +
+        ' bytes=' + uploadedBytes.toString());
     }
   }
 
@@ -536,10 +579,13 @@ export class RemoteStorageSyncService {
     this.setStatus(text, serverDetail, active);
   }
 
-  private publishProgress(title: string, detail: string, percent: number): void {
+  private publishProgress(title: string, detail: string, percent: number, speed: string = '',
+    bytes: string = ''): void {
     AppStorage.setOrCreate<string>(REMOTE_SYNC_PROGRESS_TITLE_KEY, title);
     AppStorage.setOrCreate<string>(REMOTE_SYNC_PROGRESS_DETAIL_KEY, detail);
     AppStorage.setOrCreate<number>(REMOTE_SYNC_PROGRESS_PERCENT_KEY, percent);
+    AppStorage.setOrCreate<string>(REMOTE_SYNC_PROGRESS_SPEED_KEY, speed);
+    AppStorage.setOrCreate<string>(REMOTE_SYNC_PROGRESS_BYTES_KEY, bytes);
   }
 
   private sectionLabel(name: string): string {
@@ -594,6 +640,35 @@ function syncTimeText(timestamp: number): string {
   const minutes = date.getMinutes();
   return (hours < 10 ? '0' + hours.toString() : hours.toString()) + ':' +
     (minutes < 10 ? '0' + minutes.toString() : minutes.toString());
+}
+
+function fileSizeOrZero(path: string): number {
+  try {
+    const size = fs.statSync(path).size;
+    return size > 0 ? size : 0;
+  } catch (error) {
+    return 0;
+  }
+}
+
+function formatTransferBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024 * 1024) {
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  }
+  if (bytes >= 1024 * 1024) {
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+  if (bytes >= 1024) {
+    return (bytes / 1024).toFixed(0) + ' KB';
+  }
+  return Math.max(0, Math.round(bytes)).toString() + ' B';
+}
+
+function formatTransferRate(bytesPerSecond: number): string {
+  if (bytesPerSecond <= 0) {
+    return '';
+  }
+  return formatTransferBytes(bytesPerSecond) + '/s';
 }
 
 function readFileBuffer(path: string): ArrayBuffer | null {

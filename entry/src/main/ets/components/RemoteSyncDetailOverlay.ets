@@ -21,8 +21,10 @@ import {
 } from '../shared/EhUiStyle';
 import {
   REMOTE_SYNC_ACTIVE_KEY,
+  REMOTE_SYNC_PROGRESS_BYTES_KEY,
   REMOTE_SYNC_PROGRESS_DETAIL_KEY,
   REMOTE_SYNC_PROGRESS_PERCENT_KEY,
+  REMOTE_SYNC_PROGRESS_SPEED_KEY,
   REMOTE_SYNC_PROGRESS_TITLE_KEY,
   REMOTE_SYNC_STATUS_DETAIL_KEY,
   REMOTE_SYNC_STATUS_TEXT_KEY
@@ -94,6 +96,8 @@ export struct RemoteSyncDetailOverlay {
   @StorageProp(REMOTE_SYNC_PROGRESS_TITLE_KEY) progressTitle: string = '';
   @StorageProp(REMOTE_SYNC_PROGRESS_DETAIL_KEY) progressDetail: string = '';
   @StorageProp(REMOTE_SYNC_PROGRESS_PERCENT_KEY) progressPercent: number = -1;
+  @StorageProp(REMOTE_SYNC_PROGRESS_SPEED_KEY) progressSpeed: string = '';
+  @StorageProp(REMOTE_SYNC_PROGRESS_BYTES_KEY) progressBytes: string = '';
   @State popupWidth: number = 0;
   @State popupHeight: number = 0;
 
@@ -172,6 +176,14 @@ export struct RemoteSyncDetailOverlay {
               Progress({ value: this.progressPercent, total: 100, type: ProgressType.Linear })
                 .width('100%')
                 .color(themePrimaryText())
+            }
+            if (this.progressBytes.length > 0 || this.progressSpeed.length > 0) {
+              Text(this.progressBytes + (this.progressBytes.length > 0 && this.progressSpeed.length > 0 ? ' · ' : '') +
+                this.progressSpeed)
+                .fontSize(12)
+                .fontColor(themeSecondaryText())
+                .width('100%')
+                .margin({ top: 6 })
             }
             if (this.progressDetail.length > 0) {
               Text(this.progressDetail)
