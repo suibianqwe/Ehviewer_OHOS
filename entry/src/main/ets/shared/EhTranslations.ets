@@ -1052,6 +1052,16 @@ export function zhText(text: string): string {
     case 'Synced at': return '已同步';
     case 'Offline, retrying soon': return '离线，稍后重试';
     case 'Server: ': return '服务器：';
+    case 'Sync details': return '同步详情';
+    case 'No active sync': return '当前没有进行中的同步';
+    case 'Syncing configuration…': return '正在同步配置数据';
+    case 'Downloading files': return '正在传输下载文件';
+    case 'Filter rules': return '过滤规则';
+    case 'Search history': return '搜索历史';
+    case 'Browse positions': return '浏览位置';
+    case 'Reading progress': return '阅读进度';
+    case 'Progress': return '进度';
+    case 'Current': return '当前';
     case 'Block comments from selected user names': return '屏蔽指定用户的评论';
     case 'Block comments by user name': return '按用户名屏蔽评论';
     case 'User name': return '用户名';

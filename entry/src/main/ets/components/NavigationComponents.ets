@@ -7,9 +7,12 @@ import { MAIN_CONTENT_WIDTH_VP_KEY } from '../services/EhWindowImmersive';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, THEME_REVISION_KEY, downloadQueueSummary, getAbilityContext, uiText, uiStatusText, DrawerItem, DRAWER_ITEMS } from '../shared/EhShared';
 import {
   REMOTE_SYNC_ACTIVE_KEY,
+  REMOTE_SYNC_DETAIL_VISIBLE_KEY,
+  REMOTE_SYNC_PROGRESS_PERCENT_KEY,
   REMOTE_SYNC_STATUS_DETAIL_KEY,
   REMOTE_SYNC_STATUS_TEXT_KEY
 } from '../services/RemoteStorageSyncService';
+import { RemoteSyncStatusRow } from './RemoteSyncDetailOverlay';
 import {
   themeDividerColor,
   themeFieldBackground,
@@ -80,6 +83,7 @@ export struct EhDrawer {
   @StorageProp(REMOTE_SYNC_STATUS_TEXT_KEY) remoteSyncText: string = '';
   @StorageProp(REMOTE_SYNC_STATUS_DETAIL_KEY) remoteSyncDetail: string = '';
   @StorageProp(REMOTE_SYNC_ACTIVE_KEY) remoteSyncActive: boolean = false;
+  @StorageProp(REMOTE_SYNC_PROGRESS_PERCENT_KEY) remoteSyncPercent: number = -1;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
   private unsubscribeDownloadStore: () => void = () => {};
@@ -171,41 +175,15 @@ export struct EhDrawer {
 
       // ---- Footer: remote sync status ----
       if (this.remoteSyncText.length > 0) {
-        Row() {
-          if (this.remoteSyncActive) {
-            LoadingProgress()
-              .width(15)
-              .height(15)
-              .color(themeSecondaryText())
-          } else {
-            SymbolGlyph($r('sys.symbol.arrow_clockwise'))
-              .fontSize(15)
-              .fontColor([themeSecondaryText()])
+        RemoteSyncStatusRow({
+          text: this.remoteSyncText,
+          detail: this.remoteSyncDetail,
+          active: this.remoteSyncActive,
+          percent: this.remoteSyncPercent,
+          onTap: () => {
+            AppStorage.setOrCreate<boolean>(REMOTE_SYNC_DETAIL_VISIBLE_KEY, true);
           }
-          Column({ space: 2 }) {
-            Text(this.remoteSyncText)
-              .fontSize(12)
-              .fontColor(themeSecondaryText())
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-              .width('100%')
-            if (this.remoteSyncDetail.length > 0) {
-              Text(this.remoteSyncDetail)
-                .fontSize(10)
-                .fontColor(themeSecondaryText())
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-                .width('100%')
-                .opacity(0.75)
-            }
-          }
-          .layoutWeight(1)
-          .alignItems(HorizontalAlign.Start)
-          .margin({ left: 6 })
-        }
-        .width('100%')
-        .padding({ left: 16, right: 16, top: 10, bottom: 10 })
-        .backgroundColor(themeSurfaceVariant())
+        })
       }
 
       // ---- Footer: download summary ----

@@ -28,6 +28,8 @@ import {
   takePendingContinuationSnapshot
 } from '../services/DistributedContinuationService';
 import { EhDrawer } from '../components/NavigationComponents';
+import { RemoteSyncDetailOverlay } from '../components/RemoteSyncDetailOverlay';
+import { REMOTE_SYNC_DETAIL_VISIBLE_KEY } from '../services/RemoteStorageSyncService';
 import { ConfirmActionOverlay } from '../components/ConfirmActionOverlay';
 import { UpdatePromptOverlay } from '../components/UpdatePromptOverlay';
 import { PopupScrim } from '../components/PopupScrim';
@@ -105,6 +107,7 @@ struct Index {
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @StorageProp(THEME_REVISION_KEY) themeRevision: number = 0;
   @StorageProp(IDENTITY_AUTH_LOCKED_KEY) identityAuthLocked: boolean = false;
+  @StorageProp(REMOTE_SYNC_DETAIL_VISIBLE_KEY) remoteSyncDetailVisible: boolean = false;
   @StorageProp(TRANSLATION_ERROR_REVISION_KEY) @Watch('onTranslationErrorRevision') translationErrorRevision: number = 0;
   @StorageProp(DAILY_CHECK_IN_FOREGROUND_REVISION_KEY) @Watch('onDailyCheckInForeground')
   dailyCheckInForegroundRevision: number = 0;
@@ -579,6 +582,16 @@ struct Index {
           onConfirm: () => { this.dailyCheckInDialogVisible = false; }
         })
           .zIndex(SPLIT_PANE_MODAL_Z_INDEX + 1)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
+      }
+
+      if (this.remoteSyncDetailVisible) {
+        RemoteSyncDetailOverlay({
+          onClose: () => {
+            AppStorage.setOrCreate<boolean>(REMOTE_SYNC_DETAIL_VISIBLE_KEY, false);
+          }
+        })
+          .zIndex(SPLIT_PANE_MODAL_Z_INDEX + 2)
           .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseOut }))
       }
 

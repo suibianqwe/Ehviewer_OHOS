@@ -20,6 +20,10 @@ export const REMOTE_SYNC_STATUS_TEXT_KEY: string = 'remoteSyncStatusText';
 export const REMOTE_SYNC_STATUS_DETAIL_KEY: string = 'remoteSyncStatusDetail';
 export const REMOTE_SYNC_STATUS_REVISION_KEY: string = 'remoteSyncStatusRevision';
 export const REMOTE_SYNC_ACTIVE_KEY: string = 'remoteSyncActive';
+export const REMOTE_SYNC_PROGRESS_TITLE_KEY: string = 'remoteSyncProgressTitle';
+export const REMOTE_SYNC_PROGRESS_DETAIL_KEY: string = 'remoteSyncProgressDetail';
+export const REMOTE_SYNC_PROGRESS_PERCENT_KEY: string = 'remoteSyncProgressPercent';
+export const REMOTE_SYNC_DETAIL_VISIBLE_KEY: string = 'remoteSyncDetailVisible';
 
 const PREFERENCES_NAME: string = 'ehviewer_remote_sync';
 const LAST_SYNC_KEY: string = 'lastSyncAt';
@@ -133,10 +137,14 @@ export class RemoteStorageSyncService {
       }
       const sections = await this.buildSections(context);
       for (let i = 0; i < sections.length; i++) {
+        this.publishProgress(uiText('Syncing configuration…'), this.sectionLabel(sections[i].name),
+          Math.round(i * 100 / sections.length));
         const uploaded = await client.putText(SYNC_FOLDER + '/' + sections[i].name + '.json', sections[i].data);
         if (!uploaded.ok) {
           throw new Error(sections[i].name + ': ' + uploaded.message);
         }
+        this.publishProgress(uiText('Syncing configuration…'), this.sectionLabel(sections[i].name),
+          Math.round((i + 1) * 100 / sections.length));
       }
       const manifest: RemoteSyncManifest = {
         version: 1,
@@ -158,11 +166,13 @@ export class RemoteStorageSyncService {
       await this.persistState(context);
       this.busy = false;
       this.dirty = false;
+      this.publishProgress('', '', -1);
       logRemoteStorageInfo('sync completed sections=' + sections.length.toString());
       this.publishStatus(profile, uiText('Synced at') + ' ' + syncTimeText(this.lastSyncAt), '');
       this.schedule(FINGERPRINT_INTERVAL_MS);
     } catch (error) {
       this.busy = false;
+      this.publishProgress('', '', -1);
       const message = error instanceof Error ? error.message : String(error);
       logRemoteStorageWarn('sync failed: ' + message);
       this.publishStatus(profile, uiText('Offline, retrying soon'), message);
@@ -413,6 +423,9 @@ export class RemoteStorageSyncService {
         }
       }
       let uploadedHere = 0;
+      if (pending.length > 0) {
+        this.publishProgress(uiText('Downloading files'), galleryName, 0);
+      }
       for (let j = 0; j < pending.length; j += MIRROR_CONCURRENCY) {
         if (uploaded >= MAX_MIRROR_FILES_PER_CYCLE || Date.now() - startedAt >= MIRROR_TIME_BUDGET_MS) {
           break;
@@ -432,6 +445,8 @@ export class RemoteStorageSyncService {
             uploadedHere++;
           }
         }
+        this.publishProgress(uiText('Downloading files'), galleryName + ' · ' + batch[batch.length - 1],
+          Math.min(100, Math.round(uploadedHere * 100 / Math.max(1, pending.length))));
       }
       if (uploadedHere > 0) {
         galleries++;
@@ -507,6 +522,40 @@ export class RemoteStorageSyncService {
     const serverDetail = detail.length > 0 ? detail :
       (uiText('Server: ') + (profile.name.length > 0 ? profile.name + ' · ' : '') + profile.url);
     this.setStatus(text, serverDetail, active);
+  }
+
+  private publishProgress(title: string, detail: string, percent: number): void {
+    AppStorage.setOrCreate<string>(REMOTE_SYNC_PROGRESS_TITLE_KEY, title);
+    AppStorage.setOrCreate<string>(REMOTE_SYNC_PROGRESS_DETAIL_KEY, detail);
+    AppStorage.setOrCreate<number>(REMOTE_SYNC_PROGRESS_PERCENT_KEY, percent);
+  }
+
+  private sectionLabel(name: string): string {
+    if (name === 'settings') {
+      return uiText('Settings');
+    }
+    if (name === 'bookmarks') {
+      return uiText('Bookmarks');
+    }
+    if (name === 'filters') {
+      return uiText('Filter rules');
+    }
+    if (name === 'blacklist') {
+      return uiText('Comment blacklist');
+    }
+    if (name === 'searchHistory') {
+      return uiText('Search history');
+    }
+    if (name === 'browsePositions') {
+      return uiText('Browse positions');
+    }
+    if (name === 'readingProgress') {
+      return uiText('Reading progress');
+    }
+    if (name === 'history') {
+      return uiText('History');
+    }
+    return name;
   }
 
   private setStatus(text: string, detail: string, active: boolean = false): void {
