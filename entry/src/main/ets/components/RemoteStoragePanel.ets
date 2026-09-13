@@ -6,7 +6,7 @@ import {
   remoteStorageProfileSummary,
   remoteStorageProfileStore
 } from '../services/RemoteStorageProfiles';
-import { remoteStorageSyncService } from '../services/RemoteStorageSyncService';
+import { RemoteSettingsCandidate, remoteStorageSyncService } from '../services/RemoteStorageSyncService';
 import {
   createRemoteStorageProfileId,
   remoteStoragePortFromUrl,
@@ -57,6 +57,9 @@ export struct RemoteStoragePanel {
   @State editorProfile: RemoteStorageProfile = emptyRemoteStorageProfile();
   @State editorIsNew: boolean = true;
   @State panelStatus: string = '';
+  @State settingsPickerVisible: boolean = false;
+  @State settingsPickerBusy: boolean = false;
+  @State settingsCandidates: RemoteSettingsCandidate[] = [];
 
   aboutToAppear(): void {
     this.reloadProfiles();
@@ -131,6 +134,31 @@ export struct RemoteStoragePanel {
     return labels.join(' · ');
   }
 
+  private async openSettingsPicker(): Promise<void> {
+    const context = getAbilityContext();
+    if (context === undefined) {
+      this.panelStatus = uiText('Sign in is required');
+      return;
+    }
+    this.settingsCandidates = [];
+    this.settingsPickerBusy = true;
+    this.settingsPickerVisible = true;
+    this.settingsCandidates = await remoteStorageSyncService.listRemoteSettings(context);
+    this.settingsPickerBusy = false;
+  }
+
+  private async applyRemoteSettings(file: string): Promise<void> {
+    const context = getAbilityContext();
+    if (context === undefined) {
+      return;
+    }
+    this.settingsPickerBusy = true;
+    const applied = await remoteStorageSyncService.applyRemoteSettings(context, file);
+    this.settingsPickerBusy = false;
+    this.settingsPickerVisible = false;
+    this.panelStatus = applied ? uiText('Settings restored') : uiText('Restore failed');
+  }
+
   private profileRowTitle(profile: RemoteStorageProfile): string {
     return remoteStorageProfileDisplayName(profile);
   }
@@ -196,6 +224,26 @@ export struct RemoteStoragePanel {
         })
 
         List({ space: 0 }) {
+          ListItem() {
+            Row() {
+              SettingsTextBlock({
+                title: uiText('Restore device settings'),
+                summary: uiText('Choose a device backup saved on the server')
+              })
+                .layoutWeight(1)
+              SymbolGlyph($r('sys.symbol.chevron_right'))
+                .fontSize(16)
+                .fontColor([themeTertiaryText()])
+            }
+            .width('100%')
+            .padding(14)
+            .backgroundColor(uiListItemBackground(themeSurface()))
+            .borderRadius(uiRadius(16))
+            .onClick(() => {
+              this.openSettingsPicker();
+            })
+          }
+          .margin({ bottom: 8 })
           if (this.profiles.length === 0) {
             ListItem() {
               Column({ space: 6 }) {
@@ -253,10 +301,151 @@ export struct RemoteStoragePanel {
           .height('100%')
           .zIndex(20)
       }
+
+      if (this.settingsPickerVisible) {
+        RemoteSettingsPickerOverlay({
+          candidates: this.settingsCandidates,
+          busy: this.settingsPickerBusy,
+          onCancel: () => {
+            this.settingsPickerVisible = false;
+          },
+          onPick: (file: string) => {
+            this.applyRemoteSettings(file);
+          }
+        })
+          .width('100%')
+          .height('100%')
+          .zIndex(21)
+      }
     }
     .width('100%')
     .height('100%')
     .backgroundColor(themePageBackground())
+  }
+}
+
+@Component
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check
+struct RemoteSettingsPickerOverlay {
+  candidates: RemoteSettingsCandidate[] = [];
+  busy: boolean = false;
+  onCancel: () => void = () => {};
+  onPick: (file: string) => void = (_file: string) => {};
+  @State popupWidth: number = 0;
+  @State popupHeight: number = 0;
+
+  private timeText(timestamp: number): string {
+    if (timestamp <= 0) {
+      return '';
+    }
+    const date = new Date(timestamp);
+    const pad = (value: number): string => value < 10 ? '0' + value.toString() : value.toString();
+    return date.getFullYear().toString() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + ' ' +
+      pad(date.getHours()) + ':' + pad(date.getMinutes());
+  }
+
+  build() {
+    Stack({ alignContent: Alignment.Center }) {
+      PopupScrim({
+        showCutout: this.popupWidth > 0 && this.popupHeight > 0,
+        cutoutWidth: this.popupWidth,
+        cutoutHeight: this.popupHeight,
+        cutoutRadius: uiDialogSurfaceRadius(),
+        onDismiss: this.onCancel
+      })
+
+      Column() {
+        Row() {
+          Text(uiText('Restore device settings'))
+            .fontSize(18)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(themePrimaryText())
+            .layoutWeight(1)
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.xmark'))
+              .fontSize(18)
+              .fontColor([uiMaterialForegroundColor(themePrimaryText())])
+          }
+          .width(40)
+          .height(40)
+          .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
+          .onClick(this.onCancel)
+        }
+        .width('100%')
+
+        if (this.busy) {
+          Row({ space: 8 }) {
+            LoadingProgress()
+              .width(18)
+              .height(18)
+              .color(themeSecondaryText())
+            Text(uiText('Loading…'))
+              .fontSize(13)
+              .fontColor(themeSecondaryText())
+          }
+          .width('100%')
+          .padding({ top: 18, bottom: 18 })
+        } else if (this.candidates.length === 0) {
+          Text(uiText('No saved settings'))
+            .fontSize(13)
+            .fontColor(themeSecondaryText())
+            .width('100%')
+            .padding({ top: 18, bottom: 18 })
+        } else {
+          Scroll() {
+            Column({ space: 0 }) {
+              ForEach(this.candidates, (candidate: RemoteSettingsCandidate) => {
+                Row() {
+                  Column({ space: 2 }) {
+                    Text(candidate.deviceName)
+                      .fontSize(14)
+                      .fontColor(themePrimaryText())
+                      .maxLines(1)
+                      .textOverflow({ overflow: TextOverflow.Ellipsis })
+                      .width('100%')
+                    Text(this.timeText(candidate.updatedAt))
+                      .fontSize(11)
+                      .fontColor(themeSecondaryText())
+                      .width('100%')
+                  }
+                  .layoutWeight(1)
+                  .alignItems(HorizontalAlign.Start)
+                  SymbolGlyph($r('sys.symbol.chevron_right'))
+                    .fontSize(14)
+                    .fontColor([themeTertiaryText()])
+                }
+                .width('100%')
+                .padding(12)
+                .onClick(() => {
+                  this.onPick(candidate.file);
+                })
+              }, (candidate: RemoteSettingsCandidate): string => candidate.file)
+            }
+            .width('100%')
+          }
+          .constraintSize({ maxHeight: 360 })
+          .scrollBar(BarState.Auto)
+        }
+      }
+      .width('88%')
+      .constraintSize({ maxWidth: 460 })
+      .padding(18)
+      .backgroundColor(uiMaterialBackground(uiDialogSurfaceBackground()))
+      .shadow(uiDialogSurfaceShadow())
+      .borderRadius(uiDialogSurfaceRadius())
+      .backgroundBlurStyle(uiDialogBlurStyle(), uiDialogBlurOptions())
+      .systemMaterial(uiDialogMaterial())
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.popupWidth = Number.parseFloat(newArea.width.toString());
+        this.popupHeight = Number.parseFloat(newArea.height.toString());
+      })
+    }
+    .width('100%')
+    .height('100%')
+    .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
   }
 }
 

@@ -1063,6 +1063,12 @@ export function zhText(text: string): string {
     case 'Reading progress': return '阅读进度';
     case 'Progress': return '进度';
     case 'Current': return '当前';
+    case 'Restore device settings': return '恢复设备设置';
+    case 'Choose a device backup saved on the server': return '选择服务器上保存的某台设备的设置';
+    case 'Settings restored': return '已用所选设备的设置覆盖本机';
+    case 'Restore failed': return '恢复设置失败';
+    case 'No saved settings': return '服务器上没有已保存的设置';
+    case 'Loading…': return '正在加载…';
     case 'Block comments from selected user names': return '屏蔽指定用户的评论';
     case 'Block comments by user name': return '按用户名屏蔽评论';
     case 'User name': return '用户名';

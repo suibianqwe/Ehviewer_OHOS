@@ -9,7 +9,12 @@ import { ehLocalFavoritesStore, LocalFavoriteBackupInfo } from './EhLocalFavorit
 import { ehHistoryStore, ReadingProgressBackupInfo } from './EhHistoryStore';
 import { ehSearchHistoryStore } from './EhSearchHistoryStore';
 import { ehSettingsStore, HISTORY_INFO_SIZE_KEY, historyInfoSizeLimitFromValue, SettingEntry } from './EhSettingsStore';
-import { REMOTE_STORAGE_PURPOSE_SYNC, RemoteStorageProfile, remoteStorageProfileStore } from './RemoteStorageProfiles';
+import {
+  REMOTE_STORAGE_PURPOSE_BACKUP,
+  REMOTE_STORAGE_PURPOSE_SYNC,
+  RemoteStorageProfile,
+  remoteStorageProfileStore
+} from './RemoteStorageProfiles';
 import { logRemoteStorageError, logRemoteStorageInfo, logRemoteStorageWarn } from './RemoteStorageLog';
 import { RemoteStorageResult, WebDavClient } from './WebDavClient';
 import { RemoteStorageListEntry } from './RemoteStorageSupport';
@@ -17,7 +22,7 @@ import { ehDownloadFileStore } from './EhDownloadFileStore';
 import { ehDownloadStore } from './EhDownloadStore';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { GalleryInfo } from '../model/GalleryModels';
-import { uiText } from '../shared/EhTranslations';
+import { notifyGalleryTitleChanged, notifyLanguageChanged, notifyThemeChanged, uiText } from '../shared/EhTranslations';
 
 export const REMOTE_SYNC_STATUS_TEXT_KEY: string = 'remoteSyncStatusText';
 export const REMOTE_SYNC_STATUS_DETAIL_KEY: string = 'remoteSyncStatusDetail';
@@ -92,8 +97,16 @@ interface DownloadManifest {
 
 interface SyncSectionEnvelope {
   deviceId?: string;
+  deviceName?: string;
   updatedAt?: number;
   payload?: string;
+}
+
+export interface RemoteSettingsCandidate {
+  file: string;
+  deviceId: string;
+  deviceName: string;
+  updatedAt: number;
 }
 
 const DOWNLOAD_MANIFEST_FILE: string = 'download/manifest.json';
@@ -112,6 +125,7 @@ export class RemoteStorageSyncService {
   private downloadManifestEntries: DownloadManifestEntry[] = [];
   private downloadManifestMtime: number = 0;
   private deviceId: string = '';
+  private deviceName: string = '';
 
   async initialize(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
@@ -277,6 +291,99 @@ export class RemoteStorageSyncService {
     this.schedule(FINGERPRINT_INTERVAL_MS);
   }
 
+  private profileForSettingsRestore(): RemoteStorageProfile | null {
+    const syncProfile = remoteStorageProfileStore.profileForPurpose(REMOTE_STORAGE_PURPOSE_SYNC);
+    if (syncProfile !== null) {
+      return syncProfile;
+    }
+    const backupProfile = remoteStorageProfileStore.profileForPurpose(REMOTE_STORAGE_PURPOSE_BACKUP);
+    if (backupProfile !== null) {
+      return backupProfile;
+    }
+    const profiles = remoteStorageProfileStore.getProfiles();
+    return profiles.length > 0 ? profiles[0] : null;
+  }
+
+  async listRemoteSettings(context: common.UIAbilityContext): Promise<RemoteSettingsCandidate[]> {
+    const profile = this.profileForSettingsRestore();
+    if (profile === null) {
+      return [];
+    }
+    const client = new WebDavClient(profile);
+    const listing = await client.list(SYNC_FOLDER);
+    if (!listing.ok) {
+      return [];
+    }
+    const candidates: RemoteSettingsCandidate[] = [];
+    for (let i = 0; i < listing.entries.length; i++) {
+      const entry = listing.entries[i];
+      if (entry.isDirectory || !entry.name.startsWith('settings_') || !entry.name.endsWith('.json')) {
+        continue;
+      }
+      let deviceId = entry.name.substring('settings_'.length, entry.name.length - 5);
+      let deviceName = deviceId;
+      let updatedAt = entry.modifiedAt;
+      const text = await client.getText(SYNC_FOLDER + '/' + entry.name);
+      if (text.ok && text.text.length > 0) {
+        try {
+          const envelope = JSON.parse(text.text) as SyncSectionEnvelope;
+          if (typeof envelope.deviceId === 'string' && typeof envelope.payload === 'string') {
+            deviceId = envelope.deviceId;
+            if (typeof envelope.deviceName === 'string' && envelope.deviceName.length > 0) {
+              deviceName = envelope.deviceName;
+            }
+            if (typeof envelope.updatedAt === 'number' && envelope.updatedAt > 0) {
+              updatedAt = envelope.updatedAt;
+            }
+          }
+        } catch (error) {
+        }
+      }
+      candidates.push({ file: entry.name, deviceId: deviceId, deviceName: deviceName, updatedAt: updatedAt });
+    }
+    candidates.sort((left: RemoteSettingsCandidate, right: RemoteSettingsCandidate): number =>
+      right.updatedAt - left.updatedAt);
+    return candidates;
+  }
+
+  async applyRemoteSettings(context: common.UIAbilityContext, file: string): Promise<boolean> {
+    const profile = this.profileForSettingsRestore();
+    if (profile === null) {
+      return false;
+    }
+    const client = new WebDavClient(profile);
+    const text = await client.getText(SYNC_FOLDER + '/' + file);
+    if (!text.ok || text.text.length === 0) {
+      return false;
+    }
+    let payload = text.text;
+    try {
+      const envelope = JSON.parse(text.text) as SyncSectionEnvelope;
+      if (typeof envelope.payload === 'string') {
+        payload = envelope.payload;
+      }
+    } catch (error) {
+    }
+    try {
+      const entries = JSON.parse(payload) as SettingEntry[];
+      const result = ehSettingsStore.importEntries(entries);
+      await ehSettingsStore.save(context);
+      if (result.languageChanged) {
+        notifyLanguageChanged();
+      }
+      if (result.themeChanged) {
+        notifyThemeChanged();
+      }
+      if (result.titleChanged) {
+        notifyGalleryTitleChanged();
+      }
+      return true;
+    } catch (error) {
+      logRemoteStorageWarn('apply remote settings failed: ' + (error instanceof Error ? error.message : String(error)));
+      return false;
+    }
+  }
+
   private publishSyncedOrPending(profile: RemoteStorageProfile): void {
     if (this.busy) {
       this.publishStatus(profile, uiText('Syncing...'), '', true);
@@ -340,7 +447,7 @@ export class RemoteStorageSyncService {
     const historySlice = history.length > MAX_SYNC_HISTORY_ITEMS ?
       history.slice(history.length - MAX_SYNC_HISTORY_ITEMS) : history;
     const sections: RemoteSyncSection[] = [
-      { name: 'settings_' + this.deviceId, data: JSON.stringify(ehSettingsStore.getTransferEntries()) },
+      { name: 'settings_' + this.deviceId, data: this.wrapSection(ehSettingsStore.getTransferEntries()) },
       { name: 'bookmarks', data: this.wrapSection(ehBookmarkStore.getBackupItems()) },
       { name: 'localFavorites', data: this.wrapSection(ehLocalFavoritesStore.getBackupItems()) },
       { name: 'blacklist', data: this.wrapSection(ehCommentBlacklistStore.getBackupItems()) },
@@ -360,6 +467,7 @@ export class RemoteStorageSyncService {
   private wrapSection(payload: Object): string {
     const envelope: SyncSectionEnvelope = {
       deviceId: this.deviceId,
+      deviceName: this.deviceName,
       updatedAt: Date.now(),
       payload: JSON.stringify(payload)
     };
@@ -743,6 +851,7 @@ export class RemoteStorageSyncService {
         }
       }
       const nameId = resolveDeviceIdentity(context);
+      this.deviceName = resolveDeviceDisplayName(context);
       this.deviceId = nameId.length > 0 ? nameId :
         (typeof deviceId === 'string' && deviceId.length > 0 ? deviceId :
           ('device_' + Date.now().toString() + '_' + Math.floor(Math.random() * 100000).toString()));
@@ -849,7 +958,7 @@ function syncTimeText(timestamp: number): string {
 
 // Device name is user visible and stable across reinstalls (renaming produces a new identity and
 // one extra merge). Falls back to the market/model pair when the setting is not readable.
-function resolveDeviceIdentity(context: common.UIAbilityContext): string {
+function resolveDeviceDisplayName(context: common.UIAbilityContext): string {
   let name = '';
   try {
     name = settings.getValueSync(context, settings.general.DEVICE_NAME, '');
@@ -860,8 +969,33 @@ function resolveDeviceIdentity(context: common.UIAbilityContext): string {
     name = deviceInfo.marketName;
   }
   const model = deviceInfo.productModel.length > 0 ? deviceInfo.productModel : deviceInfo.hardwareModel;
-  if (name.length === 0 && model.length === 0) {
+  const parts: string[] = [];
+  if (name.length > 0) {
+    parts.push(name);
+  }
+  if (model.length > 0) {
+    parts.push(model);
+  }
+  return parts.join(' ');
+}
+
+function resolveDeviceIdentity(context: common.UIAbilityContext): string {
+  const display = resolveDeviceDisplayName(context);
+  if (display.length === 0) {
     return '';
+  }
+  const model = deviceInfo.productModel.length > 0 ? deviceInfo.productModel : deviceInfo.hardwareModel;
+  let name = '';
+  try {
+    name = settings.getValueSync(context, settings.general.DEVICE_NAME, '');
+  } catch (error) {
+    name = '';
+  }
+  if (name.length === 0) {
+    name = deviceInfo.marketName;
+  }
+  if (name.length === 0) {
+    name = display;
   }
   return 'device_' + sanitizeDeviceToken(name) + '_' + sanitizeDeviceToken(model);
 }
