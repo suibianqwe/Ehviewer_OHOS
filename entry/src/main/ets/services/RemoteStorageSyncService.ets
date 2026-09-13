@@ -32,6 +32,7 @@ const LAST_SYNC_KEY: string = 'lastSyncAt';
 const LAST_PULL_KEY: string = 'lastPulledAt';
 const FINGERPRINT_KEY: string = 'lastFingerprint';
 const SERVER_TIMES_KEY: string = 'serverTimes';
+const MIRROR_CHECKS_KEY: string = 'mirrorChecks';
 const SYNC_FOLDER: string = 'sync';
 const MANIFEST_FILE: string = SYNC_FOLDER + '/manifest.json';
 const FINGERPRINT_INTERVAL_MS: number = 60000;
@@ -65,6 +66,12 @@ interface MirrorGalleryPlan {
   localDir: string;
   remoteDir: string;
   files: string[];
+  mtime: number;
+}
+
+interface MirrorCheckRecord {
+  name: string;
+  mtime: number;
 }
 
 export class RemoteStorageSyncService {
@@ -77,6 +84,7 @@ export class RemoteStorageSyncService {
   private lastPulledAt: number = 0;
   private fingerprint: string = '';
   private serverTimes: RemoteSyncServerTime[] = [];
+  private mirrorChecks: MirrorCheckRecord[] = [];
 
   async initialize(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
@@ -407,7 +415,11 @@ export class RemoteStorageSyncService {
     }
     logRemoteStorageInfo('download mirror scan root=' + root + ' entries=' + galleryNames.length.toString());
     const startedAt = Date.now();
-    // Plan first so the total progress bar and transfer rate cover the whole batch.
+    this.publishStatus(profile, uiText('Syncing...'), '', true);
+    this.publishProgress(uiText('Scanning download files…'), '', -1);
+    let checksChanged = false;
+    // Plan first so the total progress bar and transfer rate cover the whole batch. Galleries
+    // whose local directory timestamp matches the last fully mirrored scan are skipped entirely.
     const plan: MirrorGalleryPlan[] = [];
     let totalFiles = 0;
     let totalBytes = 0;
@@ -419,14 +431,22 @@ export class RemoteStorageSyncService {
       const galleryName = galleryNames[i];
       const localDir = root + '/' + galleryName;
       let directory = false;
+      let dirMtime = 0;
       try {
-        directory = fs.statSync(localDir).isDirectory();
+        const dirStat = fs.statSync(localDir);
+        directory = dirStat.isDirectory();
+        dirMtime = dirStat.mtime;
       } catch (error) {
         directory = false;
       }
       if (!directory) {
         continue;
       }
+      const known = this.mirrorCheckFor(galleryName);
+      if (known !== null && dirMtime > 0 && known.mtime === dirMtime) {
+        continue;
+      }
+      this.publishProgress(uiText('Scanning download files…'), galleryName, -1);
       const remoteDir = DOWNLOADS_FOLDER + '/' + galleryName;
       const existing: string[] = [];
       const listing = await client.list(remoteDir);
@@ -456,13 +476,21 @@ export class RemoteStorageSyncService {
         pendingBytes += fileSizeOrZero(localDir + '/' + fileNames[j]);
       }
       if (pending.length > 0) {
-        plan.push({ name: galleryName, localDir: localDir, remoteDir: remoteDir, files: pending });
+        plan.push({
+          name: galleryName, localDir: localDir, remoteDir: remoteDir, files: pending, mtime: dirMtime
+        });
         totalFiles += pending.length;
         totalBytes += pendingBytes;
+      } else {
+        this.rememberMirrorCheck(galleryName, dirMtime);
+        checksChanged = true;
       }
     }
     if (totalFiles === 0) {
       this.publishProgress('', '', -1);
+      if (checksChanged) {
+        await this.persistState(context);
+      }
       return;
     }
     let uploadedFiles = 0;
@@ -472,6 +500,7 @@ export class RemoteStorageSyncService {
     let speedText = '';
     for (let i = 0; i < plan.length; i++) {
       const gallery = plan[i];
+      let uploadedHere = 0;
       for (let j = 0; j < gallery.files.length; j += MIRROR_CONCURRENCY) {
         if (Date.now() - startedAt >= MIRROR_TIME_BUDGET_MS) {
           break;
@@ -489,6 +518,7 @@ export class RemoteStorageSyncService {
         for (let k = 0; k < results.length; k++) {
           if (results[k] >= 0) {
             uploadedFiles++;
+            uploadedHere++;
             uploadedBytes += results[k];
           }
         }
@@ -505,11 +535,40 @@ export class RemoteStorageSyncService {
           ' · ' + uploadedFiles.toString() + '/' + totalFiles.toString();
         this.publishProgress(uiText('Downloading files'), progressDetail, percent, speedText, byteText);
       }
+      if (uploadedHere >= gallery.files.length && gallery.mtime > 0) {
+        this.rememberMirrorCheck(gallery.name, gallery.mtime);
+        checksChanged = true;
+      }
     }
     if (uploadedFiles > 0) {
       logRemoteStorageInfo('download mirror uploaded files=' + uploadedFiles.toString() +
         ' bytes=' + uploadedBytes.toString());
     }
+    if (checksChanged) {
+      await this.persistState(context);
+    }
+  }
+
+  private mirrorCheckFor(name: string): MirrorCheckRecord | null {
+    for (let i = 0; i < this.mirrorChecks.length; i++) {
+      if (this.mirrorChecks[i].name === name) {
+        return this.mirrorChecks[i];
+      }
+    }
+    return null;
+  }
+
+  private rememberMirrorCheck(name: string, mtime: number): void {
+    const next: MirrorCheckRecord[] = [];
+    for (let i = 0; i < this.mirrorChecks.length; i++) {
+      if (this.mirrorChecks[i].name !== name) {
+        next.push(this.mirrorChecks[i]);
+      }
+    }
+    if (mtime > 0) {
+      next.push({ name: name, mtime: mtime });
+    }
+    this.mirrorChecks = next;
   }
 
   private async computeFingerprint(context: common.UIAbilityContext): Promise<string> {
@@ -533,6 +592,7 @@ export class RemoteStorageSyncService {
       const lastPull = await prefs.get(LAST_PULL_KEY, 0);
       const fingerprint = await prefs.get(FINGERPRINT_KEY, '');
       const serverTimes = await prefs.get(SERVER_TIMES_KEY, '[]');
+      const mirrorChecks = await prefs.get(MIRROR_CHECKS_KEY, '[]');
       this.lastSyncAt = typeof lastSync === 'number' ? lastSync : 0;
       this.lastPulledAt = typeof lastPull === 'number' ? lastPull : 0;
       this.fingerprint = typeof fingerprint === 'string' ? fingerprint : '';
@@ -541,6 +601,13 @@ export class RemoteStorageSyncService {
           this.serverTimes = JSON.parse(serverTimes) as RemoteSyncServerTime[];
         } catch (parseError) {
           this.serverTimes = [];
+        }
+      }
+      if (typeof mirrorChecks === 'string') {
+        try {
+          this.mirrorChecks = JSON.parse(mirrorChecks) as MirrorCheckRecord[];
+        } catch (parseError) {
+          this.mirrorChecks = [];
         }
       }
     } catch (error) {
@@ -554,6 +621,7 @@ export class RemoteStorageSyncService {
       await prefs.put(LAST_PULL_KEY, this.lastPulledAt);
       await prefs.put(FINGERPRINT_KEY, this.fingerprint);
       await prefs.put(SERVER_TIMES_KEY, JSON.stringify(this.serverTimes));
+      await prefs.put(MIRROR_CHECKS_KEY, JSON.stringify(this.mirrorChecks));
       await prefs.flush();
     } catch (error) {
     }

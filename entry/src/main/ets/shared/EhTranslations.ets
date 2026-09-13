@@ -1056,6 +1056,7 @@ export function zhText(text: string): string {
     case 'No active sync': return '当前没有进行中的同步';
     case 'Syncing configuration…': return '正在同步配置数据';
     case 'Downloading files': return '正在传输下载文件';
+    case 'Scanning download files…': return '正在扫描下载文件…';
     case 'Filter rules': return '过滤规则';
     case 'Search history': return '搜索历史';
     case 'Browse positions': return '浏览位置';
