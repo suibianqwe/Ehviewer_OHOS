@@ -74,6 +74,20 @@ interface MirrorCheckRecord {
   mtime: number;
 }
 
+interface DownloadManifestEntry {
+  path: string;
+  size: number;
+  mtime: number;
+}
+
+interface DownloadManifest {
+  version: number;
+  updatedAt: number;
+  files: DownloadManifestEntry[];
+}
+
+const DOWNLOAD_MANIFEST_FILE: string = 'download/manifest.json';
+
 export class RemoteStorageSyncService {
   private context: common.UIAbilityContext | null = null;
   private timer: number = -1;
@@ -85,6 +99,8 @@ export class RemoteStorageSyncService {
   private fingerprint: string = '';
   private serverTimes: RemoteSyncServerTime[] = [];
   private mirrorChecks: MirrorCheckRecord[] = [];
+  private downloadManifestEntries: DownloadManifestEntry[] = [];
+  private downloadManifestMtime: number = 0;
 
   async initialize(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
@@ -417,10 +433,32 @@ export class RemoteStorageSyncService {
     const startedAt = Date.now();
     this.publishStatus(profile, uiText('Syncing...'), '', true);
     this.publishProgress(uiText('Scanning download files…'), '', -1);
-    let checksChanged = false;
-    // Plan first so the total progress bar and transfer rate cover the whole batch. Galleries
-    // whose local directory timestamp matches the last fully mirrored scan are skipped entirely.
+    // Remote manifest keeps the mirrored file tree (path, size, mtime). When its server mtime is
+    // unchanged the cached copy is reused, so a cycle costs at most one PROPFIND and one GET.
+    const manifestInfo = await client.list(DOWNLOAD_MANIFEST_FILE);
+    const manifestMtime = manifestInfo.ok && manifestInfo.entries.length > 0 ?
+      manifestInfo.entries[0].modifiedAt : 0;
+    if (manifestMtime === 0 || manifestMtime !== this.downloadManifestMtime) {
+      const manifestText = await client.getText(DOWNLOAD_MANIFEST_FILE);
+      if (manifestText.ok && manifestText.text.length > 0) {
+        try {
+          const parsed = JSON.parse(manifestText.text) as DownloadManifest;
+          this.downloadManifestEntries = Array.isArray(parsed.files) ? parsed.files : [];
+        } catch (error) {
+          this.downloadManifestEntries = [];
+        }
+      } else {
+        this.downloadManifestEntries = [];
+      }
+      this.downloadManifestMtime = manifestMtime;
+    }
+    const manifestByPath = new Map<string, DownloadManifestEntry>();
+    for (let i = 0; i < this.downloadManifestEntries.length; i++) {
+      manifestByPath.set(this.downloadManifestEntries[i].path, this.downloadManifestEntries[i]);
+    }
+    // Plan first so the total progress bar and transfer rate cover the whole batch.
     const plan: MirrorGalleryPlan[] = [];
+    const uploadedUpdates: DownloadManifestEntry[] = [];
     let totalFiles = 0;
     let totalBytes = 0;
     for (let i = 0; i < galleryNames.length; i++) {
@@ -442,21 +480,8 @@ export class RemoteStorageSyncService {
       if (!directory) {
         continue;
       }
-      const known = this.mirrorCheckFor(galleryName);
-      if (known !== null && dirMtime > 0 && known.mtime === dirMtime) {
-        continue;
-      }
       this.publishProgress(uiText('Scanning download files…'), galleryName, -1);
       const remoteDir = DOWNLOADS_FOLDER + '/' + galleryName;
-      const existing: string[] = [];
-      const listing = await client.list(remoteDir);
-      if (listing.ok) {
-        for (let j = 0; j < listing.entries.length; j++) {
-          if (!listing.entries[j].isDirectory) {
-            existing.push(listing.entries[j].name);
-          }
-        }
-      }
       let fileNames: string[] = [];
       try {
         fileNames = fs.listFileSync(localDir);
@@ -466,14 +491,32 @@ export class RemoteStorageSyncService {
       const pending: string[] = [];
       let pendingBytes = 0;
       for (let j = 0; j < fileNames.length; j++) {
-        if (existing.indexOf(fileNames[j]) >= 0) {
-          continue;
-        }
         if (totalFiles + pending.length >= MAX_MIRROR_FILES_PER_CYCLE) {
           break;
         }
-        pending.push(fileNames[j]);
-        pendingBytes += fileSizeOrZero(localDir + '/' + fileNames[j]);
+        const fileName = fileNames[j];
+        const localPath = localDir + '/' + fileName;
+        let size = 0;
+        let mtime = 0;
+        let isFile = false;
+        try {
+          const fileStat = fs.statSync(localPath);
+          isFile = fileStat.isFile();
+          size = fileStat.size;
+          mtime = Math.round(fileStat.mtime * 1000);
+        } catch (error) {
+          isFile = false;
+        }
+        if (!isFile) {
+          continue;
+        }
+        const remoteEntry = manifestByPath.get(galleryName + '/' + fileName);
+        if (remoteEntry !== undefined && remoteEntry.size === size &&
+          Math.abs(remoteEntry.mtime - mtime) <= 1500) {
+          continue;
+        }
+        pending.push(fileName);
+        pendingBytes += size;
       }
       if (pending.length > 0) {
         plan.push({
@@ -481,16 +524,10 @@ export class RemoteStorageSyncService {
         });
         totalFiles += pending.length;
         totalBytes += pendingBytes;
-      } else {
-        this.rememberMirrorCheck(galleryName, dirMtime);
-        checksChanged = true;
       }
     }
     if (totalFiles === 0) {
       this.publishProgress('', '', -1);
-      if (checksChanged) {
-        await this.persistState(context);
-      }
       return;
     }
     let uploadedFiles = 0;
@@ -520,6 +557,12 @@ export class RemoteStorageSyncService {
             uploadedFiles++;
             uploadedHere++;
             uploadedBytes += results[k];
+            const uploadedName = batch[k];
+            uploadedUpdates.push({
+              path: gallery.name + '/' + uploadedName,
+              size: results[k],
+              mtime: fileMtimeMsOrZero(gallery.localDir + '/' + uploadedName)
+            });
           }
         }
         const now = Date.now();
@@ -535,17 +578,35 @@ export class RemoteStorageSyncService {
           ' · ' + uploadedFiles.toString() + '/' + totalFiles.toString();
         this.publishProgress(uiText('Downloading files'), progressDetail, percent, speedText, byteText);
       }
-      if (uploadedHere >= gallery.files.length && gallery.mtime > 0) {
-        this.rememberMirrorCheck(gallery.name, gallery.mtime);
-        checksChanged = true;
-      }
     }
     if (uploadedFiles > 0) {
       logRemoteStorageInfo('download mirror uploaded files=' + uploadedFiles.toString() +
         ' bytes=' + uploadedBytes.toString());
     }
-    if (checksChanged) {
-      await this.persistState(context);
+    if (uploadedUpdates.length > 0) {
+      const merged: DownloadManifestEntry[] = [];
+      const indexByPath = new Map<string, number>();
+      for (let i = 0; i < this.downloadManifestEntries.length; i++) {
+        indexByPath.set(this.downloadManifestEntries[i].path, merged.length);
+        merged.push(this.downloadManifestEntries[i]);
+      }
+      for (let i = 0; i < uploadedUpdates.length; i++) {
+        const index = indexByPath.get(uploadedUpdates[i].path);
+        if (index === undefined) {
+          indexByPath.set(uploadedUpdates[i].path, merged.length);
+          merged.push(uploadedUpdates[i]);
+        } else {
+          merged[index] = uploadedUpdates[i];
+        }
+      }
+      const manifest: DownloadManifest = { version: 1, updatedAt: Date.now(), files: merged };
+      const uploadedManifest = await client.putText(DOWNLOAD_MANIFEST_FILE, JSON.stringify(manifest));
+      if (uploadedManifest.ok) {
+        this.downloadManifestEntries = merged;
+        const refreshed = await client.list(DOWNLOAD_MANIFEST_FILE);
+        this.downloadManifestMtime = refreshed.ok && refreshed.entries.length > 0 ?
+          refreshed.entries[0].modifiedAt : Date.now();
+      }
     }
   }
 
@@ -708,6 +769,15 @@ function syncTimeText(timestamp: number): string {
   const minutes = date.getMinutes();
   return (hours < 10 ? '0' + hours.toString() : hours.toString()) + ':' +
     (minutes < 10 ? '0' + minutes.toString() : minutes.toString());
+}
+
+function fileMtimeMsOrZero(path: string): number {
+  try {
+    const mtime = fs.statSync(path).mtime;
+    return mtime > 0 ? Math.round(mtime * 1000) : 0;
+  } catch (error) {
+    return 0;
+  }
 }
 
 function fileSizeOrZero(path: string): number {
