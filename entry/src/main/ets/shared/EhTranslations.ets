@@ -1069,6 +1069,11 @@ export function zhText(text: string): string {
     case 'Restore failed': return '恢复设置失败';
     case 'No saved settings': return '服务器上没有已保存的设置';
     case 'Loading…': return '正在加载…';
+    case 'Delete from this device': return '从本机删除';
+    case 'Delete from cloud': return '从云端删除';
+    case 'Delete from this device or from the cloud (all devices)?': return '从本机删除，还是从云端删除（将同步删除所有设备）？';
+    case 'Local copies removed; cloud copies are kept': return '已删除本机文件，云端保留';
+    case 'Deleted from all devices; cloud removal finishes when connected': return '已从所有设备删除，云端删除将在联网后完成';
     case 'Block comments from selected user names': return '屏蔽指定用户的评论';
     case 'Block comments by user name': return '按用户名屏蔽评论';
     case 'User name': return '用户名';

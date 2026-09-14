@@ -17,6 +17,7 @@ const MANIFEST_FILE: string = 'download/manifest.json';
 export interface PendingCloudDeletion {
   gid: number;
   deletedAt: number;
+  directoryName: string;
 }
 
 interface DownloadTombstone {
@@ -55,7 +56,11 @@ export class RemoteStorageDownloadDeletionService {
     return this.pending.length;
   }
 
-  async recordCloudDeletion(context: common.UIAbilityContext, gid: number): Promise<void> {
+  localDirectoryName(context: common.UIAbilityContext, gid: number): string {
+    return this.findLocalDirectoryName(context, gid);
+  }
+
+  async recordCloudDeletion(context: common.UIAbilityContext, gid: number, directoryName: string): Promise<void> {
     await this.ensureLoaded(context);
     this.context = context;
     const next: PendingCloudDeletion[] = [];
@@ -64,7 +69,7 @@ export class RemoteStorageDownloadDeletionService {
         next.push(this.pending[i]);
       }
     }
-    next.push({ gid: gid, deletedAt: Date.now() });
+    next.push({ gid: gid, deletedAt: Date.now(), directoryName: directoryName });
     this.pending = next;
     await this.persist();
   }
@@ -90,7 +95,7 @@ export class RemoteStorageDownloadDeletionService {
     const remaining: PendingCloudDeletion[] = [];
     for (let i = 0; i < this.pending.length; i++) {
       const deletion = this.pending[i];
-      const directoryName = this.findLocalDirectoryName(context, deletion.gid);
+      const directoryName = deletion.directoryName.length > 0 ? deletion.directoryName : this.findLocalDirectoryName(context, deletion.gid);
       if (directoryName.length > 0) {
         const removed = await client.deleteFile(DOWNLOAD_FOLDER + '/' + directoryName);
         if (!removed.ok) {

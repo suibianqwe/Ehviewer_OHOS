@@ -13,6 +13,8 @@ import {
   ehDownloadFileStore,
 } from '../services/EhDownloadFileStore';
 import { ehDownloadManager } from '../services/EhDownloadManager';
+import { remoteStorageDownloadDeletionService } from '../services/RemoteStorageDownloadDeletionService';
+import { REMOTE_STORAGE_PURPOSE_DOWNLOADS, remoteStorageProfileStore } from '../services/RemoteStorageProfiles';
 import { FloatingActionSideController } from '../services/EhFloatingActionSideSupport';
 import { BrowsePosition, ehBrowsePositionStore } from '../services/EhBrowsePositionStore';
 import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
@@ -1641,27 +1643,86 @@ export struct DownloadScene {
       return;
     }
     this.deleteConfirmationDialogOpen = true;
+    const cloudAvailable = remoteStorageProfileStore.profileForPurpose(REMOTE_STORAGE_PURPOSE_DOWNLOADS) !== null;
     this.getUIContext().getPromptAction().showDialog({
       title: uiText('Delete'),
-      message: uiStatusText('Delete ' + selected.length.toString() + ' selected downloads and their files?'),
-      buttons: [
+      message: uiStatusText(cloudAvailable ?
+        'Delete from this device or from the cloud (all devices)?' :
+        'Delete ' + selected.length.toString() + ' selected downloads and their files?'),
+      buttons: cloudAvailable ? [
         {
           text: uiText('Cancel'),
           color: themeSecondaryText()
         },
         {
-          text: uiText('Delete'),
+          text: uiText('Delete from this device'),
+          color: themeAccentTextColor()
+        },
+        {
+          text: uiText('Delete from cloud'),
+          color: themeAccentTextColor()
+        }
+      ] : [
+        {
+          text: uiText('Cancel'),
+          color: themeSecondaryText()
+        },
+        {
+          text: uiText('Delete from this device'),
           color: themeAccentTextColor()
         }
       ]
     }).then((data) => {
       this.deleteConfirmationDialogOpen = false;
+      if (!cloudAvailable) {
+        if (data.index === 1) {
+          this.removeSelectedDownloads(selected);
+        }
+        return;
+      }
       if (data.index === 1) {
-        this.removeSelectedDownloads(selected);
+        this.deleteSelectedLocalOnly(selected);
+      } else if (data.index === 2) {
+        this.deleteSelectedFromCloud(selected);
       }
     }).catch(() => {
       this.deleteConfirmationDialogOpen = false;
     });
+  }
+
+  private deleteSelectedLocalOnly(selected: DownloadInfo[]): void {
+    const context = getAbilityContext();
+    if (context === undefined) {
+      return;
+    }
+    for (let i = 0; i < selected.length; i++) {
+      ehDownloadFileStore.removeGalleryDirectory(context, selected[i]);
+    }
+    this.clearDownloadSelection();
+    this.statusText = 'Local copies removed; cloud copies are kept';
+    this.persistDownloads();
+  }
+
+  private deleteSelectedFromCloud(selected: DownloadInfo[]): void {
+    const context = getAbilityContext();
+    const directories: string[] = [];
+    if (context !== undefined) {
+      for (let i = 0; i < selected.length; i++) {
+        directories.push(remoteStorageDownloadDeletionService.localDirectoryName(context, selected[i].gid));
+      }
+    }
+    for (let i = 0; i < selected.length; i++) {
+      this.removeItem(selected[i]);
+    }
+    if (context !== undefined) {
+      for (let i = 0; i < selected.length; i++) {
+        remoteStorageDownloadDeletionService.recordCloudDeletion(context, selected[i].gid, directories[i]);
+      }
+      remoteStorageDownloadDeletionService.processPendingDeletions(context);
+    }
+    this.clearDownloadSelection();
+    this.statusText = 'Deleted from all devices; cloud removal finishes when connected';
+    this.persistDownloads();
   }
 
   private removeSelectedDownloads(selected: DownloadInfo[]): void {
