@@ -20,6 +20,7 @@ import { RemoteStorageResult, WebDavClient } from './WebDavClient';
 import { RemoteStorageListEntry } from './RemoteStorageSupport';
 import { ehDownloadFileStore } from './EhDownloadFileStore';
 import { ehDownloadStore } from './EhDownloadStore';
+import { remoteStorageDownloadDeletionService } from './RemoteStorageDownloadDeletionService';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { GalleryInfo } from '../model/GalleryModels';
 import { notifyGalleryTitleChanged, notifyLanguageChanged, notifyThemeChanged, uiText } from '../shared/EhTranslations';
@@ -629,6 +630,10 @@ export class RemoteStorageSyncService {
     for (let i = 0; i < this.downloadManifestEntries.length; i++) {
       manifestByPath.set(this.downloadManifestEntries[i].path, this.downloadManifestEntries[i]);
     }
+    // Pending cloud deletions first, then other devices' deletion tombstones; both run even when
+    // nothing new needs to be mirrored.
+    await remoteStorageDownloadDeletionService.processPendingWithClient(context, client, profile);
+    await remoteStorageDownloadDeletionService.applyRemoteTombstones(context, client);
     // Plan first so the total progress bar and transfer rate cover the whole batch.
     const plan: MirrorGalleryPlan[] = [];
     const uploadedUpdates: DownloadManifestEntry[] = [];
