@@ -639,7 +639,11 @@ export struct TopListScene {
   private updateSplitPaneByOffset(offsetX: number): void {
     const sceneWidth = this.availableSceneWidth();
     const targetWidth = splitPaneWidthFromDrag(sceneWidth, this.splitDragStartWidth, offsetX);
-    this.splitListRatio = splitPaneRatioForWidth(sceneWidth, targetWidth);
+    const nextSplitRatio = splitPaneRatioForWidth(sceneWidth, targetWidth);
+    if (Math.abs(nextSplitRatio - this.splitListRatio) < 0.0005) {
+      return;
+    }
+    this.splitListRatio = nextSplitRatio;
   }
 
   private finishSplitPaneDrag(): void {

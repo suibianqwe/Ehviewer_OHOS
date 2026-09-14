@@ -2166,7 +2166,11 @@ export struct GalleryListScene {
       return;
     }
     const targetWidth = splitPaneWidthFromDrag(this.sceneContentWidth, this.splitDragStartWidth, offsetX);
-    this.splitListRatio = splitPaneRatioForWidth(this.sceneContentWidth, targetWidth);
+    const nextSplitRatio = splitPaneRatioForWidth(this.sceneContentWidth, targetWidth);
+    if (Math.abs(nextSplitRatio - this.splitListRatio) < 0.0005) {
+      return;
+    }
+    this.splitListRatio = nextSplitRatio;
   }
 
   private finishSplitPaneDrag(): void {
