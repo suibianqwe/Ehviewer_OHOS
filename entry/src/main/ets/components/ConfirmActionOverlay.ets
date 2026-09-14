@@ -30,10 +30,12 @@ export struct ConfirmActionOverlay {
   title: string = '';
   message: string = '';
   confirmLabel: string = 'OK';
+  altLabel: string = '';
   danger: boolean = true;
   showCancel: boolean = true;
   onCancel: () => void = () => {};
   onConfirm: () => void = () => {};
+  onAlt: () => void = () => {};
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
@@ -69,6 +71,17 @@ export struct ConfirmActionOverlay {
               .backgroundEffect(uiTransparentButtonBackgroundEffect())
               .systemMaterial(uiButtonMaterial())
               .onClick(this.onCancel)
+          }
+          if (this.altLabel.length > 0) {
+            Button(uiText(this.altLabel), { type: ButtonType.Normal, stateEffect: true })
+              .fontSize(14)
+              .fontColor(uiMaterialForegroundColor(themePrimaryText()))
+              .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
+              .layoutWeight(1)
+              .borderRadius(uiControlRadius(6))
+              .backgroundEffect(uiTransparentButtonBackgroundEffect())
+              .systemMaterial(uiButtonMaterial())
+              .onClick(this.onAlt)
           }
           Button(uiText(this.confirmLabel), { type: ButtonType.Normal, stateEffect: true })
             .fontSize(14)
