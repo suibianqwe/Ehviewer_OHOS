@@ -2082,6 +2082,7 @@ export struct GalleryListContent {
         GallerySearchNavBarHost({
           toolbarState: this.toolbarState(),
           searchSubmitted: this.searchSubmitted,
+          showBackdrop: this.searchSubmitted,
           statusBarHeight: this.statusBarVp(),
           totalBarHeight: this.totalBarHeight()
         }) {

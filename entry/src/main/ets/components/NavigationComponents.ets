@@ -520,6 +520,7 @@ export struct EhNavBar {
   @Prop showRefreshButton: boolean = true;
   @Prop showBackButton: boolean = false;
   @Prop searchShowsAdvancedButton: boolean = false;
+  @Prop showBackdrop: boolean = true;
   // translate offset injected by parent for scroll-hide; 0 = visible, negative = hidden
   @Prop translateY: number = 0;
   onMenu: () => void = () => {};
@@ -561,7 +562,9 @@ export struct EhNavBar {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      EhTitleBarBackdrop({ barBackdropHeight: this.backdropHeight() })
+      if (this.showBackdrop) {
+        EhTitleBarBackdrop({ barBackdropHeight: this.backdropHeight() })
+      }
 
       Column() {
         // Status bar spacer (colour-matched)
@@ -796,6 +799,7 @@ export struct EhSubNavBar {
   @Prop actionIcon: Resource = $r('sys.symbol.share');
   @Prop translateY: number = 0;
   @Prop showBottomFade: boolean = true;
+  @Prop showBackdrop: boolean = true;
   onBack: () => void = () => {};
   onAction: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
@@ -827,7 +831,9 @@ export struct EhSubNavBar {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      EhTitleBarBackdrop({ barBackdropHeight: this.backdropHeight() })
+      if (this.showBackdrop) {
+        EhTitleBarBackdrop({ barBackdropHeight: this.backdropHeight() })
+      }
 
       Column() {
         Column()
@@ -1036,6 +1042,7 @@ export struct FloatingToolbarHost {
   @Prop toolbarOffsetY: number = 0;
   @Prop toolbarHeight: number = 62;
   @Prop retainCollapsedBackdrop: boolean = false;
+  @Prop showBackdrop: boolean = true;
   @BuilderParam content: () => void = this.EmptyContent;
   onKeywordChange: (value: string) => void = () => {};
   onMenu: () => void = () => {};
@@ -1077,6 +1084,7 @@ export struct FloatingToolbarHost {
       showBackButton: this.showBackButton,
       searchShowsAdvancedButton: this.searchShowsAdvancedButton,
       showFavoriteButton: this.showFavoriteButton,
+      showBackdrop: this.showBackdrop,
       translateY: translateY,
       onKeywordChange: this.onKeywordChange,
       onSearchFocus: this.onSearchFocus,

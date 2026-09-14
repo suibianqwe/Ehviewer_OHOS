@@ -110,6 +110,7 @@ export struct GalleryHomeNavBarHost {
 export struct GallerySearchNavBarHost {
   @ObjectLink toolbarState: GalleryToolbarOffset;
   @Prop searchSubmitted: boolean = false;
+  @Prop showBackdrop: boolean = false;
   @Prop statusBarHeight: number = 0;
   @Prop totalBarHeight: number = 0;
   @BuilderParam content: () => void = this.emptyContent;
@@ -131,7 +132,7 @@ export struct GallerySearchNavBarHost {
 
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
-      if (this.searchSubmitted) {
+      if (this.showBackdrop) {
         EhTitleBarBackdrop({ barBackdropHeight: this.backdropHeight() })
       }
 

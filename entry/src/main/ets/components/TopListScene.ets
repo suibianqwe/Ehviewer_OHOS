@@ -763,6 +763,7 @@ export struct TopListScene {
             title: 'Top Lists',
             requestUrl: '',
             showRefreshButton: false,
+            showBackdrop: false,
             toolbarOffsetY: this.toolbarOffsetY,
             toolbarHeight: uiAdaptiveToolbarHeight(this.sceneContentWidth),
             onMenu: this.onMenu,
