@@ -143,8 +143,13 @@ export struct RemoteStoragePanel {
     this.settingsCandidates = [];
     this.settingsPickerBusy = true;
     this.settingsPickerVisible = true;
-    this.settingsCandidates = await remoteStorageSyncService.listRemoteSettings(context);
-    this.settingsPickerBusy = false;
+    try {
+      this.settingsCandidates = await remoteStorageSyncService.listRemoteSettings(context);
+    } catch (error) {
+      this.settingsCandidates = [];
+    } finally {
+      this.settingsPickerBusy = false;
+    }
   }
 
   private async applyRemoteSettings(file: string): Promise<void> {
@@ -327,8 +332,8 @@ export struct RemoteStoragePanel {
 @Component
 // eslint-disable-next-line @performance/avoid-overusing-custom-component-check
 struct RemoteSettingsPickerOverlay {
-  candidates: RemoteSettingsCandidate[] = [];
-  busy: boolean = false;
+  @Prop candidates: RemoteSettingsCandidate[] = [];
+  @Prop busy: boolean = false;
   onCancel: () => void = () => {};
   onPick: (file: string) => void = (_file: string) => {};
   @State popupWidth: number = 0;
