@@ -56,6 +56,10 @@ export class RemoteStorageDownloadDeletionService {
     return this.pending.length;
   }
 
+  hasLocalCopy(context: common.UIAbilityContext, gid: number): boolean {
+    return this.findLocalDirectoryName(context, gid).length > 0;
+  }
+
   localDirectoryName(context: common.UIAbilityContext, gid: number): string {
     return this.findLocalDirectoryName(context, gid);
   }
@@ -220,19 +224,29 @@ export class RemoteStorageDownloadDeletionService {
     return uploaded.ok;
   }
 
+  private directoryCache: string[] = [];
+  private directoryCacheAt: number = 0;
+
   private findLocalDirectoryName(context: common.UIAbilityContext, gid: number): string {
-    const root = ehDownloadFileStore.appDownloadRoot(context);
-    const prefix = gid.toString() + '-';
-    try {
-      const names = fs.listFileSync(root);
-      for (let i = 0; i < names.length; i++) {
-        if (names[i].indexOf(prefix) === 0) {
-          return names[i];
-        }
+    if (Date.now() - this.directoryCacheAt > 2000) {
+      try {
+        this.directoryCache = fs.listFileSync(ehDownloadFileStore.appDownloadRoot(context));
+      } catch (error) {
+        this.directoryCache = [];
       }
-    } catch (error) {
+      this.directoryCacheAt = Date.now();
+    }
+    const prefix = gid.toString() + '-';
+    for (let i = 0; i < this.directoryCache.length; i++) {
+      if (this.directoryCache[i].indexOf(prefix) === 0) {
+        return this.directoryCache[i];
+      }
     }
     return '';
+  }
+
+  invalidateDirectoryCache(): void {
+    this.directoryCacheAt = 0;
   }
 
   private async persist(): Promise<void> {

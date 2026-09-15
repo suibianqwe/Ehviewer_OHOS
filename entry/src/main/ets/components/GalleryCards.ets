@@ -1,6 +1,7 @@
 import { GalleryCategory, GalleryInfo, GallerySite } from '../model/GalleryModels';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { GALLERY_STATUS_REVISION_KEY, galleryStatusStore } from '../services/GalleryStatusStore';
+import { remoteStorageDownloadDeletionService } from '../services/RemoteStorageDownloadDeletionService';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import {
   cacheThumbnailImage,
@@ -22,7 +23,8 @@ import {
   showGalleryPages,
   showGalleryRating,
   shouldShowTagTranslations,
-  uiText
+  uiText,
+  getAbilityContext
 } from '../shared/EhShared';
 import {
   themeDividerColor,
@@ -861,6 +863,17 @@ struct GalleryStatusBadges {
     return this.statusRevision >= 0 && galleryStatusStore.hasDownload(this.gallery.gid);
   }
 
+  private isCloudOnly(): boolean {
+    if (this.statusRevision < 0 || !this.hasDownload()) {
+      return false;
+    }
+    const context = getAbilityContext();
+    if (context === undefined) {
+      return false;
+    }
+    return !remoteStorageDownloadDeletionService.hasLocalCopy(context, this.gallery.gid);
+  }
+
   private isFavorite(): boolean {
     return this.statusRevision >= 0 && galleryStatusStore.isFavorite(this.gallery);
   }
@@ -869,9 +882,15 @@ struct GalleryStatusBadges {
     Row({ space: 3 }) {
       if (this.hasDownload()) {
         Stack({ alignContent: Alignment.Center }) {
-          SymbolGlyph($r('sys.symbol.arrow_down'))
-            .fontSize(15)
-            .fontColor([themeOnPrimaryText()])
+            if (this.isCloudOnly()) {
+              SymbolGlyph($r('sys.symbol.cloud'))
+                .fontSize(15)
+                .fontColor([themeOnPrimaryText()])
+            } else {
+              SymbolGlyph($r('sys.symbol.arrow_down'))
+                .fontSize(15)
+                .fontColor([themeOnPrimaryText()])
+            }
         }
         .width(22)
         .height(22)
