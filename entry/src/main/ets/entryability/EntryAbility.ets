@@ -1,4 +1,4 @@
-import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
+import { AbilityConstant, Configuration, ConfigurationConstant, errorManager, UIAbility, Want } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { preferences } from '@kit.ArkData';
 import { fileUri } from '@kit.CoreFileKit';
@@ -98,8 +98,24 @@ export default class EntryAbility extends UIAbility {
   private lastTopAvoidPx: number = 0;
 
   onCreate(want: Want): void {
+    this.registerCrashObserver();
     this.captureDownloadDirectory(want);
     this.captureContinuation(want);
+  }
+
+  private registerCrashObserver(): void {
+    if (ehSettingsStore.getValue('save_crash_log', 'Off') !== 'On') {
+      return;
+    }
+    try {
+      const observer: errorManager.ErrorObserver = {
+        onUnhandledException: (errMsg: string): void => {
+          ehAppLog.error(this.context, 'AppCrash', errMsg);
+        }
+      };
+      errorManager.on('error', observer);
+    } catch (error) {
+    }
   }
 
   onNewWant(want: Want): void {
