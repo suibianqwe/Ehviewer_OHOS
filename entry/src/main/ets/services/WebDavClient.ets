@@ -198,6 +198,51 @@ export class WebDavClient {
     }
   }
 
+  async getBinary(path: string): Promise<ArrayBuffer | null> {
+    const url = remoteStorageUrlForPath(this.baseUrl(), path);
+    const hasCredentials = this.profile.username.length > 0 || this.profile.password.length > 0;
+    const header: WebDavHeader = hasCredentials ? {
+      'Accept': '*/*',
+      'Authorization': webDavAuthorizationValue(this.profile.username, this.profile.password),
+      'Depth': '',
+      'Content-Type': ''
+    } : {
+      'Accept': '*/*',
+      'Depth': '',
+      'Content-Type': ''
+    };
+    const options: http.HttpRequestOptions = {
+      method: http.RequestMethod.GET,
+      customMethod: 'GET',
+      header: header,
+      expectDataType: http.HttpDataType.ARRAY_BUFFER,
+      connectTimeout: REMOTE_STORAGE_CONNECT_TIMEOUT_MS,
+      readTimeout: REMOTE_STORAGE_UPLOAD_TIMEOUT_MS
+    };
+    let request: http.HttpRequest | null = null;
+    const startedAt = Date.now();
+    logRemoteStorageInfo('request GET(binary) ' + url);
+    try {
+      request = http.createHttp();
+      const response = await request.request(url, options);
+      const statusCode = Number(response.responseCode);
+      if (statusCode < 200 || statusCode >= 300) {
+        logRemoteStorageWarn('response GET(binary) ' + url + ' -> ' + statusCode.toString());
+        return null;
+      }
+      logRemoteStorageInfo('response GET(binary) ' + url + ' -> ' + statusCode.toString() + ' in ' +
+        (Date.now() - startedAt).toString() + 'ms');
+      return response.result instanceof ArrayBuffer ? response.result : null;
+    } catch (error) {
+      logRemoteStorageError('request GET(binary) ' + url + ' failed: ' + remoteStorageErrorMessage(error));
+      return null;
+    } finally {
+      if (request !== null) {
+        request.destroy();
+      }
+    }
+  }
+
   async deleteFile(path: string): Promise<RemoteStorageResult> {
     const response = await this.send('DELETE', path, '', '', '');
     if (response.ok || response.statusCode === 404) {

@@ -11,6 +11,7 @@ import { ehSearchHistoryStore } from './EhSearchHistoryStore';
 import { ehSettingsStore, HISTORY_INFO_SIZE_KEY, historyInfoSizeLimitFromValue, SettingEntry } from './EhSettingsStore';
 import {
   REMOTE_STORAGE_PURPOSE_BACKUP,
+  REMOTE_STORAGE_PURPOSE_DOWNLOADS,
   REMOTE_STORAGE_PURPOSE_SYNC,
   RemoteStorageProfile,
   remoteStorageProfileStore
@@ -383,6 +384,83 @@ export class RemoteStorageSyncService {
       logRemoteStorageWarn('apply remote settings failed: ' + (error instanceof Error ? error.message : String(error)));
       return false;
     }
+  }
+
+  async restoreCloudGallery(context: common.UIAbilityContext, gid: number): Promise<boolean> {
+    const profile = remoteStorageProfileStore.profileForPurpose(REMOTE_STORAGE_PURPOSE_DOWNLOADS);
+    if (profile === null) {
+      return false;
+    }
+    const client = new WebDavClient(profile);
+    const listing = await client.list(DOWNLOADS_FOLDER);
+    if (!listing.ok) {
+      return false;
+    }
+    const prefix = gid.toString() + '-';
+    let directoryName = '';
+    for (let i = 0; i < listing.entries.length; i++) {
+      if (listing.entries[i].isDirectory && listing.entries[i].name.indexOf(prefix) === 0) {
+        directoryName = listing.entries[i].name;
+        break;
+      }
+    }
+    if (directoryName.length === 0) {
+      return false;
+    }
+    const remoteDir = DOWNLOADS_FOLDER + '/' + directoryName;
+    const files = await client.list(remoteDir);
+    if (!files.ok) {
+      return false;
+    }
+    const localDir = ehDownloadFileStore.appDownloadRoot(context) + '/' + directoryName;
+    try {
+      fs.mkdirSync(localDir);
+    } catch (error) {
+    }
+    let total = 0;
+    for (let i = 0; i < files.entries.length; i++) {
+      if (!files.entries[i].isDirectory) {
+        total++;
+      }
+    }
+    let done = 0;
+    for (let i = 0; i < files.entries.length; i++) {
+      const entry = files.entries[i];
+      if (entry.isDirectory) {
+        continue;
+      }
+      const localPath = localDir + '/' + entry.name;
+      let exists = false;
+      try {
+        exists = fs.statSync(localPath).size > 0;
+      } catch (error) {
+        exists = false;
+      }
+      if (!exists) {
+        const data = await client.getBinary(remoteDir + '/' + entry.name);
+        if (data !== null) {
+          let fd = -1;
+          try {
+            fd = fs.openSync(localPath, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC).fd;
+            fs.writeSync(fd, data);
+          } catch (error) {
+          } finally {
+            if (fd >= 0) {
+              try {
+                fs.closeSync(fd);
+              } catch (error) {
+              }
+            }
+          }
+        }
+      }
+      done++;
+      this.publishProgress(uiText('Restoring from cloud…'), directoryName + ' · ' + entry.name,
+        Math.round(done * 100 / Math.max(1, total)));
+    }
+    this.publishProgress('', '', -1);
+    remoteStorageDownloadDeletionService.invalidateDirectoryCache();
+    return true;
   }
 
   private publishSyncedOrPending(profile: RemoteStorageProfile): void {
