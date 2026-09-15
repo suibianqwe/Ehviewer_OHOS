@@ -55,6 +55,8 @@ const MAX_MIRROR_GALLERIES_PER_CYCLE: number = 6;
 const MAX_MIRROR_FILES_PER_CYCLE: number = 300;
 const MIRROR_CONCURRENCY: number = 4;
 const MIRROR_TIME_BUDGET_MS: number = 25000;
+ const RECONCILE_INTERVAL_MS: number = 600000;
+const RECONCILE_GALLERIES_PER_CYCLE: number = 3;
 
 interface RemoteSyncManifest {
   version: number;
@@ -127,6 +129,8 @@ export class RemoteStorageSyncService {
   private mirrorChecks: MirrorCheckRecord[] = [];
   private downloadManifestEntries: DownloadManifestEntry[] = [];
   private downloadManifestMtime: number = 0;
+  private lastReconcileAt: number = 0;
+  private reconcileIndex: number = 0;
   private deviceId: string = '';
   private deviceName: string = '';
 
@@ -464,6 +468,89 @@ export class RemoteStorageSyncService {
     return true;
   }
 
+  // Periodic ground-truth check: PROPFIND a rotating slice of the remote download tree and
+  // repair the manifest for external changes, ghosts and drifted files (ETag/size, no download).
+  private async reconcileManifestIfDue(client: WebDavClient): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastReconcileAt < RECONCILE_INTERVAL_MS) {
+      return;
+    }
+    this.lastReconcileAt = now;
+    const galleryListing = await client.list(DOWNLOADS_FOLDER);
+    if (!galleryListing.ok) {
+      return;
+    }
+    const directories: string[] = [];
+    for (let i = 0; i < galleryListing.entries.length; i++) {
+      if (galleryListing.entries[i].isDirectory) {
+        directories.push(galleryListing.entries[i].name);
+      }
+    }
+    if (directories.length === 0) {
+      return;
+    }
+    const checked: string[] = [];
+    for (let count = 0; count < RECONCILE_GALLERIES_PER_CYCLE && count < directories.length; count++) {
+      checked.push(directories[(this.reconcileIndex + count) % directories.length]);
+    }
+    this.reconcileIndex = (this.reconcileIndex + RECONCILE_GALLERIES_PER_CYCLE) % directories.length;
+    const oldByPath = new Map<string, DownloadManifestEntry>();
+    for (let i = 0; i < this.downloadManifestEntries.length; i++) {
+      oldByPath.set(this.downloadManifestEntries[i].path, this.downloadManifestEntries[i]);
+    }
+    const next: DownloadManifestEntry[] = [];
+    for (let i = 0; i < this.downloadManifestEntries.length; i++) {
+      const entryPath = this.downloadManifestEntries[i].path;
+      let belongsToChecked = false;
+      for (let j = 0; j < checked.length; j++) {
+        if (entryPath.indexOf(checked[j] + '/') === 0) {
+          belongsToChecked = true;
+          break;
+        }
+      }
+      if (!belongsToChecked) {
+        next.push(this.downloadManifestEntries[i]);
+      }
+    }
+    let drift = 0;
+    for (let j = 0; j < checked.length; j++) {
+      const listing = await client.list(DOWNLOADS_FOLDER + '/' + checked[j]);
+      if (!listing.ok) {
+        continue;
+      }
+      for (let k = 0; k < listing.entries.length; k++) {
+        const entry = listing.entries[k];
+        if (entry.isDirectory) {
+          continue;
+        }
+        const path = checked[j] + '/' + entry.name;
+        const known = oldByPath.get(path);
+        if (known === undefined || known.size !== entry.size ||
+          (entry.etag !== undefined && known.etag !== undefined && known.etag !== entry.etag)) {
+          drift++;
+        }
+        next.push({
+          path: path,
+          size: entry.size,
+          mtime: entry.modifiedAt,
+          etag: entry.etag
+        });
+      }
+    }
+    if (drift > 0 || checked.length > 0) {
+      this.downloadManifestEntries = next;
+      const manifest: DownloadManifest = { version: 1, updatedAt: now, files: next };
+      const uploaded = await client.putText(DOWNLOAD_MANIFEST_FILE, JSON.stringify(manifest));
+      if (uploaded.ok) {
+        const refreshed = await client.list(DOWNLOAD_MANIFEST_FILE);
+        this.downloadManifestMtime = refreshed.ok && refreshed.entries.length > 0 ?
+          refreshed.entries[0].modifiedAt : now;
+      }
+      logRemoteStorageInfo('manifest reconcile checked=' + checked.length.toString() +
+        ' drift=' + drift.toString());
+    }
+  }
+
   private publishSyncedOrPending(profile: RemoteStorageProfile): void {
     if (this.busy) {
       this.publishStatus(profile, uiText('Syncing...'), '', true);
@@ -713,6 +800,7 @@ export class RemoteStorageSyncService {
     // nothing new needs to be mirrored.
     await remoteStorageDownloadDeletionService.processPendingWithClient(context, client, profile);
     await remoteStorageDownloadDeletionService.applyRemoteTombstones(context, client);
+    await this.reconcileManifestIfDue(client);
     // Plan first so the total progress bar and transfer rate cover the whole batch.
     const plan: MirrorGalleryPlan[] = [];
     const uploadedUpdates: DownloadManifestEntry[] = [];
