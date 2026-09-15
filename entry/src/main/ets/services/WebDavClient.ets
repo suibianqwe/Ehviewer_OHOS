@@ -26,11 +26,16 @@ interface WebDavHeader {
   'Content-Range'?: string;
 }
 
+interface DavHeaderShape {
+  'DAV'?: string;
+  'dav'?: string;
+}
 interface WebDavRawResponse {
   ok: boolean;
   statusCode: number;
   message: string;
   body: string;
+  headers?: Object;
 }
 
 export interface RemoteStorageResult {
@@ -53,7 +58,20 @@ export interface RemoteStorageListResult {
   entries: RemoteStorageListEntry[];
 }
 
-export function webDavAuthorizationValue(username: string, password: string): string {
+function extractDavHeader(headers: Object | undefined): string {
+  if (headers === undefined || headers === null) {
+    return '';
+  }
+  const shape = headers as DavHeaderShape;
+  if (typeof shape.DAV === 'string') {
+    return shape.DAV;
+  }
+  if (typeof shape.dav === 'string') {
+    return shape.dav;
+  }
+  return '';
+}
+ function webDavAuthorizationValue(username: string, password: string): string {
   const encoder = util.TextEncoder.create('utf-8');
   const bytes = encoder.encodeInto(username + ':' + password);
   const base64 = new util.Base64Helper().encodeToStringSync(bytes);
@@ -63,6 +81,8 @@ export function webDavAuthorizationValue(username: string, password: string): st
 export class WebDavClient {
   private readonly profile: RemoteStorageProfile;
   private ensuredDirectories: string[] = [];
+  private partialUpdateSupported: boolean = false;
+  private partialUpdateChecked: boolean = false;
 
   constructor(profile: RemoteStorageProfile) {
     this.profile = profile;
@@ -289,9 +309,23 @@ export class WebDavClient {
     }
   }
 
+  private async ensurePartialUpdateSupport(): Promise<boolean> {
+    if (this.partialUpdateChecked) {
+      return this.partialUpdateSupported;
+    }
+    this.partialUpdateChecked = true;
+    const probe = await this.send('OPTIONS', '', '0', '', '');
+    if (probe.ok) {
+      this.partialUpdateSupported = extractDavHeader(probe.headers).toLowerCase().indexOf('sabredav-partialupdate') >= 0;
+    }
+    logRemoteStorageInfo('server dav header=' + extractDavHeader(probe.headers) +
+      ' partialUpdate=' + this.partialUpdateSupported.toString());
+    return this.partialUpdateSupported;
+  }
+
   async putBinaryResumable(path: string, data: ArrayBuffer): Promise<RemoteStorageResult> {
     const total = data.byteLength;
-    if (total <= REMOTE_STORAGE_RESUMABLE_THRESHOLD) {
+    if (total <= REMOTE_STORAGE_RESUMABLE_THRESHOLD || !await this.ensurePartialUpdateSupport()) {
       return this.putBinary(path, data);
     }
     await this.deleteFile(path);
@@ -305,7 +339,9 @@ export class WebDavClient {
         result = await this.putBinaryChunk(path, slice, offset, end - 1);
       }
       if (!result.ok) {
-        return result;
+        // Any server-side refusal: fall back to a plain whole-file PUT for compatibility.
+        this.partialUpdateSupported = false;
+        return this.putBinary(path, data);
       }
       lastStatus = result.statusCode;
       offset = end;
@@ -369,7 +405,8 @@ export class WebDavClient {
         ok: ok,
         statusCode: statusCode,
         message: ok ? '' : webDavStatusMessage(statusCode),
-        body: responseText
+        body: responseText,
+        headers: response.header
       };
     } catch (error) {
       const message = remoteStorageErrorMessage(error);
