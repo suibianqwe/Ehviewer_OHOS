@@ -923,7 +923,7 @@ export class RemoteStorageSyncService {
             return Promise.resolve(-1);
           }
           const byteLength = data.byteLength;
-          return client.putBinary(gallery.remoteDir + '/' + fileName, data)
+          return client.putBinaryResumable(gallery.remoteDir + '/' + fileName, data)
             .then((result: RemoteStorageResult): number => result.ok ? byteLength : -1);
         }));
         for (let k = 0; k < results.length; k++) {

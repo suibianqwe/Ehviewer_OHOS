@@ -15,12 +15,15 @@ import {
 const REMOTE_STORAGE_CONNECT_TIMEOUT_MS: number = 10000;
 const REMOTE_STORAGE_READ_TIMEOUT_MS: number = 30000;
 const REMOTE_STORAGE_UPLOAD_TIMEOUT_MS: number = 60000;
+const REMOTE_STORAGE_RESUMABLE_THRESHOLD: number = 1048576;
+const REMOTE_STORAGE_CHUNK_BYTES: number = 1048576;
 
 interface WebDavHeader {
   'Accept'?: string;
   'Authorization'?: string;
   'Depth'?: string;
   'Content-Type'?: string;
+  'Content-Range'?: string;
 }
 
 interface WebDavRawResponse {
@@ -241,6 +244,73 @@ export class WebDavClient {
         request.destroy();
       }
     }
+  }
+
+  async putBinaryChunk(path: string, data: ArrayBuffer, start: number, end: number): Promise<RemoteStorageResult> {
+    const url = remoteStorageUrlForPath(this.baseUrl(), path);
+    const hasCredentials = this.profile.username.length > 0 || this.profile.password.length > 0;
+    const header: WebDavHeader = hasCredentials ? {
+      'Accept': '*/*',
+      'Authorization': webDavAuthorizationValue(this.profile.username, this.profile.password),
+      'Depth': '',
+      'Content-Type': 'application/x-sabredav-partialupdate',
+      'Content-Range': 'bytes ' + start.toString() + '-' + end.toString() + '/*'
+    } : {
+      'Accept': '*/*',
+      'Depth': '',
+      'Content-Type': 'application/x-sabredav-partialupdate',
+      'Content-Range': 'bytes ' + start.toString() + '-' + end.toString() + '/*'
+    };
+    const options: http.HttpRequestOptions = {
+      method: http.RequestMethod.PUT,
+      customMethod: 'PATCH',
+      header: header,
+      expectDataType: http.HttpDataType.STRING,
+      extraData: data,
+      connectTimeout: REMOTE_STORAGE_CONNECT_TIMEOUT_MS,
+      readTimeout: REMOTE_STORAGE_UPLOAD_TIMEOUT_MS
+    };
+    let request: http.HttpRequest | null = null;
+    try {
+      request = http.createHttp();
+      const response = await request.request(url, options);
+      const statusCode = Number(response.responseCode);
+      const ok = statusCode >= 200 && statusCode < 300;
+      if (!ok) {
+        logRemoteStorageWarn('chunk PATCH ' + url + ' -> ' + statusCode.toString());
+      }
+      return { ok: ok, statusCode: statusCode, message: ok ? '' : webDavStatusMessage(statusCode) };
+    } catch (error) {
+      return { ok: false, statusCode: 0, message: remoteStorageErrorMessage(error) };
+    } finally {
+      if (request !== null) {
+        request.destroy();
+      }
+    }
+  }
+
+  async putBinaryResumable(path: string, data: ArrayBuffer): Promise<RemoteStorageResult> {
+    const total = data.byteLength;
+    if (total <= REMOTE_STORAGE_RESUMABLE_THRESHOLD) {
+      return this.putBinary(path, data);
+    }
+    await this.deleteFile(path);
+    let offset = 0;
+    let lastStatus = 200;
+    while (offset < total) {
+      const end = Math.min(total, offset + REMOTE_STORAGE_CHUNK_BYTES);
+      const slice = data.slice(offset, end);
+      let result = await this.putBinaryChunk(path, slice, offset, end - 1);
+      if (!result.ok) {
+        result = await this.putBinaryChunk(path, slice, offset, end - 1);
+      }
+      if (!result.ok) {
+        return result;
+      }
+      lastStatus = result.statusCode;
+      offset = end;
+    }
+    return { ok: true, statusCode: lastStatus, message: '' };
   }
 
   async deleteFile(path: string): Promise<RemoteStorageResult> {
