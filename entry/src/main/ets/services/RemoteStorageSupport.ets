@@ -5,6 +5,8 @@ const HREF_PATTERN: RegExp =
 const COLLECTION_PATTERN: RegExp = /<(?:[A-Za-z0-9_-]+:)?collection[\s/>]/i;
 const CONTENT_LENGTH_PATTERN: RegExp =
   /<(?:[A-Za-z0-9_-]+:)?getcontentlength[^>]*>([\s\S]*?)<\/(?:[A-Za-z0-9_-]+:)?getcontentlength>/i;
+const ETAG_PATTERN: RegExp =
+  /<(?:[A-Za-z0-9_-]+:)?getetag[^>]*>([\s\S]*?)<\/(?:[A-Za-z0-9_-]+:)?getetag>/i;
 const LAST_MODIFIED_PATTERN: RegExp =
   /<(?:[A-Za-z0-9_-]+:)?getlastmodified[^>]*>([\s\S]*?)<\/(?:[A-Za-z0-9_-]+:)?getlastmodified>/i;
 const ABSOLUTE_HREF_PATTERN: RegExp = /^https?:\/\/[^/]+(\/.*)$/i;
@@ -20,6 +22,7 @@ export interface RemoteStorageListEntry {
   isDirectory: boolean;
   size: number;
   modifiedAt: number;
+  etag?: string;
 }
 
 export function normalizeRemoteStorageUrl(value: string): string {
@@ -252,12 +255,18 @@ function parseWebDavResponseBlock(block: string, basePath: string): RemoteStorag
       modifiedAt = parsed;
     }
   }
+  let etag = '';
+  const etagMatch = ETAG_PATTERN.exec(block);
+  if (etagMatch !== null) {
+    etag = decodeWebDavXmlEntities(etagMatch[1]).trim();
+  }
   return {
     name: name,
     path: path,
     isDirectory: COLLECTION_PATTERN.test(block),
     size: size,
-    modifiedAt: modifiedAt
+    modifiedAt: modifiedAt,
+    etag: etag.length > 0 ? etag : undefined
   };
 }
 

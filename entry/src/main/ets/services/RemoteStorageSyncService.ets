@@ -89,6 +89,7 @@ interface DownloadManifestEntry {
   path: string;
   size: number;
   mtime: number;
+  etag?: string;
 }
 
 interface DownloadManifest {
@@ -845,6 +846,25 @@ export class RemoteStorageSyncService {
     if (uploadedFiles > 0) {
       logRemoteStorageInfo('download mirror uploaded files=' + uploadedFiles.toString() +
         ' bytes=' + uploadedBytes.toString());
+    }
+    const etagByPath = new Map<string, string>();
+    for (let i = 0; i < plan.length; i++) {
+      const galleryListing = await client.list(plan[i].remoteDir);
+      if (!galleryListing.ok) {
+        continue;
+      }
+      for (let j = 0; j < galleryListing.entries.length; j++) {
+        const galleryEntry = galleryListing.entries[j];
+        if (galleryEntry.etag !== undefined && galleryEntry.etag.length > 0) {
+          etagByPath.set(plan[i].name + '/' + galleryEntry.name, galleryEntry.etag);
+        }
+      }
+    }
+    for (let i = 0; i < uploadedUpdates.length; i++) {
+      const entryEtag = etagByPath.get(uploadedUpdates[i].path);
+      if (entryEtag !== undefined) {
+        uploadedUpdates[i].etag = entryEtag;
+      }
     }
     if (uploadedUpdates.length > 0) {
       const merged: DownloadManifestEntry[] = [];
