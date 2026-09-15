@@ -38,6 +38,24 @@ interface WebDavRawResponse {
   headers?: Object;
 }
 
+let activeWebDavRequests: number = 0;
+const WEBDAV_MAX_INFLIGHT: number = 3;
+
+async function waitWebDavSlot(): Promise<void> {
+  while (activeWebDavRequests >= WEBDAV_MAX_INFLIGHT) {
+    await new Promise<void>((resolve: () => void) => {
+      setTimeout(resolve, 40);
+    });
+  }
+  activeWebDavRequests++;
+}
+
+function releaseWebDavSlot(): void {
+  if (activeWebDavRequests > 0) {
+    activeWebDavRequests--;
+  }
+}
+
 export interface RemoteStorageResult {
   ok: boolean;
   statusCode: number;
@@ -197,11 +215,14 @@ export class WebDavClient {
       expectDataType: http.HttpDataType.STRING,
       extraData: data,
       connectTimeout: REMOTE_STORAGE_CONNECT_TIMEOUT_MS,
-      readTimeout: REMOTE_STORAGE_UPLOAD_TIMEOUT_MS
+      readTimeout: REMOTE_STORAGE_UPLOAD_TIMEOUT_MS,
+      usingCache: false,
+      reuseConnections: false
     };
     let request: http.HttpRequest | null = null;
     const startedAt = Date.now();
     logRemoteStorageInfo('request PUT ' + url + ' bodyBytes=' + data.byteLength.toString());
+    await waitWebDavSlot();
     try {
       request = http.createHttp();
       const response = await request.request(url, options);
@@ -215,6 +236,7 @@ export class WebDavClient {
       logRemoteStorageError('request PUT ' + url + ' failed: ' + message);
       return { ok: false, statusCode: 0, message: message };
     } finally {
+      releaseWebDavSlot();
       if (request !== null) {
         request.destroy();
       }
@@ -240,11 +262,14 @@ export class WebDavClient {
       header: header,
       expectDataType: http.HttpDataType.ARRAY_BUFFER,
       connectTimeout: REMOTE_STORAGE_CONNECT_TIMEOUT_MS,
-      readTimeout: REMOTE_STORAGE_UPLOAD_TIMEOUT_MS
+      readTimeout: REMOTE_STORAGE_UPLOAD_TIMEOUT_MS,
+      usingCache: false,
+      reuseConnections: false
     };
     let request: http.HttpRequest | null = null;
     const startedAt = Date.now();
     logRemoteStorageInfo('request GET(binary) ' + url);
+    await waitWebDavSlot();
     try {
       request = http.createHttp();
       const response = await request.request(url, options);
@@ -260,6 +285,7 @@ export class WebDavClient {
       logRemoteStorageError('request GET(binary) ' + url + ' failed: ' + remoteStorageErrorMessage(error));
       return null;
     } finally {
+      releaseWebDavSlot();
       if (request !== null) {
         request.destroy();
       }
@@ -288,9 +314,12 @@ export class WebDavClient {
       expectDataType: http.HttpDataType.STRING,
       extraData: data,
       connectTimeout: REMOTE_STORAGE_CONNECT_TIMEOUT_MS,
-      readTimeout: REMOTE_STORAGE_UPLOAD_TIMEOUT_MS
+      readTimeout: REMOTE_STORAGE_UPLOAD_TIMEOUT_MS,
+      usingCache: false,
+      reuseConnections: false
     };
     let request: http.HttpRequest | null = null;
+    await waitWebDavSlot();
     try {
       request = http.createHttp();
       const response = await request.request(url, options);
@@ -303,6 +332,7 @@ export class WebDavClient {
     } catch (error) {
       return { ok: false, statusCode: 0, message: remoteStorageErrorMessage(error) };
     } finally {
+      releaseWebDavSlot();
       if (request !== null) {
         request.destroy();
       }
@@ -377,13 +407,16 @@ export class WebDavClient {
       header: header,
       expectDataType: http.HttpDataType.STRING,
       connectTimeout: REMOTE_STORAGE_CONNECT_TIMEOUT_MS,
-      readTimeout: body.length > 0 ? REMOTE_STORAGE_UPLOAD_TIMEOUT_MS : REMOTE_STORAGE_READ_TIMEOUT_MS
+      readTimeout: body.length > 0 ? REMOTE_STORAGE_UPLOAD_TIMEOUT_MS : REMOTE_STORAGE_READ_TIMEOUT_MS,
+      usingCache: false,
+      reuseConnections: false
     };
     if (body.length > 0) {
       options.extraData = body;
     }
     let request: http.HttpRequest | null = null;
     const startedAt = Date.now();
+    await waitWebDavSlot();
     logRemoteStorageInfo('request ' + customMethod + ' ' + url +
       (depth.length > 0 ? ' depth=' + depth : '') +
       (body.length > 0 ? ' bodyBytes=' + body.length.toString() : ''));
@@ -414,6 +447,7 @@ export class WebDavClient {
         (Date.now() - startedAt).toString() + 'ms: ' + message);
       return { ok: false, statusCode: 0, message: message, body: '' };
     } finally {
+      releaseWebDavSlot();
       if (request !== null) {
         request.destroy();
       }

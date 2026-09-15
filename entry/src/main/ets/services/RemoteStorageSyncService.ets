@@ -60,7 +60,7 @@ const MAX_SYNC_HISTORY_ITEMS: number = 1000;
 const DOWNLOADS_FOLDER: string = 'download';
 const MAX_MIRROR_GALLERIES_PER_CYCLE: number = 6;
 const MAX_MIRROR_FILES_PER_CYCLE: number = 300;
-const MIRROR_CONCURRENCY: number = 4;
+const MIRROR_CONCURRENCY: number = 2;
 const MIRROR_TIME_BUDGET_MS: number = 25000;
  const RECONCILE_INTERVAL_MS: number = 600000;
 const RECONCILE_GALLERIES_PER_CYCLE: number = 3;
@@ -951,6 +951,9 @@ export class RemoteStorageSyncService {
         const byteText = formatTransferBytes(uploadedBytes) + ' / ' + formatTransferBytes(totalBytes) +
           ' · ' + uploadedFiles.toString() + '/' + totalFiles.toString();
         this.publishProgress(uiText('Downloading files'), progressDetail, percent, speedText, byteText);
+        await new Promise<void>((resolve: () => void) => {
+          setTimeout(resolve, 30);
+        });
       }
       galleryComplete.push(uploadedHere >= gallery.files.length);
     }
