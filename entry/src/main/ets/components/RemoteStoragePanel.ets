@@ -671,7 +671,7 @@ struct RemoteStorageEditorOverlay {
               (value: boolean) => {
                 this.draftUseForSync = value;
               })
-            this.switchRow('Use for downloads', 'Mirror finished downloads to this server', this.draftUseForDownloads,
+            this.switchRow('Backup downloaded galleries', 'Mirror downloaded galleries to this server; local copies are kept', this.draftUseForDownloads,
               (value: boolean) => {
                 this.draftUseForDownloads = value;
               })

@@ -31,7 +31,11 @@ import { CommentBlacklistBackupEntry } from '../services/EhCommentBlacklistStore
 import { readerSuperResolutionEngineOptions } from '../services/ReaderSuperResolutionSupport';
 import { LocalFavoriteBackupInfo } from '../services/EhLocalFavoritesStore';
 import { SearchBookmarkBackupInfo } from '../services/EhBookmarkStore';
-import { RemoteStorageProfile } from '../services/RemoteStorageProfiles';
+import {
+  REMOTE_STORAGE_PURPOSE_DOWNLOADS,
+  RemoteStorageProfile,
+  remoteStorageProfileStore
+} from '../services/RemoteStorageProfiles';
 import { EH_AUTHOR_NAME, EH_RELEASE_TAG } from '../services/EhBuildInfo';
 import { normalizeGalleryLanguageCode } from '../services/GalleryLanguageSupport';
 import {
@@ -1396,10 +1400,13 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
   }
 
   if (panel === SettingsPanel.Download) {
+    const downloadLocationOptions: string[] = remoteStorageProfileStore.profileForPurpose(
+      REMOTE_STORAGE_PURPOSE_DOWNLOADS) !== null ? ['App files', 'Downloads', 'Remote server'] :
+      ['App files', 'Downloads'];
     return [
       optionSettingsRow('download_location', 'Download location',
         'App files, public Downloads, or a configured remote storage server',
-        entries, ['App files', 'Downloads', 'Remote server']),
+        entries, downloadLocationOptions),
       staticSettingsRow('remote_storage', 'Remote storage',
         'WebDAV profiles for backup, sync and download mirror', '', 'navigation'),
       optionSettingsRow('download_thread', 'Multi-thread download', 'Number of images downloaded at the same time',

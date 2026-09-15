@@ -1028,6 +1028,8 @@ export function zhText(text: string): string {
     case 'Use for sync': return '用作同步目录';
     case 'Continuously sync settings, history and bookmarks': return '持续同步设置、历史与书签等数据';
     case 'Use for downloads': return '用作下载目录';
+    case 'Backup downloaded galleries': return '备份下载画廊';
+    case 'Mirror downloaded galleries to this server; local copies are kept': return '将下载的画廊镜像到该服务器，本机副本保留';
     case 'Mirror finished downloads to this server': return '将完成的下载镜像到该服务器';
     case 'Test': return '测试';
     case 'Backup': return '备份';

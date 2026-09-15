@@ -637,6 +637,7 @@ export class RemoteStorageSyncService {
     // Plan first so the total progress bar and transfer rate cover the whole batch.
     const plan: MirrorGalleryPlan[] = [];
     const uploadedUpdates: DownloadManifestEntry[] = [];
+    const galleryComplete: boolean[] = [];
     let totalFiles = 0;
     let totalBytes = 0;
     for (let i = 0; i < galleryNames.length; i++) {
@@ -761,6 +762,7 @@ export class RemoteStorageSyncService {
           ' · ' + uploadedFiles.toString() + '/' + totalFiles.toString();
         this.publishProgress(uiText('Downloading files'), progressDetail, percent, speedText, byteText);
       }
+      galleryComplete.push(uploadedHere >= gallery.files.length);
     }
     if (uploadedFiles > 0) {
       logRemoteStorageInfo('download mirror uploaded files=' + uploadedFiles.toString() +
@@ -790,6 +792,17 @@ export class RemoteStorageSyncService {
         this.downloadManifestMtime = refreshed.ok && refreshed.entries.length > 0 ?
           refreshed.entries[0].modifiedAt : Date.now();
       }
+    }
+    if (ehSettingsStore.getValue('download_location', 'App files') === 'Remote server') {
+      for (let i = 0; i < plan.length; i++) {
+        if (galleryComplete[i]) {
+          try {
+            fs.rmdirSync(plan[i].localDir);
+          } catch (error) {
+          }
+        }
+      }
+      remoteStorageDownloadDeletionService.invalidateDirectoryCache();
     }
   }
 
