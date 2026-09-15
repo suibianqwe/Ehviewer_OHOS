@@ -8,7 +8,14 @@ import { ehFilterStore } from './EhFilterStore';
 import { ehLocalFavoritesStore, LocalFavoriteBackupInfo } from './EhLocalFavoritesStore';
 import { ehHistoryStore, ReadingProgressBackupInfo } from './EhHistoryStore';
 import { ehSearchHistoryStore } from './EhSearchHistoryStore';
-import { ehSettingsStore, HISTORY_INFO_SIZE_KEY, historyInfoSizeLimitFromValue, SettingEntry } from './EhSettingsStore';
+import {
+  ehSettingsStore,
+  HISTORY_INFO_SIZE_KEY,
+  historyInfoSizeLimitFromValue,
+  REMOTE_SYNC_WIFI_ONLY_KEY,
+  SettingEntry
+} from './EhSettingsStore';
+import { isDefaultNetworkCellular } from './EhCellularNetworkGuard';
 import {
   REMOTE_STORAGE_PURPOSE_BACKUP,
   REMOTE_STORAGE_PURPOSE_DOWNLOADS,
@@ -278,6 +285,11 @@ export class RemoteStorageSyncService {
       this.setStatus('', '', false);
       return;
     }
+    if (!this.networkAllowsSync()) {
+      this.publishStatus(profile, uiText('Waiting for Wi-Fi'), '');
+      this.schedule(FINGERPRINT_INTERVAL_MS);
+      return;
+    }
     const client = new WebDavClient(profile);
     const listing = await client.list(SYNC_FOLDER);
     const fingerprint = await this.computeFingerprint(context);
@@ -296,6 +308,17 @@ export class RemoteStorageSyncService {
     await this.syncDownloadFiles(context, profile, client);
     this.publishSyncedOrPending(profile);
     this.schedule(FINGERPRINT_INTERVAL_MS);
+  }
+
+  private networkAllowsSync(): boolean {
+    if (ehSettingsStore.getValue(REMOTE_SYNC_WIFI_ONLY_KEY, 'Off') !== 'On') {
+      return true;
+    }
+    try {
+      return !isDefaultNetworkCellular();
+    } catch (error) {
+      return true;
+    }
   }
 
   private profileForSettingsRestore(): RemoteStorageProfile | null {

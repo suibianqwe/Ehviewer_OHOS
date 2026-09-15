@@ -1409,6 +1409,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
         entries, downloadLocationOptions),
       staticSettingsRow('remote_storage', 'Remote storage',
         'WebDAV profiles for backup, sync and download mirror', '', 'navigation'),
+      optionSettingsRow('remote_sync_wifi_only', 'Sync on Wi-Fi only', 'Pause remote sync on cellular networks', entries, ON_OFF_OPTIONS),
       optionSettingsRow('download_thread', 'Multi-thread download', 'Number of images downloaded at the same time',
         entries, ['1', '2', '3', '4', '5', '8', '10']),
       optionSettingsRow('preload_image', 'Preload image', 'Number of following reader images loaded in advance',

@@ -1077,6 +1077,9 @@ export function zhText(text: string): string {
     case 'Local copies removed; cloud copies are kept': return '已删除本机文件，云端保留';
     case 'Deleted from all devices; cloud removal finishes when connected': return '已从所有设备删除，云端删除将在联网后完成';
     case 'Restoring from cloud…': return '正在从云端恢复…';
+    case 'Sync on Wi-Fi only': return '仅 Wi-Fi 下同步';
+    case 'Pause remote sync on cellular networks': return '移动数据网络下暂停远程同步';
+    case 'Waiting for Wi-Fi': return '等待 Wi-Fi 后继续同步';
     case 'Restore from cloud failed': return '云端恢复失败';
     case 'Restoring from cloud...': return '正在从云端恢复…';
     case 'Block comments from selected user names': return '屏蔽指定用户的评论';
