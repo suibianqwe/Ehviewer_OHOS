@@ -15,7 +15,7 @@ import {
   READER_SESSION_REVISION_KEY
 } from '../services/ReaderSessionStore';
 import { readerComicTranslationService } from '../services/ReaderComicTranslationService';
-import { cancelQueuedReaderImageRequests, IMAGE_DOWNLOAD_PRIORITY_READER } from '../services/ReaderImageCache';
+import { cancelQueuedReaderImageRequests, IMAGE_DOWNLOAD_PRIORITY_READER, readerImageCache } from '../services/ReaderImageCache';
 import {
   cacheReaderImageForPage,
   cloneGalleryDetail,
@@ -26,6 +26,7 @@ import {
   createReaderLoadingPage,
   downloadThreadLimit,
   getAbilityContext,
+  readerPageImageCacheKey,
   readerPageReferer,
   readerPreloadCount,
   readerStartIndex,
@@ -147,7 +148,15 @@ export struct ReaderSessionScene {
       (this.page.cachedImagePath === undefined || this.page.cachedImagePath.length === 0)) {
       this.loadReaderPageByIndex(this.pageIndex);
     } else {
-      this.cacheReaderImage(this.pageIndex, this.page);
+      const restoredIndex = this.pageIndex;
+      const restoredPage = this.page;
+      this.tryUseCloudPage(restoredIndex).then((used: boolean) => {
+        if (!used && this.readerSceneActive) {
+          this.cacheReaderImage(restoredIndex, restoredPage);
+        }
+      }).catch(() => {
+        this.cacheReaderImage(restoredIndex, restoredPage);
+      });
       this.preloadReaderPages(this.pageIndex);
     }
   }
@@ -399,29 +408,48 @@ export struct ReaderSessionScene {
     if (ehDownloadFileStore.findPageImage(context, this.detail, index).length > 0) {
       return Promise.resolve(false);
     }
-    return cloudGalleryPageService.fetchPage(context, this.detail, index).then((path: string) => {
+    const preview = this.readerPreviewForIndex(index);
+    const page: GalleryPage = {
+      pageUrl: preview === null ? '' : preview.pageUrl,
+      imageUrl: preview === null ? '' : preview.imageUrl,
+      skipHathKey: '',
+      originImageUrl: '',
+      showKey: '',
+      cachedImagePath: ''
+    };
+    const imageKey = page.imageUrl.length > 0 ? page.imageUrl :
+      'ehviewer://cloud/' + galleryId.toString() + '/' + index.toString();
+    const cacheKey = readerPageImageCacheKey(page, false);
+    const existing = readerImageCache.getCachedPath(context, imageKey, cacheKey);
+    if (existing.length > 0) {
+      return Promise.resolve(this.applyCloudPage(index, page, existing));
+    }
+    return cloudGalleryPageService.fetchPage(context, this.detail, index, imageKey, cacheKey).then((path: string) => {
       if (path.length === 0 || !this.readerSceneActive || this.detail.gid !== galleryId) {
         return false;
       }
-      const preview = this.readerPreviewForIndex(index);
-      const page: GalleryPage = {
-        pageUrl: preview === null ? '' : preview.pageUrl,
-        imageUrl: preview === null ? '' : preview.imageUrl,
-        skipHathKey: '',
-        originImageUrl: '',
-        showKey: '',
-        cachedImagePath: path
-      };
-      this.setReaderPage(index, page);
-      if (this.pageIndex === index) {
-        this.statusText = 'Page loaded from cloud';
-        this.page = cloneGalleryPage(page);
-        this.renderVersion++;
-      }
-      return true;
+      return this.applyCloudPage(index, page, path);
     }).catch(() => {
       return false;
     });
+  }
+
+  private applyCloudPage(index: number, page: GalleryPage, path: string): boolean {
+    const applied: GalleryPage = {
+      pageUrl: page.pageUrl,
+      imageUrl: page.imageUrl,
+      skipHathKey: page.skipHathKey,
+      originImageUrl: page.originImageUrl,
+      showKey: page.showKey,
+      cachedImagePath: path
+    };
+    this.setReaderPage(index, applied);
+    if (this.pageIndex === index) {
+      this.statusText = 'Page loaded from cloud';
+      this.page = cloneGalleryPage(applied);
+      this.renderVersion++;
+    }
+    return true;
   }
 
   private requestReaderPage(preview: GalleryPreview): Promise<GalleryPageLoadResult> {

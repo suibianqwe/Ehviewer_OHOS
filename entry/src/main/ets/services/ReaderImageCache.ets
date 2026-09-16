@@ -224,6 +224,32 @@ export class ReaderImageCache {
     return removed;
   }
 
+  // 把外部来源（如云端网盘）的图片字节写入统一图片缓存，跟随缓存一起清理/裁剪。
+  storeBytes(context: common.UIAbilityContext, imageUrl: string, cacheKey: string, data: ArrayBuffer,
+    extensionHint: string = ''): string {
+    if (imageUrl.length === 0 || data.byteLength <= 0) {
+      return '';
+    }
+    ensureDirectory(readerImageCacheDirectory(context));
+    const extension = extensionHint.length > 0 ? extensionHint : imageExtension(imageUrl);
+    const path = this.pathForExtension(context, imageUrl, extension, cacheKey);
+    let file: fs.File | null = null;
+    try {
+      file = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
+      fs.writeSync(file.fd, data);
+    } catch (error) {
+      return '';
+    } finally {
+      if (file !== null) {
+        try {
+          fs.closeSync(file);
+        } catch (error) {
+        }
+      }
+    }
+    return isUsableCachedImage(path) ? path : '';
+  }
+
   clear(context: common.UIAbilityContext): CacheClearResult {
     const result = clearImageCacheDirectory(readerImageCacheDirectory(context));
     const legacy = clearImageCacheDirectory(legacyReaderImageCacheDirectory(context));
