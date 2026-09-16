@@ -752,7 +752,11 @@ export function zhText(text: string): string {
     return previewCountMatch[1] + ' 个缩略图 / ' + previewCountMatch[2] + ' 页';
   }
   switch (text) {
-    case 'Homepage': return '主页';
+     case 'Download to local': return '下载到本地';
+    case 'Downloading from cloud': return '正在从云端下载';
+    case 'Downloaded to local': return '已下载到本地';
+    case 'Download from cloud failed': return '云端下载失败';
+   case 'Homepage': return '主页';
     case 'Subscription': return '订阅';
     case 'What\'s Hot': return '热门';
     case 'Whats Hot': return '热门';

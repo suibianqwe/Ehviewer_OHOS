@@ -15,6 +15,7 @@ import {
   cloneGalleryPreviews,
   createEmptyPage,
   downloadStateLabel,
+  getAbilityContext,
   saveDownloadsQuietly,
 } from '../shared/EhShared';
 import {
@@ -37,6 +38,8 @@ import {
   createReaderSessionState,
   ReaderSessionState,
 } from './ReaderSessionStore';
+import { cloudGalleryPageService } from './CloudGalleryPageService';
+import { remoteStorageDownloadDeletionService } from './RemoteStorageDownloadDeletionService';
 
 export interface GalleryDetailLink {
   gid: number;
@@ -307,10 +310,24 @@ export function findDetailDownloadItem(gid: number): DownloadInfo | null {
   return null;
 }
 
+export function isDetailCloudOnlyDownload(gid: number): boolean {
+  if (gid <= 0 || !ehDownloadStore.contains(gid) || !cloudGalleryPageService.hasDownloadsProfile()) {
+    return false;
+  }
+  const context = getAbilityContext();
+  if (context === undefined) {
+    return false;
+  }
+  return !remoteStorageDownloadDeletionService.hasLocalCopy(context, gid);
+}
+
 export function detailDownloadButtonText(gid: number): string {
   const item = findDetailDownloadItem(gid);
   if (item === null) {
     return 'Download';
+  }
+  if (isDetailCloudOnlyDownload(gid)) {
+    return 'Download to local';
   }
   return downloadStateLabel(item.state);
 }

@@ -56,6 +56,8 @@ import { DetailPreviewPager, loadGalleryPreviewPage, mergeGalleryPreviewSets, se
 import { IMAGE_DOWNLOAD_PRIORITY_INTERACTIVE, readerImageCache } from '../services/ReaderImageCache';
 import { AsyncRequestGate } from '../services/HttpRequestLifecycle';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
+import { isDetailCloudOnlyDownload } from '../services/GalleryDetailSupport';
+import { remoteStorageSyncService } from '../services/RemoteStorageSyncService';
 import {
   DEFAULT_FAVORITE_SLOT_ASK,
   DEFAULT_FAVORITE_SLOT_SETTING_KEY,
@@ -352,6 +354,7 @@ export struct GalleryDetailHostScene {
   @State detailStatus: string = '';
   @State detailRequestUrl: string = '';
   @State detailDownloadText: string = 'Download';
+  private cloudRestoreInFlight: boolean = false;
   @State optimisticFavorite: boolean = false;
   @State favoriteBusy: boolean = false;
   @State addFavoriteDialogVisible: boolean = false;
@@ -718,6 +721,10 @@ export struct GalleryDetailHostScene {
   }
 
   private toggleDownloadDetail(): void {
+    if (isDetailCloudOnlyDownload(this.detail.gid)) {
+      this.startCloudRestoreToLocal();
+      return;
+    }
     if (findDetailDownloadItem(this.detail.gid) === null) {
       const labels = ehDownloadStore.getLabels();
       const defaultLabel = defaultDownloadLabelChoice();
@@ -732,6 +739,28 @@ export struct GalleryDetailHostScene {
       return;
     }
     this.applyDownloadDetailToggle('');
+  }
+
+  private startCloudRestoreToLocal(): void {
+    const context = getAbilityContext();
+    if (context === undefined || this.cloudRestoreInFlight) {
+      return;
+    }
+    this.cloudRestoreInFlight = true;
+    this.detailDownloadText = 'Downloading';
+    this.detailStatus = uiText('Downloading from cloud');
+    this.renderVersion++;
+    remoteStorageSyncService.restoreCloudGallery(context, this.detail.gid).then((restored: boolean) => {
+      this.cloudRestoreInFlight = false;
+      this.refreshDetailDownloadText();
+      this.detailStatus = restored ? uiText('Downloaded to local') : uiText('Download from cloud failed');
+      this.renderVersion++;
+    }).catch(() => {
+      this.cloudRestoreInFlight = false;
+      this.refreshDetailDownloadText();
+      this.detailStatus = uiText('Download from cloud failed');
+      this.renderVersion++;
+    });
   }
 
   private applyDownloadDetailToggle(label: string): void {
