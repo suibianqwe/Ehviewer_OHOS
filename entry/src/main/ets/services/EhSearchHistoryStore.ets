@@ -1,7 +1,10 @@
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
+import { syncTombstoneStore } from './SyncTombstoneStore';
+import { keywordTombstoneKey } from './RemoteStorageSupport';
 
 const FILE_NAME: string = 'ehviewer_search_history.json';
+const SYNC_SECTION_SEARCH_HISTORY: string = 'searchHistory';
 const SEARCH_HISTORY_MAX_SIZE: number = 100;
 
 interface SearchHistoryFile {
@@ -75,6 +78,7 @@ export class EhSearchHistoryStore {
     if (trimmed.length === 0) {
       return;
     }
+    syncTombstoneStore.recordClear(this.context, SYNC_SECTION_SEARCH_HISTORY, keywordTombstoneKey(trimmed));
     for (let i = this.keywords.length - 1; i >= 0; i--) {
       if (this.keywords[i] === trimmed) {
         this.keywords.splice(i, 1);
@@ -85,6 +89,23 @@ export class EhSearchHistoryStore {
       this.keywords.splice(SEARCH_HISTORY_MAX_SIZE);
     }
     this.queueSave();
+  }
+
+  removeKeyword(keyword: string): void {
+    const trimmed = keyword.trim();
+    if (trimmed.length === 0) {
+      return;
+    }
+    const next: string[] = [];
+    for (let i = 0; i < this.keywords.length; i++) {
+      if (this.keywords[i] !== trimmed) {
+        next.push(this.keywords[i]);
+      }
+    }
+    if (next.length !== this.keywords.length) {
+      this.keywords = next;
+      this.queueSave();
+    }
   }
 
   private async loadNow(context: common.UIAbilityContext): Promise<void> {

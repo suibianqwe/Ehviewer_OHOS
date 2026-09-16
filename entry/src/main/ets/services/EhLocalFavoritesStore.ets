@@ -3,6 +3,9 @@ import { galleryStatusStore } from './GalleryStatusStore';
 import { preferences } from '@kit.ArkData';
 import { GalleryCategory, GalleryDetail, GalleryInfo, GalleryTagGroup } from '../model/GalleryModels';
 import { normalizeGalleryLanguageCode } from './GalleryLanguageSupport';
+import { syncTombstoneStore } from './SyncTombstoneStore';
+
+const SYNC_SECTION_LOCAL_FAVORITES: string = 'localFavorites';
 
 const PREFERENCES_NAME: string = 'ehviewer_local_favorites';
 const VALUES_KEY: string = 'items';
@@ -85,6 +88,7 @@ export class EhLocalFavoritesStore {
     if (gallery.gid <= 0 || gallery.token.length === 0) {
       return;
     }
+    syncTombstoneStore.recordClear(this.context, SYNC_SECTION_LOCAL_FAVORITES, gallery.gid.toString());
     this.putGallery(gallery, Date.now(), true);
   }
 
@@ -93,6 +97,7 @@ export class EhLocalFavoritesStore {
     if (index < 0 || gallery.token.length === 0) {
       return false;
     }
+    syncTombstoneStore.recordClear(this.context, SYNC_SECTION_LOCAL_FAVORITES, gallery.gid.toString());
     this.putGallery(gallery, this.items[index].time, true);
     return true;
   }
@@ -157,6 +162,7 @@ export class EhLocalFavoritesStore {
       }
     }
     this.items = next;
+    syncTombstoneStore.recordDeletion(this.context, SYNC_SECTION_LOCAL_FAVORITES, gid.toString());
     this.publishMembership();
     this.queueSave();
   }

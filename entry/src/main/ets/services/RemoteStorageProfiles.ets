@@ -9,6 +9,9 @@ import {
   remoteStorageApplyPort,
   remoteStorageHost
 } from './RemoteStorageSupport';
+import { syncTombstoneStore } from './SyncTombstoneStore';
+
+const SYNC_SECTION_REMOTE_STORAGE: string = 'remoteStorage';
 
 export const REMOTE_STORAGE_KIND_WEBDAV: string = 'webdav';
 export const REMOTE_STORAGE_PURPOSE_BACKUP: string = 'backup';
@@ -167,12 +170,16 @@ export class RemoteStorageProfileStore {
     return remoteStorageProfileForPurpose(this.items, purpose);
   }
 
-  async upsert(context: common.UIAbilityContext, profile: RemoteStorageProfile): Promise<RemoteStorageProfile | null> {
+  async upsert(context: common.UIAbilityContext, profile: RemoteStorageProfile,
+    recordClear: boolean = true): Promise<RemoteStorageProfile | null> {
     await this.ensureLoaded(context);
     this.context = context;
     const normalized = normalizeRemoteStorageProfile(profile);
     if (!isValidRemoteStorageUrl(normalized.url)) {
       return null;
+    }
+    if (recordClear) {
+      syncTombstoneStore.recordClear(context, SYNC_SECTION_REMOTE_STORAGE, normalized.id);
     }
     let replaced = false;
     const next: RemoteStorageProfile[] = [];
@@ -212,6 +219,7 @@ export class RemoteStorageProfileStore {
       return false;
     }
     this.items = next;
+    syncTombstoneStore.recordDeletion(context, SYNC_SECTION_REMOTE_STORAGE, id);
     await this.persist();
     this.notifyChanged();
     return true;

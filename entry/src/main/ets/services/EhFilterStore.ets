@@ -1,8 +1,11 @@
 import { common } from '@kit.AbilityKit';
 import { preferences } from '@kit.ArkData';
 import { GalleryInfo, GalleryTagGroup } from '../model/GalleryModels';
+import { syncTombstoneStore } from './SyncTombstoneStore';
+import { filterTombstoneKey } from './RemoteStorageSupport';
 
 const PREFERENCES_NAME: string = 'ehviewer_filters';
+const SYNC_SECTION_FILTERS: string = 'filters';
 const VALUES_KEY: string = 'filters';
 
 export const FILTER_MODE_TITLE: number = 0;
@@ -26,6 +29,7 @@ interface StoredFilterRule {
 }
 
 export class EhFilterStore {
+  private context: common.UIAbilityContext | undefined = undefined;
   private rules: FilterRule[] = [];
   private nextId: number = 1;
   private loaded: boolean = false;
@@ -35,7 +39,7 @@ export class EhFilterStore {
     return cloneRules(this.rules);
   }
 
-  addRule(mode: number, text: string, enabled: boolean = true): boolean {
+  addRule(mode: number, text: string, enabled: boolean = true, recordClear: boolean = true): boolean {
     if (!isSupportedRuleMode(mode)) {
       return false;
     }
@@ -54,17 +58,26 @@ export class EhFilterStore {
       text: normalized,
       enabled: enabled
     });
+    if (recordClear) {
+      syncTombstoneStore.recordClear(this.context, SYNC_SECTION_FILTERS, filterTombstoneKey(mode, normalized));
+    }
     return true;
   }
 
   removeRule(id: number): void {
     const next: FilterRule[] = [];
+    let removedKey = '';
     for (let i = 0; i < this.rules.length; i++) {
       if (this.rules[i].id !== id) {
         next.push(cloneRule(this.rules[i]));
+      } else {
+        removedKey = filterTombstoneKey(this.rules[i].mode, this.rules[i].text);
       }
     }
     this.rules = next;
+    if (removedKey.length > 0) {
+      syncTombstoneStore.recordDeletion(this.context, SYNC_SECTION_FILTERS, removedKey);
+    }
   }
 
   toggleRule(id: number): void {
@@ -90,6 +103,7 @@ export class EhFilterStore {
   }
 
   async ensureLoaded(context: common.UIAbilityContext): Promise<void> {
+    this.context = context;
     if (this.loaded) {
       return;
     }

@@ -3,6 +3,9 @@ import { preferences } from '@kit.ArkData';
 import { ALL_CATEGORY, GalleryCategory, GalleryRoute } from '../model/GalleryModels';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from './EhUrl';
 import { normalizeSubmittedSearchKeywordValue } from './SearchKeywordNormalization';
+import { syncTombstoneStore } from './SyncTombstoneStore';
+
+const SYNC_SECTION_BOOKMARKS: string = 'bookmarks';
 
 const PREFERENCES_NAME: string = 'ehviewer_bookmarks';
 const VALUES_KEY: string = 'items';
@@ -74,6 +77,7 @@ export class EhBookmarkStore {
     next.push(normalized);
     next.sort((left: SearchBookmarkInfo, right: SearchBookmarkInfo): number => left.time - right.time);
     this.items = next;
+    syncTombstoneStore.recordClear(this.context, SYNC_SECTION_BOOKMARKS, normalized.id);
     this.queueSave();
     return true;
   }
@@ -109,6 +113,7 @@ export class EhBookmarkStore {
       }
     }
     this.items = next;
+    syncTombstoneStore.recordDeletion(this.context, SYNC_SECTION_BOOKMARKS, id);
     this.queueSave();
   }
 

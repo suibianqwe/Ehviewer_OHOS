@@ -3,7 +3,10 @@ import { galleryStatusStore } from './GalleryStatusStore';
 import { preferences } from '@kit.ArkData';
 import { GalleryCategory, GalleryDetail, GalleryInfo, GalleryTagGroup } from '../model/GalleryModels';
 
+import { syncTombstoneStore } from './SyncTombstoneStore';
+
 const PREFERENCES_NAME: string = 'ehviewer_downloads';
+const SYNC_SECTION_DOWNLOAD_LABELS: string = 'downloadLabels';
 const VALUES_KEY: string = 'items';
 const LABELS_KEY: string = 'labels';
 const DOWNLOAD_NOTIFY_DEBOUNCE_MS: number = 50;
@@ -85,6 +88,7 @@ interface StoredDownloadLabel {
 }
 
 export class EhDownloadStore {
+  private context: common.UIAbilityContext | undefined = undefined;
   private items: DownloadInfo[] = [];
   private labels: DownloadLabel[] = [];
   private loaded: boolean = false;
@@ -287,12 +291,15 @@ export class EhDownloadStore {
     return changed;
   }
 
-  addLabel(label: string): boolean {
+  addLabel(label: string, recordClear: boolean = true): boolean {
     const normalized = normalizeLabel(label);
     if (normalized.length === 0 || normalized.toLowerCase() === 'default' ||
       normalized.toLowerCase() === 'all' || normalized === '__all__' || normalized === '__ask__' ||
       this.hasLabel(normalized)) {
       return false;
+    }
+    if (recordClear) {
+      syncTombstoneStore.recordClear(this.context, SYNC_SECTION_DOWNLOAD_LABELS, normalized);
     }
     this.labels.push({ label: normalized, time: Date.now() });
     this.notifyChanged();
@@ -356,6 +363,7 @@ export class EhDownloadStore {
       return 0;
     }
     this.labels = next;
+    syncTombstoneStore.recordDeletion(this.context, SYNC_SECTION_DOWNLOAD_LABELS, normalized);
     let resetCount = 0;
     for (let i = 0; i < this.items.length; i++) {
       if (this.items[i].label === normalized) {
@@ -441,6 +449,7 @@ export class EhDownloadStore {
   }
 
   async load(context: common.UIAbilityContext): Promise<void> {
+    this.context = context;
     if (this.loadPromise !== null) {
       await this.loadPromise;
       return;
@@ -455,6 +464,7 @@ export class EhDownloadStore {
   }
 
   async ensureLoaded(context: common.UIAbilityContext): Promise<void> {
+    this.context = context;
     if (this.loaded) {
       return;
     }

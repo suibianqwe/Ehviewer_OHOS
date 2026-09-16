@@ -8,6 +8,10 @@ import {
   cloneReaderPageTranslations
 } from '../model/ReaderTranslationModels';
 import { EhUrl } from './EhUrl';
+import { syncTombstoneStore } from './SyncTombstoneStore';
+
+const SYNC_SECTION_HISTORY: string = 'history';
+const SYNC_SECTION_READING_PROGRESS: string = 'readingProgress';
 
 const PREFERENCES_NAME: string = 'ehviewer_history';
 const VALUES_KEY: string = 'items';
@@ -109,9 +113,13 @@ export class EhHistoryStore {
     return cloned;
   }
 
-  addGallery(gallery: GalleryInfo, maxSize: number = HISTORY_DEFAULT_MAX_SIZE): void {
+  addGallery(gallery: GalleryInfo, maxSize: number = HISTORY_DEFAULT_MAX_SIZE,
+    recordClear: boolean = true): void {
     if (gallery.gid <= 0 || gallery.token.length === 0) {
       return;
+    }
+    if (recordClear) {
+      syncTombstoneStore.recordClear(this.context, SYNC_SECTION_HISTORY, gallery.gid.toString());
     }
 
     const entry = cloneGalleryInfo(gallery);
@@ -154,7 +162,7 @@ export class EhHistoryStore {
       const item = items[i];
       if (item !== null && item !== undefined && typeof item.gid === 'number' && item.gid > 0 &&
         typeof item.token === 'string' && item.token.length > 0) {
-        this.addGallery(item, maxSize);
+        this.addGallery(item, maxSize, false);
         imported++;
       }
     }
@@ -197,17 +205,35 @@ export class EhHistoryStore {
     }
     this.items = next;
     this.removeReadPosition(gid);
+    syncTombstoneStore.recordDeletion(this.context, SYNC_SECTION_HISTORY, gid.toString());
     this.queueSave();
   }
 
   clear(): void {
+    for (let i = 0; i < this.items.length; i++) {
+      syncTombstoneStore.recordDeletion(this.context, SYNC_SECTION_HISTORY, this.items[i].gid.toString());
+    }
+    for (let i = 0; i < this.readPositions.length; i++) {
+      syncTombstoneStore.recordDeletion(this.context, SYNC_SECTION_READING_PROGRESS,
+        this.readPositions[i].gid.toString());
+    }
     this.items = [];
     this.readPositions = [];
     this.queueSave();
   }
 
   resetAllReadPositions(): void {
+    for (let i = 0; i < this.readPositions.length; i++) {
+      syncTombstoneStore.recordDeletion(this.context, SYNC_SECTION_READING_PROGRESS,
+        this.readPositions[i].gid.toString());
+    }
     this.readPositions = [];
+    this.queueSave();
+  }
+
+  removeReadingProgress(gid: number): void {
+    this.removeReadPosition(gid);
+    syncTombstoneStore.recordDeletion(this.context, SYNC_SECTION_READING_PROGRESS, gid.toString());
     this.queueSave();
   }
 
@@ -284,6 +310,7 @@ export class EhHistoryStore {
     if (gid <= 0 || pageIndex < 0) {
       return;
     }
+    syncTombstoneStore.recordClear(this.context, SYNC_SECTION_READING_PROGRESS, gid.toString());
     for (let i = 0; i < this.readPositions.length; i++) {
       if (this.readPositions[i].gid === gid) {
         const now = Date.now();

@@ -16,6 +16,8 @@ import {
 import { DownloadInfo, DownloadLabel, ehDownloadStore } from '../services/EhDownloadStore';
 import { RemoteStorageProfile, remoteStorageProfileStore } from '../services/RemoteStorageProfiles';
 import { remoteStorageSyncService } from '../services/RemoteStorageSyncService';
+import { syncTombstoneStore } from '../services/SyncTombstoneStore';
+
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
@@ -45,15 +47,19 @@ import {
   cloneSavedTranslationApis,
   createSavedTranslationApi,
   findSavedTranslationApi,
+  parseCustomTranslationPromptProfiles,
   parseSavedTranslationApis,
   serializeSavedTranslationApis,
+  TranslationPromptProfile,
   uniqueTranslationApiName,
 } from '../services/TranslationSupport';
 import {
   allReaderPresetProfiles,
   applyReaderPresetValues,
   findReaderPresetProfile,
+  parseCustomReaderPresetProfiles,
   READER_CUSTOM_PRESETS_SETTING_KEY,
+  ReaderPresetProfile,
 } from '../services/ReaderPresetSupport';
 import { EhHttpClient, NetworkDiagnosticResult } from '../services/EhHttpClient';
 import {
@@ -189,6 +195,9 @@ import {
   SettingsDetailPanel,
   SettingsOptionPanel,
 } from './SettingsPanels';
+
+const SYNC_SECTION_READER_PRESETS: string = 'readerPresets';
+const SYNC_SECTION_TRANSLATION_PROMPTS: string = 'translationPrompts';
 
 function cloneSettingsPanelStack(stack: SettingsPanel[]): SettingsPanel[] {
   const result: SettingsPanel[] = [];
@@ -1269,7 +1278,27 @@ export struct SettingsScene {
     });
   }
 
+  private recordProfileTombstones(section: string, previousIds: string[], nextIds: string[]): void {
+    const context = getAbilityContext();
+    for (let i = 0; i < previousIds.length; i++) {
+      if (nextIds.indexOf(previousIds[i]) < 0) {
+        syncTombstoneStore.recordDeletion(context, section, previousIds[i]);
+      }
+    }
+    for (let i = 0; i < nextIds.length; i++) {
+      if (previousIds.indexOf(nextIds[i]) < 0) {
+        syncTombstoneStore.recordClear(context, section, nextIds[i]);
+      }
+    }
+  }
+
   private saveTranslationPrompt(selectedId: string, customProfiles: string, status: string): void {
+    const previousPromptIds = parseCustomTranslationPromptProfiles(
+      ehSettingsStore.getValue('translation_prompt_custom_profiles', '[]'))
+      .map((profile: TranslationPromptProfile): string => profile.id);
+    const nextPromptIds = parseCustomTranslationPromptProfiles(customProfiles)
+      .map((profile: TranslationPromptProfile): string => profile.id);
+    this.recordProfileTombstones(SYNC_SECTION_TRANSLATION_PROMPTS, previousPromptIds, nextPromptIds);
     ehSettingsStore.setValue('translation_prompt_selected', selectedId);
     ehSettingsStore.setValue('translation_prompt_custom_profiles', customProfiles);
     this.settingEntries = ehSettingsStore.getEntries();
@@ -1284,6 +1313,12 @@ export struct SettingsScene {
   }
 
   private saveReaderPresets(customProfiles: string, status: string): void {
+    const previousPresetIds = parseCustomReaderPresetProfiles(
+      ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]'))
+      .map((profile: ReaderPresetProfile): string => profile.id);
+    const nextPresetIds = parseCustomReaderPresetProfiles(customProfiles)
+      .map((profile: ReaderPresetProfile): string => profile.id);
+    this.recordProfileTombstones(SYNC_SECTION_READER_PRESETS, previousPresetIds, nextPresetIds);
     ehSettingsStore.setValue(READER_CUSTOM_PRESETS_SETTING_KEY, customProfiles);
     this.settingEntries = ehSettingsStore.getEntries();
     this.showFloatingStatus(status);

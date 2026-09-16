@@ -279,3 +279,73 @@ function pushPathSegments(target: string[], value: string): void {
     }
   }
 }
+
+export interface SyncTombstoneLike {
+  key: string;
+  deletedAt: number;
+  cleared?: boolean;
+}
+
+export interface SyncTombstoneSectionLike {
+  name: string;
+  records: SyncTombstoneLike[];
+}
+
+// Merges local and remote tombstone lists: the newest operation per key wins, so a later
+// re-add (cleared record) cancels an older deletion and vice versa.
+export function mergeSyncTombstoneLists(local: SyncTombstoneLike[],
+  remote: SyncTombstoneLike[]): SyncTombstoneLike[] {
+  const byKey: Map<string, SyncTombstoneLike> = new Map<string, SyncTombstoneLike>();
+  for (let i = 0; i < local.length; i++) {
+    byKey.set(local[i].key, local[i]);
+  }
+  for (let i = 0; i < remote.length; i++) {
+    const incoming = remote[i];
+    if (typeof incoming.key !== 'string' || incoming.key.length === 0 ||
+      typeof incoming.deletedAt !== 'number') {
+      continue;
+    }
+    const existing = byKey.get(incoming.key);
+    if (existing === undefined || incoming.deletedAt > existing.deletedAt) {
+      byKey.set(incoming.key, incoming);
+    }
+  }
+  const merged: SyncTombstoneLike[] = [];
+  byKey.forEach((record: SyncTombstoneLike): void => {
+    merged.push(record);
+  });
+  merged.sort((left: SyncTombstoneLike, right: SyncTombstoneLike): number => {
+    if (left.deletedAt !== right.deletedAt) {
+      return left.deletedAt - right.deletedAt;
+    }
+    return left.key < right.key ? -1 : (left.key > right.key ? 1 : 0);
+  });
+  return merged;
+}
+
+export function syncTombstoneShouldDelete(record: SyncTombstoneLike, itemTime: number): boolean {
+  if (record.cleared === true) {
+    return false;
+  }
+  const time = typeof itemTime === 'number' && itemTime > 0 ? itemTime : 0;
+  return record.deletedAt >= time;
+}
+
+export function pruneSyncTombstoneList(list: SyncTombstoneLike[], now: number,
+  maxAgeMs: number): SyncTombstoneLike[] {
+  const kept: SyncTombstoneLike[] = [];
+  for (let i = 0; i < list.length; i++) {
+    if (now - list[i].deletedAt <= maxAgeMs) {
+      kept.push(list[i]);
+    }
+  }
+  return kept;
+}
+
+export function filterTombstoneKey(mode: number, text: string): string {
+  return mode.toString() + '|' + text.trim().toLowerCase();
+}
+
+export function keywordTombstoneKey(keyword: string): string {
+  return keyword.trim().toLowerCase();
+}

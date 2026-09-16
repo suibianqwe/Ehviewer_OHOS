@@ -25,7 +25,26 @@ import {
 } from './RemoteStorageProfiles';
 import { logRemoteStorageError, logRemoteStorageInfo, logRemoteStorageWarn } from './RemoteStorageLog';
 import { RemoteStorageResult, WebDavClient } from './WebDavClient';
-import { RemoteStorageListEntry } from './RemoteStorageSupport';
+import {
+  RemoteStorageListEntry,
+  SyncTombstoneLike,
+  filterTombstoneKey,
+  keywordTombstoneKey,
+  pruneSyncTombstoneList,
+  syncTombstoneShouldDelete
+} from './RemoteStorageSupport';
+import { syncTombstoneStore } from './SyncTombstoneStore';
+import {
+  parseCustomReaderPresetProfiles,
+  READER_CUSTOM_PRESETS_SETTING_KEY,
+  ReaderPresetProfile,
+  serializeCustomReaderPresetProfiles
+} from './ReaderPresetSupport';
+import {
+  parseCustomTranslationPromptProfiles,
+  serializeCustomTranslationPromptProfiles,
+  TranslationPromptProfile
+} from './TranslationSupport';
 import { ehDownloadFileStore } from './EhDownloadFileStore';
 import { ehDownloadStore } from './EhDownloadStore';
 import { remoteStorageDownloadDeletionService } from './RemoteStorageDownloadDeletionService';
@@ -57,6 +76,20 @@ const FINGERPRINT_INTERVAL_MS: number = 60000;
 const DIRTY_DEBOUNCE_MS: number = 15000;
 const RETRY_DELAY_MS: number = 90000;
 const MAX_SYNC_HISTORY_ITEMS: number = 1000;
+const TOMBSTONES_FILE: string = SYNC_FOLDER + '/tombstones.json';
+const TOMBSTONE_MAX_AGE_MS: number = 180 * 24 * 60 * 60 * 1000;
+const SYNC_SECTION_HISTORY: string = 'history';
+const SYNC_SECTION_BOOKMARKS: string = 'bookmarks';
+const SYNC_SECTION_LOCAL_FAVORITES: string = 'localFavorites';
+const SYNC_SECTION_BLACKLIST: string = 'blacklist';
+const SYNC_SECTION_FILTERS: string = 'filters';
+const SYNC_SECTION_SEARCH_HISTORY: string = 'searchHistory';
+const SYNC_SECTION_READING_PROGRESS: string = 'readingProgress';
+const SYNC_SECTION_DOWNLOAD_LABELS: string = 'downloadLabels';
+const SYNC_SECTION_REMOTE_STORAGE: string = 'remoteStorage';
+const SYNC_SECTION_READER_PRESETS: string = 'readerPresets';
+const SYNC_SECTION_TRANSLATION_PROMPTS: string = 'translationPrompts';
+const TRANSLATION_CUSTOM_PROMPTS_KEY: string = 'translation_prompt_custom_profiles';
 const DOWNLOADS_FOLDER: string = 'download';
 const MAX_MIRROR_GALLERIES_PER_CYCLE: number = 6;
 const MAX_MIRROR_FILES_PER_CYCLE: number = 300;
@@ -195,11 +228,13 @@ export class RemoteStorageSyncService {
         throw new Error(directory.message);
       }
       if (pullRemote) {
+        await this.mergeRemoteTombstones(context, client);
         const listing = await client.list(SYNC_FOLDER);
         if (listing.ok) {
           for (let i = 0; i < listing.entries.length; i++) {
             const entry = listing.entries[i];
-            if (entry.isDirectory || !entry.name.endsWith('.json') || entry.name === 'manifest.json') {
+            if (entry.isDirectory || !entry.name.endsWith('.json') || entry.name === 'manifest.json' ||
+              entry.name === 'tombstones.json') {
               continue;
             }
             const sectionName = entry.name.substring(0, entry.name.length - 5);
@@ -211,6 +246,7 @@ export class RemoteStorageSyncService {
           }
           this.recordServerTimes(listing.entries);
         }
+        await this.applyTombstones(context);
       }
       const sections = await this.buildSections(context);
       for (let i = 0; i < sections.length; i++) {
@@ -231,6 +267,10 @@ export class RemoteStorageSyncService {
       const manifestUpload = await client.putText(MANIFEST_FILE, JSON.stringify(manifest));
       if (!manifestUpload.ok) {
         throw new Error(manifestUpload.message);
+      }
+      syncTombstoneStore.prune(TOMBSTONE_MAX_AGE_MS);
+      if (!syncTombstoneStore.isEmpty()) {
+        await client.putText(TOMBSTONES_FILE, syncTombstoneStore.serialize());
       }
       const afterListing = await client.list(SYNC_FOLDER);
       if (afterListing.ok) {
@@ -647,8 +687,19 @@ export class RemoteStorageSyncService {
       { name: 'readingProgress', data: JSON.stringify(ehHistoryStore.getReadingProgressBackupItems()) },
       { name: 'history', data: this.wrapSection(historySlice) },
       { name: 'downloadLabels', data: JSON.stringify(ehDownloadStore.getLabels()) },
-      { name: 'remoteStorage', data: JSON.stringify(profilesWithoutPasswords(remoteStorageProfileStore.getProfiles())) }
+      { name: 'remoteStorage', data: JSON.stringify(profilesWithoutPasswords(remoteStorageProfileStore.getProfiles())) },
+      {
+        name: SYNC_SECTION_READER_PRESETS,
+        data: JSON.stringify(parseCustomReaderPresetProfiles(
+          ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]')))
+      },
+      {
+        name: SYNC_SECTION_TRANSLATION_PROMPTS,
+        data: JSON.stringify(parseCustomTranslationPromptProfiles(
+          ehSettingsStore.getValue(TRANSLATION_CUSTOM_PROMPTS_KEY, '[]')))
+      }
     ];
+    await syncTombstoneStore.ensureLoaded(context);
     return sections;
   }
 
@@ -682,11 +733,16 @@ export class RemoteStorageSyncService {
         ehCommentBlacklistStore.ensureLoaded(context),
         ehSearchHistoryStore.load(context),
         ehBrowsePositionStore.ensureLoaded(context),
-        ehHistoryStore.ensureLoaded(context)
+        ehHistoryStore.ensureLoaded(context),
+        ehDownloadStore.ensureLoaded(context),
+        ehLocalFavoritesStore.ensureLoaded(context),
+        syncTombstoneStore.ensureLoaded(context)
       ]);
+      await this.mergeRemoteTombstones(context, client);
       for (let i = 0; i < manifest.sections.length; i++) {
         await this.applySection(context, client, manifest.sections[i]);
       }
+      await this.applyTombstones(context);
       this.lastPulledAt = manifest.updatedAt;
       if (this.lastSyncAt <= 0) {
         this.lastSyncAt = manifest.updatedAt;
@@ -732,7 +788,7 @@ export class RemoteStorageSyncService {
           const ruleMode = rules[i].mode;
           const ruleText = rules[i].text;
           if (typeof ruleText === 'string' && typeof ruleMode === 'number') {
-            ehFilterStore.addRule(ruleMode, ruleText, rules[i].enabled !== false);
+            ehFilterStore.addRule(ruleMode, ruleText, rules[i].enabled !== false, false);
           }
         }
         await ehFilterStore.save(context);
@@ -743,7 +799,7 @@ export class RemoteStorageSyncService {
         const labels = JSON.parse(content) as string[];
         for (let i = 0; i < labels.length; i++) {
           if (typeof labels[i] === 'string') {
-            ehDownloadStore.addLabel(labels[i]);
+            ehDownloadStore.addLabel(labels[i], false);
           }
         }
         await ehDownloadStore.save(context);
@@ -751,9 +807,23 @@ export class RemoteStorageSyncService {
         const profiles = JSON.parse(content) as RemoteStorageProfile[];
         for (let i = 0; i < profiles.length; i++) {
           if (remoteStorageProfileStore.getProfile(profiles[i].id) === null) {
-            await remoteStorageProfileStore.upsert(context, profiles[i]);
+            await remoteStorageProfileStore.upsert(context, profiles[i], false);
           }
         }
+      } else if (name === SYNC_SECTION_READER_PRESETS) {
+        const remoteProfiles = parseCustomReaderPresetProfiles(content);
+        const localProfiles = parseCustomReaderPresetProfiles(
+          ehSettingsStore.getValue(READER_CUSTOM_PRESETS_SETTING_KEY, '[]'));
+        const merged = mergeCustomProfiles(localProfiles, remoteProfiles);
+        ehSettingsStore.setValue(READER_CUSTOM_PRESETS_SETTING_KEY, serializeCustomReaderPresetProfiles(merged));
+        await ehSettingsStore.save(context);
+      } else if (name === SYNC_SECTION_TRANSLATION_PROMPTS) {
+        const remoteProfiles = parseCustomTranslationPromptProfiles(content);
+        const localProfiles = parseCustomTranslationPromptProfiles(
+          ehSettingsStore.getValue(TRANSLATION_CUSTOM_PROMPTS_KEY, '[]'));
+        const merged = mergeCustomProfiles(localProfiles, remoteProfiles);
+        ehSettingsStore.setValue(TRANSLATION_CUSTOM_PROMPTS_KEY, serializeCustomTranslationPromptProfiles(merged));
+        await ehSettingsStore.save(context);
       } else if (name === 'localFavorites') {
         ehLocalFavoritesStore.importBackupItems(JSON.parse(content) as LocalFavoriteBackupInfo[]);
         await ehLocalFavoritesStore.save(context);
@@ -775,6 +845,241 @@ export class RemoteStorageSyncService {
     } catch (error) {
       logRemoteStorageError('sync section ' + name + ' apply failed: ' +
         (error instanceof Error ? error.message : String(error)));
+    }
+  }
+
+  private async mergeRemoteTombstones(context: common.UIAbilityContext, client: WebDavClient): Promise<void> {
+    await syncTombstoneStore.ensureLoaded(context);
+    const file = await client.getText(TOMBSTONES_FILE);
+    if (file.ok && file.text.length > 0) {
+      const merged = syncTombstoneStore.mergeRemoteText(file.text);
+      if (merged > 0) {
+        logRemoteStorageInfo('sync tombstones merged sections=' + merged.toString());
+      }
+    }
+    syncTombstoneStore.prune(TOMBSTONE_MAX_AGE_MS);
+  }
+
+  private tombstoneRecords(section: string): SyncTombstoneLike[] {
+    const records: SyncTombstoneLike[] = [];
+    const all = syncTombstoneStore.list(section);
+    for (let i = 0; i < all.length; i++) {
+      if (all[i].cleared !== true) {
+        records.push(all[i]);
+      }
+    }
+    return records;
+  }
+
+  private async applyTombstones(context: common.UIAbilityContext): Promise<void> {
+    await syncTombstoneStore.ensureLoaded(context);
+    let historyChanged = false;
+    const historyRecords = this.tombstoneRecords(SYNC_SECTION_HISTORY);
+    if (historyRecords.length > 0) {
+      const items = ehHistoryStore.getItems();
+      for (let i = 0; i < historyRecords.length; i++) {
+        const key = historyRecords[i].key;
+        for (let j = 0; j < items.length; j++) {
+          const historyTime = typeof items[j].historyTime === 'number' ? items[j].historyTime as number : 0;
+          if (items[j].gid.toString() === key && syncTombstoneShouldDelete(historyRecords[i], historyTime)) {
+            ehHistoryStore.removeGallery(items[j].gid);
+            historyChanged = true;
+            break;
+          }
+        }
+      }
+    }
+    let progressChanged = false;
+    const progressRecords = this.tombstoneRecords(SYNC_SECTION_READING_PROGRESS);
+    if (progressRecords.length > 0) {
+      const positions = ehHistoryStore.getReadingProgressBackupItems();
+      for (let i = 0; i < progressRecords.length; i++) {
+        const key = progressRecords[i].key;
+        for (let j = 0; j < positions.length; j++) {
+          if (positions[j].gid.toString() === key &&
+            syncTombstoneShouldDelete(progressRecords[i], positions[j].progressUpdatedAt)) {
+            ehHistoryStore.removeReadingProgress(positions[j].gid);
+            progressChanged = true;
+            break;
+          }
+        }
+      }
+    }
+    if (historyChanged || progressChanged) {
+      await ehHistoryStore.save(context);
+    }
+
+    let bookmarksChanged = false;
+    const bookmarkRecords = this.tombstoneRecords(SYNC_SECTION_BOOKMARKS);
+    if (bookmarkRecords.length > 0) {
+      const bookmarks = ehBookmarkStore.getBackupItems();
+      for (let i = 0; i < bookmarkRecords.length; i++) {
+        const key = bookmarkRecords[i].key;
+        for (let j = 0; j < bookmarks.length; j++) {
+          const id = bookmarks[j].id === undefined ? '' : bookmarks[j].id;
+          const time = typeof bookmarks[j].time === 'number' ? bookmarks[j].time as number : 0;
+          if (id === key && syncTombstoneShouldDelete(bookmarkRecords[i], time)) {
+            ehBookmarkStore.removeBookmark(id);
+            bookmarksChanged = true;
+            break;
+          }
+        }
+      }
+    }
+    if (bookmarksChanged) {
+      await ehBookmarkStore.save(context);
+    }
+
+    let favoritesChanged = false;
+    const favoriteRecords = this.tombstoneRecords(SYNC_SECTION_LOCAL_FAVORITES);
+    if (favoriteRecords.length > 0) {
+      const favorites = ehLocalFavoritesStore.getBackupItems();
+      for (let i = 0; i < favoriteRecords.length; i++) {
+        const key = favoriteRecords[i].key;
+        for (let j = 0; j < favorites.length; j++) {
+          const gid = typeof favorites[j].gid === 'number' ? favorites[j].gid as number : 0;
+          const time = typeof favorites[j].time === 'number' ? favorites[j].time as number : 0;
+          if (gid > 0 && gid.toString() === key && syncTombstoneShouldDelete(favoriteRecords[i], time)) {
+            ehLocalFavoritesStore.removeGallery(gid);
+            favoritesChanged = true;
+            break;
+          }
+        }
+      }
+    }
+    if (favoritesChanged) {
+      await ehLocalFavoritesStore.save(context);
+    }
+
+    let blacklistChanged = false;
+    const blacklistRecords = this.tombstoneRecords(SYNC_SECTION_BLACKLIST);
+    if (blacklistRecords.length > 0) {
+      const entries = ehCommentBlacklistStore.getBackupItems();
+      for (let i = 0; i < blacklistRecords.length; i++) {
+        const key = blacklistRecords[i].key;
+        for (let j = 0; j < entries.length; j++) {
+          const user = typeof entries[j].user === 'string' ? entries[j].user as string : '';
+          const id = typeof entries[j].id === 'string' ? entries[j].id as string : '';
+          const addedAt = typeof entries[j].addedAt === 'number' ? entries[j].addedAt as number : 0;
+          if (user === key && id.length > 0 && syncTombstoneShouldDelete(blacklistRecords[i], addedAt)) {
+            ehCommentBlacklistStore.removeEntry(id);
+            blacklistChanged = true;
+            break;
+          }
+        }
+      }
+    }
+    if (blacklistChanged) {
+      await ehCommentBlacklistStore.save(context);
+    }
+
+    let filtersChanged = false;
+    const filterRecords = this.tombstoneRecords(SYNC_SECTION_FILTERS);
+    if (filterRecords.length > 0) {
+      const rules = ehFilterStore.getRules();
+      for (let i = 0; i < filterRecords.length; i++) {
+        const key = filterRecords[i].key;
+        for (let j = 0; j < rules.length; j++) {
+          if (filterTombstoneKey(rules[j].mode, rules[j].text) === key &&
+            syncTombstoneShouldDelete(filterRecords[i], 0)) {
+            ehFilterStore.removeRule(rules[j].id);
+            filtersChanged = true;
+            break;
+          }
+        }
+      }
+    }
+    if (filtersChanged) {
+      await ehFilterStore.save(context);
+    }
+
+    let searchHistoryChanged = false;
+    const searchRecords = this.tombstoneRecords(SYNC_SECTION_SEARCH_HISTORY);
+    if (searchRecords.length > 0) {
+      const keywords = ehSearchHistoryStore.getKeywords();
+      for (let i = 0; i < searchRecords.length; i++) {
+        const key = searchRecords[i].key;
+        for (let j = 0; j < keywords.length; j++) {
+          if (keywordTombstoneKey(keywords[j]) === key && syncTombstoneShouldDelete(searchRecords[i], 0)) {
+            ehSearchHistoryStore.removeKeyword(keywords[j]);
+            searchHistoryChanged = true;
+            break;
+          }
+        }
+      }
+    }
+    if (searchHistoryChanged) {
+      await ehSearchHistoryStore.save(context);
+    }
+
+    let labelsChanged = false;
+    const labelRecords = this.tombstoneRecords(SYNC_SECTION_DOWNLOAD_LABELS);
+    if (labelRecords.length > 0) {
+      const labels = ehDownloadStore.getLabels();
+      for (let i = 0; i < labelRecords.length; i++) {
+        const key = labelRecords[i].key;
+        for (let j = 0; j < labels.length; j++) {
+          if (labels[j].label === key && syncTombstoneShouldDelete(labelRecords[i], labels[j].time)) {
+            ehDownloadStore.removeLabel(labels[j].label);
+            labelsChanged = true;
+            break;
+          }
+        }
+      }
+    }
+    if (labelsChanged) {
+      await ehDownloadStore.save(context);
+    }
+
+    const profileRecords = this.tombstoneRecords(SYNC_SECTION_REMOTE_STORAGE);
+    for (let i = 0; i < profileRecords.length; i++) {
+      const profile = remoteStorageProfileStore.getProfile(profileRecords[i].key);
+      if (profile !== null && syncTombstoneShouldDelete(profileRecords[i], profile.updatedAt)) {
+        await remoteStorageProfileStore.remove(context, profile.id);
+      }
+    }
+
+    this.applyCustomProfileTombstones(context, READER_CUSTOM_PRESETS_SETTING_KEY,
+      (raw: string): CustomProfileLike[] => parseCustomReaderPresetProfiles(raw),
+      (profiles: CustomProfileLike[]): string =>
+        serializeCustomReaderPresetProfiles(profiles as ReaderPresetProfile[]),
+      SYNC_SECTION_READER_PRESETS);
+    this.applyCustomProfileTombstones(context, TRANSLATION_CUSTOM_PROMPTS_KEY,
+      (raw: string): CustomProfileLike[] => parseCustomTranslationPromptProfiles(raw),
+      (profiles: CustomProfileLike[]): string =>
+        serializeCustomTranslationPromptProfiles(profiles as TranslationPromptProfile[]),
+      SYNC_SECTION_TRANSLATION_PROMPTS);
+  }
+
+  private applyCustomProfileTombstones(context: common.UIAbilityContext, settingKey: string,
+    parse: (raw: string) => CustomProfileLike[], serialize: (profiles: CustomProfileLike[]) => string,
+    section: string): void {
+    const records = this.tombstoneRecords(section);
+    if (records.length === 0) {
+      return;
+    }
+    const localProfiles = parse(ehSettingsStore.getValue(settingKey, '[]'));
+    const kept: CustomProfileLike[] = [];
+    let changed = false;
+    for (let i = 0; i < localProfiles.length; i++) {
+      let deleted = false;
+      for (let j = 0; j < records.length; j++) {
+        if (records[j].key === localProfiles[i].id &&
+          syncTombstoneShouldDelete(records[j], 0)) {
+          deleted = true;
+          break;
+        }
+      }
+      if (deleted) {
+        changed = true;
+      } else {
+        kept.push(localProfiles[i]);
+      }
+    }
+    if (changed) {
+      ehSettingsStore.setValue(settingKey, serialize(kept));
+      ehSettingsStore.save(context).catch(() => {
+      });
     }
   }
 
@@ -1169,10 +1474,30 @@ export class RemoteStorageSyncService {
   }
 }
 
+interface CustomProfileLike {
+  id: string;
+}
+
 interface FilterRuleLike {
   mode?: number;
   text?: string;
   enabled?: boolean;
+}
+
+function mergeCustomProfiles<T extends CustomProfileLike>(local: T[], remote: T[]): T[] {
+  const localIds: string[] = [];
+  for (let i = 0; i < local.length; i++) {
+    localIds.push(local[i].id);
+  }
+  const merged: T[] = local.slice();
+  for (let i = 0; i < remote.length; i++) {
+    const id = remote[i].id;
+    if (typeof id === 'string' && id.length > 0 && localIds.indexOf(id) < 0) {
+      merged.push(remote[i]);
+      localIds.push(id);
+    }
+  }
+  return merged;
 }
 
 function syncTimeText(timestamp: number): string {

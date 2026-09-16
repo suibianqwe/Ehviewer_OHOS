@@ -2,7 +2,10 @@ import { common } from '@kit.AbilityKit';
 import { preferences } from '@kit.ArkData';
 import { GalleryComment } from '../model/GalleryModels';
 
+import { syncTombstoneStore } from './SyncTombstoneStore';
+
 const PREFERENCES_NAME: string = 'ehviewer_comment_blacklist';
+const SYNC_SECTION_BLACKLIST: string = 'blacklist';
 const VALUES_KEY: string = 'items';
 
 export const COMMENT_BLACKLIST_REVISION_KEY: string = 'ehviewer_comment_blacklist_revision';
@@ -99,6 +102,7 @@ export class EhCommentBlacklistStore {
     next.push(entry);
     next.sort(compareEntries);
     this.entries = next;
+    syncTombstoneStore.recordClear(this.context, SYNC_SECTION_BLACKLIST, normalizedUser);
     this.changed();
     return true;
   }
@@ -110,9 +114,11 @@ export class EhCommentBlacklistStore {
   removeEntry(id: string): boolean {
     const next: CommentBlacklistEntry[] = [];
     let removed = false;
+    let removedUser = '';
     for (let i = 0; i < this.entries.length; i++) {
       if (this.entries[i].id === id) {
         removed = true;
+        removedUser = this.entries[i].user;
       } else {
         next.push(cloneEntry(this.entries[i]));
       }
@@ -121,6 +127,7 @@ export class EhCommentBlacklistStore {
       return false;
     }
     this.entries = next;
+    syncTombstoneStore.recordDeletion(this.context, SYNC_SECTION_BLACKLIST, removedUser);
     this.changed();
     return true;
   }

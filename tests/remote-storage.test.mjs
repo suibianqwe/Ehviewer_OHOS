@@ -14,7 +14,15 @@ function executable(source) {
     .replace(/: (?:common\.UIAbilityContext \| null|common\.UIAbilityContext|Promise<RemoteStorageProfile \| null>|Promise<RemoteStorageProfile\[\]>|Promise<boolean>|Promise<void>|RemoteStorageProfile \| null|RemoteStorageProfile\[\]|RemoteStorageProfile|RemoteStorageListEntry \| null|RemoteStorageListEntry\[\]|RemoteStorageListEntry|RegExpExecArray \| null|RegExp|string\[\]|string|number|boolean|void)(?:\[\])?/g, '');
 }
 
-const support = Function(executable(read('entry/src/main/ets/services/RemoteStorageSupport.ets')) +
+const supportSource = executable(read('entry/src/main/ets/services/RemoteStorageSupport.ets'))
+  .replace(/new Map<[^>]+>\(\)/g, 'new Map()')
+  .replace(/: Map<[^>]+>/g, '')
+  .replace(/: SyncTombstoneLike\[\]/g, '')
+  .replace(/: SyncTombstoneLike/g, '')
+  .replace(/: number\[\]/g, '')
+  .replace(/: string\[\]/g, '');
+
+const support = Function(supportSource +
   '\nreturn { normalizeRemoteStorageUrl, normalizeRemoteStorageBasePath, remoteStorageJoinPath,' +
   ' remoteStorageUrlForPath, remoteStorageRelativePathFromHref, decodeWebDavXmlEntities,' +
   ' webDavStatusMessage, parseWebDavMultiStatus, createRemoteStorageProfileId, isValidRemoteStorageUrl,' +
@@ -119,4 +127,42 @@ test('remote storage profiles parse defensively and resolve by purpose', () => {
   assert.equal(backupProfile.id, 'p1');
   assert.equal(profiles.remoteStorageProfileForPurpose(parsed, 'sync'), null);
   assert.equal(profiles.remoteStorageProfileSummary(parsed[0]), 'dav.example.com:8443 · ehviewer/backup');
+});
+
+const tombstones = Function(supportSource +
+  '\nreturn { mergeSyncTombstoneLists, syncTombstoneShouldDelete, pruneSyncTombstoneList,' +
+  ' filterTombstoneKey, keywordTombstoneKey };')();
+
+test('sync tombstones keep the newest operation per key', () => {
+  const merged = tombstones.mergeSyncTombstoneLists(
+    [{ key: 'a', deletedAt: 10 }, { key: 'b', deletedAt: 30 }],
+    [{ key: 'a', deletedAt: 20 }, { key: 'c', deletedAt: 5 }, { key: '', deletedAt: 99 }]);
+  assert.deepEqual(merged, [
+    { key: 'c', deletedAt: 5 },
+    { key: 'a', deletedAt: 20 },
+    { key: 'b', deletedAt: 30 }
+  ]);
+  const clearedWins = tombstones.mergeSyncTombstoneLists(
+    [{ key: 'a', deletedAt: 30 }], [{ key: 'a', deletedAt: 40, cleared: true }]);
+  assert.equal(clearedWins[0].cleared, true);
+  const deletionWins = tombstones.mergeSyncTombstoneLists(
+    [{ key: 'a', deletedAt: 50, cleared: true }], [{ key: 'a', deletedAt: 60 }]);
+  assert.equal(deletionWins[0].cleared, undefined);
+});
+
+test('sync tombstone deletion respects item timestamps and clears', () => {
+  assert.equal(tombstones.syncTombstoneShouldDelete({ key: 'a', deletedAt: 100 }, 50), true);
+  assert.equal(tombstones.syncTombstoneShouldDelete({ key: 'a', deletedAt: 100 }, 150), false);
+  assert.equal(tombstones.syncTombstoneShouldDelete({ key: 'a', deletedAt: 100 }, 0), true);
+  assert.equal(tombstones.syncTombstoneShouldDelete({ key: 'a', deletedAt: 100, cleared: true }, 0), false);
+});
+
+test('sync tombstones prune by age and normalize keys', () => {
+  const now = 2000;
+  const kept = tombstones.pruneSyncTombstoneList(
+    [{ key: 'old', deletedAt: 0 }, { key: 'new', deletedAt: 1900 }, { key: 'clear', deletedAt: 1950, cleared: true }],
+    now, 500);
+  assert.deepEqual(kept.map((record) => record.key), ['new', 'clear']);
+  assert.equal(tombstones.filterTombstoneKey(2, '  Title Tag '), '2|title tag');
+  assert.equal(tombstones.keywordTombstoneKey('  Hello World '), 'hello world');
 });
