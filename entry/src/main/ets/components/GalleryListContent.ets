@@ -272,6 +272,8 @@ export struct GalleryListContent {
   private thumbnailDimensionsGeneration: number = 0;
   private galleryThumbnailSource: ArrayDataSource<GalleryInfo> =
     new ArrayDataSource<GalleryInfo>([]);
+  private previousGalleryGids: number[] = [];
+  private hasRenderedGalleries: boolean = false;
   private toolbarOffsetY: number = 0;
   @State private toolbarOffsetBinding: GalleryToolbarOffsetBinding = new GalleryToolbarOffsetBinding();
 
@@ -328,7 +330,7 @@ export struct GalleryListContent {
   }
 
   onGalleriesChanged(): void {
-    this.galleryThumbnailSource.setItems(this.galleries);
+    this.applyGalleriesToSource();
     this.translationVisibleItems = [];
     this.translationVisibleStart = -1;
     this.translationVisibleEnd = -1;
@@ -343,6 +345,32 @@ export struct GalleryListContent {
     }
     this.galleryThumbnailAspectRatioAverage = ratioSum / this.galleries.length;
     this.prepareThumbnailDimensions();
+  }
+
+  private applyGalleriesToSource(): void {
+    const previous = this.previousGalleryGids;
+    let appendedOnly = previous.length > 0 && this.galleries.length > previous.length;
+    if (appendedOnly) {
+      for (let i = 0; i < previous.length; i++) {
+        if (this.galleries[i].gid !== previous[i]) {
+          appendedOnly = false;
+          break;
+        }
+      }
+    }
+    if (appendedOnly) {
+      this.galleryThumbnailSource.appendRange(this.galleries, previous.length);
+    } else {
+      this.galleryThumbnailSource.setItems(this.galleries);
+    }
+    const gids: number[] = [];
+    for (let i = 0; i < this.galleries.length; i++) {
+      gids.push(this.galleries[i].gid);
+    }
+    this.previousGalleryGids = gids;
+    if (this.galleries.length > 0) {
+      this.hasRenderedGalleries = true;
+    }
   }
 
   private prepareThumbnailDimensions(): void {
@@ -1632,7 +1660,7 @@ export struct GalleryListContent {
 
   @Builder
   private galleryListContent() {
-    if (this.useThumbnailWaterFlow() && this.thumbnailDimensionsReady) {
+    if (this.useThumbnailWaterFlow() && (this.thumbnailDimensionsReady || this.hasRenderedGalleries)) {
       this.galleryThumbnailWaterFlow()
     } else if (galleryListMode() === 'Thumb' && !this.shouldShowSearchSuggestions() && this.galleries.length > 0 &&
       !this.thumbnailDimensionsReady) {

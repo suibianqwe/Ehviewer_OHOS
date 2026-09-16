@@ -27,6 +27,16 @@ export class ArrayDataSource<T> implements IDataSource, IDataSourcePrefetching {
     }
   }
 
+  // 列表仅在末尾追加时按下标精确通知，避免 onDataReloaded 重建整表导致滚动位置丢失
+  appendRange(newItems: T[], previousLength: number): void {
+    this.items = newItems;
+    for (let index = previousLength; index < this.items.length; index++) {
+      for (let i = 0; i < this.listeners.length; i++) {
+        this.listeners[i].onDataAdd(index);
+      }
+    }
+  }
+
   notifyChange(index: number): void {
     if (index < 0 || index >= this.items.length) {
       return;
