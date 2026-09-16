@@ -1142,7 +1142,9 @@ export struct DownloadScene {
       this.toggleDownloadSelection(item.gid);
       return;
     }
-    if (event !== undefined) {
+    // 双栏模式下打开详情会把列表宽度从全宽切到半宽并整体重排，此时再做锚点滚动补偿
+    // 会造成列表在切换动画中来回跳动，这里只保留非双栏场景的锚点行为。
+    if (event !== undefined && !this.splitLayoutCapable()) {
       this.cardScrollAnchor.capture(item.gid.toString(), this.downloadColumnCount(),
         this.downloadCardWindowY(event.target.area));
     }
@@ -1155,6 +1157,9 @@ export struct DownloadScene {
   }
 
   private observeDownloadCardAnchor(item: DownloadInfo, area: Area): void {
+    if (this.splitLayoutCapable()) {
+      return;
+    }
     this.cardScrollAnchor.observe(item.gid.toString(), this.downloadColumnCount(),
       this.downloadCardWindowY(area), (deltaY: number) => {
         this.downloadScroller.scrollBy(0, deltaY);
@@ -1162,6 +1167,10 @@ export struct DownloadScene {
           this.rememberDownloadScrollOffset();
         }, 0);
       });
+  }
+
+  private splitLayoutCapable(): boolean {
+    return splitPaneModeEnabled() && this.availableSceneWidth() >= SPLIT_PANE_BREAKPOINT && !this.showTagSearch;
   }
 
   private selectedDownloadItems(): DownloadInfo[] {
