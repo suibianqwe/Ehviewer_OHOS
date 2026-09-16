@@ -114,7 +114,7 @@ import {
 } from '../shared/EhUiStyle';
 import { GalleryHomeNavBarHost, GalleryToolbarOffset, GalleryToolbarOffsetBinding } from './GalleryNavHosts';
 import { PopupScrim } from './PopupScrim';
-import { GalleryListRow, GalleryThumbCard } from './GalleryCards';
+import { GalleryListRow, GalleryThumbCard, markGalleryListScrolling } from './GalleryCards';
 import { GalleryListScene } from './GalleryScenes';
 import { GalleryDetailHostScene } from './GalleryDetailHostScene';
 import { ReaderSessionScene } from './ReaderHostScene';
@@ -1283,6 +1283,7 @@ export struct DownloadScene {
   }
 
   private handleDownloadListDidScroll(): void {
+    markGalleryListScrolling();
     const yOffset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
     const delta = yOffset - this.lastToolbarScrollOffset;
     this.lastToolbarScrollOffset = yOffset;
@@ -2074,7 +2075,7 @@ export struct DownloadScene {
         })
         .animation({ duration: 220, curve: Curve.EaseOut })
         .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
-      }, (item: DownloadInfo) => item.gid.toString() + ':' + this.downloadColumnCount().toString())
+      }, (item: DownloadInfo) => item.gid.toString())
     }
     .columnsTemplate(this.downloadWaterFlowColumnsTemplate())
     .columnsGap(this.downloadCardGap())
