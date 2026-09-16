@@ -59,7 +59,7 @@ interface GalleryImageCompleteEvent {
   loadingStatus: number;
 }
 
-function normalizedThumbnailAspectRatio(width: number, height: number): number {
+export function normalizedThumbnailAspectRatio(width: number, height: number): number {
   if (width <= 0 || height <= 0) {
     return 0.75;
   }
@@ -85,6 +85,27 @@ function thumbnailHost(url: string): string {
 function thumbnailRequiresExHentai(url: string): boolean {
   const host = thumbnailHost(url);
   return host === 'exhentai.org' || host.endsWith('.exhentai.org');
+}
+
+let galleryListScrolling: boolean = false;
+let galleryScrollSettleTimer: number = -1;
+
+// 列表滚动期间冻结卡片比例修正，避免图片加载完成后在滚动中改高度引起网格抖动。
+export function markGalleryListScrolling(): void {
+  galleryListScrolling = true;
+  if (galleryScrollSettleTimer >= 0) {
+    clearTimeout(galleryScrollSettleTimer);
+  }
+  galleryScrollSettleTimer = setTimeout(() => {
+    galleryScrollSettleTimer = -1;
+    galleryListScrolling = false;
+  }, 180) as number;
+}
+
+export function rememberGalleryThumbAspectRatio(url: string, aspectRatio: number): void {
+  if (url.length > 0 && aspectRatio > 0) {
+    GALLERY_THUMB_ASPECT_RATIO_CACHE.set(url, aspectRatio);
+  }
 }
 
 export function galleryThumbnailAspectRatio(gallery: GalleryInfo): number {
@@ -700,6 +721,10 @@ export struct GalleryThumbCard {
   }
 
   private updateThumbnailAspectRatio(aspectRatio: number): void {
+    rememberGalleryThumbAspectRatio(this.gallery.thumb === undefined ? '' : this.gallery.thumb, aspectRatio);
+    if (galleryListScrolling) {
+      return;
+    }
     if (this.gallery.thumbWidth > 0 && this.gallery.thumbHeight > 0) {
       return;
     }

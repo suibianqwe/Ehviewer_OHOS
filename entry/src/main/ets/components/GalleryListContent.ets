@@ -61,6 +61,9 @@ import {
   GalleryListRow,
   GalleryThumbCard,
   galleryThumbnailAspectRatio,
+  markGalleryListScrolling,
+  normalizedThumbnailAspectRatio,
+  rememberGalleryThumbAspectRatio,
 } from './GalleryCards';
 import { PopupScrim } from './PopupScrim';
 import {
@@ -274,6 +277,7 @@ export struct GalleryListContent {
     new ArrayDataSource<GalleryInfo>([]);
   private previousGalleryGids: number[] = [];
   private hasRenderedGalleries: boolean = false;
+  private lastVisibleGalleryIndex: number = -1;
   private toolbarOffsetY: number = 0;
   @State private toolbarOffsetBinding: GalleryToolbarOffsetBinding = new GalleryToolbarOffsetBinding();
 
@@ -362,6 +366,7 @@ export struct GalleryListContent {
       this.galleryThumbnailSource.appendRange(this.galleries, previous.length);
     } else {
       this.galleryThumbnailSource.setItems(this.galleries);
+      this.lastVisibleGalleryIndex = -1;
     }
     const gids: number[] = [];
     for (let i = 0; i < this.galleries.length; i++) {
@@ -419,6 +424,7 @@ export struct GalleryListContent {
           if (size.width > 0 && size.height > 0) {
             gallery.thumbWidth = size.width;
             gallery.thumbHeight = size.height;
+            rememberGalleryThumbAspectRatio(url, normalizedThumbnailAspectRatio(size.width, size.height));
           }
         }
         complete();
@@ -867,6 +873,14 @@ export struct GalleryListContent {
     const viewportHeight = this.listViewportHeight();
     if (viewportHeight <= 0) {
       return;
+    }
+    // WaterFlow 的高度估算在缺缩略图尺寸时偏差很大，用实际可见下标判断是否接近末尾，
+    // 避免滚动过程中反复追加下一页造成整页抖动。
+    if (this.lastVisibleGalleryIndex >= 0 && this.galleries.length > 0) {
+      const threshold = Math.max(8, this.galleryColumnCount() * 2);
+      if (this.lastVisibleGalleryIndex < this.galleries.length - threshold) {
+        return;
+      }
     }
     const remaining = this.estimateContentHeight() - offset - viewportHeight;
     if (remaining <= Math.max(viewportHeight * 2.5, 1500)) {
@@ -1594,6 +1608,7 @@ export struct GalleryListContent {
       const spacerCount = this.galleryTopSpacerIndexes().length;
       const galleryFirst = Math.max(0, first - spacerCount);
       const galleryLast = Math.min(this.galleries.length - 1, last - spacerCount);
+      this.lastVisibleGalleryIndex = galleryLast;
       this.setVisibleTranslationRange(galleryFirst, galleryLast);
       this.prefetchGalleryThumbnailRange(galleryFirst, galleryLast);
     })
@@ -1635,6 +1650,7 @@ export struct GalleryListContent {
   }
 
   private handleGalleryListDidScroll(): void {
+    markGalleryListScrolling();
     const yOffset = normalizeGalleryListScrollOffset(this.listScroller.currentOffset().yOffset);
     const delta = yOffset - this.lastToolbarScrollOffset;
     this.lastToolbarScrollOffset = yOffset;
