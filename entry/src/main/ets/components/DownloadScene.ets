@@ -14,7 +14,6 @@ import {
 } from '../services/EhDownloadFileStore';
 import { ehDownloadManager } from '../services/EhDownloadManager';
 import { remoteStorageDownloadDeletionService } from '../services/RemoteStorageDownloadDeletionService';
-import { remoteStorageSyncService } from '../services/RemoteStorageSyncService';
 import { REMOTE_STORAGE_PURPOSE_DOWNLOADS, remoteStorageProfileStore } from '../services/RemoteStorageProfiles';
 import { FloatingActionSideController } from '../services/EhFloatingActionSideSupport';
 import { BrowsePosition, ehBrowsePositionStore } from '../services/EhBrowsePositionStore';
@@ -1778,22 +1777,7 @@ export struct DownloadScene {
   }
 
   private openDetail(item: DownloadInfo): void {
-    const cloudContext = getAbilityContext();
-    if (cloudContext !== undefined && remoteStorageProfileStore.profileForPurpose(REMOTE_STORAGE_PURPOSE_DOWNLOADS) !== null &&
-      !remoteStorageDownloadDeletionService.hasLocalCopy(cloudContext, item.gid)) {
-      this.showBlockingBusy('Restoring from cloud...');
-      remoteStorageSyncService.restoreCloudGallery(cloudContext, item.gid).then((restored: boolean) => {
-        this.hideBlockingBusy();
-        if (!restored) {
-          this.statusText = 'Restore from cloud failed';
-        }
-        this.openDetailNow(item);
-      }).catch(() => {
-        this.hideBlockingBusy();
-        this.openDetailNow(item);
-      });
-      return;
-    }
+    // 仅云端画廊不再整册恢复：详情直接打开，图片在阅读器里按页从云端拉取。
     this.openDetailNow(item);
   }
 

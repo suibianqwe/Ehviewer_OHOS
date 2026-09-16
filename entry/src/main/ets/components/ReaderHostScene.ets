@@ -4,6 +4,8 @@ import { ReaderPageTranslation, cloneReaderPageTranslation } from '../model/Read
 import { READER_ABILITY_CONTEXT_KEY } from '../entryability/ReaderAbility';
 import { EhHttpClient, GalleryDetailLoadResult, GalleryPageLoadResult } from '../services/EhHttpClient';
 import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
+import { ehDownloadStore } from '../services/EhDownloadStore';
+import { cloudGalleryPageService } from '../services/CloudGalleryPageService';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import {
@@ -200,6 +202,26 @@ export struct ReaderSessionScene {
       return;
     }
 
+    // 仅云端画廊：先按页从云端取图，云端失败再走原有的页面解析与网络回退。
+    this.tryUseCloudPage(preview.index).then((used: boolean) => {
+      if (!this.readerSceneActive) {
+        return;
+      }
+      if (used) {
+        if (this.pageIndex === preview.index) {
+          this.persistSession();
+        }
+        return;
+      }
+      this.continueLoadReaderPage(preview);
+    }).catch(() => {
+      if (this.readerSceneActive) {
+        this.continueLoadReaderPage(preview);
+      }
+    });
+  }
+
+  private continueLoadReaderPage(preview: GalleryPreview): void {
     if (preview.pageUrl.length === 0 || preview.pageUrl.indexOf('ehviewer://') === 0) {
       this.statusText = 'Preview has no page URL';
       this.renderVersion++;
@@ -367,6 +389,41 @@ export struct ReaderSessionScene {
     return true;
   }
 
+  private tryUseCloudPage(index: number): Promise<boolean> {
+    const context = this.readerContext();
+    const galleryId = this.detail.gid;
+    if (context === undefined || galleryId <= 0 || !cloudGalleryPageService.hasDownloadsProfile() ||
+      !ehDownloadStore.contains(galleryId)) {
+      return Promise.resolve(false);
+    }
+    if (ehDownloadFileStore.findPageImage(context, this.detail, index).length > 0) {
+      return Promise.resolve(false);
+    }
+    return cloudGalleryPageService.fetchPage(context, this.detail, index).then((path: string) => {
+      if (path.length === 0 || !this.readerSceneActive || this.detail.gid !== galleryId) {
+        return false;
+      }
+      const preview = this.readerPreviewForIndex(index);
+      const page: GalleryPage = {
+        pageUrl: preview === null ? '' : preview.pageUrl,
+        imageUrl: preview === null ? '' : preview.imageUrl,
+        skipHathKey: '',
+        originImageUrl: '',
+        showKey: '',
+        cachedImagePath: path
+      };
+      this.setReaderPage(index, page);
+      if (this.pageIndex === index) {
+        this.statusText = 'Page loaded from cloud';
+        this.page = cloneGalleryPage(page);
+        this.renderVersion++;
+      }
+      return true;
+    }).catch(() => {
+      return false;
+    });
+  }
+
   private requestReaderPage(preview: GalleryPreview): Promise<GalleryPageLoadResult> {
     const key = preview.pageUrl;
     const pending = this.readerPageLoadRequests.get(key);
@@ -389,6 +446,14 @@ export struct ReaderSessionScene {
   }
 
   private async preloadReaderPage(index: number, galleryId: number): Promise<void> {
+    const context = this.readerContext();
+    if (context !== undefined && galleryId === this.detail.gid &&
+      cloudGalleryPageService.hasDownloadsProfile() && ehDownloadStore.contains(galleryId) &&
+      ehDownloadFileStore.findPageImage(context, this.detail, index).length === 0) {
+      if (await this.tryUseCloudPage(index)) {
+        return;
+      }
+    }
     const preview = await this.ensureReaderPreview(index, true);
     if (!this.readerSceneActive || galleryId !== this.detail.gid || preview === null || preview.pageUrl.length === 0) {
       return;
@@ -464,6 +529,18 @@ export struct ReaderSessionScene {
     if (this.comicTranslationActive) {
       this.requestReaderTranslationWindow(false);
     }
+    const galleryId = this.detail.gid;
+    this.tryUseCloudPage(index).then((used: boolean) => {
+      if (used || !this.readerSceneActive || this.detail.gid !== galleryId) {
+        return;
+      }
+      this.resolveReaderPreviewAndLoad(index);
+    }).catch(() => {
+      this.resolveReaderPreviewAndLoad(index);
+    });
+  }
+
+  private resolveReaderPreviewAndLoad(index: number): void {
     this.ensureReaderPreview(index, false).then((resolved: GalleryPreview | null) => {
       if (resolved === null) {
         if (this.pageIndex === index) {
