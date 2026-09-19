@@ -164,11 +164,13 @@ interface DownloadManifest {
 interface DownloadShardMeta {
   path: string;
   time: number;
+  dirs?: string[];
 }
 
 interface DownloadManifestIndex {
   version: number;
   updatedAt: number;
+  scheme?: number;
   shards: DownloadShardMeta[];
 }
 
@@ -180,12 +182,15 @@ interface DownloadShardHash {
 interface DownloadManifestShard {
   version?: number;
   updatedAt?: number;
+  dirs?: string[];
   files?: DownloadManifestEntry[];
 }
 
 interface DownloadManifestCache {
   version: number;
   updatedAt: number;
+  scheme?: number;
+  shardCount?: number;
   shards: DownloadShardMeta[];
   shardHashes: DownloadShardHash[];
   entries: DownloadManifestEntry[];
@@ -230,6 +235,8 @@ export class RemoteStorageSyncService {
   private downloadManifestIndexHash: string = '';
   private downloadShardTimes: DownloadShardMeta[] = [];
   private downloadShardHashes: DownloadShardHash[] = [];
+  private downloadShardScheme: number = 0;
+  private downloadShardCount: number = 0;
   private downloadManifestCacheLoaded: boolean = false;
   private manifestStamp: string = '';
   private manifestSections: string[] = [];
@@ -1472,7 +1479,9 @@ export class RemoteStorageSyncService {
         totalBytes += pendingBytes;
       }
     }
-    if (totalFiles === 0 && reconciledDirs.length === 0 && uncoveredDirs.length === 0 && !legacyMigrated) {
+    const needsReshard = this.downloadShardScheme < 2 && this.downloadManifestEntries.length > 0;
+    if (totalFiles === 0 && reconciledDirs.length === 0 && uncoveredDirs.length === 0 && !legacyMigrated &&
+      !needsReshard) {
       this.publishProgress('', '', -1);
       return;
     }
@@ -1632,14 +1641,24 @@ export class RemoteStorageSyncService {
     return -1;
   }
 
-  private rememberDownloadShard(path: string, time: number, hash: string): void {
+  private downloadShardDirsFor(path: string): string[] {
+    for (let i = 0; i < this.downloadShardTimes.length; i++) {
+      if (this.downloadShardTimes[i].path === path) {
+        const dirs = this.downloadShardTimes[i].dirs;
+        return Array.isArray(dirs) ? dirs : [];
+      }
+    }
+    return [];
+  }
+
+  private rememberDownloadShard(path: string, time: number, hash: string, dirs: string[] = []): void {
     const nextTimes: DownloadShardMeta[] = [];
     for (let i = 0; i < this.downloadShardTimes.length; i++) {
       if (this.downloadShardTimes[i].path !== path) {
         nextTimes.push(this.downloadShardTimes[i]);
       }
     }
-    nextTimes.push({ path: path, time: time });
+    nextTimes.push({ path: path, time: time, dirs: dirs });
     this.downloadShardTimes = nextTimes;
     const nextHashes: DownloadShardHash[] = [];
     for (let i = 0; i < this.downloadShardHashes.length; i++) {
@@ -1689,6 +1708,71 @@ export class RemoteStorageSyncService {
     } catch (error) {
       return;
     }
+    const scheme = typeof index.scheme === 'number' ? index.scheme : 1;
+    if (scheme < 2) {
+      await this.pullLegacyPerGalleryShards(client, index);
+      return;
+    }
+    const shards = Array.isArray(index.shards) ? index.shards : [];
+    const knownPaths: string[] = [];
+    for (let i = 0; i < shards.length; i++) {
+      knownPaths.push(shards[i].path);
+    }
+    const nextTimes: DownloadShardMeta[] = [];
+    for (let i = 0; i < this.downloadShardTimes.length; i++) {
+      if (knownPaths.indexOf(this.downloadShardTimes[i].path) >= 0) {
+        nextTimes.push(this.downloadShardTimes[i]);
+      }
+    }
+    this.downloadShardTimes = nextTimes;
+    for (let i = 0; i < shards.length; i++) {
+      const shard = shards[i];
+      if (this.downloadShardTimeFor(shard.path) === shard.time) {
+        continue;
+      }
+      const oldDirs = this.downloadShardDirsFor(shard.path);
+      const text = await client.getText(shard.path);
+      const removedDirs: string[] = oldDirs.slice();
+      if (text.ok && text.text.length > 0) {
+        try {
+          const parsed = JSON.parse(text.text) as DownloadManifestShard;
+          const newDirs: string[] = Array.isArray(parsed.dirs) ? parsed.dirs : [];
+          for (let d = 0; d < newDirs.length; d++) {
+            if (removedDirs.indexOf(newDirs[d]) < 0) {
+              removedDirs.push(newDirs[d]);
+            }
+          }
+          const kept: DownloadManifestEntry[] = [];
+          for (let e = 0; e < this.downloadManifestEntries.length; e++) {
+            if (removedDirs.indexOf(galleryDirOfPath(this.downloadManifestEntries[e].path)) < 0) {
+              kept.push(this.downloadManifestEntries[e]);
+            }
+          }
+          if (Array.isArray(parsed.files)) {
+            for (let f = 0; f < parsed.files.length; f++) {
+              kept.push(parsed.files[f]);
+            }
+          }
+          this.downloadManifestEntries = kept;
+          this.rememberDownloadShard(shard.path, shard.time, simpleTextHash(text.text), newDirs);
+          logRemoteStorageInfo('download manifest shard pulled path=' + shard.path.substring(shard.path.lastIndexOf('/') + 1) +
+            ' entries=' + (Array.isArray(parsed.files) ? parsed.files.length.toString() : '0'));
+        } catch (error) {
+        }
+      } else {
+        const kept: DownloadManifestEntry[] = [];
+        for (let e = 0; e < this.downloadManifestEntries.length; e++) {
+          if (removedDirs.indexOf(galleryDirOfPath(this.downloadManifestEntries[e].path)) < 0) {
+            kept.push(this.downloadManifestEntries[e]);
+          }
+        }
+        this.downloadManifestEntries = kept;
+        this.forgetDownloadShard(shard.path);
+      }
+    }
+  }
+
+  private async pullLegacyPerGalleryShards(client: WebDavClient, index: DownloadManifestIndex): Promise<void> {
     const shards = Array.isArray(index.shards) ? index.shards : [];
     const knownPaths: string[] = [];
     for (let i = 0; i < shards.length; i++) {
@@ -1752,50 +1836,91 @@ export class RemoteStorageSyncService {
     }
   }
 
-  // 只重写指定画廊的分片（按 1000 条/1MB 拆分），返回索引是否需要更新。
+  // 按条目数量分片：每片 ≤1000 条且 ≤1MB；画廊按名称哈希固定落在某个桶，改动只重写所在桶。
   private async writeDownloadShardsForGalleries(client: WebDavClient, dirs: string[]): Promise<boolean> {
-    let indexChanged = false;
-    const now = Date.now();
-    for (let d = 0; d < dirs.length; d++) {
-      const dir = dirs[d];
-      const entries: DownloadManifestEntry[] = [];
-      for (let i = 0; i < this.downloadManifestEntries.length; i++) {
-        if (galleryDirOfPath(this.downloadManifestEntries[i].path) === dir) {
-          entries.push(this.downloadManifestEntries[i]);
+    const totalEntries = this.downloadManifestEntries.length;
+    const targetCount = Math.max(1, Math.ceil(totalEntries / MANIFEST_SHARD_MAX_ITEMS));
+    const reshard = this.downloadShardScheme < 2 || targetCount !== this.downloadShardCount;
+    const previousMetas = this.downloadShardTimes.slice();
+    if (reshard) {
+      this.downloadShardTimes = [];
+      this.downloadShardHashes = [];
+    }
+    const bucketSet: number[] = [];
+    if (reshard) {
+      for (let i = 0; i < totalEntries; i++) {
+        const dir = galleryDirOfPath(this.downloadManifestEntries[i].path);
+        if (dir.length === 0) {
+          continue;
+        }
+        const bucket = dirBucket(dir, targetCount);
+        if (bucketSet.indexOf(bucket) < 0) {
+          bucketSet.push(bucket);
         }
       }
-      entries.sort((left: DownloadManifestEntry, right: DownloadManifestEntry): number => {
+    } else {
+      for (let i = 0; i < dirs.length; i++) {
+        if (dirs[i].length === 0) {
+          continue;
+        }
+        const bucket = dirBucket(dirs[i], targetCount);
+        if (bucketSet.indexOf(bucket) < 0) {
+          bucketSet.push(bucket);
+        }
+      }
+    }
+    let indexChanged = false;
+    const now = Date.now();
+    for (let b = 0; b < bucketSet.length; b++) {
+      const bucket = bucketSet[b];
+      const bucketEntries: DownloadManifestEntry[] = [];
+      for (let i = 0; i < totalEntries; i++) {
+        const dir = galleryDirOfPath(this.downloadManifestEntries[i].path);
+        if (dir.length > 0 && dirBucket(dir, targetCount) === bucket) {
+          bucketEntries.push(this.downloadManifestEntries[i]);
+        }
+      }
+      bucketEntries.sort((left: DownloadManifestEntry, right: DownloadManifestEntry): number => {
         if (left.path !== right.path) {
           return left.path < right.path ? -1 : 1;
         }
         return 0;
       });
-      const parts: string[] = [];
+      const partTexts: string[] = [];
+      const partDirs: string[][] = [];
       let chunk: DownloadManifestEntry[] = [];
+      let chunkDirs: string[] = [];
       let chunkBytes = 0;
-      for (let i = 0; i < entries.length; i++) {
-        const size = JSON.stringify(entries[i]).length + 1;
+      for (let i = 0; i < bucketEntries.length; i++) {
+        const size = JSON.stringify(bucketEntries[i]).length + 1;
         if (chunk.length > 0 && (chunk.length >= MANIFEST_SHARD_MAX_ITEMS ||
           chunkBytes + size > MANIFEST_SHARD_MAX_BYTES)) {
-          parts.push(JSON.stringify({ version: 2, updatedAt: now, files: chunk }));
+          partTexts.push(JSON.stringify({ version: 2, updatedAt: now, dirs: chunkDirs, files: chunk }));
+          partDirs.push(chunkDirs);
           chunk = [];
+          chunkDirs = [];
           chunkBytes = 0;
         }
-        chunk.push(entries[i]);
+        const dir = galleryDirOfPath(bucketEntries[i].path);
+        if (dir.length > 0 && chunkDirs.indexOf(dir) < 0) {
+          chunkDirs.push(dir);
+        }
+        chunk.push(bucketEntries[i]);
         chunkBytes += size;
       }
       if (chunk.length > 0) {
-        parts.push(JSON.stringify({ version: 2, updatedAt: now, files: chunk }));
+        partTexts.push(JSON.stringify({ version: 2, updatedAt: now, dirs: chunkDirs, files: chunk }));
+        partDirs.push(chunkDirs);
       }
       const existingTimes: DownloadShardMeta[] = [];
       for (let i = 0; i < this.downloadShardTimes.length; i++) {
-        if (shardDirOfPath(this.downloadShardTimes[i].path) === dir) {
+        if (shardBucketOfPath(this.downloadShardTimes[i].path) === bucket) {
           existingTimes.push(this.downloadShardTimes[i]);
         }
       }
-      for (let i = 0; i < parts.length; i++) {
-        const path = DOWNLOAD_SHARDS_FOLDER + '/' + dir + '~' + i.toString() + '.json';
-        const hash = simpleTextHash(parts[i]);
+      for (let i = 0; i < partTexts.length; i++) {
+        const path = shardPathForBucket(bucket, i);
+        const hash = simpleTextHash(partTexts[i]);
         const knownHash = this.downloadShardHashFor(path);
         let listed = false;
         for (let j = 0; j < existingTimes.length; j++) {
@@ -1807,20 +1932,34 @@ export class RemoteStorageSyncService {
         if (knownHash === hash && listed) {
           continue;
         }
-        const uploaded = await client.putText(path, parts[i]);
+        const uploaded = await client.putText(path, partTexts[i]);
         if (uploaded.ok) {
-          this.rememberDownloadShard(path, now, hash);
+          this.rememberDownloadShard(path, now, hash, partDirs[i]);
           indexChanged = true;
         }
       }
       for (let i = 0; i < existingTimes.length; i++) {
-        if (shardPartIndex(existingTimes[i].path) >= parts.length) {
+        if (shardPartIndex(existingTimes[i].path) >= partTexts.length) {
           await client.deleteFile(existingTimes[i].path);
           this.forgetDownloadShard(existingTimes[i].path);
           indexChanged = true;
         }
       }
     }
+    if (reshard) {
+      const newPaths: string[] = [];
+      for (let i = 0; i < this.downloadShardTimes.length; i++) {
+        newPaths.push(this.downloadShardTimes[i].path);
+      }
+      for (let i = 0; i < previousMetas.length; i++) {
+        if (newPaths.indexOf(previousMetas[i].path) < 0) {
+          await client.deleteFile(previousMetas[i].path);
+        }
+      }
+      indexChanged = true;
+    }
+    this.downloadShardScheme = 2;
+    this.downloadShardCount = targetCount;
     return indexChanged;
   }
 
@@ -1828,6 +1967,7 @@ export class RemoteStorageSyncService {
     const index: DownloadManifestIndex = {
       version: 2,
       updatedAt: Date.now(),
+      scheme: 2,
       shards: this.downloadShardTimes.slice()
     };
     const text = JSON.stringify(index);
@@ -1857,6 +1997,8 @@ export class RemoteStorageSyncService {
       this.downloadShardHashes = Array.isArray(parsed.shardHashes) ? parsed.shardHashes : [];
       this.downloadManifestEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
       this.downloadManifestIndexHash = typeof parsed.indexHash === 'string' ? parsed.indexHash : '';
+      this.downloadShardScheme = typeof parsed.scheme === 'number' ? parsed.scheme : 0;
+      this.downloadShardCount = typeof parsed.shardCount === 'number' ? parsed.shardCount : 0;
     } catch (error) {
     }
   }
@@ -1865,6 +2007,8 @@ export class RemoteStorageSyncService {
     const payload: DownloadManifestCache = {
       version: 2,
       updatedAt: Date.now(),
+      scheme: this.downloadShardScheme,
+      shardCount: this.downloadShardCount,
       shards: this.downloadShardTimes,
       shardHashes: this.downloadShardHashes,
       entries: this.downloadManifestEntries,
@@ -2220,6 +2364,29 @@ function readFileBuffer(path: string): ArrayBuffer | null {
       }
     }
   }
+}
+
+function dirBucket(dir: string, count: number): number {
+  let hash = 5381;
+  for (let i = 0; i < dir.length; i++) {
+    hash = ((hash << 5) + hash + dir.charCodeAt(i)) | 0;
+  }
+  const unsigned = hash >>> 0;
+  return count > 0 ? unsigned % count : 0;
+}
+
+function shardPathForBucket(bucket: number, part: number): string {
+  return DOWNLOAD_SHARDS_FOLDER + '/shard~' + bucket.toString() + '~' + part.toString() + '.json';
+}
+
+function shardBucketOfPath(path: string): number {
+  const name = path.substring(path.lastIndexOf('/') + 1);
+  const parts = name.split('~');
+  if (parts.length < 3) {
+    return -1;
+  }
+  const parsed = Number.parseInt(parts[1]);
+  return Number.isNaN(parsed) ? -1 : parsed;
 }
 
 function galleryDirOfPath(path: string): string {
