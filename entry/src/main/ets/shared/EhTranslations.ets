@@ -752,7 +752,10 @@ export function zhText(text: string): string {
     return previewCountMatch[1] + ' 个缩略图 / ' + previewCountMatch[2] + ' 页';
   }
   switch (text) {
-     case 'Download to local': return '下载到本地';
+     case 'Ignore certificate errors': return '忽略证书错误';
+    case 'Accept self-signed HTTPS certificates': return '接受自签名 HTTPS 证书';
+    case 'Optional, 5005 for HTTP, 5006 for HTTPS': return '可选，HTTP 常用 5005，HTTPS 常用 5006';
+    case 'Download to local': return '下载到本地';
     case 'Downloading from cloud': return '正在从云端下载';
     case 'Downloaded to local': return '已下载到本地';
     case 'Download from cloud failed': return '云端下载失败';

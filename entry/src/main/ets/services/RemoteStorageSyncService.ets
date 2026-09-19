@@ -1577,6 +1577,7 @@ function profilesWithoutPasswords(profiles: RemoteStorageProfile[]): RemoteStora
       useForBackup: profile.useForBackup,
       useForSync: profile.useForSync,
       useForDownloads: profile.useForDownloads,
+      ignoreCertificate: profile.ignoreCertificate,
       updatedAt: profile.updatedAt
     });
   }

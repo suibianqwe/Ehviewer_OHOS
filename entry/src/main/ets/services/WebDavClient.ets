@@ -243,6 +243,7 @@ export class WebDavClient {
       usingCache: false,
       reuseConnections: false
     };
+    this.applyTlsOptions(options);
     const startedAt = Date.now();
     logRemoteStorageInfo('request PUT ' + url + ' bodyBytes=' + data.byteLength.toString());
     await waitWebDavSlot();
@@ -285,6 +286,7 @@ export class WebDavClient {
       usingCache: false,
       reuseConnections: false
     };
+    this.applyTlsOptions(options);
     const startedAt = Date.now();
     logRemoteStorageInfo('request GET(binary) ' + url);
     await waitWebDavSlot();
@@ -332,6 +334,7 @@ export class WebDavClient {
       usingCache: false,
       reuseConnections: false
     };
+    this.applyTlsOptions(options);
     await waitWebDavSlot();
     try {
       const result = await this.requestWithRedirects(url, options);
@@ -345,6 +348,12 @@ export class WebDavClient {
       return { ok: false, statusCode: 0, message: remoteStorageErrorMessage(error) };
     } finally {
       releaseWebDavSlot();
+    }
+  }
+
+  private applyTlsOptions(options: http.HttpRequestOptions): void {
+    if (this.profile.ignoreCertificate === true) {
+      options.remoteValidation = 'skip';
     }
   }
 
@@ -446,6 +455,7 @@ export class WebDavClient {
       usingCache: false,
       reuseConnections: false
     };
+    this.applyTlsOptions(options);
     if (body.length > 0) {
       options.extraData = body;
     }

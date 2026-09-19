@@ -7,7 +7,8 @@ import {
   normalizeRemoteStoragePort,
   normalizeRemoteStorageUrl,
   remoteStorageApplyPort,
-  remoteStorageHost
+  remoteStorageHost,
+  remoteStoragePortFromUrl
 } from './RemoteStorageSupport';
 import { syncTombstoneStore } from './SyncTombstoneStore';
 
@@ -35,6 +36,7 @@ export interface RemoteStorageProfile {
   useForBackup: boolean;
   useForSync: boolean;
   useForDownloads: boolean;
+  ignoreCertificate: boolean;
   updatedAt: number;
 }
 
@@ -43,18 +45,26 @@ export function remoteStorageKindLabel(kind: string): string {
 }
 
 export function normalizeRemoteStorageProfile(profile: RemoteStorageProfile): RemoteStorageProfile {
+  const url = normalizeRemoteStorageUrl(profile.url);
+  let port = typeof profile.port === 'string' ? normalizeRemoteStoragePort(profile.port) : '';
+  // HTTPS 未显式填写端口时使用 5006 作为默认端口（本项目的服务端约定）。
+  if (port.length === 0 && remoteStoragePortFromUrl(url).length === 0 &&
+    url.toLowerCase().indexOf('https://') === 0) {
+    port = '5006';
+  }
   return {
     id: profile.id.trim().length > 0 ? profile.id.trim() : createRemoteStorageProfileId(),
     name: profile.name.trim(),
     kind: profile.kind === REMOTE_STORAGE_KIND_WEBDAV ? profile.kind : REMOTE_STORAGE_KIND_WEBDAV,
-    url: normalizeRemoteStorageUrl(profile.url),
-    port: typeof profile.port === 'string' ? normalizeRemoteStoragePort(profile.port) : '',
+    url: url,
+    port: port,
     username: profile.username.trim(),
     password: profile.password,
     basePath: normalizeRemoteStorageBasePath(profile.basePath),
     useForBackup: profile.useForBackup,
     useForSync: profile.useForSync,
     useForDownloads: profile.useForDownloads,
+    ignoreCertificate: profile.ignoreCertificate === true,
     updatedAt: profile.updatedAt > 0 ? profile.updatedAt : Date.now()
   };
 }

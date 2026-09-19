@@ -31,11 +31,12 @@ const support = Function(supportSource +
 
 const profiles = Function('createRemoteStorageProfileId', 'isValidRemoteStorageUrl', 'normalizeRemoteStorageBasePath',
   'normalizeRemoteStorageUrl', 'remoteStorageHost', 'normalizeRemoteStoragePort', 'remoteStorageApplyPort',
+  'remoteStoragePortFromUrl',
   executable(read('entry/src/main/ets/services/RemoteStorageProfiles.ets')) +
   '\nreturn { parseRemoteStorageProfiles, normalizeRemoteStorageProfile, remoteStorageProfileForPurpose,' +
   ' remoteStorageProfileSummary };')(support.createRemoteStorageProfileId, support.isValidRemoteStorageUrl,
   support.normalizeRemoteStorageBasePath, support.normalizeRemoteStorageUrl, support.remoteStorageHost,
-  support.normalizeRemoteStoragePort, support.remoteStorageApplyPort);
+  support.normalizeRemoteStoragePort, support.remoteStorageApplyPort, support.remoteStoragePortFromUrl);
 
 test('remote storage paths normalize and join for WebDAV URLs', () => {
   assert.equal(support.normalizeRemoteStorageUrl('dav.example.com/dav/'), 'http://dav.example.com/dav');
@@ -184,4 +185,21 @@ test('webdav redirects resolve absolute, protocol-relative and relative targets'
   assert.equal(support.resolveRedirectUrl('http://host:5005/dav/a.json?x=1#frag', 'b.json'),
     'http://host:5005/dav/b.json');
   assert.equal(support.resolveRedirectUrl('http://host:5005/dav/a.json', '   '), '');
+});
+
+test('https profiles default to port 5006 and keep explicit ports', () => {
+  const base = {
+    id: 'p1', name: '', kind: 'webdav', url: 'https://host/dav', port: '', username: '', password: '',
+    basePath: '', useForBackup: true, useForSync: false, useForDownloads: false, ignoreCertificate: false,
+    updatedAt: 1
+  };
+  const normalized = profiles.normalizeRemoteStorageProfile(base);
+  assert.equal(normalized.port, '5006');
+  assert.equal(normalized.ignoreCertificate, false);
+  const explicit = profiles.normalizeRemoteStorageProfile(Object.assign({}, base, { url: 'https://host:8443/dav' }));
+  assert.equal(explicit.port, '');
+  const plainHttp = profiles.normalizeRemoteStorageProfile(Object.assign({}, base, { url: 'http://host/dav' }));
+  assert.equal(plainHttp.port, '');
+  const ignored = profiles.normalizeRemoteStorageProfile(Object.assign({}, base, { ignoreCertificate: true }));
+  assert.equal(ignored.ignoreCertificate, true);
 });

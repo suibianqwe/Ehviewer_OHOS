@@ -470,6 +470,7 @@ struct RemoteStorageEditorOverlay {
   @State draftUseForBackup: boolean = false;
   @State draftUseForSync: boolean = false;
   @State draftUseForDownloads: boolean = false;
+  @State draftIgnoreCertificate: boolean = false;
   @State popupWidth: number = 0;
   @State popupHeight: number = 0;
   @State busy: boolean = false;
@@ -492,6 +493,7 @@ struct RemoteStorageEditorOverlay {
     this.draftUseForBackup = this.profile.useForBackup;
     this.draftUseForSync = this.profile.useForSync;
     this.draftUseForDownloads = this.profile.useForDownloads;
+    this.draftIgnoreCertificate = this.profile.ignoreCertificate;
   }
 
   private currentDraft(): RemoteStorageProfile {
@@ -507,6 +509,7 @@ struct RemoteStorageEditorOverlay {
       useForBackup: this.draftUseForBackup,
       useForSync: this.draftUseForSync,
       useForDownloads: this.draftUseForDownloads,
+      ignoreCertificate: this.draftIgnoreCertificate,
       updatedAt: Date.now()
     };
   }
@@ -618,7 +621,7 @@ struct RemoteStorageEditorOverlay {
               })
 
             this.fieldLabel('Port')
-            TextInput({ text: this.draftPort, placeholder: uiText('Optional, for example 5005') })
+            TextInput({ text: this.draftPort, placeholder: uiText('Optional, 5005 for HTTP, 5006 for HTTPS') })
               .height(44)
               .fontSize(14)
               .type(InputType.Number)
@@ -674,6 +677,10 @@ struct RemoteStorageEditorOverlay {
             this.switchRow('Backup downloaded galleries', 'Mirror downloaded galleries to this server; local copies are kept', this.draftUseForDownloads,
               (value: boolean) => {
                 this.draftUseForDownloads = value;
+              })
+            this.switchRow('Ignore certificate errors', 'Accept self-signed HTTPS certificates', this.draftIgnoreCertificate,
+              (value: boolean) => {
+                this.draftIgnoreCertificate = value;
               })
 
             if (this.statusText.length > 0) {
@@ -768,9 +775,10 @@ function emptyRemoteStorageProfile(): RemoteStorageProfile {
     username: '',
     password: '',
     basePath: 'ehviewer',
-    useForBackup: true,
-    useForSync: false,
-    useForDownloads: false,
-    updatedAt: 0
-  };
+  useForBackup: true,
+  useForSync: false,
+  useForDownloads: false,
+  ignoreCertificate: false,
+  updatedAt: 0
+};
 }
