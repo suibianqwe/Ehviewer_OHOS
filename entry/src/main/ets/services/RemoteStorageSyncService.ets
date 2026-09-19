@@ -46,7 +46,7 @@ import {
   TranslationPromptProfile
 } from './TranslationSupport';
 import { ehDownloadFileStore } from './EhDownloadFileStore';
-import { ehDownloadStore } from './EhDownloadStore';
+import { DownloadInfo, DownloadState, ehDownloadStore } from './EhDownloadStore';
 import { remoteStorageDownloadDeletionService } from './RemoteStorageDownloadDeletionService';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { GalleryInfo } from '../model/GalleryModels';
@@ -70,9 +70,14 @@ const FINGERPRINT_KEY: string = 'lastFingerprint';
 const SERVER_TIMES_KEY: string = 'serverTimes';
 const MIRROR_CHECKS_KEY: string = 'mirrorChecks';
 const DEVICE_ID_KEY: string = 'deviceId';
+const MANIFEST_STAMP_KEY: string = 'manifestStamp';
+const MANIFEST_SECTIONS_KEY: string = 'manifestSections';
+const SECTION_HASHES_KEY: string = 'sectionHashes';
+const DOWNLOAD_MANIFEST_STAMP_KEY: string = 'downloadManifestStamp';
+const TOMBSTONES_HASH_KEY: string = 'tombstonesHash';
 const SYNC_FOLDER: string = 'sync';
 const MANIFEST_FILE: string = SYNC_FOLDER + '/manifest.json';
-const FINGERPRINT_INTERVAL_MS: number = 60000;
+const FINGERPRINT_INTERVAL_MS: number = 120000;
 const DIRTY_DEBOUNCE_MS: number = 15000;
 const RETRY_DELAY_MS: number = 90000;
 const MAX_SYNC_HISTORY_ITEMS: number = 1000;
@@ -95,6 +100,7 @@ const MAX_MIRROR_GALLERIES_PER_CYCLE: number = 6;
 const MAX_MIRROR_FILES_PER_CYCLE: number = 300;
 const MIRROR_CONCURRENCY: number = 2;
 const MIRROR_TIME_BUDGET_MS: number = 25000;
+const MIRROR_POLL_INTERVAL_MS: number = 300000;
  const RECONCILE_INTERVAL_MS: number = 600000;
 const RECONCILE_GALLERIES_PER_CYCLE: number = 3;
 
@@ -125,6 +131,18 @@ interface MirrorGalleryPlan {
 interface MirrorCheckRecord {
   name: string;
   mtime: number;
+}
+
+interface RemoteFileStamp {
+  found: boolean;
+  unreachable: boolean;
+  stamp: string;
+  mtime: number;
+}
+
+interface SyncSectionHash {
+  name: string;
+  hash: string;
 }
 
 interface DownloadManifestEntry {
@@ -168,8 +186,16 @@ export class RemoteStorageSyncService {
   private serverTimes: RemoteSyncServerTime[] = [];
   private mirrorChecks: MirrorCheckRecord[] = [];
   private downloadManifestEntries: DownloadManifestEntry[] = [];
-  private downloadManifestMtime: number = 0;
+  private downloadManifestStamp: string = '';
+  private manifestStamp: string = '';
+  private manifestSections: string[] = [];
+  private sectionHashes: SyncSectionHash[] = [];
+  private tombstonesHash: string = '';
+  private downloadsDirty: boolean = false;
+  private downloadSignature: string = '';
+  private downloadStoreUnsubscribe: (() => void) | null = null;
   private lastReconcileAt: number = 0;
+  private lastMirrorCheckAt: number = 0;
   private reconcileIndex: number = 0;
   private deviceId: string = '';
   private deviceName: string = '';
@@ -177,6 +203,7 @@ export class RemoteStorageSyncService {
   async initialize(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
     this.started = true;
+    this.ensureDownloadStoreSubscription();
     await this.loadState(context);
     await remoteStorageProfileStore.ensureLoaded(context);
     const profile = remoteStorageProfileStore.profileForPurpose(REMOTE_STORAGE_PURPOSE_SYNC);
@@ -185,13 +212,28 @@ export class RemoteStorageSyncService {
       return;
     }
     this.publishSyncedOrPending(profile);
-    this.pullIfNewer(context, profile);
-    this.schedule(FINGERPRINT_INTERVAL_MS);
+    // 立即做一次轻量检查（只探测 manifest 时间戳），随后按轮询间隔运行。
+    this.schedule(1);
   }
 
   pause(): void {
     this.started = false;
     this.clearTimer();
+  }
+
+  private ensureDownloadStoreSubscription(): void {
+    if (this.downloadStoreUnsubscribe !== null) {
+      return;
+    }
+    this.downloadStoreUnsubscribe = ehDownloadStore.subscribe((items: DownloadInfo[]) => {
+      const signature = downloadStoreSignature(items);
+      if (signature === this.downloadSignature) {
+        return;
+      }
+      this.downloadSignature = signature;
+      this.downloadsDirty = true;
+      this.markDirty();
+    });
   }
 
   markDirty(): void {
@@ -227,6 +269,7 @@ export class RemoteStorageSyncService {
       if (!directory.ok) {
         throw new Error(directory.message);
       }
+      let remoteApplied = false;
       if (pullRemote) {
         await this.mergeRemoteTombstones(context, client);
         const listing = await client.list(SYNC_FOLDER);
@@ -242,49 +285,115 @@ export class RemoteStorageSyncService {
               // Settings stay per device: never apply another device's preferences.
               continue;
             }
+            // 远端时间戳不新于记录说明该分区未变化，跳过下载。
+            const recorded = this.serverTimeFor(sectionName);
+            if (recorded > 0 && entry.modifiedAt > 0 && entry.modifiedAt <= recorded) {
+              continue;
+            }
             await this.applySection(context, client, sectionName);
+            remoteApplied = true;
           }
           this.recordServerTimes(listing.entries);
         }
         await this.applyTombstones(context);
+        const manifestResult = await client.getText(MANIFEST_FILE);
+        if (manifestResult.ok && manifestResult.text.length > 0) {
+          try {
+            const remoteManifest = JSON.parse(manifestResult.text) as RemoteSyncManifest;
+            if (Array.isArray(remoteManifest.sections)) {
+              this.manifestSections = remoteManifest.sections.slice();
+            }
+          } catch (error) {
+          }
+        }
       }
       const sections = await this.buildSections(context);
+      const sectionNames: string[] = [];
+      let uploadedAny = false;
+      let newSectionNames = false;
       for (let i = 0; i < sections.length; i++) {
-        this.publishProgress(uiText('Syncing configuration…'), this.sectionLabel(sections[i].name),
-          Math.round(i * 30 / sections.length));
-        const uploaded = await client.putText(SYNC_FOLDER + '/' + sections[i].name + '.json', sections[i].data);
-        if (!uploaded.ok) {
-          throw new Error(sections[i].name + ': ' + uploaded.message);
+        const section = sections[i];
+        sectionNames.push(section.name);
+        if (this.manifestSections.indexOf(section.name) < 0) {
+          newSectionNames = true;
         }
-        this.publishProgress(uiText('Syncing configuration…'), this.sectionLabel(sections[i].name),
+        const hash = simpleTextHash(section.data);
+        const knownHash = this.sectionHashFor(section.name);
+        const recordedTime = this.serverTimeFor(section.name);
+        if (recordedTime > 0 && knownHash.length > 0 && knownHash === hash) {
+          continue;
+        }
+        this.publishProgress(uiText('Syncing configuration…'), this.sectionLabel(section.name),
+          Math.round(i * 30 / sections.length));
+        const uploaded = await client.putText(SYNC_FOLDER + '/' + section.name + '.json', section.data);
+        if (!uploaded.ok) {
+          throw new Error(section.name + ': ' + uploaded.message);
+        }
+        this.rememberSectionHash(section.name, hash);
+        uploadedAny = true;
+        this.publishProgress(uiText('Syncing configuration…'), this.sectionLabel(section.name),
           Math.round((i + 1) * 30 / sections.length));
       }
-      const manifest: RemoteSyncManifest = {
-        version: 1,
-        updatedAt: Date.now(),
-        sections: sections.map((section: RemoteSyncSection): string => section.name)
-      };
-      const manifestUpload = await client.putText(MANIFEST_FILE, JSON.stringify(manifest));
-      if (!manifestUpload.ok) {
-        throw new Error(manifestUpload.message);
-      }
       syncTombstoneStore.prune(TOMBSTONE_MAX_AGE_MS);
+      let tombstonesChanged = false;
       if (!syncTombstoneStore.isEmpty()) {
-        await client.putText(TOMBSTONES_FILE, syncTombstoneStore.serialize());
+        const tombstoneText = syncTombstoneStore.serialize();
+        const tombstoneHash = simpleTextHash(tombstoneText);
+        if (tombstoneHash !== this.tombstonesHash) {
+          const tombstoneUpload = await client.putText(TOMBSTONES_FILE, tombstoneText);
+          if (tombstoneUpload.ok) {
+            this.tombstonesHash = tombstoneHash;
+            tombstonesChanged = true;
+          }
+        }
       }
-      const afterListing = await client.list(SYNC_FOLDER);
-      if (afterListing.ok) {
-        this.recordServerTimes(afterListing.entries);
+      // manifest 只在确有内容变化（分区/墓碑上传或新增分区）后才重写上传，避免设备间来回触发。
+      const manifestNeeded = uploadedAny || newSectionNames ||
+        this.manifestSections.length === 0 || tombstonesChanged;
+      let manifestUploadedAt = this.lastSyncAt;
+      if (manifestNeeded) {
+        for (let i = 0; i < sectionNames.length; i++) {
+          if (this.manifestSections.indexOf(sectionNames[i]) < 0) {
+            this.manifestSections.push(sectionNames[i]);
+          }
+        }
+        const manifest: RemoteSyncManifest = {
+          version: 1,
+          updatedAt: Date.now(),
+          sections: this.manifestSections.slice()
+        };
+        const manifestUpload = await client.putText(MANIFEST_FILE, JSON.stringify(manifest));
+        if (!manifestUpload.ok) {
+          throw new Error(manifestUpload.message);
+        }
+        manifestUploadedAt = manifest.updatedAt;
+        const newStat = await this.remoteFileStamp(client, MANIFEST_FILE);
+        if (newStat.found) {
+          this.manifestStamp = newStat.stamp;
+        }
+      } else if (this.manifestStamp.length === 0) {
+        const stat = await this.remoteFileStamp(client, MANIFEST_FILE);
+        if (stat.found) {
+          this.manifestStamp = stat.stamp;
+        }
       }
-      this.lastSyncAt = manifest.updatedAt;
-      this.lastPulledAt = manifest.updatedAt;
+      if (uploadedAny || remoteApplied || newSectionNames) {
+        const afterListing = await client.list(SYNC_FOLDER);
+        if (afterListing.ok) {
+          this.recordServerTimes(afterListing.entries);
+        }
+      }
+      this.lastSyncAt = manifestUploadedAt;
+      this.lastPulledAt = manifestUploadedAt;
       this.fingerprint = await this.computeFingerprint(context);
+      this.lastMirrorCheckAt = Date.now();
       await this.syncDownloadFiles(context, profile, client);
       await this.persistState(context);
       this.busy = false;
       this.dirty = false;
       this.publishProgress('', '', -1);
-      logRemoteStorageInfo('sync completed sections=' + sections.length.toString());
+      logRemoteStorageInfo('sync completed sections=' + sections.length.toString() +
+        ' uploaded=' + (uploadedAny ? 'yes' : 'no'));
       this.publishStatus(profile, uiText('Synced at') + ' ' + syncTimeText(this.lastSyncAt), '');
       this.schedule(FINGERPRINT_INTERVAL_MS);
     } catch (error) {
@@ -331,21 +440,33 @@ export class RemoteStorageSyncService {
       return;
     }
     const client = new WebDavClient(profile);
-    const listing = await client.list(SYNC_FOLDER);
+    // 轮询只探测 sync/manifest.json 的时间戳/ETag，不列目录、不下载。
+    const stat = await this.remoteFileStamp(client, MANIFEST_FILE);
     const fingerprint = await this.computeFingerprint(context);
     const localChanged = this.dirty || fingerprint !== this.fingerprint;
-    if (!listing.ok) {
+    if (stat.unreachable) {
       this.schedule(localChanged ? RETRY_DELAY_MS : FINGERPRINT_INTERVAL_MS);
       return;
     }
-    const remoteChanged = this.listingHasNewer(listing.entries);
-    if (remoteChanged || localChanged) {
+    if (!stat.found) {
+      // 云端还没有 manifest：做一次上传（并建立初始 manifest）。
+      await this.performSync(context, profile, client, false);
+      return;
+    }
+    const remoteChanged = this.manifestStamp.length === 0 || stat.stamp !== this.manifestStamp;
+    if (remoteChanged) {
       await this.performSync(context, profile, client, true);
       return;
     }
-    // Downloads mirror on every poll so newly finished galleries are uploaded even when the
-    // JSON sync sections did not change.
-    await this.syncDownloadFiles(context, profile, client);
+    if (localChanged) {
+      await this.performSync(context, profile, client, false);
+      return;
+    }
+    // manifest 未变（无人改动）时按较低频次检查下载镜像，避免每次都探测。
+    if (this.downloadsDirty || Date.now() - this.lastMirrorCheckAt >= MIRROR_POLL_INTERVAL_MS) {
+      this.lastMirrorCheckAt = Date.now();
+      await this.syncDownloadFiles(context, profile, client);
+    }
     this.publishSyncedOrPending(profile);
     this.schedule(FINGERPRINT_INTERVAL_MS);
   }
@@ -605,9 +726,10 @@ export class RemoteStorageSyncService {
       const manifest: DownloadManifest = { version: 1, updatedAt: now, files: next };
       const uploaded = await client.putText(DOWNLOAD_MANIFEST_FILE, JSON.stringify(manifest));
       if (uploaded.ok) {
-        const refreshed = await client.list(DOWNLOAD_MANIFEST_FILE);
-        this.downloadManifestMtime = refreshed.ok && refreshed.entries.length > 0 ?
-          refreshed.entries[0].modifiedAt : now;
+        const refreshed = await this.remoteFileStamp(client, DOWNLOAD_MANIFEST_FILE);
+        if (refreshed.found) {
+          this.downloadManifestStamp = refreshed.stamp;
+        }
       }
       logRemoteStorageInfo('manifest reconcile checked=' + checked.length.toString() +
         ' drift=' + drift.toString());
@@ -624,20 +746,6 @@ export class RemoteStorageSyncService {
       return;
     }
     this.publishStatus(profile, uiText('Pending sync'), '');
-  }
-
-  private listingHasNewer(entries: RemoteStorageListEntry[]): boolean {
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i];
-      if (entry.isDirectory || !entry.name.endsWith('.json') || entry.name === 'manifest.json') {
-        continue;
-      }
-      const name = entry.name.substring(0, entry.name.length - 5);
-      if (entry.modifiedAt > 0 && entry.modifiedAt > this.serverTimeFor(name)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private serverTimeFor(name: string): number {
@@ -715,44 +823,45 @@ export class RemoteStorageSyncService {
     return JSON.stringify(envelope);
   }
 
-  private async pullIfNewer(context: common.UIAbilityContext, profile: RemoteStorageProfile): Promise<void> {
-    try {
-      const client = new WebDavClient(profile);
-      const manifestResult = await client.getText(MANIFEST_FILE);
-      if (!manifestResult.ok || manifestResult.text.length === 0) {
-        return;
-      }
-      const manifest = JSON.parse(manifestResult.text) as RemoteSyncManifest;
-      if (typeof manifest.updatedAt !== 'number' || manifest.updatedAt <= this.lastPulledAt) {
-        return;
-      }
-      await Promise.all([
-        ehSettingsStore.ensureLoaded(context),
-        ehBookmarkStore.ensureLoaded(context),
-        ehFilterStore.ensureLoaded(context),
-        ehCommentBlacklistStore.ensureLoaded(context),
-        ehSearchHistoryStore.load(context),
-        ehBrowsePositionStore.ensureLoaded(context),
-        ehHistoryStore.ensureLoaded(context),
-        ehDownloadStore.ensureLoaded(context),
-        ehLocalFavoritesStore.ensureLoaded(context),
-        syncTombstoneStore.ensureLoaded(context)
-      ]);
-      await this.mergeRemoteTombstones(context, client);
-      for (let i = 0; i < manifest.sections.length; i++) {
-        await this.applySection(context, client, manifest.sections[i]);
-      }
-      await this.applyTombstones(context);
-      this.lastPulledAt = manifest.updatedAt;
-      if (this.lastSyncAt <= 0) {
-        this.lastSyncAt = manifest.updatedAt;
-      }
-      await this.persistState(context);
-      logRemoteStorageInfo('sync pulled sections=' + manifest.sections.length.toString());
-      this.publishStatus(profile, uiText('Synced at') + ' ' + syncTimeText(this.lastSyncAt), '');
-    } catch (error) {
-      logRemoteStorageWarn('sync pull failed: ' + (error instanceof Error ? error.message : String(error)));
+  // 只做一次 PROPFIND，读取远端文件的时间戳/ETag 作为变更依据。
+  private async remoteFileStamp(client: WebDavClient, path: string): Promise<RemoteFileStamp> {
+    const listing = await client.list(path);
+    if (!listing.ok) {
+      return {
+        found: false, unreachable: listing.statusCode !== 404, stamp: '', mtime: 0
+      };
     }
+    if (listing.entries.length === 0) {
+      return { found: false, unreachable: false, stamp: '', mtime: 0 };
+    }
+    const entry = listing.entries[0];
+    const etag = entry.etag === undefined ? '' : entry.etag;
+    return {
+      found: true,
+      unreachable: false,
+      stamp: etag.length > 0 ? 'e:' + etag : 'm:' + entry.modifiedAt.toString(),
+      mtime: entry.modifiedAt
+    };
+  }
+
+  private sectionHashFor(name: string): string {
+    for (let i = 0; i < this.sectionHashes.length; i++) {
+      if (this.sectionHashes[i].name === name) {
+        return this.sectionHashes[i].hash;
+      }
+    }
+    return '';
+  }
+
+  private rememberSectionHash(name: string, hash: string): void {
+    const next: SyncSectionHash[] = [];
+    for (let i = 0; i < this.sectionHashes.length; i++) {
+      if (this.sectionHashes[i].name !== name) {
+        next.push(this.sectionHashes[i]);
+      }
+    }
+    next.push({ name: name, hash: hash });
+    this.sectionHashes = next;
   }
 
   private async applySection(context: common.UIAbilityContext, client: WebDavClient, name: string): Promise<void> {
@@ -1088,6 +1197,17 @@ export class RemoteStorageSyncService {
     if (!profile.useForDownloads) {
       return;
     }
+    // 先只探测 manifest 时间戳：未被其他设备修改且本机下载没有变化时，镜像整轮跳过。
+    const manifestStat = await this.remoteFileStamp(client, DOWNLOAD_MANIFEST_FILE);
+    if (manifestStat.unreachable) {
+      return;
+    }
+    const manifestUnchanged = manifestStat.found && this.downloadManifestStamp.length > 0 &&
+      manifestStat.stamp === this.downloadManifestStamp && !this.downloadsDirty;
+    if (manifestUnchanged) {
+      return;
+    }
+    this.downloadsDirty = false;
     logRemoteStorageInfo('download mirror start profile=' +
       (profile.name.length > 0 ? profile.name : profile.url));
     const root = ehDownloadFileStore.appDownloadRoot(context);
@@ -1101,12 +1221,10 @@ export class RemoteStorageSyncService {
     const startedAt = Date.now();
     this.publishStatus(profile, uiText('Syncing...'), '', true);
     this.publishProgress(uiText('Scanning download files…'), '', -1);
-    // Remote manifest keeps the mirrored file tree (path, size, mtime). When its server mtime is
-    // unchanged the cached copy is reused, so a cycle costs at most one PROPFIND and one GET.
-    const manifestInfo = await client.list(DOWNLOAD_MANIFEST_FILE);
-    const manifestMtime = manifestInfo.ok && manifestInfo.entries.length > 0 ?
-      manifestInfo.entries[0].modifiedAt : 0;
-    if (manifestMtime === 0 || manifestMtime !== this.downloadManifestMtime) {
+    // Remote manifest keeps the mirrored file tree (path, size, mtime). Only fetched when its
+    // stamp differs from the last synchronized copy.
+    if (!manifestStat.found || this.downloadManifestStamp.length === 0 ||
+      manifestStat.stamp !== this.downloadManifestStamp || this.downloadManifestEntries.length === 0) {
       const manifestText = await client.getText(DOWNLOAD_MANIFEST_FILE);
       if (manifestText.ok && manifestText.text.length > 0) {
         try {
@@ -1118,7 +1236,7 @@ export class RemoteStorageSyncService {
       } else {
         this.downloadManifestEntries = [];
       }
-      this.downloadManifestMtime = manifestMtime;
+      this.downloadManifestStamp = manifestStat.found ? manifestStat.stamp : '';
     }
     const manifestByPath = new Map<string, DownloadManifestEntry>();
     for (let i = 0; i < this.downloadManifestEntries.length; i++) {
@@ -1305,9 +1423,10 @@ export class RemoteStorageSyncService {
       const uploadedManifest = await client.putText(DOWNLOAD_MANIFEST_FILE, JSON.stringify(manifest));
       if (uploadedManifest.ok) {
         this.downloadManifestEntries = merged;
-        const refreshed = await client.list(DOWNLOAD_MANIFEST_FILE);
-        this.downloadManifestMtime = refreshed.ok && refreshed.entries.length > 0 ?
-          refreshed.entries[0].modifiedAt : Date.now();
+        const refreshed = await this.remoteFileStamp(client, DOWNLOAD_MANIFEST_FILE);
+        if (refreshed.found) {
+          this.downloadManifestStamp = refreshed.stamp;
+        }
       }
     }
     if (ehSettingsStore.getValue('download_location', 'App files') === 'Remote server') {
@@ -1368,6 +1487,28 @@ export class RemoteStorageSyncService {
       const serverTimes = await prefs.get(SERVER_TIMES_KEY, '[]');
       const mirrorChecks = await prefs.get(MIRROR_CHECKS_KEY, '[]');
       const deviceId = await prefs.get(DEVICE_ID_KEY, '');
+      const manifestStamp = await prefs.get(MANIFEST_STAMP_KEY, '');
+      const manifestSections = await prefs.get(MANIFEST_SECTIONS_KEY, '[]');
+      const sectionHashes = await prefs.get(SECTION_HASHES_KEY, '[]');
+      const downloadManifestStamp = await prefs.get(DOWNLOAD_MANIFEST_STAMP_KEY, '');
+      const tombstonesHash = await prefs.get(TOMBSTONES_HASH_KEY, '');
+      this.manifestStamp = typeof manifestStamp === 'string' ? manifestStamp : '';
+      this.downloadManifestStamp = typeof downloadManifestStamp === 'string' ? downloadManifestStamp : '';
+      this.tombstonesHash = typeof tombstonesHash === 'string' ? tombstonesHash : '';
+      if (typeof manifestSections === 'string') {
+        try {
+          this.manifestSections = JSON.parse(manifestSections) as string[];
+        } catch (parseError) {
+          this.manifestSections = [];
+        }
+      }
+      if (typeof sectionHashes === 'string') {
+        try {
+          this.sectionHashes = JSON.parse(sectionHashes) as SyncSectionHash[];
+        } catch (parseError) {
+          this.sectionHashes = [];
+        }
+      }
       this.lastSyncAt = typeof lastSync === 'number' ? lastSync : 0;
       this.lastPulledAt = typeof lastPull === 'number' ? lastPull : 0;
       this.fingerprint = typeof fingerprint === 'string' ? fingerprint : '';
@@ -1403,6 +1544,11 @@ export class RemoteStorageSyncService {
       await prefs.put(SERVER_TIMES_KEY, JSON.stringify(this.serverTimes));
       await prefs.put(MIRROR_CHECKS_KEY, JSON.stringify(this.mirrorChecks));
       await prefs.put(DEVICE_ID_KEY, this.deviceId);
+      await prefs.put(MANIFEST_STAMP_KEY, this.manifestStamp);
+      await prefs.put(MANIFEST_SECTIONS_KEY, JSON.stringify(this.manifestSections));
+      await prefs.put(SECTION_HASHES_KEY, JSON.stringify(this.sectionHashes));
+      await prefs.put(DOWNLOAD_MANIFEST_STAMP_KEY, this.downloadManifestStamp);
+      await prefs.put(TOMBSTONES_HASH_KEY, this.tombstonesHash);
       await prefs.flush();
     } catch (error) {
     }
@@ -1643,6 +1789,24 @@ function readFileBuffer(path: string): ArrayBuffer | null {
       }
     }
   }
+}
+
+function simpleTextHash(value: string): string {
+  let hash = 5381;
+  for (let i = 0; i < value.length; i++) {
+    hash = ((hash << 5) + hash + value.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(16) + ':' + value.length.toString();
+}
+
+function downloadStoreSignature(items: DownloadInfo[]): string {
+  let finished = 0;
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].state === DownloadState.Finish) {
+      finished++;
+    }
+  }
+  return items.length.toString() + ':' + finished.toString();
 }
 
 export const remoteStorageSyncService = new RemoteStorageSyncService();
