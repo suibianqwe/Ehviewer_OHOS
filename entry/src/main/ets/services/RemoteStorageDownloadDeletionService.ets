@@ -13,6 +13,7 @@ const PENDING_KEY: string = 'pending';
 const TOMBSTONES_FILE: string = 'sync/download_tombstones.json';
 const DOWNLOAD_FOLDER: string = 'download';
 const MANIFEST_FILE: string = 'download/manifest.json';
+const DOWNLOAD_MANIFEST_INDEX: string = 'download/manifests.json';
 
 export interface PendingCloudDeletion {
   gid: number;
@@ -168,6 +169,32 @@ export class RemoteStorageDownloadDeletionService {
   }
 
   private async removeManifestEntries(client: WebDavClient, directoryName: string): Promise<void> {
+    // 新版分片索引：删除该画廊的分片并重写索引。
+    const indexText = await client.getText(DOWNLOAD_MANIFEST_INDEX);
+    if (indexText.ok && indexText.text.length > 0) {
+      try {
+        const index = JSON.parse(indexText.text) as ManifestIndexShape;
+        if (Array.isArray(index.shards)) {
+          const kept: ManifestShardShape[] = [];
+          let removed = false;
+          const prefix = 'manifests/' + directoryName + '~';
+          for (let i = 0; i < index.shards.length; i++) {
+            if (index.shards[i].path.indexOf(prefix) >= 0) {
+              await client.deleteFile(index.shards[i].path);
+              removed = true;
+            } else {
+              kept.push(index.shards[i]);
+            }
+          }
+          if (removed) {
+            const nextIndex: ManifestIndexShape = { version: 2, updatedAt: Date.now(), shards: kept };
+            await client.putText(DOWNLOAD_MANIFEST_INDEX, JSON.stringify(nextIndex));
+          }
+          return;
+        }
+      } catch (error) {
+      }
+    }
     const manifestText = await client.getText(MANIFEST_FILE);
     if (!manifestText.ok || manifestText.text.length === 0) {
       return;
@@ -273,6 +300,17 @@ interface ManifestShape {
   version: number;
   updatedAt: number;
   files: ManifestEntryShape[];
+}
+
+interface ManifestShardShape {
+  path: string;
+  time: number;
+}
+
+interface ManifestIndexShape {
+  version: number;
+  updatedAt: number;
+  shards: ManifestShardShape[];
 }
 
 export const remoteStorageDownloadDeletionService = new RemoteStorageDownloadDeletionService();

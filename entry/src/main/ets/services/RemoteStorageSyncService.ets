@@ -101,7 +101,10 @@ const MAX_MIRROR_FILES_PER_CYCLE: number = 300;
 const MIRROR_CONCURRENCY: number = 2;
 const MIRROR_TIME_BUDGET_MS: number = 25000;
 const MIRROR_POLL_INTERVAL_MS: number = 300000;
- const RECONCILE_INTERVAL_MS: number = 600000;
+ const RECONCILE_INTERVAL_MS: number = 1800000;
+const HISTORY_SHARD_MAX_ITEMS: number = 1000;
+const HISTORY_SHARD_MAX_BYTES: number = 1048576;
+const HISTORY_SHARD_PREFIX: string = 'history~';
 const RECONCILE_GALLERIES_PER_CYCLE: number = 3;
 
 interface RemoteSyncManifest {
@@ -158,6 +161,37 @@ interface DownloadManifest {
   files: DownloadManifestEntry[];
 }
 
+interface DownloadShardMeta {
+  path: string;
+  time: number;
+}
+
+interface DownloadManifestIndex {
+  version: number;
+  updatedAt: number;
+  shards: DownloadShardMeta[];
+}
+
+interface DownloadShardHash {
+  path: string;
+  hash: string;
+}
+
+interface DownloadManifestShard {
+  version?: number;
+  updatedAt?: number;
+  files?: DownloadManifestEntry[];
+}
+
+interface DownloadManifestCache {
+  version: number;
+  updatedAt: number;
+  shards: DownloadShardMeta[];
+  shardHashes: DownloadShardHash[];
+  entries: DownloadManifestEntry[];
+  indexHash: string;
+}
+
 interface SyncSectionEnvelope {
   deviceId?: string;
   deviceName?: string;
@@ -173,6 +207,11 @@ export interface RemoteSettingsCandidate {
 }
 
 const DOWNLOAD_MANIFEST_FILE: string = 'download/manifest.json';
+const DOWNLOAD_MANIFEST_INDEX: string = 'download/manifests.json';
+const DOWNLOAD_SHARDS_FOLDER: string = 'download/manifests';
+const DOWNLOAD_MANIFEST_CACHE_FILE: string = 'remote_download_manifest_cache.json';
+const MANIFEST_SHARD_MAX_ITEMS: number = 1000;
+const MANIFEST_SHARD_MAX_BYTES: number = 1048576;
 
 export class RemoteStorageSyncService {
   private context: common.UIAbilityContext | null = null;
@@ -187,6 +226,11 @@ export class RemoteStorageSyncService {
   private mirrorChecks: MirrorCheckRecord[] = [];
   private downloadManifestEntries: DownloadManifestEntry[] = [];
   private downloadManifestStamp: string = '';
+  private downloadManifestIndexStamp: string = '';
+  private downloadManifestIndexHash: string = '';
+  private downloadShardTimes: DownloadShardMeta[] = [];
+  private downloadShardHashes: DownloadShardHash[] = [];
+  private downloadManifestCacheLoaded: boolean = false;
   private manifestStamp: string = '';
   private manifestSections: string[] = [];
   private sectionHashes: SyncSectionHash[] = [];
@@ -270,6 +314,8 @@ export class RemoteStorageSyncService {
         throw new Error(directory.message);
       }
       let remoteApplied = false;
+      let legacyHistorySeen = false;
+      const remoteHistoryShards: RemoteSyncServerTime[] = [];
       if (pullRemote) {
         await this.mergeRemoteTombstones(context, client);
         const listing = await client.list(SYNC_FOLDER);
@@ -285,6 +331,13 @@ export class RemoteStorageSyncService {
               // Settings stay per device: never apply another device's preferences.
               continue;
             }
+            if (sectionName.indexOf(HISTORY_SHARD_PREFIX) === 0) {
+              remoteHistoryShards.push({ name: sectionName, time: entry.modifiedAt });
+              continue;
+            }
+            if (sectionName === 'history') {
+              legacyHistorySeen = true;
+            }
             // 远端时间戳不新于记录说明该分区未变化，跳过下载。
             const recorded = this.serverTimeFor(sectionName);
             if (recorded > 0 && entry.modifiedAt > 0 && entry.modifiedAt <= recorded) {
@@ -294,6 +347,18 @@ export class RemoteStorageSyncService {
             remoteApplied = true;
           }
           this.recordServerTimes(listing.entries);
+        }
+        // 历史分片按编号倒序应用（旧分片先入，新分片最后覆盖到最前）。
+        remoteHistoryShards.sort((left: RemoteSyncServerTime, right: RemoteSyncServerTime): number =>
+          historyShardIndex(right.name) - historyShardIndex(left.name));
+        for (let i = 0; i < remoteHistoryShards.length; i++) {
+          const shard = remoteHistoryShards[i];
+          const recorded = this.serverTimeFor(shard.name);
+          if (recorded > 0 && shard.time > 0 && shard.time <= recorded) {
+            continue;
+          }
+          await this.applySection(context, client, shard.name);
+          remoteApplied = true;
         }
         await this.applyTombstones(context);
         const manifestResult = await client.getText(MANIFEST_FILE);
@@ -347,8 +412,43 @@ export class RemoteStorageSyncService {
           }
         }
       }
-      // manifest 只在确有内容变化（分区/墓碑上传或新增分区）后才重写上传，避免设备间来回触发。
-      const manifestNeeded = uploadedAny || newSectionNames ||
+      // 清理不再使用的历史分片与旧版单文件 history，避免后续继续被拉取。
+      const ourHistoryNames: string[] = [];
+      for (let i = 0; i < sections.length; i++) {
+        if (sections[i].name.indexOf(HISTORY_SHARD_PREFIX) === 0) {
+          ourHistoryNames.push(sections[i].name);
+        }
+      }
+      const staleNames: string[] = [];
+      for (let i = 0; i < this.manifestSections.length; i++) {
+        const name = this.manifestSections[i];
+        if (name.indexOf(HISTORY_SHARD_PREFIX) === 0 && ourHistoryNames.indexOf(name) < 0) {
+          staleNames.push(name);
+        }
+      }
+      for (let i = 0; i < remoteHistoryShards.length; i++) {
+        const name = remoteHistoryShards[i].name;
+        if (ourHistoryNames.indexOf(name) < 0 && staleNames.indexOf(name) < 0) {
+          staleNames.push(name);
+        }
+      }
+      if (legacyHistorySeen && staleNames.indexOf('history') < 0) {
+        staleNames.push('history');
+      }
+      let sectionsPruned = false;
+      if (staleNames.length > 0) {
+        for (let i = 0; i < staleNames.length; i++) {
+          await client.deleteFile(SYNC_FOLDER + '/' + staleNames[i] + '.json');
+          const manifestIndex = this.manifestSections.indexOf(staleNames[i]);
+          if (manifestIndex >= 0) {
+            this.manifestSections.splice(manifestIndex, 1);
+          }
+          sectionsPruned = true;
+        }
+        logRemoteStorageInfo('sync pruned sections=' + staleNames.length.toString());
+      }
+      // manifest 只在确有内容变化（分区/墓碑上传、新增分区或清理分片）后才重写上传。
+      const manifestNeeded = uploadedAny || newSectionNames || sectionsPruned ||
         this.manifestSections.length === 0 || tombstonesChanged;
       let manifestUploadedAt = this.lastSyncAt;
       if (manifestNeeded) {
@@ -654,24 +754,24 @@ export class RemoteStorageSyncService {
 
   // Periodic ground-truth check: PROPFIND a rotating slice of the remote download tree and
   // repair the manifest for external changes, ghosts and drifted files (ETag/size, no download).
-  private async reconcileManifestIfDue(client: WebDavClient): Promise<void> {
+  private async reconcileManifestIfDue(client: WebDavClient): Promise<string[]> {
     const now = Date.now();
     if (now - this.lastReconcileAt < RECONCILE_INTERVAL_MS) {
-      return;
+      return [];
     }
     this.lastReconcileAt = now;
     const galleryListing = await client.list(DOWNLOADS_FOLDER);
     if (!galleryListing.ok) {
-      return;
+      return [];
     }
     const directories: string[] = [];
     for (let i = 0; i < galleryListing.entries.length; i++) {
-      if (galleryListing.entries[i].isDirectory) {
+      if (galleryListing.entries[i].isDirectory && galleryListing.entries[i].name !== 'manifests') {
         directories.push(galleryListing.entries[i].name);
       }
     }
     if (directories.length === 0) {
-      return;
+      return [];
     }
     const checked: string[] = [];
     for (let count = 0; count < RECONCILE_GALLERIES_PER_CYCLE && count < directories.length; count++) {
@@ -715,7 +815,7 @@ export class RemoteStorageSyncService {
         }
         next.push({
           path: path,
-          size: entry.size,
+            size: entry.size,
           mtime: entry.modifiedAt,
           etag: entry.etag
         });
@@ -723,17 +823,11 @@ export class RemoteStorageSyncService {
     }
     if (drift > 0 || checked.length > 0) {
       this.downloadManifestEntries = next;
-      const manifest: DownloadManifest = { version: 1, updatedAt: now, files: next };
-      const uploaded = await client.putText(DOWNLOAD_MANIFEST_FILE, JSON.stringify(manifest));
-      if (uploaded.ok) {
-        const refreshed = await this.remoteFileStamp(client, DOWNLOAD_MANIFEST_FILE);
-        if (refreshed.found) {
-          this.downloadManifestStamp = refreshed.stamp;
-        }
-      }
       logRemoteStorageInfo('manifest reconcile checked=' + checked.length.toString() +
         ' drift=' + drift.toString());
+      return checked;
     }
+    return [];
   }
 
   private publishSyncedOrPending(profile: RemoteStorageProfile): void {
@@ -793,7 +887,6 @@ export class RemoteStorageSyncService {
       { name: 'searchHistory', data: JSON.stringify(ehSearchHistoryStore.getKeywords()) },
       { name: 'browsePositions', data: JSON.stringify(ehBrowsePositionStore.getBackupInfo()) },
       { name: 'readingProgress', data: JSON.stringify(ehHistoryStore.getReadingProgressBackupItems()) },
-      { name: 'history', data: this.wrapSection(historySlice) },
       { name: 'downloadLabels', data: JSON.stringify(ehDownloadStore.getLabels()) },
       { name: 'remoteStorage', data: JSON.stringify(profilesWithoutPasswords(remoteStorageProfileStore.getProfiles())) },
       {
@@ -807,7 +900,41 @@ export class RemoteStorageSyncService {
           ehSettingsStore.getValue(TRANSLATION_CUSTOM_PROMPTS_KEY, '[]')))
       }
     ];
+    const historySections = this.buildHistorySections(historySlice);
+    for (let i = 0; i < historySections.length; i++) {
+      sections.push(historySections[i]);
+    }
     await syncTombstoneStore.ensureLoaded(context);
+    return sections;
+  }
+
+  // 历史按 1000 条或 1MB 分片，新增少量条目时只重传受影响的一片。
+  private buildHistorySections(items: GalleryInfo[]): RemoteSyncSection[] {
+    const sections: RemoteSyncSection[] = [];
+    let chunk: GalleryInfo[] = [];
+    let chunkBytes = 0;
+    let shardIndex = 0;
+    for (let i = 0; i < items.length; i++) {
+      const itemBytes = JSON.stringify(items[i]).length + 1;
+      if (chunk.length > 0 &&
+        (chunk.length >= HISTORY_SHARD_MAX_ITEMS || chunkBytes + itemBytes > HISTORY_SHARD_MAX_BYTES)) {
+        sections.push({
+          name: HISTORY_SHARD_PREFIX + shardIndex.toString(),
+          data: this.wrapSection(chunk)
+        });
+        shardIndex++;
+        chunk = [];
+        chunkBytes = 0;
+      }
+      chunk.push(items[i]);
+      chunkBytes += itemBytes;
+    }
+    if (chunk.length > 0) {
+      sections.push({
+        name: HISTORY_SHARD_PREFIX + shardIndex.toString(),
+        data: this.wrapSection(chunk)
+      });
+    }
     return sections;
   }
 
@@ -945,7 +1072,7 @@ export class RemoteStorageSyncService {
       } else if (name === 'readingProgress') {
         ehHistoryStore.importReadingProgressBackupItems(JSON.parse(content) as ReadingProgressBackupInfo[]);
         await ehHistoryStore.save(context);
-      } else if (name === 'history') {
+      } else if (name === 'history' || name.indexOf(HISTORY_SHARD_PREFIX) === 0) {
         const items = JSON.parse(content) as GalleryInfo[];
         const limit = historyInfoSizeLimitFromValue(ehSettingsStore.getValue(HISTORY_INFO_SIZE_KEY, '100'));
         ehHistoryStore.importHistoryBackupItems(items, limit);
@@ -1197,17 +1324,23 @@ export class RemoteStorageSyncService {
     if (!profile.useForDownloads) {
       return;
     }
-    // 先只探测 manifest 时间戳：未被其他设备修改且本机下载没有变化时，镜像整轮跳过。
-    const manifestStat = await this.remoteFileStamp(client, DOWNLOAD_MANIFEST_FILE);
-    if (manifestStat.unreachable) {
+    // 先只探测索引时间戳：未被其他设备修改且本机下载没有变化时，镜像整轮跳过。
+    this.ensureDownloadManifestCacheLoaded(context);
+    const indexStat = await this.remoteFileStamp(client, DOWNLOAD_MANIFEST_INDEX);
+    if (indexStat.unreachable) {
       return;
     }
-    const manifestUnchanged = manifestStat.found && this.downloadManifestStamp.length > 0 &&
-      manifestStat.stamp === this.downloadManifestStamp && !this.downloadsDirty;
+    const legacyStat = indexStat.found ? null : await this.remoteFileStamp(client, DOWNLOAD_MANIFEST_FILE);
+    const remoteStamp = indexStat.found ? indexStat.stamp :
+      (legacyStat !== null && legacyStat.found ? legacyStat.stamp : '');
+    // 索引不存在时必须进入迁移流程（旧版单文件清单不能阻止建索引）。
+    const manifestUnchanged = indexStat.found && this.downloadManifestStamp.length > 0 &&
+      remoteStamp === this.downloadManifestStamp && !this.downloadsDirty;
     if (manifestUnchanged) {
       return;
     }
     this.downloadsDirty = false;
+    let legacyMigrated = false;
     logRemoteStorageInfo('download mirror start profile=' +
       (profile.name.length > 0 ? profile.name : profile.url));
     const root = ehDownloadFileStore.appDownloadRoot(context);
@@ -1221,22 +1354,38 @@ export class RemoteStorageSyncService {
     const startedAt = Date.now();
     this.publishStatus(profile, uiText('Syncing...'), '', true);
     this.publishProgress(uiText('Scanning download files…'), '', -1);
-    // Remote manifest keeps the mirrored file tree (path, size, mtime). Only fetched when its
-    // stamp differs from the last synchronized copy.
-    if (!manifestStat.found || this.downloadManifestStamp.length === 0 ||
-      manifestStat.stamp !== this.downloadManifestStamp || this.downloadManifestEntries.length === 0) {
-      const manifestText = await client.getText(DOWNLOAD_MANIFEST_FILE);
-      if (manifestText.ok && manifestText.text.length > 0) {
+    this.downloadManifestStamp = remoteStamp;
+    // 镜像清单按画廊分片存储：索引变化时只拉取时间戳变化的画廊分片。
+    if (indexStat.found && indexStat.stamp !== this.downloadManifestIndexStamp) {
+      await this.pullDownloadManifestShards(client);
+      this.downloadManifestIndexStamp = indexStat.stamp;
+      this.saveDownloadManifestCache(context);
+    } else if (!indexStat.found && legacyStat !== null && legacyStat.found &&
+      this.downloadManifestEntries.length === 0) {
+      // 迁移旧版单文件清单（只读取，不再回写旧文件）。
+      const legacyText = await client.getText(DOWNLOAD_MANIFEST_FILE);
+      if (legacyText.ok && legacyText.text.length > 0) {
         try {
-          const parsed = JSON.parse(manifestText.text) as DownloadManifest;
+          const parsed = JSON.parse(legacyText.text) as DownloadManifest;
           this.downloadManifestEntries = Array.isArray(parsed.files) ? parsed.files : [];
+          legacyMigrated = this.downloadManifestEntries.length > 0;
         } catch (error) {
           this.downloadManifestEntries = [];
         }
-      } else {
-        this.downloadManifestEntries = [];
       }
-      this.downloadManifestStamp = manifestStat.found ? manifestStat.stamp : '';
+      this.saveDownloadManifestCache(context);
+    }
+    // 保证旧清单里的每个画廊都有远端分片（首次升级时一次性迁移）。
+    const uncoveredDirs: string[] = [];
+    for (let i = 0; i < this.downloadManifestEntries.length; i++) {
+      const dir = galleryDirOfPath(this.downloadManifestEntries[i].path);
+      if (dir.length === 0 || uncoveredDirs.indexOf(dir) >= 0) {
+        continue;
+      }
+      const shard0 = DOWNLOAD_SHARDS_FOLDER + '/' + dir + '~0.json';
+      if (this.downloadShardTimeFor(shard0) < 0) {
+        uncoveredDirs.push(dir);
+      }
     }
     const manifestByPath = new Map<string, DownloadManifestEntry>();
     for (let i = 0; i < this.downloadManifestEntries.length; i++) {
@@ -1246,7 +1395,7 @@ export class RemoteStorageSyncService {
     // nothing new needs to be mirrored.
     await remoteStorageDownloadDeletionService.processPendingWithClient(context, client, profile);
     await remoteStorageDownloadDeletionService.applyRemoteTombstones(context, client);
-    await this.reconcileManifestIfDue(client);
+    const reconciledDirs = await this.reconcileManifestIfDue(client);
     // Plan first so the total progress bar and transfer rate cover the whole batch.
     const plan: MirrorGalleryPlan[] = [];
     const uploadedUpdates: DownloadManifestEntry[] = [];
@@ -1323,7 +1472,7 @@ export class RemoteStorageSyncService {
         totalBytes += pendingBytes;
       }
     }
-    if (totalFiles === 0) {
+    if (totalFiles === 0 && reconciledDirs.length === 0 && uncoveredDirs.length === 0 && !legacyMigrated) {
       this.publishProgress('', '', -1);
       return;
     }
@@ -1404,31 +1553,44 @@ export class RemoteStorageSyncService {
       }
     }
     if (uploadedUpdates.length > 0) {
-      const merged: DownloadManifestEntry[] = [];
-      const indexByPath = new Map<string, number>();
+      const merged = this.mergeManifestEntries(uploadedUpdates);
+      this.downloadManifestEntries = merged;
+    }
+    // 只重写受影响画廊的分片，并更新小索引；旧版单文件清单在索引建立后删除。
+    const changedDirs: string[] = [];
+    for (let i = 0; i < uploadedUpdates.length; i++) {
+      const dir = galleryDirOfPath(uploadedUpdates[i].path);
+      if (dir.length > 0 && changedDirs.indexOf(dir) < 0) {
+        changedDirs.push(dir);
+      }
+    }
+    for (let i = 0; i < reconciledDirs.length; i++) {
+      if (changedDirs.indexOf(reconciledDirs[i]) < 0) {
+        changedDirs.push(reconciledDirs[i]);
+      }
+    }
+    for (let i = 0; i < uncoveredDirs.length; i++) {
+      if (changedDirs.indexOf(uncoveredDirs[i]) < 0) {
+        changedDirs.push(uncoveredDirs[i]);
+      }
+    }
+    if (legacyMigrated) {
       for (let i = 0; i < this.downloadManifestEntries.length; i++) {
-        indexByPath.set(this.downloadManifestEntries[i].path, merged.length);
-        merged.push(this.downloadManifestEntries[i]);
-      }
-      for (let i = 0; i < uploadedUpdates.length; i++) {
-        const index = indexByPath.get(uploadedUpdates[i].path);
-        if (index === undefined) {
-          indexByPath.set(uploadedUpdates[i].path, merged.length);
-          merged.push(uploadedUpdates[i]);
-        } else {
-          merged[index] = uploadedUpdates[i];
-        }
-      }
-      const manifest: DownloadManifest = { version: 1, updatedAt: Date.now(), files: merged };
-      const uploadedManifest = await client.putText(DOWNLOAD_MANIFEST_FILE, JSON.stringify(manifest));
-      if (uploadedManifest.ok) {
-        this.downloadManifestEntries = merged;
-        const refreshed = await this.remoteFileStamp(client, DOWNLOAD_MANIFEST_FILE);
-        if (refreshed.found) {
-          this.downloadManifestStamp = refreshed.stamp;
+        const dir = galleryDirOfPath(this.downloadManifestEntries[i].path);
+        if (dir.length > 0 && changedDirs.indexOf(dir) < 0) {
+          changedDirs.push(dir);
         }
       }
     }
+    const indexChanged = await this.writeDownloadShardsForGalleries(client, changedDirs);
+    if (indexChanged) {
+      await this.uploadDownloadManifestIndex(client);
+    }
+    // 分片索引生效后删除旧版单文件清单，避免两端状态分叉。
+    if (indexStat.found || indexChanged || (legacyStat !== null && legacyStat.found)) {
+      await client.deleteFile(DOWNLOAD_MANIFEST_FILE);
+    }
+    this.saveDownloadManifestCache(context);
     if (ehSettingsStore.getValue('download_location', 'App files') === 'Remote server') {
       for (let i = 0; i < plan.length; i++) {
         if (galleryComplete[i]) {
@@ -1440,6 +1602,275 @@ export class RemoteStorageSyncService {
       }
       remoteStorageDownloadDeletionService.invalidateDirectoryCache();
     }
+  }
+
+  private mergeManifestEntries(updates: DownloadManifestEntry[]): DownloadManifestEntry[] {
+    const merged: DownloadManifestEntry[] = [];
+    const indexByPath = new Map<string, number>();
+    for (let i = 0; i < this.downloadManifestEntries.length; i++) {
+      indexByPath.set(this.downloadManifestEntries[i].path, merged.length);
+      merged.push(this.downloadManifestEntries[i]);
+    }
+    for (let i = 0; i < updates.length; i++) {
+      const index = indexByPath.get(updates[i].path);
+      if (index === undefined) {
+        indexByPath.set(updates[i].path, merged.length);
+        merged.push(updates[i]);
+      } else {
+        merged[index] = updates[i];
+      }
+    }
+    return merged;
+  }
+
+  private downloadShardTimeFor(path: string): number {
+    for (let i = 0; i < this.downloadShardTimes.length; i++) {
+      if (this.downloadShardTimes[i].path === path) {
+        return this.downloadShardTimes[i].time;
+      }
+    }
+    return -1;
+  }
+
+  private rememberDownloadShard(path: string, time: number, hash: string): void {
+    const nextTimes: DownloadShardMeta[] = [];
+    for (let i = 0; i < this.downloadShardTimes.length; i++) {
+      if (this.downloadShardTimes[i].path !== path) {
+        nextTimes.push(this.downloadShardTimes[i]);
+      }
+    }
+    nextTimes.push({ path: path, time: time });
+    this.downloadShardTimes = nextTimes;
+    const nextHashes: DownloadShardHash[] = [];
+    for (let i = 0; i < this.downloadShardHashes.length; i++) {
+      if (this.downloadShardHashes[i].path !== path) {
+        nextHashes.push(this.downloadShardHashes[i]);
+      }
+    }
+    nextHashes.push({ path: path, hash: hash });
+    this.downloadShardHashes = nextHashes;
+  }
+
+  private forgetDownloadShard(path: string): void {
+    const nextTimes: DownloadShardMeta[] = [];
+    for (let i = 0; i < this.downloadShardTimes.length; i++) {
+      if (this.downloadShardTimes[i].path !== path) {
+        nextTimes.push(this.downloadShardTimes[i]);
+      }
+    }
+    this.downloadShardTimes = nextTimes;
+    const nextHashes: DownloadShardHash[] = [];
+    for (let i = 0; i < this.downloadShardHashes.length; i++) {
+      if (this.downloadShardHashes[i].path !== path) {
+        nextHashes.push(this.downloadShardHashes[i]);
+      }
+    }
+    this.downloadShardHashes = nextHashes;
+  }
+
+  private downloadShardHashFor(path: string): string {
+    for (let i = 0; i < this.downloadShardHashes.length; i++) {
+      if (this.downloadShardHashes[i].path === path) {
+        return this.downloadShardHashes[i].hash;
+      }
+    }
+    return '';
+  }
+
+  // 拉取时间戳变化的画廊分片，只替换受影响画廊的清单条目。
+  private async pullDownloadManifestShards(client: WebDavClient): Promise<void> {
+    const indexText = await client.getText(DOWNLOAD_MANIFEST_INDEX);
+    if (!indexText.ok || indexText.text.length === 0) {
+      return;
+    }
+    let index: DownloadManifestIndex;
+    try {
+      index = JSON.parse(indexText.text) as DownloadManifestIndex;
+    } catch (error) {
+      return;
+    }
+    const shards = Array.isArray(index.shards) ? index.shards : [];
+    const knownPaths: string[] = [];
+    for (let i = 0; i < shards.length; i++) {
+      knownPaths.push(shards[i].path);
+    }
+    const nextTimes: DownloadShardMeta[] = [];
+    for (let i = 0; i < this.downloadShardTimes.length; i++) {
+      if (knownPaths.indexOf(this.downloadShardTimes[i].path) >= 0) {
+        nextTimes.push(this.downloadShardTimes[i]);
+      }
+    }
+    this.downloadShardTimes = nextTimes;
+    const affectedDirs: string[] = [];
+    for (let i = 0; i < shards.length; i++) {
+      const dir = shardDirOfPath(shards[i].path);
+      if (this.downloadShardTimeFor(shards[i].path) !== shards[i].time && affectedDirs.indexOf(dir) < 0) {
+        affectedDirs.push(dir);
+      }
+    }
+    for (let d = 0; d < affectedDirs.length; d++) {
+      const dir = affectedDirs[d];
+      const dirShards: DownloadShardMeta[] = [];
+      for (let i = 0; i < shards.length; i++) {
+        if (shardDirOfPath(shards[i].path) === dir) {
+          dirShards.push(shards[i]);
+        }
+      }
+      const entries: DownloadManifestEntry[] = [];
+      let missing = false;
+      for (let s = 0; s < dirShards.length; s++) {
+        const text = await client.getText(dirShards[s].path);
+        if (!text.ok || text.text.length === 0) {
+          missing = true;
+          break;
+        }
+        try {
+          const parsed = JSON.parse(text.text) as DownloadManifestShard;
+          if (Array.isArray(parsed.files)) {
+            for (let f = 0; f < parsed.files.length; f++) {
+              entries.push(parsed.files[f]);
+            }
+          }
+        } catch (error) {
+        }
+        this.rememberDownloadShard(dirShards[s].path, dirShards[s].time, simpleTextHash(text.text));
+      }
+      const kept: DownloadManifestEntry[] = [];
+      for (let i = 0; i < this.downloadManifestEntries.length; i++) {
+        if (galleryDirOfPath(this.downloadManifestEntries[i].path) !== dir) {
+          kept.push(this.downloadManifestEntries[i]);
+        }
+      }
+      if (!missing) {
+        for (let i = 0; i < entries.length; i++) {
+          kept.push(entries[i]);
+        }
+        logRemoteStorageInfo('download manifest shard pulled dir=' + dir +
+          ' entries=' + entries.length.toString());
+      }
+      this.downloadManifestEntries = kept;
+    }
+  }
+
+  // 只重写指定画廊的分片（按 1000 条/1MB 拆分），返回索引是否需要更新。
+  private async writeDownloadShardsForGalleries(client: WebDavClient, dirs: string[]): Promise<boolean> {
+    let indexChanged = false;
+    const now = Date.now();
+    for (let d = 0; d < dirs.length; d++) {
+      const dir = dirs[d];
+      const entries: DownloadManifestEntry[] = [];
+      for (let i = 0; i < this.downloadManifestEntries.length; i++) {
+        if (galleryDirOfPath(this.downloadManifestEntries[i].path) === dir) {
+          entries.push(this.downloadManifestEntries[i]);
+        }
+      }
+      entries.sort((left: DownloadManifestEntry, right: DownloadManifestEntry): number => {
+        if (left.path !== right.path) {
+          return left.path < right.path ? -1 : 1;
+        }
+        return 0;
+      });
+      const parts: string[] = [];
+      let chunk: DownloadManifestEntry[] = [];
+      let chunkBytes = 0;
+      for (let i = 0; i < entries.length; i++) {
+        const size = JSON.stringify(entries[i]).length + 1;
+        if (chunk.length > 0 && (chunk.length >= MANIFEST_SHARD_MAX_ITEMS ||
+          chunkBytes + size > MANIFEST_SHARD_MAX_BYTES)) {
+          parts.push(JSON.stringify({ version: 2, updatedAt: now, files: chunk }));
+          chunk = [];
+          chunkBytes = 0;
+        }
+        chunk.push(entries[i]);
+        chunkBytes += size;
+      }
+      if (chunk.length > 0) {
+        parts.push(JSON.stringify({ version: 2, updatedAt: now, files: chunk }));
+      }
+      const existingTimes: DownloadShardMeta[] = [];
+      for (let i = 0; i < this.downloadShardTimes.length; i++) {
+        if (shardDirOfPath(this.downloadShardTimes[i].path) === dir) {
+          existingTimes.push(this.downloadShardTimes[i]);
+        }
+      }
+      for (let i = 0; i < parts.length; i++) {
+        const path = DOWNLOAD_SHARDS_FOLDER + '/' + dir + '~' + i.toString() + '.json';
+        const hash = simpleTextHash(parts[i]);
+        const knownHash = this.downloadShardHashFor(path);
+        let listed = false;
+        for (let j = 0; j < existingTimes.length; j++) {
+          if (existingTimes[j].path === path) {
+            listed = true;
+            break;
+          }
+        }
+        if (knownHash === hash && listed) {
+          continue;
+        }
+        const uploaded = await client.putText(path, parts[i]);
+        if (uploaded.ok) {
+          this.rememberDownloadShard(path, now, hash);
+          indexChanged = true;
+        }
+      }
+      for (let i = 0; i < existingTimes.length; i++) {
+        if (shardPartIndex(existingTimes[i].path) >= parts.length) {
+          await client.deleteFile(existingTimes[i].path);
+          this.forgetDownloadShard(existingTimes[i].path);
+          indexChanged = true;
+        }
+      }
+    }
+    return indexChanged;
+  }
+
+  private async uploadDownloadManifestIndex(client: WebDavClient): Promise<void> {
+    const index: DownloadManifestIndex = {
+      version: 2,
+      updatedAt: Date.now(),
+      shards: this.downloadShardTimes.slice()
+    };
+    const text = JSON.stringify(index);
+    const hash = simpleTextHash(text);
+    if (hash !== this.downloadManifestIndexHash) {
+      const uploaded = await client.putText(DOWNLOAD_MANIFEST_INDEX, text);
+      if (uploaded.ok) {
+        this.downloadManifestIndexHash = hash;
+      }
+    }
+    const stat = await this.remoteFileStamp(client, DOWNLOAD_MANIFEST_INDEX);
+    if (stat.found) {
+      this.downloadManifestIndexStamp = stat.stamp;
+      this.downloadManifestStamp = stat.stamp;
+    }
+  }
+
+  private ensureDownloadManifestCacheLoaded(context: common.UIAbilityContext): void {
+    if (this.downloadManifestCacheLoaded) {
+      return;
+    }
+    this.downloadManifestCacheLoaded = true;
+    try {
+      const text = fs.readTextSync(context.filesDir + '/' + DOWNLOAD_MANIFEST_CACHE_FILE);
+      const parsed = JSON.parse(text) as DownloadManifestCache;
+      this.downloadShardTimes = Array.isArray(parsed.shards) ? parsed.shards : [];
+      this.downloadShardHashes = Array.isArray(parsed.shardHashes) ? parsed.shardHashes : [];
+      this.downloadManifestEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
+      this.downloadManifestIndexHash = typeof parsed.indexHash === 'string' ? parsed.indexHash : '';
+    } catch (error) {
+    }
+  }
+
+  private saveDownloadManifestCache(context: common.UIAbilityContext): void {
+    const payload: DownloadManifestCache = {
+      version: 2,
+      updatedAt: Date.now(),
+      shards: this.downloadShardTimes,
+      shardHashes: this.downloadShardHashes,
+      entries: this.downloadManifestEntries,
+      indexHash: this.downloadManifestIndexHash
+    };
+    writeTextFileQuietly(context.filesDir + '/' + DOWNLOAD_MANIFEST_CACHE_FILE, JSON.stringify(payload));
   }
 
   private mirrorCheckFor(name: string): MirrorCheckRecord | null {
@@ -1789,6 +2220,55 @@ function readFileBuffer(path: string): ArrayBuffer | null {
       }
     }
   }
+}
+
+function galleryDirOfPath(path: string): string {
+  const index = path.indexOf('/');
+  return index > 0 ? path.substring(0, index) : '';
+}
+
+function shardDirOfPath(path: string): string {
+  const slash = path.lastIndexOf('/');
+  const name = slash >= 0 ? path.substring(slash + 1) : path;
+  const dot = name.lastIndexOf('.');
+  const base = dot > 0 ? name.substring(0, dot) : name;
+  const tilde = base.lastIndexOf('~');
+  return tilde > 0 ? base.substring(0, tilde) : base;
+}
+
+function shardPartIndex(path: string): number {
+  const slash = path.lastIndexOf('/');
+  const name = slash >= 0 ? path.substring(slash + 1) : path;
+  const dot = name.lastIndexOf('.');
+  const base = dot > 0 ? name.substring(0, dot) : name;
+  const tilde = base.lastIndexOf('~');
+  if (tilde < 0) {
+    return 0;
+  }
+  const parsed = Number.parseInt(base.substring(tilde + 1));
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function writeTextFileQuietly(path: string, value: string): void {
+  let file: fs.File | null = null;
+  try {
+    file = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
+    fs.writeSync(file.fd, value);
+  } catch (error) {
+  } finally {
+    if (file !== null) {
+      try {
+        fs.closeSync(file);
+      } catch (error) {
+      }
+    }
+  }
+}
+
+function historyShardIndex(name: string): number {
+  const suffix = name.substring(HISTORY_SHARD_PREFIX.length);
+  const parsed = Number.parseInt(suffix);
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
 function simpleTextHash(value: string): string {
