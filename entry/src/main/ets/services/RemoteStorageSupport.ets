@@ -349,3 +349,48 @@ export function filterTombstoneKey(mode: number, text: string): string {
 export function keywordTombstoneKey(keyword: string): string {
   return keyword.trim().toLowerCase();
 }
+
+export function isRedirectStatus(statusCode: number): boolean {
+  return statusCode === 301 || statusCode === 302 || statusCode === 303 || statusCode === 307 ||
+    statusCode === 308;
+}
+
+// Resolves a Location header against the request URL so redirected WebDAV requests can be
+// retried (for example an external reverse proxy upgrading http to https).
+export function resolveRedirectUrl(currentUrl: string, location: string): string {
+  const target = location.trim();
+  if (target.length === 0) {
+    return '';
+  }
+  if (/^https?:\/\//i.test(target)) {
+    return target;
+  }
+  const schemeMatch = /^(https?):\/\//i.exec(currentUrl.trim());
+  if (schemeMatch === null) {
+    return '';
+  }
+  const scheme = schemeMatch[1];
+  if (target.indexOf('//') === 0) {
+    return scheme + ':' + target;
+  }
+  const afterScheme = currentUrl.trim().substring(schemeMatch[0].length);
+  const originEnd = afterScheme.indexOf('/');
+  const origin = originEnd < 0 ? afterScheme : afterScheme.substring(0, originEnd);
+  if (target.indexOf('/') === 0) {
+    return scheme + '://' + origin + target;
+  }
+  let base = currentUrl.trim();
+  const hashIndex = base.indexOf('#');
+  if (hashIndex >= 0) {
+    base = base.substring(0, hashIndex);
+  }
+  const queryIndex = base.indexOf('?');
+  if (queryIndex >= 0) {
+    base = base.substring(0, queryIndex);
+  }
+  const slashIndex = base.lastIndexOf('/');
+  if (slashIndex < 0) {
+    return scheme + '://' + origin + '/' + target;
+  }
+  return base.substring(0, slashIndex + 1) + target;
+}

@@ -27,7 +27,7 @@ const support = Function(supportSource +
   ' remoteStorageUrlForPath, remoteStorageRelativePathFromHref, decodeWebDavXmlEntities,' +
   ' webDavStatusMessage, parseWebDavMultiStatus, createRemoteStorageProfileId, isValidRemoteStorageUrl,' +
   ' remoteStorageHost, normalizeRemoteStoragePort, remoteStoragePortFromUrl, remoteStorageUrlWithoutPort,' +
-  ' remoteStorageApplyPort };')();
+  ' remoteStorageApplyPort, resolveRedirectUrl, isRedirectStatus };')();
 
 const profiles = Function('createRemoteStorageProfileId', 'isValidRemoteStorageUrl', 'normalizeRemoteStorageBasePath',
   'normalizeRemoteStorageUrl', 'remoteStorageHost', 'normalizeRemoteStoragePort', 'remoteStorageApplyPort',
@@ -165,4 +165,23 @@ test('sync tombstones prune by age and normalize keys', () => {
   assert.deepEqual(kept.map((record) => record.key), ['new', 'clear']);
   assert.equal(tombstones.filterTombstoneKey(2, '  Title Tag '), '2|title tag');
   assert.equal(tombstones.keywordTombstoneKey('  Hello World '), 'hello world');
+});
+
+test('webdav redirects resolve absolute, protocol-relative and relative targets', () => {
+  assert.equal(support.isRedirectStatus(301), true);
+  assert.equal(support.isRedirectStatus(308), true);
+  assert.equal(support.isRedirectStatus(303), true);
+  assert.equal(support.isRedirectStatus(200), false);
+  assert.equal(support.isRedirectStatus(401), false);
+  assert.equal(support.resolveRedirectUrl('http://host:5005/dav/a.json', 'https://host/dav/a.json'),
+    'https://host/dav/a.json');
+  assert.equal(support.resolveRedirectUrl('http://host:5005/dav/a.json', '//host/dav/a.json'),
+    'http://host/dav/a.json');
+  assert.equal(support.resolveRedirectUrl('http://host:5005/dav/a.json', '/dav/b.json'),
+    'http://host:5005/dav/b.json');
+  assert.equal(support.resolveRedirectUrl('http://host:5005/dav/a.json', 'b.json'),
+    'http://host:5005/dav/b.json');
+  assert.equal(support.resolveRedirectUrl('http://host:5005/dav/a.json?x=1#frag', 'b.json'),
+    'http://host:5005/dav/b.json');
+  assert.equal(support.resolveRedirectUrl('http://host:5005/dav/a.json', '   '), '');
 });

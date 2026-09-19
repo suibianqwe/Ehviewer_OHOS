@@ -4,14 +4,17 @@ import { RemoteStorageProfile } from './RemoteStorageProfiles';
 import { logRemoteStorageError, logRemoteStorageInfo, logRemoteStorageWarn } from './RemoteStorageLog';
 import {
   RemoteStorageListEntry,
+  isRedirectStatus,
   normalizeRemoteStorageBasePath,
   normalizeRemoteStorageUrl,
   parseWebDavMultiStatus,
   remoteStorageApplyPort,
   remoteStorageUrlForPath,
+  resolveRedirectUrl,
   webDavStatusMessage
 } from './RemoteStorageSupport';
 
+const MAX_REDIRECT_HOPS: number = 4;
 const REMOTE_STORAGE_CONNECT_TIMEOUT_MS: number = 10000;
 const REMOTE_STORAGE_READ_TIMEOUT_MS: number = 30000;
 const REMOTE_STORAGE_UPLOAD_TIMEOUT_MS: number = 60000;
@@ -36,6 +39,10 @@ interface WebDavRawResponse {
   message: string;
   body: string;
   headers?: Object;
+}
+interface WebDavRedirectResult {
+  response: http.HttpResponse;
+  url: string;
 }
 
 let activeWebDavRequests: number = 0;
@@ -89,7 +96,24 @@ function extractDavHeader(headers: Object | undefined): string {
   }
   return '';
 }
- function webDavAuthorizationValue(username: string, password: string): string {
+ function responseHeaderValue(headers: Object | undefined, name: string): string {
+  if (headers === undefined || headers === null) {
+    return '';
+  }
+  const record = headers as Record<string, Object>;
+  const keys = Object.keys(record);
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i].toLowerCase() === name.toLowerCase()) {
+      const value = record[keys[i]];
+      if (typeof value === 'string') {
+        return value;
+      }
+    }
+  }
+  return '';
+}
+
+function webDavAuthorizationValue(username: string, password: string): string {
   const encoder = util.TextEncoder.create('utf-8');
   const bytes = encoder.encodeInto(username + ':' + password);
   const base64 = new util.Base64Helper().encodeToStringSync(bytes);
@@ -219,14 +243,12 @@ export class WebDavClient {
       usingCache: false,
       reuseConnections: false
     };
-    let request: http.HttpRequest | null = null;
     const startedAt = Date.now();
     logRemoteStorageInfo('request PUT ' + url + ' bodyBytes=' + data.byteLength.toString());
     await waitWebDavSlot();
     try {
-      request = http.createHttp();
-      const response = await request.request(url, options);
-      const statusCode = Number(response.responseCode);
+      const result = await this.requestWithRedirects(url, options);
+      const statusCode = Number(result.response.responseCode);
       const ok = statusCode >= 200 && statusCode < 300;
       logRemoteStorageInfo('response PUT ' + url + ' -> ' + statusCode.toString() + ' in ' +
         (Date.now() - startedAt).toString() + 'ms');
@@ -237,9 +259,6 @@ export class WebDavClient {
       return { ok: false, statusCode: 0, message: message };
     } finally {
       releaseWebDavSlot();
-      if (request !== null) {
-        request.destroy();
-      }
     }
   }
 
@@ -266,29 +285,24 @@ export class WebDavClient {
       usingCache: false,
       reuseConnections: false
     };
-    let request: http.HttpRequest | null = null;
     const startedAt = Date.now();
     logRemoteStorageInfo('request GET(binary) ' + url);
     await waitWebDavSlot();
     try {
-      request = http.createHttp();
-      const response = await request.request(url, options);
-      const statusCode = Number(response.responseCode);
+      const result = await this.requestWithRedirects(url, options);
+      const statusCode = Number(result.response.responseCode);
       if (statusCode < 200 || statusCode >= 300) {
         logRemoteStorageWarn('response GET(binary) ' + url + ' -> ' + statusCode.toString());
         return null;
       }
       logRemoteStorageInfo('response GET(binary) ' + url + ' -> ' + statusCode.toString() + ' in ' +
         (Date.now() - startedAt).toString() + 'ms');
-      return response.result instanceof ArrayBuffer ? response.result : null;
+      return result.response.result instanceof ArrayBuffer ? result.response.result : null;
     } catch (error) {
       logRemoteStorageError('request GET(binary) ' + url + ' failed: ' + remoteStorageErrorMessage(error));
       return null;
     } finally {
       releaseWebDavSlot();
-      if (request !== null) {
-        request.destroy();
-      }
     }
   }
 
@@ -318,12 +332,10 @@ export class WebDavClient {
       usingCache: false,
       reuseConnections: false
     };
-    let request: http.HttpRequest | null = null;
     await waitWebDavSlot();
     try {
-      request = http.createHttp();
-      const response = await request.request(url, options);
-      const statusCode = Number(response.responseCode);
+      const result = await this.requestWithRedirects(url, options);
+      const statusCode = Number(result.response.responseCode);
       const ok = statusCode >= 200 && statusCode < 300;
       if (!ok) {
         logRemoteStorageWarn('chunk PATCH ' + url + ' -> ' + statusCode.toString());
@@ -333,10 +345,33 @@ export class WebDavClient {
       return { ok: false, statusCode: 0, message: remoteStorageErrorMessage(error) };
     } finally {
       releaseWebDavSlot();
-      if (request !== null) {
+    }
+  }
+
+  // 跟随 301/302/303/307/308（例如外网反向代理把 http 升级到 https），保持方法与请求体。
+  private async requestWithRedirects(url: string,
+    options: http.HttpRequestOptions): Promise<WebDavRedirectResult> {
+    let currentUrl = url;
+    for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+      const request = http.createHttp();
+      let response: http.HttpResponse;
+      try {
+        response = await request.request(currentUrl, options);
+      } finally {
         request.destroy();
       }
+      const statusCode = Number(response.responseCode);
+      if (!isRedirectStatus(statusCode)) {
+        return { response: response, url: currentUrl };
+      }
+      const nextUrl = resolveRedirectUrl(currentUrl, responseHeaderValue(response.header, 'Location'));
+      if (nextUrl.length === 0 || nextUrl === currentUrl) {
+        return { response: response, url: currentUrl };
+      }
+      logRemoteStorageInfo('redirect ' + statusCode.toString() + ' ' + currentUrl + ' -> ' + nextUrl);
+      currentUrl = nextUrl;
     }
+    throw new Error('Remote connection failed: too many redirects');
   }
 
   private async ensurePartialUpdateSupport(): Promise<boolean> {
@@ -414,15 +449,14 @@ export class WebDavClient {
     if (body.length > 0) {
       options.extraData = body;
     }
-    let request: http.HttpRequest | null = null;
     const startedAt = Date.now();
     await waitWebDavSlot();
     logRemoteStorageInfo('request ' + customMethod + ' ' + url +
       (depth.length > 0 ? ' depth=' + depth : '') +
       (body.length > 0 ? ' bodyBytes=' + body.length.toString() : ''));
     try {
-      request = http.createHttp();
-      const response = await request.request(url, options);
+      const result = await this.requestWithRedirects(url, options);
+      const response = result.response;
       const statusCode = Number(response.responseCode);
       const ok = statusCode >= 200 && statusCode < 300;
       const responseText = typeof response.result === 'string' ? response.result : '';
@@ -448,9 +482,6 @@ export class WebDavClient {
       return { ok: false, statusCode: 0, message: message, body: '' };
     } finally {
       releaseWebDavSlot();
-      if (request !== null) {
-        request.destroy();
-      }
     }
   }
 }
