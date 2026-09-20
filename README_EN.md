@@ -12,8 +12,8 @@ EhViewer HarmonyOS is a HarmonyOS port of [Ehviewer_CN_SXJ](https://github.com/x
 
 Download the latest unsigned HAP from [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases). It can be installed with tools such as [Auto Installer](https://github.com/likuai2010/auto-installer).
 
-- Current version: `0.7.1`
-- Package: [`EhViewer_OHOS_0.7.1.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.1/EhViewer_OHOS_0.7.1.hap)
+- Current version: `0.7.2`
+- Package: [`EhViewer_OHOS_0.7.2.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.2/EhViewer_OHOS_0.7.2.hap)
 - Target API: `26.0.0`
 - Compatible API: `6.0.0(20)`
 
@@ -37,6 +37,17 @@ See the [complete English user guide](docs/USER_GUIDE_EN.md) for first launch, l
 - Wide screens: resizable split panes with independent routes and focus-aware Back behavior.
 - Migration: JSON/Android database import, legacy EhViewer download recovery, and selectable Wi-Fi Direct transfer of reading progress, app settings, login cookies, bookmarks, favorites, blocklists, download metadata, and images. Local `igneous` is never exported or overwritten by incoming data.
 - Personalization and network: multiple languages/themes, translated tags, filters, privacy controls, HTTP/SOCKS5 proxy, DoH, hosts, SNI fronting, direct-connect detection, and diagnostics.
+
+## 0.7.2 updates
+
+- Added remote storage (WebDAV/NAS): server profiles, connection checks, HTTPS with an ignore-certificate option, custom ports (HTTPS defaults to 5006), 3xx redirect support, Wi-Fi-only sync, and sync status/progress dialogs.
+- Added multi-device sync for history, reading progress, bookmarks, favorites, labels, comment blacklist, filters, search history, reader presets, translation prompts, cookies, and settings. Sections upload incrementally by hash and tombstones keep deleted items from being restored by stale copies.
+- Leaner polling: only the manifest timestamp is probed and unchanged sections are not re-uploaded. History and download manifests are sharded into 1000-entry/1 MiB files with multi-device merge and per-device markers.
+- Cloud-only downloads and mirroring: keep galleries in the cloud, open their details directly, read page by page from the server, download them to the device with one tap, and mirror local downloads with resume support.
+- Download deletion now offers local/cloud/pending-queue choices, with automatic retries for cloud deletions.
+- Fixed the broken Select All on the downloads page, plus list jitter when paging history, scrolling downloads, or opening details in the split pane.
+- Detail tags now use solid colors instead of per-tag system materials and background blur, keeping scrolling smooth with hundreds of tags.
+- Lowered WebDAV concurrency and disabled connection reuse to avoid system network stack crashes under concurrent requests.
 
 ## 0.7.1 updates
 
