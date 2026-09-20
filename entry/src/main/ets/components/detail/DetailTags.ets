@@ -342,12 +342,11 @@ export struct TagGroupRow {
             }
           }
           .height(26)
-          .backgroundColor(uiMaterialBackground(this.tagBackgroundColor()))
+          // 标签数量可能上百，逐个使用系统材质/背景模糊会显著拖慢滚动，这里用纯色背景。
+          .backgroundColor(this.tagBackgroundColor())
           .margin({ right: 6, bottom: 6 })
           .padding({ left: 8, right: 8 })
           .borderRadius(uiRadius(4))
-          .backgroundEffect(uiTransparentButtonBackgroundEffect())
-          .systemMaterial(uiButtonMaterial())
           .onClick(() => {
             if (Date.now() - this.lastLongPressAt < 600) {
               return;
