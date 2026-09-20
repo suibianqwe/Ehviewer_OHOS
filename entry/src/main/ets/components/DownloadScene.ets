@@ -1122,17 +1122,13 @@ export struct DownloadScene {
     const key = this.selectedKey(gid);
     if (this.selectedDownloadGids.indexOf(key) >= 0) {
       this.selectedDownloadGids = this.selectedDownloadGids.replace(key, '|');
-      if (this.selectedDownloadGids === '|') {
+      if (this.downloadSelectionCount() === 0) {
         this.selectedDownloadGids = '';
         this.downloadActionsExpanded = false;
       }
       return;
     }
-    if (this.selectedDownloadGids.length === 0) {
-      this.selectedDownloadGids = key;
-    } else {
-      this.selectedDownloadGids += gid.toString() + '|';
-    }
+    this.selectedDownloadGids += key;
     this.downloadActionsExpanded = true;
   }
 
@@ -1182,27 +1178,18 @@ export struct DownloadScene {
     return selected;
   }
 
-  private selectAllVisibleFinishedDownloads(): void {
-    let selected = '';
-    let count = 0;
-    for (let i = 0; i < this.visibleItems.length; i++) {
-      const item = this.visibleItems[i];
-      if (item.state === DownloadState.Finish) {
-        if (selected.length === 0) {
-          selected = this.selectedKey(item.gid);
-        } else {
-          selected += item.gid.toString() + '|';
-        }
-        count++;
-      }
-    }
-    if (count <= 0) {
-      this.statusText = 'No downloaded galleries to select';
+  private selectAllVisibleDownloads(): void {
+    if (this.visibleItems.length === 0) {
+      this.statusText = 'No downloads to select';
       return;
+    }
+    let selected = '';
+    for (let i = 0; i < this.visibleItems.length; i++) {
+      selected += this.selectedKey(this.visibleItems[i].gid);
     }
     this.selectedDownloadGids = selected;
     this.downloadActionsExpanded = true;
-    this.statusText = 'Selected ' + count.toString() + ' downloaded galleries';
+    this.statusText = 'Selected ' + this.visibleItems.length.toString() + ' downloaded galleries';
   }
 
   private downloadCardPreferredWidth(): number {
@@ -2157,6 +2144,382 @@ export struct DownloadScene {
     ehBrowsePositionStore.updateDownloadPosition(anchorId, index, this.downloadScrollOffset);
   }
 
+  // The scene owns the full window width; only this pane participates in split resizing.
+  @Builder
+  private downloadListPane() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      Column() {
+        if (!this.searchSubmitted) {
+          List({ space: 0 }) {
+            ListItem() {
+              Row().width('100%').height(this.floatingToolbarHeight() + 8)
+            }
+            ListItem() {
+              this.downloadSearchSuggestionPlaceholder()
+            }
+          }
+          .width('100%')
+          .height('100%')
+          .padding({
+            left: this.downloadContentPadding(),
+            right: this.downloadContentPadding()
+          })
+        } else if (this.visibleItems.length === 0) {
+          Column() {
+            Text(uiText('Downloads'))
+              .fontSize(22)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(themePrimaryText())
+            Text(this.items.length === 0 ? uiText('Download items will be shown here') :
+              uiText('No items match the current filter'))
+              .fontSize(14)
+              .fontColor(themeSecondaryText())
+              .margin({ top: 10 })
+          }
+          .width('100%')
+          .height('100%')
+          .justifyContent(FlexAlign.Center)
+        } else {
+          if (galleryListMode() === 'Thumb') {
+            this.downloadThumbnailWaterFlow()
+          } else {
+            this.downloadStandardList()
+          }
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor(themePageBackground())
+      .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
+      .transition(TransitionEffect.asymmetric(
+        TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }),
+        TransitionEffect.OPACITY.animation({ duration: 1, delay: 300, curve: Curve.Linear })))
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.updateDownloadContentWidthFromArea(newArea.width as number);
+        const height = newArea.height as number;
+        if (height > 0 && !Number.isNaN(height)) {
+          this.viewportHeight = height;
+        }
+      })
+
+      GalleryHomeNavBarHost({
+        toolbarState: this.toolbarState(),
+        statusBarHeight: this.statusBarVp(),
+        title: this.selectedDownloadLabel === DOWNLOAD_LABEL_FILTER_ALL ? 'Downloads' :
+          (this.selectedDownloadLabel.length === 0 ? 'Default' : this.selectedDownloadLabel),
+        keyword: this.query,
+        filterActive: this.advancedPanelVisible || this.advancedSearchEnabled ||
+          this.searchCategory !== GalleryCategory.None || this.minRating > 0,
+        showSearchButton: !this.searchBarVisible,
+        showFavoriteButton: !this.searchBarVisible,
+        showBackButton: this.searchBarVisible,
+        searchMode: this.searchBarVisible,
+        searchPlaceholder: 'Search downloads',
+        searchShowsAdvancedButton: true,
+        toolbarHeight: uiAdaptiveToolbarHeight(this.downloadContentWidth),
+        onMenu: () => {
+          if (this.searchBarVisible) {
+            this.closeDownloadSearchBar();
+          } else {
+            this.onMenu();
+          }
+        },
+        onBack: () => {
+          this.closeDownloadSearchBar();
+        },
+        onKeywordChange: (value: string) => {
+          this.updateDownloadKeyword(value);
+        },
+        onSearchFocus: () => {
+          this.openDownloadSearchSuggestions();
+        },
+        onSearch: () => {
+          if (this.searchBarVisible) {
+            this.applyDownloadSearch();
+          } else {
+            this.openDownloadSearchBar();
+          }
+        },
+        onAdvanced: () => {
+          this.toggleAdvancedPanel();
+        },
+        onFavoriteButton: () => {
+          this.openDownloadLabelDrawer();
+        }
+      })
+
+      if (this.advancedPanelVisible) {
+        PopupScrim({
+          showCutout: this.downloadContentWidth > 20 && this.advancedPopupHeight > 0,
+          positionedCutout: true,
+          cutoutX: 10,
+          cutoutY: this.statusBarVp() + uiAdaptiveToolbarHeight(this.downloadContentWidth) + 8,
+          cutoutWidth: Math.max(0, this.downloadContentWidth - 20),
+          cutoutHeight: this.advancedPopupHeight,
+          cutoutRadius: uiRadius(8),
+          onDismiss: () => {
+            this.closeAdvancedPanel();
+          }
+        })
+          .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
+          .zIndex(15)
+
+        Stack({ alignContent: Alignment.Top }) {
+          SearchAdvancedPanel({
+            searchModeValue: this.searchMode,
+            searchCategory: this.searchCategory,
+            advancedSearchEnabled: this.advancedSearchEnabled,
+            advanceSearch: this.advanceSearch,
+            searchFilterEnabled: true,
+            minRating: this.minRating,
+            pageFrom: -1,
+            pageTo: -1,
+            panelMaxHeight: this.advancedPanelMaxHeight(),
+            onSearchModeChange: (mode: ListMode) => {
+              this.searchMode = mode;
+              this.searchSubmitted = false;
+              this.refreshDownloadRows();
+            },
+            onSearchCategoryChange: (category: number) => {
+              this.searchCategory = category;
+              this.searchSubmitted = false;
+              this.refreshDownloadRows();
+            },
+            onAdvancedEnabledChange: (enabled: boolean) => {
+              this.advancedSearchEnabled = enabled;
+              this.searchSubmitted = false;
+              this.refreshDownloadRows();
+            },
+            onAdvanceSearchChange: (flags: number) => {
+              this.advanceSearch = flags;
+              this.searchSubmitted = false;
+              this.refreshDownloadRows();
+            },
+            onMinRatingChange: (rating: number) => {
+              this.minRating = rating;
+              this.searchSubmitted = false;
+              this.refreshDownloadRows();
+            },
+            onClose: () => {
+              this.closeAdvancedPanel();
+            },
+            onSearch: () => {
+              this.closeAdvancedPanel();
+              this.applyDownloadSearch();
+            }
+          })
+            .constraintSize({ maxHeight: this.advancedPanelMaxHeight() })
+            .onAreaChange((_oldArea: Area, newArea: Area) => {
+              this.advancedPopupHeight = Number.parseFloat(newArea.height.toString());
+            })
+            .transition(TransitionEffect.move(TransitionEdge.TOP)
+              .animation({ duration: 180, curve: Curve.EaseOut }))
+        }
+          .width('100%')
+          .height('100%')
+          .padding({
+            top: this.statusBarVp() + uiAdaptiveToolbarHeight(this.downloadContentWidth) + 8,
+            left: 10,
+            right: 10
+          })
+          .hitTestBehavior(HitTestMode.Transparent)
+          .zIndex(16)
+      }
+
+      FloatingActionDock({ side: this.floatingActionSide }) {
+        if (this.searchBarVisible && !this.searchSubmitted) {
+          SearchActionColumn({
+            side: this.floatingActionSide,
+            onSearch: () => {
+              this.applyDownloadSearch();
+            },
+            onSideChange: (side: string) => {
+              this.floatingActionSideController.handleManualSide(side);
+            }
+          })
+        } else {
+          DownloadToolColumn({
+            expanded: this.downloadActionsExpanded,
+            hasSelection: this.downloadSelectionCount() > 0,
+            canOperate: this.downloadSelectionCount() > 0 || this.visibleItems.length > 0,
+            canJump: this.downloadJumpTotalPages() > 1,
+            canRandom: this.visibleItems.length > 0,
+            maxExpandedHeight: this.downloadToolActionsMaxHeight(),
+            showTranslationButton: this.translationButtonsVisible,
+            translationEnabled: this.translationEnabled,
+            side: this.floatingActionSide,
+            onToggle: () => {
+              this.downloadActionsExpanded = !this.downloadActionsExpanded;
+            },
+            onStatus: () => {
+              this.openDownloadStatusPanel();
+            },
+            onJump: () => {
+              this.openDownloadJumpPanel();
+            },
+            onStart: () => {
+              this.startSelectedOrFiltered();
+            },
+            onStop: () => {
+              this.stopSelectedOrFiltered();
+            },
+            onRestore: () => {
+              this.restoreDownloadedItems();
+            },
+            onRandom: () => {
+              this.openRandomDownload();
+            },
+            onTranslate: () => {
+              ehTranslationService.setEnabled(!this.translationEnabled);
+            },
+            onSelectAll: () => {
+              this.selectAllVisibleDownloads();
+            },
+            onDelete: () => {
+              this.deleteSelectedDownloads();
+            },
+            onExportZip: () => {
+              this.exportSelectedDownloadsZip();
+            },
+            onLabel: () => {
+              this.openMoveSelectedDownloadLabel();
+            },
+            onSideChange: (side: string) => {
+              this.floatingActionSideController.handleManualSide(side);
+            }
+          })
+        }
+      }
+
+      if (this.statusHintVisible) {
+        Text(this.statusHintText)
+          .fontSize(12)
+          .fontColor(themePrimaryText())
+          .textAlign(TextAlign.Center)
+          .backgroundColor(themeSurface())
+          .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+          .borderRadius(uiRadius(15))
+          .shadow({ radius: 8, color: themeShadowColor(), offsetX: 0, offsetY: 2 })
+          .maxLines(1)
+          .position({
+            x: this.downloadContentWidth > 0 ? Math.max(16, this.downloadContentWidth / 2 - 96) : 72,
+            y: this.viewportHeight > 0 ? Math.max(180, this.viewportHeight * 0.62) : 420
+          })
+          .transition(TransitionEffect.OPACITY
+            .combine(TransitionEffect.translate({ y: 12 }))
+            .animation({ duration: 140, curve: Curve.EaseOut }))
+          .zIndex(18)
+      }
+
+      if (this.downloadJumpPanelVisible) {
+        PopupScrim({
+          showCutout: this.downloadJumpPopupHeight > 0,
+          positionedCutout: true,
+          cutoutX: this.downloadContentWidth > 0 ? Math.max(12, this.downloadContentWidth - 244) : 100,
+          cutoutY: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - 210) : 360,
+          cutoutWidth: 220,
+          cutoutHeight: this.downloadJumpPopupHeight,
+          cutoutRadius: uiRadius(8),
+          onDismiss: () => {
+            this.closeDownloadJumpPanel();
+          }
+        })
+          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+          .zIndex(20)
+
+        Column({ space: 10 }) {
+          Text(uiText('Jump'))
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(themePrimaryText())
+            .width('100%')
+          Row({ space: 8 }) {
+            TextInput({ text: this.downloadJumpDraft, placeholder: (this.downloadJumpPageIndex + 1).toString() })
+              .height(uiSearchFieldHeight())
+              .layoutWeight(1)
+              .type(InputType.Number)
+              .fontColor(themePrimaryText())
+              .backgroundColor(themeFieldBackground())
+              .padding({ left: 10, right: 10 })
+              .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
+              .onChange((value: string) => {
+                this.downloadJumpDraft = value;
+              })
+              .onSubmit(() => {
+                this.submitDownloadJump();
+                this.closeDownloadJumpPanel();
+              })
+            Text('/ ' + this.downloadJumpTotalPages().toString())
+              .fontSize(13)
+              .fontColor(themeSecondaryText())
+          }
+
+          Button(uiText('Jump'))
+            .height(36)
+            .width('100%')
+            .fontSize(13)
+            .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
+            .backgroundColor(uiMaterialBackground(themePrimaryColor()))
+            .borderRadius(uiRadius(4))
+            .backgroundEffect(uiTransparentButtonBackgroundEffect())
+            .systemMaterial(uiButtonMaterial())
+            .onClick(() => {
+              this.submitDownloadJump();
+              this.closeDownloadJumpPanel();
+            })
+        }
+        .width(220)
+        .padding(12)
+        .backgroundColor(themeSurface())
+        .borderRadius(uiRadius(8))
+        .shadow({
+          radius: 12,
+          color: themeShadowColor(),
+          offsetX: 0,
+          offsetY: 4
+        })
+        .position({
+          x: this.downloadContentWidth > 0 ? Math.max(12, this.downloadContentWidth - 244) : 100,
+          y: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - 210) : 360
+        })
+        .onAreaChange((_oldArea: Area, newArea: Area) => {
+          this.downloadJumpPopupHeight = Number.parseFloat(newArea.height.toString());
+        })
+        .zIndex(21)
+      }
+
+      if (this.statusFilterPanelVisible) {
+        DownloadStatusFilterOverlay({
+          selectedStatuses: $statusFilterDraft,
+          onCancel: () => {
+            this.closeDownloadStatusPanel();
+          },
+          onApply: () => {
+            this.applyDownloadStatusFilter();
+          }
+        })
+          .zIndex(24)
+          .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
+      }
+    }
+    .id('download-list-pane')
+    .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
+    .height('100%')
+    .backgroundColor(themePageBackground())
+    .onTouch((event: TouchEvent) => {
+      if (shouldUpdateSplitPaneFocus(event)) {
+        this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
+      }
+    })
+    .gesture(
+      PanGesture({ fingers: 1, direction: PanDirection.Left, distance: 28 })
+        .onActionEnd((event: GestureEvent | undefined) => {
+          this.handleOpenDownloadLabelDrawerPan(event);
+        })
+    )
+    .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
+  }
+
   build() {
     if (this.showTagSearch) {
       GalleryListScene({
@@ -2183,359 +2546,7 @@ export struct DownloadScene {
           TransitionEffect.move(TransitionEdge.END).animation({ duration: 300, curve: Curve.EaseOut }))
     } else {
       Stack({ alignContent: Alignment.TopStart }) {
-        Column() {
-          if (!this.searchSubmitted) {
-            List({ space: 0 }) {
-              ListItem() {
-                Row().width('100%').height(this.floatingToolbarHeight() + 8)
-              }
-              ListItem() {
-                this.downloadSearchSuggestionPlaceholder()
-              }
-            }
-            .width('100%')
-            .height('100%')
-            .padding({
-              left: this.downloadContentPadding(),
-              right: this.downloadContentPadding()
-            })
-          } else if (this.visibleItems.length === 0) {
-            Column() {
-              Text(uiText('Downloads'))
-                .fontSize(22)
-                .fontWeight(FontWeight.Bold)
-                .fontColor(themePrimaryText())
-              Text(this.items.length === 0 ? uiText('Download items will be shown here') :
-                uiText('No items match the current filter'))
-                .fontSize(14)
-                .fontColor(themeSecondaryText())
-                .margin({ top: 10 })
-            }
-            .width('100%')
-            .height('100%')
-            .justifyContent(FlexAlign.Center)
-          } else {
-            if (galleryListMode() === 'Thumb') {
-              this.downloadThumbnailWaterFlow()
-            } else {
-              this.downloadStandardList()
-            }
-          }
-        }
-        .width('100%')
-        .height('100%')
-        .backgroundColor(themePageBackground())
-        .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
-        .transition(TransitionEffect.asymmetric(
-          TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseOut }),
-          TransitionEffect.OPACITY.animation({ duration: 1, delay: 300, curve: Curve.Linear })))
-        .onAreaChange((_oldArea: Area, newArea: Area) => {
-          this.updateDownloadContentWidthFromArea(newArea.width as number);
-          const height = newArea.height as number;
-          if (height > 0 && !Number.isNaN(height)) {
-            this.viewportHeight = height;
-          }
-        })
-
-        GalleryHomeNavBarHost({
-          toolbarState: this.toolbarState(),
-          statusBarHeight: this.statusBarVp(),
-          title: this.selectedDownloadLabel === DOWNLOAD_LABEL_FILTER_ALL ? 'Downloads' :
-            (this.selectedDownloadLabel.length === 0 ? 'Default' : this.selectedDownloadLabel),
-          keyword: this.query,
-          filterActive: this.advancedPanelVisible || this.advancedSearchEnabled ||
-            this.searchCategory !== GalleryCategory.None || this.minRating > 0,
-          showSearchButton: !this.searchBarVisible,
-          showFavoriteButton: !this.searchBarVisible,
-          showBackButton: this.searchBarVisible,
-          searchMode: this.searchBarVisible,
-          searchPlaceholder: 'Search downloads',
-          searchShowsAdvancedButton: true,
-          toolbarHeight: uiAdaptiveToolbarHeight(this.downloadContentWidth),
-          onMenu: () => {
-            if (this.searchBarVisible) {
-              this.closeDownloadSearchBar();
-            } else {
-              this.onMenu();
-            }
-          },
-          onBack: () => {
-            this.closeDownloadSearchBar();
-          },
-          onKeywordChange: (value: string) => {
-            this.updateDownloadKeyword(value);
-          },
-          onSearchFocus: () => {
-            this.openDownloadSearchSuggestions();
-          },
-          onSearch: () => {
-            if (this.searchBarVisible) {
-              this.applyDownloadSearch();
-            } else {
-              this.openDownloadSearchBar();
-            }
-          },
-          onAdvanced: () => {
-            this.toggleAdvancedPanel();
-          },
-          onFavoriteButton: () => {
-            this.openDownloadLabelDrawer();
-          }
-        })
-
-        if (this.advancedPanelVisible) {
-          PopupScrim({
-            showCutout: this.downloadContentWidth > 20 && this.advancedPopupHeight > 0,
-            positionedCutout: true,
-            cutoutX: 10,
-            cutoutY: this.statusBarVp() + uiAdaptiveToolbarHeight(this.downloadContentWidth) + 8,
-            cutoutWidth: Math.max(0, this.downloadContentWidth - 20),
-            cutoutHeight: this.advancedPopupHeight,
-            cutoutRadius: uiRadius(8),
-            onDismiss: () => {
-              this.closeAdvancedPanel();
-            }
-          })
-            .transition(TransitionEffect.OPACITY.animation({ duration: 160, curve: Curve.EaseInOut }))
-            .zIndex(15)
-
-          Stack({ alignContent: Alignment.Top }) {
-            SearchAdvancedPanel({
-              searchModeValue: this.searchMode,
-              searchCategory: this.searchCategory,
-              advancedSearchEnabled: this.advancedSearchEnabled,
-              advanceSearch: this.advanceSearch,
-              searchFilterEnabled: true,
-              minRating: this.minRating,
-              pageFrom: -1,
-              pageTo: -1,
-              panelMaxHeight: this.advancedPanelMaxHeight(),
-              onSearchModeChange: (mode: ListMode) => {
-                this.searchMode = mode;
-                this.searchSubmitted = false;
-                this.refreshDownloadRows();
-              },
-              onSearchCategoryChange: (category: number) => {
-                this.searchCategory = category;
-                this.searchSubmitted = false;
-                this.refreshDownloadRows();
-              },
-              onAdvancedEnabledChange: (enabled: boolean) => {
-                this.advancedSearchEnabled = enabled;
-                this.searchSubmitted = false;
-                this.refreshDownloadRows();
-              },
-              onAdvanceSearchChange: (flags: number) => {
-                this.advanceSearch = flags;
-                this.searchSubmitted = false;
-                this.refreshDownloadRows();
-              },
-              onMinRatingChange: (rating: number) => {
-                this.minRating = rating;
-                this.searchSubmitted = false;
-                this.refreshDownloadRows();
-              },
-              onClose: () => {
-                this.closeAdvancedPanel();
-              },
-              onSearch: () => {
-                this.closeAdvancedPanel();
-                this.applyDownloadSearch();
-              }
-            })
-              .constraintSize({ maxHeight: this.advancedPanelMaxHeight() })
-              .onAreaChange((_oldArea: Area, newArea: Area) => {
-                this.advancedPopupHeight = Number.parseFloat(newArea.height.toString());
-              })
-              .transition(TransitionEffect.move(TransitionEdge.TOP)
-                .animation({ duration: 180, curve: Curve.EaseOut }))
-          }
-            .width('100%')
-            .height('100%')
-            .padding({
-              top: this.statusBarVp() + uiAdaptiveToolbarHeight(this.downloadContentWidth) + 8,
-              left: 10,
-              right: 10
-            })
-            .hitTestBehavior(HitTestMode.Transparent)
-            .zIndex(16)
-        }
-
-        FloatingActionDock({ side: this.floatingActionSide }) {
-          if (this.searchBarVisible && !this.searchSubmitted) {
-            SearchActionColumn({
-              side: this.floatingActionSide,
-              onSearch: () => {
-                this.applyDownloadSearch();
-              },
-              onSideChange: (side: string) => {
-                this.floatingActionSideController.handleManualSide(side);
-              }
-            })
-          } else {
-            DownloadToolColumn({
-              expanded: this.downloadActionsExpanded,
-              hasSelection: this.downloadSelectionCount() > 0,
-              canOperate: this.downloadSelectionCount() > 0 || this.visibleItems.length > 0,
-              canJump: this.downloadJumpTotalPages() > 1,
-              canRandom: this.visibleItems.length > 0,
-              maxExpandedHeight: this.downloadToolActionsMaxHeight(),
-              showTranslationButton: this.translationButtonsVisible,
-              translationEnabled: this.translationEnabled,
-              side: this.floatingActionSide,
-              onToggle: () => {
-                this.downloadActionsExpanded = !this.downloadActionsExpanded;
-              },
-              onStatus: () => {
-                this.openDownloadStatusPanel();
-              },
-              onJump: () => {
-                this.openDownloadJumpPanel();
-              },
-              onStart: () => {
-                this.startSelectedOrFiltered();
-              },
-              onStop: () => {
-                this.stopSelectedOrFiltered();
-              },
-              onRestore: () => {
-                this.restoreDownloadedItems();
-              },
-              onRandom: () => {
-                this.openRandomDownload();
-              },
-              onTranslate: () => {
-                ehTranslationService.setEnabled(!this.translationEnabled);
-              },
-              onSelectAll: () => {
-                this.selectAllVisibleFinishedDownloads();
-              },
-              onDelete: () => {
-                this.deleteSelectedDownloads();
-              },
-              onExportZip: () => {
-                this.exportSelectedDownloadsZip();
-              },
-              onLabel: () => {
-                this.openMoveSelectedDownloadLabel();
-              },
-              onSideChange: (side: string) => {
-                this.floatingActionSideController.handleManualSide(side);
-              }
-            })
-          }
-        }
-
-        if (this.statusHintVisible) {
-          Text(this.statusHintText)
-            .fontSize(12)
-            .fontColor(themePrimaryText())
-            .textAlign(TextAlign.Center)
-            .backgroundColor(themeSurface())
-            .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-            .borderRadius(uiRadius(15))
-            .shadow({ radius: 8, color: themeShadowColor(), offsetX: 0, offsetY: 2 })
-            .maxLines(1)
-            .position({
-              x: this.downloadContentWidth > 0 ? Math.max(16, this.downloadContentWidth / 2 - 96) : 72,
-              y: this.viewportHeight > 0 ? Math.max(180, this.viewportHeight * 0.62) : 420
-            })
-            .transition(TransitionEffect.OPACITY
-              .combine(TransitionEffect.translate({ y: 12 }))
-              .animation({ duration: 140, curve: Curve.EaseOut }))
-            .zIndex(18)
-        }
-
-        if (this.downloadJumpPanelVisible) {
-          PopupScrim({
-            showCutout: this.downloadJumpPopupHeight > 0,
-            positionedCutout: true,
-            cutoutX: this.downloadContentWidth > 0 ? Math.max(12, this.downloadContentWidth - 244) : 100,
-            cutoutY: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - 210) : 360,
-            cutoutWidth: 220,
-            cutoutHeight: this.downloadJumpPopupHeight,
-            cutoutRadius: uiRadius(8),
-            onDismiss: () => {
-              this.closeDownloadJumpPanel();
-            }
-          })
-            .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
-            .zIndex(20)
-
-          Column({ space: 10 }) {
-            Text(uiText('Jump'))
-              .fontSize(15)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(themePrimaryText())
-              .width('100%')
-            Row({ space: 8 }) {
-              TextInput({ text: this.downloadJumpDraft, placeholder: (this.downloadJumpPageIndex + 1).toString() })
-                .height(uiSearchFieldHeight())
-                .layoutWeight(1)
-                .type(InputType.Number)
-                .fontColor(themePrimaryText())
-                .backgroundColor(themeFieldBackground())
-                .padding({ left: 10, right: 10 })
-                .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
-                .onChange((value: string) => {
-                  this.downloadJumpDraft = value;
-                })
-                .onSubmit(() => {
-                  this.submitDownloadJump();
-                  this.closeDownloadJumpPanel();
-                })
-              Text('/ ' + this.downloadJumpTotalPages().toString())
-                .fontSize(13)
-                .fontColor(themeSecondaryText())
-            }
-
-            Button(uiText('Jump'))
-              .height(36)
-              .width('100%')
-              .fontSize(13)
-              .fontColor(uiMaterialForegroundColor(themeOnPrimaryText()))
-              .backgroundColor(uiMaterialBackground(themePrimaryColor()))
-              .borderRadius(uiRadius(4))
-              .backgroundEffect(uiTransparentButtonBackgroundEffect())
-              .systemMaterial(uiButtonMaterial())
-              .onClick(() => {
-                this.submitDownloadJump();
-                this.closeDownloadJumpPanel();
-              })
-          }
-          .width(220)
-          .padding(12)
-          .backgroundColor(themeSurface())
-          .borderRadius(uiRadius(8))
-          .shadow({
-            radius: 12,
-            color: themeShadowColor(),
-            offsetX: 0,
-            offsetY: 4
-          })
-          .position({
-            x: this.downloadContentWidth > 0 ? Math.max(12, this.downloadContentWidth - 244) : 100,
-            y: this.viewportHeight > 0 ? Math.max(96, this.viewportHeight - 210) : 360
-          })
-          .onAreaChange((_oldArea: Area, newArea: Area) => {
-            this.downloadJumpPopupHeight = Number.parseFloat(newArea.height.toString());
-          })
-          .zIndex(21)
-        }
-
-        if (this.statusFilterPanelVisible) {
-          DownloadStatusFilterOverlay({
-            selectedStatuses: $statusFilterDraft,
-            onCancel: () => {
-              this.closeDownloadStatusPanel();
-            },
-            onApply: () => {
-              this.applyDownloadStatusFilter();
-            }
-          })
-            .zIndex(24)
-            .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
-        }
+        this.downloadListPane()
 
         if (this.blockingBusyVisible) {
           BlockingBusyOverlay({ message: this.blockingBusyMessage })
@@ -2738,22 +2749,11 @@ export struct DownloadScene {
           .zIndex(36)
       }
       }
-      .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
+      .id('download-scene-root')
+      .width('100%')
       .height('100%')
       .backgroundColor(themePageBackground())
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP])
-      .onTouch((event: TouchEvent) => {
-        if (shouldUpdateSplitPaneFocus(event)) {
-          this.activeSplitPane = SPLIT_PANE_FOCUS_LEFT;
-        }
-      })
-      .gesture(
-        PanGesture({ fingers: 1, direction: PanDirection.Left, distance: 28 })
-          .onActionEnd((event: GestureEvent | undefined) => {
-            this.handleOpenDownloadLabelDrawerPan(event);
-          })
-      )
-      .animation({ duration: this.splitDragging ? 0 : 220, curve: Curve.EaseOut })
       .onAreaChange((_oldArea: Area, newArea: Area) => {
         this.updateSceneContentWidth(areaDimensionToVp(newArea.width, (value: number) => this.getUIContext().px2vp(value)));
       })
