@@ -46,7 +46,7 @@ import {
   TranslationPromptProfile
 } from './TranslationSupport';
 import { ehDownloadFileStore } from './EhDownloadFileStore';
-import { DownloadInfo, DownloadState, ehDownloadStore } from './EhDownloadStore';
+import { DownloadInfo, DownloadState, SYNC_SECTION_DOWNLOADS, ehDownloadStore } from './EhDownloadStore';
 import { remoteStorageDownloadDeletionService } from './RemoteStorageDownloadDeletionService';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { GalleryInfo } from '../model/GalleryModels';
@@ -68,6 +68,12 @@ const LAST_SYNC_KEY: string = 'lastSyncAt';
 const LAST_PULL_KEY: string = 'lastPulledAt';
 const FINGERPRINT_KEY: string = 'lastFingerprint';
 const SERVER_TIMES_KEY: string = 'serverTimes';
+const SHARD_SYNC_VERSION_KEY: string = 'shardSyncVersion';
+// 早期版本在应用历史分片之前就把它们的时间戳记了下来，导致分片永远被跳过。
+// 提升该版本号会清掉分片的时间戳记录，让它们重新合并一次。
+const SHARD_SYNC_VERSION: number = 4;
+// 周期性强制走一次拉取，兜底 manifest 竞争导致的"对端更新被覆盖后永远看不到"。
+const SHARD_PULL_INTERVAL_MS: number = 10 * 60 * 1000;
 const MIRROR_CHECKS_KEY: string = 'mirrorChecks';
 const DEVICE_ID_KEY: string = 'deviceId';
 const MANIFEST_STAMP_KEY: string = 'manifestStamp';
@@ -116,6 +122,7 @@ interface RemoteSyncManifest {
 interface RemoteSyncSection {
   name: string;
   data: string;
+  hash?: string;
 }
 
 interface RemoteSyncServerTime {
@@ -247,9 +254,11 @@ export class RemoteStorageSyncService {
   private downloadStoreUnsubscribe: (() => void) | null = null;
   private lastReconcileAt: number = 0;
   private lastMirrorCheckAt: number = 0;
+  private lastShardPullAt: number = 0;
   private reconcileIndex: number = 0;
   private deviceId: string = '';
   private deviceName: string = '';
+  private shardSyncVersion: number = 0;
 
   async initialize(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
@@ -324,6 +333,7 @@ export class RemoteStorageSyncService {
       let legacyHistorySeen = false;
       const remoteHistoryShards: RemoteSyncServerTime[] = [];
       if (pullRemote) {
+        this.lastShardPullAt = Date.now();
         await this.mergeRemoteTombstones(context, client);
         const listing = await client.list(SYNC_FOLDER);
         if (listing.ok) {
@@ -339,7 +349,10 @@ export class RemoteStorageSyncService {
               continue;
             }
             if (sectionName.indexOf(HISTORY_SHARD_PREFIX) === 0) {
-              remoteHistoryShards.push({ name: sectionName, time: entry.modifiedAt });
+              // 自己写的分片不需要拉回；其他设备的分片各自保留，互不覆盖。
+              if (historyShardOwner(sectionName) !== this.deviceId) {
+                remoteHistoryShards.push({ name: sectionName, time: entry.modifiedAt });
+              }
               continue;
             }
             if (sectionName === 'history') {
@@ -353,7 +366,6 @@ export class RemoteStorageSyncService {
             await this.applySection(context, client, sectionName);
             remoteApplied = true;
           }
-          this.recordServerTimes(listing.entries);
         }
         // 历史分片按编号倒序应用（旧分片先入，新分片最后覆盖到最前）。
         remoteHistoryShards.sort((left: RemoteSyncServerTime, right: RemoteSyncServerTime): number =>
@@ -362,10 +374,16 @@ export class RemoteStorageSyncService {
           const shard = remoteHistoryShards[i];
           const recorded = this.serverTimeFor(shard.name);
           if (recorded > 0 && shard.time > 0 && shard.time <= recorded) {
+            logRemoteStorageInfo('history shard skipped ' + shard.name);
             continue;
           }
+          logRemoteStorageInfo('history shard apply ' + shard.name);
           await this.applySection(context, client, shard.name);
           remoteApplied = true;
+        }
+        if (listing.ok) {
+          // 必须在分片应用之后再记录时间戳，否则分片会被自己的记录挡掉。
+          this.recordServerTimes(listing.entries);
         }
         await this.applyTombstones(context);
         const manifestResult = await client.getText(MANIFEST_FILE);
@@ -389,7 +407,7 @@ export class RemoteStorageSyncService {
         if (this.manifestSections.indexOf(section.name) < 0) {
           newSectionNames = true;
         }
-        const hash = simpleTextHash(section.data);
+        const hash = section.hash !== undefined ? section.hash : simpleTextHash(section.data);
         const knownHash = this.sectionHashFor(section.name);
         const recordedTime = this.serverTimeFor(section.name);
         if (recordedTime > 0 && knownHash.length > 0 && knownHash === hash) {
@@ -410,7 +428,7 @@ export class RemoteStorageSyncService {
       let tombstonesChanged = false;
       if (!syncTombstoneStore.isEmpty()) {
         const tombstoneText = syncTombstoneStore.serialize();
-        const tombstoneHash = simpleTextHash(tombstoneText);
+        const tombstoneHash = simpleTextHash(syncTombstoneStore.stableText());
         if (tombstoneHash !== this.tombstonesHash) {
           const tombstoneUpload = await client.putText(TOMBSTONES_FILE, tombstoneText);
           if (tombstoneUpload.ok) {
@@ -419,27 +437,29 @@ export class RemoteStorageSyncService {
           }
         }
       }
-      // 清理不再使用的历史分片与旧版单文件 history，避免后续继续被拉取。
+      // 只清理自己的历史分片和旧版分片；其他设备的分片由其自行管理，避免互相删除。
+      const ourShardPrefix = this.historyShardPrefix();
       const ourHistoryNames: string[] = [];
       for (let i = 0; i < sections.length; i++) {
-        if (sections[i].name.indexOf(HISTORY_SHARD_PREFIX) === 0) {
+        if (sections[i].name.indexOf(ourShardPrefix) === 0) {
           ourHistoryNames.push(sections[i].name);
         }
       }
       const staleNames: string[] = [];
       for (let i = 0; i < this.manifestSections.length; i++) {
         const name = this.manifestSections[i];
-        if (name.indexOf(HISTORY_SHARD_PREFIX) === 0 && ourHistoryNames.indexOf(name) < 0) {
+        if (name.indexOf(HISTORY_SHARD_PREFIX) !== 0) {
+          continue;
+        }
+        const own = name.indexOf(ourShardPrefix) === 0;
+        if (own && ourHistoryNames.indexOf(name) < 0) {
+          staleNames.push(name);
+        } else if (!own && historyShardOwner(name) === '' && pullRemote) {
+          // 旧版 history~数字 分片已并入本地历史，可安全删除。
           staleNames.push(name);
         }
       }
-      for (let i = 0; i < remoteHistoryShards.length; i++) {
-        const name = remoteHistoryShards[i].name;
-        if (ourHistoryNames.indexOf(name) < 0 && staleNames.indexOf(name) < 0) {
-          staleNames.push(name);
-        }
-      }
-      if (legacyHistorySeen && staleNames.indexOf('history') < 0) {
+      if (legacyHistorySeen && pullRemote && staleNames.indexOf('history') < 0) {
         staleNames.push('history');
       }
       let sectionsPruned = false;
@@ -484,7 +504,9 @@ export class RemoteStorageSyncService {
           this.manifestStamp = stat.stamp;
         }
       }
-      if (uploadedAny || remoteApplied || newSectionNames) {
+      // 只有真正拉取过远端的分区才能记录它的时间戳；纯上传模式记录会把对方文件
+      // 的 mtime 当成"已处理"，导致之后永远跳过它们的合并。
+      if ((uploadedAny || remoteApplied || newSectionNames) && pullRemote) {
         const afterListing = await client.list(SYNC_FOLDER);
         if (afterListing.ok) {
           this.recordServerTimes(afterListing.entries);
@@ -561,7 +583,8 @@ export class RemoteStorageSyncService {
       return;
     }
     const remoteChanged = this.manifestStamp.length === 0 || stat.stamp !== this.manifestStamp;
-    if (remoteChanged) {
+    const periodicPull = Date.now() - this.lastShardPullAt >= SHARD_PULL_INTERVAL_MS;
+    if (remoteChanged || periodicPull) {
       await this.performSync(context, profile, client, true);
       return;
     }
@@ -884,16 +907,17 @@ export class RemoteStorageSyncService {
     ]);
     const history: GalleryInfo[] = ehHistoryStore.getItems();
     const historySlice = history.length > MAX_SYNC_HISTORY_ITEMS ?
-      history.slice(history.length - MAX_SYNC_HISTORY_ITEMS) : history;
+      history.slice(0, MAX_SYNC_HISTORY_ITEMS) : history;
     const sections: RemoteSyncSection[] = [
-      { name: 'settings_' + this.deviceId, data: this.wrapSection(ehSettingsStore.getTransferEntries()) },
-      { name: 'bookmarks', data: this.wrapSection(ehBookmarkStore.getBackupItems()) },
-      { name: 'localFavorites', data: this.wrapSection(ehLocalFavoritesStore.getBackupItems()) },
-      { name: 'blacklist', data: this.wrapSection(ehCommentBlacklistStore.getBackupItems()) },
+      this.sectionFromPayload('settings_' + this.deviceId, ehSettingsStore.getTransferEntries()),
+      this.sectionFromPayload('bookmarks', ehBookmarkStore.getBackupItems()),
+      this.sectionFromPayload('localFavorites', ehLocalFavoritesStore.getBackupItems()),
+      this.sectionFromPayload('blacklist', ehCommentBlacklistStore.getBackupItems()),
       { name: 'filters', data: JSON.stringify(ehFilterStore.getRules()) },
       { name: 'searchHistory', data: JSON.stringify(ehSearchHistoryStore.getKeywords()) },
       { name: 'browsePositions', data: JSON.stringify(ehBrowsePositionStore.getBackupInfo()) },
       { name: 'readingProgress', data: JSON.stringify(ehHistoryStore.getReadingProgressBackupItems()) },
+      this.sectionFromPayload(SYNC_SECTION_DOWNLOADS, ehDownloadStore.getSyncItems()),
       { name: 'downloadLabels', data: JSON.stringify(ehDownloadStore.getLabels()) },
       { name: 'remoteStorage', data: JSON.stringify(profilesWithoutPasswords(remoteStorageProfileStore.getProfiles())) },
       {
@@ -915,7 +939,7 @@ export class RemoteStorageSyncService {
     return sections;
   }
 
-  // 历史按 1000 条或 1MB 分片，新增少量条目时只重传受影响的一片。
+  // 历史按 1000 条或 1MB 分片，文件名带设备标识，避免两台设备互相覆盖对方的分片。
   private buildHistorySections(items: GalleryInfo[]): RemoteSyncSection[] {
     const sections: RemoteSyncSection[] = [];
     let chunk: GalleryInfo[] = [];
@@ -925,10 +949,7 @@ export class RemoteStorageSyncService {
       const itemBytes = JSON.stringify(items[i]).length + 1;
       if (chunk.length > 0 &&
         (chunk.length >= HISTORY_SHARD_MAX_ITEMS || chunkBytes + itemBytes > HISTORY_SHARD_MAX_BYTES)) {
-        sections.push({
-          name: HISTORY_SHARD_PREFIX + shardIndex.toString(),
-          data: this.wrapSection(chunk)
-        });
+        sections.push(this.sectionFromPayload(this.historyShardName(shardIndex), chunk));
         shardIndex++;
         chunk = [];
         chunkBytes = 0;
@@ -937,12 +958,27 @@ export class RemoteStorageSyncService {
       chunkBytes += itemBytes;
     }
     if (chunk.length > 0) {
-      sections.push({
-        name: HISTORY_SHARD_PREFIX + shardIndex.toString(),
-        data: this.wrapSection(chunk)
-      });
+      sections.push(this.sectionFromPayload(this.historyShardName(shardIndex), chunk));
     }
     return sections;
+  }
+
+  // 分区哈希只取决于内容本身：envelope 的 updatedAt 每次都变，不能参与去重比较，
+  // 否则两台设备每轮都会重传并互相覆盖。
+  private sectionFromPayload(name: string, payload: Object): RemoteSyncSection {
+    return {
+      name: name,
+      data: this.wrapSection(payload),
+      hash: simpleTextHash(JSON.stringify(payload))
+    };
+  }
+
+  private historyShardName(index: number): string {
+    return HISTORY_SHARD_PREFIX + this.deviceId + '~' + index.toString();
+  }
+
+  private historyShardPrefix(): string {
+    return HISTORY_SHARD_PREFIX + this.deviceId + '~';
   }
 
   // Shared lists are wrapped with the writing device and timestamp: the same device can just
@@ -1082,8 +1118,22 @@ export class RemoteStorageSyncService {
       } else if (name === 'history' || name.indexOf(HISTORY_SHARD_PREFIX) === 0) {
         const items = JSON.parse(content) as GalleryInfo[];
         const limit = historyInfoSizeLimitFromValue(ehSettingsStore.getValue(HISTORY_INFO_SIZE_KEY, '100'));
-        ehHistoryStore.importHistoryBackupItems(items, limit);
+        const changed = ehHistoryStore.importHistoryBackupItems(items, limit);
+        let timed = 0;
+        for (let i = 0; i < items.length; i++) {
+          const entry = items[i];
+          if (entry !== undefined && typeof entry.historyTime === 'number' && entry.historyTime > 0) {
+            timed++;
+          }
+        }
+        logRemoteStorageInfo('history apply ' + name + ' items=' + items.length.toString() +
+          ' timed=' + timed.toString() + ' changed=' + changed.toString());
         await ehHistoryStore.save(context);
+      } else if (name === SYNC_SECTION_DOWNLOADS) {
+        const items = JSON.parse(content) as DownloadInfo[];
+        await ehDownloadStore.load(context);
+        ehDownloadStore.mergeSyncItems(items);
+        await ehDownloadStore.save(context);
       }
     } catch (error) {
       logRemoteStorageError('sync section ' + name + ' apply failed: ' +
@@ -1253,6 +1303,25 @@ export class RemoteStorageSyncService {
     }
     if (searchHistoryChanged) {
       await ehSearchHistoryStore.save(context);
+    }
+
+    let downloadsChanged = false;
+    const downloadRecords = this.tombstoneRecords(SYNC_SECTION_DOWNLOADS);
+    if (downloadRecords.length > 0) {
+      const items = ehDownloadStore.getItems();
+      for (let i = 0; i < downloadRecords.length; i++) {
+        const key = downloadRecords[i].key;
+        for (let j = 0; j < items.length; j++) {
+          if (items[j].gid.toString() === key && syncTombstoneShouldDelete(downloadRecords[i], items[j].time)) {
+            ehDownloadStore.removeGallery(items[j].gid);
+            downloadsChanged = true;
+            break;
+          }
+        }
+      }
+    }
+    if (downloadsChanged) {
+      await ehDownloadStore.save(context);
     }
 
     let labelsChanged = false;
@@ -2067,6 +2136,7 @@ export class RemoteStorageSyncService {
       const sectionHashes = await prefs.get(SECTION_HASHES_KEY, '[]');
       const downloadManifestStamp = await prefs.get(DOWNLOAD_MANIFEST_STAMP_KEY, '');
       const tombstonesHash = await prefs.get(TOMBSTONES_HASH_KEY, '');
+      const shardSyncVersion = await prefs.get(SHARD_SYNC_VERSION_KEY, 0);
       this.manifestStamp = typeof manifestStamp === 'string' ? manifestStamp : '';
       this.downloadManifestStamp = typeof downloadManifestStamp === 'string' ? downloadManifestStamp : '';
       this.tombstonesHash = typeof tombstonesHash === 'string' ? tombstonesHash : '';
@@ -2101,6 +2171,19 @@ export class RemoteStorageSyncService {
           this.mirrorChecks = [];
         }
       }
+      this.shardSyncVersion = typeof shardSyncVersion === 'number' ? shardSyncVersion : 0;
+      if (this.shardSyncVersion < SHARD_SYNC_VERSION) {
+        const nextTimes: RemoteSyncServerTime[] = [];
+        for (let i = 0; i < this.serverTimes.length; i++) {
+          if (this.serverTimes[i].name.indexOf(HISTORY_SHARD_PREFIX) !== 0) {
+            nextTimes.push(this.serverTimes[i]);
+          }
+        }
+        this.serverTimes = nextTimes;
+        this.shardSyncVersion = SHARD_SYNC_VERSION;
+        // 强制下一次同步走拉取流程，立刻补上此前被跳过合并的历史分片。
+        this.manifestStamp = '';
+      }
       const nameId = resolveDeviceIdentity(context);
       this.deviceName = resolveDeviceDisplayName(context);
       this.deviceId = nameId.length > 0 ? nameId :
@@ -2124,6 +2207,7 @@ export class RemoteStorageSyncService {
       await prefs.put(SECTION_HASHES_KEY, JSON.stringify(this.sectionHashes));
       await prefs.put(DOWNLOAD_MANIFEST_STAMP_KEY, this.downloadManifestStamp);
       await prefs.put(TOMBSTONES_HASH_KEY, this.tombstonesHash);
+      await prefs.put(SHARD_SYNC_VERSION_KEY, this.shardSyncVersion);
       await prefs.flush();
     } catch (error) {
     }
@@ -2180,7 +2264,10 @@ export class RemoteStorageSyncService {
     if (name === 'readingProgress') {
       return uiText('Reading progress');
     }
-    if (name === 'history') {
+    if (name === SYNC_SECTION_DOWNLOADS) {
+      return uiText('Downloads');
+    }
+    if (name === 'history' || name.indexOf(HISTORY_SHARD_PREFIX) === 0) {
       return uiText('History');
     }
     return name;
@@ -2432,8 +2519,16 @@ function writeTextFileQuietly(path: string, value: string): void {
   }
 }
 
+function historyShardOwner(name: string): string {
+  const rest = name.substring(HISTORY_SHARD_PREFIX.length);
+  const tilde = rest.lastIndexOf('~');
+  return tilde < 0 ? '' : rest.substring(0, tilde);
+}
+
 function historyShardIndex(name: string): number {
-  const suffix = name.substring(HISTORY_SHARD_PREFIX.length);
+  const rest = name.substring(HISTORY_SHARD_PREFIX.length);
+  const tilde = rest.lastIndexOf('~');
+  const suffix = tilde < 0 ? rest : rest.substring(tilde + 1);
   const parsed = Number.parseInt(suffix);
   return Number.isNaN(parsed) ? 0 : parsed;
 }
@@ -2447,13 +2542,15 @@ function simpleTextHash(value: string): string {
 }
 
 function downloadStoreSignature(items: DownloadInfo[]): string {
-  let finished = 0;
+  let hash = 5381;
   for (let i = 0; i < items.length; i++) {
-    if (items[i].state === DownloadState.Finish) {
-      finished++;
+    const text = items[i].gid.toString() + ':' + items[i].time.toString() + ':' + items[i].state +
+      ':' + items[i].label;
+    for (let j = 0; j < text.length; j++) {
+      hash = ((hash << 5) + hash + text.charCodeAt(j)) | 0;
     }
   }
-  return items.length.toString() + ':' + finished.toString();
+  return items.length.toString() + ':' + (hash >>> 0).toString(16);
 }
 
 export const remoteStorageSyncService = new RemoteStorageSyncService();

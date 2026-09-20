@@ -7,6 +7,7 @@ import { syncTombstoneStore } from './SyncTombstoneStore';
 
 const PREFERENCES_NAME: string = 'ehviewer_downloads';
 const SYNC_SECTION_DOWNLOAD_LABELS: string = 'downloadLabels';
+export const SYNC_SECTION_DOWNLOADS: string = 'downloads';
 const VALUES_KEY: string = 'items';
 const LABELS_KEY: string = 'labels';
 const DOWNLOAD_NOTIFY_DEBOUNCE_MS: number = 50;
@@ -179,7 +180,73 @@ export class EhDownloadStore {
       }
     }
     this.items = next;
+    syncTombstoneStore.recordDeletion(this.context, SYNC_SECTION_DOWNLOADS, gid.toString());
     this.notifyChanged();
+  }
+
+  // 下载列表同步：去掉速度、剩余时间、本地归档路径等只在本机有意义的数据。
+  getSyncItems(): DownloadInfo[] {
+    const items = this.getItems();
+    for (let i = 0; i < items.length; i++) {
+      items[i].speed = 0;
+      items[i].remaining = 0;
+      items[i].archiveUri = '';
+      items[i].legacy = 0;
+    }
+    return items;
+  }
+
+  // 合并另一台设备的下载列表：按 gid 匹配，较新的记录更新元数据，同时保留本机状态与进度。
+  mergeSyncItems(items: DownloadInfo[]): number {
+    if (!Array.isArray(items)) {
+      return 0;
+    }
+    let changed = 0;
+    for (let i = 0; i < items.length; i++) {
+      const raw = items[i];
+      if (raw === null || raw === undefined || typeof raw.gid !== 'number' || raw.gid <= 0 ||
+        typeof raw.token !== 'string' || raw.token.length === 0) {
+        continue;
+      }
+      const incoming = cloneDownloadInfo(raw);
+      incoming.speed = 0;
+      incoming.remaining = 0;
+      incoming.archiveUri = '';
+      incoming.legacy = 0;
+      if (typeof incoming.time !== 'number' || incoming.time <= 0) {
+        incoming.time = 0;
+      }
+      const index = this.findIndex(incoming.gid);
+      if (index < 0) {
+        incoming.speed = 0;
+        incoming.remaining = 0;
+        incoming.archiveUri = '';
+        if (incoming.state !== DownloadState.Finish) {
+          incoming.state = DownloadState.None;
+        }
+        this.items.unshift(incoming);
+        changed++;
+        continue;
+      }
+      const local = this.items[index];
+      const incomingFinished = incoming.state === DownloadState.Finish;
+      const localFinished = local.state === DownloadState.Finish;
+      if (incoming.time > local.time || (incomingFinished && !localFinished && incoming.time >= local.time)) {
+        incoming.state = local.state;
+        incoming.speed = local.speed;
+        incoming.remaining = local.remaining;
+        incoming.finished = local.finished;
+        incoming.downloaded = local.downloaded;
+        incoming.total = local.total > 0 ? local.total : incoming.total;
+        incoming.archiveUri = local.archiveUri;
+        this.items[index] = incoming;
+        changed++;
+      }
+    }
+    if (changed > 0) {
+      this.notifyChanged();
+    }
+    return changed;
   }
 
   setState(gid: number, state: DownloadState): void {
@@ -442,6 +509,8 @@ export class EhDownloadStore {
     for (let i = 0; i < this.items.length; i++) {
       if (this.items[i].state !== DownloadState.Finish) {
         next.push(cloneDownloadInfo(this.items[i]));
+      } else {
+        syncTombstoneStore.recordDeletion(this.context, SYNC_SECTION_DOWNLOADS, this.items[i].gid.toString());
       }
     }
     this.items = next;

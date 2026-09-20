@@ -108,7 +108,9 @@ export class EhHistoryStore {
     cloned.sort((left: GalleryInfo, right: GalleryInfo): number => {
       const leftTime = left.historyTime === undefined ? 0 : left.historyTime;
       const rightTime = right.historyTime === undefined ? 0 : right.historyTime;
-      return rightTime - leftTime;
+      const result = rightTime - leftTime;
+      // 时间相同时按 gid 兜底，保证两台设备排序一致。
+      return result !== 0 ? result : right.gid - left.gid;
     });
     return cloned;
   }
@@ -151,22 +153,80 @@ export class EhHistoryStore {
     }
   }
 
-  // Backups store history newest-first. Importing must replay it oldest-first so prepending in
-  // addGallery reconstructs the original order and keeps the newest entries when the cap applies.
+  // Merge history from another device. Entries are matched by gid; the copy with the newer
+  // timestamp wins so merges are deterministic and never re-stamp imported entries. Untimed
+  // legacy entries are placed below every timed entry instead of getting "now".
   importHistoryBackupItems(items: GalleryInfo[], maxSize: number = HISTORY_DEFAULT_MAX_SIZE): number {
     if (!Array.isArray(items)) {
       return 0;
     }
     let imported = 0;
-    for (let i = items.length - 1; i >= 0; i--) {
-      const item = items[i];
-      if (item !== null && item !== undefined && typeof item.gid === 'number' && item.gid > 0 &&
-        typeof item.token === 'string' && item.token.length > 0) {
-        this.addGallery(item, maxSize, false);
-        imported++;
+    let changed = 0;
+    let oldestTime = 0;
+    for (let i = 0; i < this.items.length; i++) {
+      const time = this.historyTimeOf(this.items[i]);
+      if (time > 0 && (oldestTime === 0 || time < oldestTime)) {
+        oldestTime = time;
       }
     }
-    return imported;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item === null || item === undefined || typeof item.gid !== 'number' || item.gid <= 0 ||
+        typeof item.token !== 'string' || item.token.length === 0) {
+        continue;
+      }
+      const remoteTime = this.historyTimeOf(item);
+      const index = this.indexOf(item.gid);
+      if (index >= 0) {
+        const localTime = this.historyTimeOf(this.items[index]);
+        if (remoteTime > localTime) {
+          const entry = cloneGalleryInfo(item);
+          entry.historyTime = remoteTime;
+          this.items[index] = entry;
+          changed++;
+        }
+        continue;
+      }
+      const entry = cloneGalleryInfo(item);
+      if (remoteTime > 0) {
+        entry.historyTime = remoteTime;
+      } else {
+        oldestTime = oldestTime > 0 ? oldestTime - 1 : Date.now() - this.items.length - 1;
+        entry.historyTime = oldestTime;
+      }
+      this.items.push(entry);
+      imported++;
+    }
+    if (imported > 0 || changed > 0) {
+      this.sortByTimeDesc();
+      this.trim(maxSize);
+      this.queueSave();
+    }
+    return imported + changed;
+  }
+
+  private sortByTimeDesc(): void {
+    this.items.sort((left: GalleryInfo, right: GalleryInfo): number => {
+      const result = this.historyTimeOf(right) - this.historyTimeOf(left);
+      return result !== 0 ? result : right.gid - left.gid;
+    });
+  }
+
+  private historyTimeOf(item: GalleryInfo): number {
+    const value = item.historyTime;
+    if (value === undefined || value <= 0) {
+      return 0;
+    }
+    return value;
+  }
+
+  private indexOf(gid: number): number {
+    for (let i = 0; i < this.items.length; i++) {
+      if (this.items[i].gid === gid) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   updateGallery(gallery: GalleryInfo): boolean {
@@ -424,10 +484,11 @@ export class EhHistoryStore {
       const chosen = main.items.length > 0 || main.readPositions.length > 0 ? main : backup;
       this.items = chosen.items;
       this.readPositions = chosen.readPositions;
-      this.ensureHistoryTimes();
       if (this.items.length === 0 && this.readPositions.length === 0) {
         await this.restoreFromLegacyPreferences(context);
       }
+      // 必须放在旧版偏好恢复之后：恢复出来的条目没有时间戳，不能带着空时间落盘。
+      this.ensureHistoryTimes();
       this.loaded = true;
       if (this.items.length > 0 || this.readPositions.length > 0) {
         await this.saveNow(context);
@@ -753,7 +814,8 @@ function cloneGalleryInfo(item: GalleryInfo): GalleryInfo {
     favoriteName: item.favoriteName,
     tagList: item.tagList,
     detailTags: cloneGalleryTagGroups(tags),
-    detailLanguage: language
+    detailLanguage: language,
+    historyTime: item.historyTime
   };
 }
 

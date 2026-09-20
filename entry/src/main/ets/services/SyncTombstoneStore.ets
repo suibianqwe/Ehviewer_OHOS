@@ -116,6 +116,16 @@ export class SyncTombstoneStore {
     return JSON.stringify(payload);
   }
 
+  // 用于比较内容是否变化：updatedAt 每次都不同，不能参与哈希。
+  stableText(): string {
+    const payload: StoredTombstones = {
+      version: 1,
+      updatedAt: 0,
+      sections: this.sections
+    };
+    return JSON.stringify(payload);
+  }
+
   mergeRemoteText(text: string): number {
     if (text.length === 0) {
       return 0;

@@ -894,34 +894,30 @@ function downloadItemMatches(item: DownloadInfo, query: string): boolean {
 
 export function sortDownloadItems(items: DownloadInfo[], sortMode: string): void {
   items.sort((left: DownloadInfo, right: DownloadInfo): number => {
+    let result = 0;
     if (sortMode === 'GID asc') {
-      return left.gid - right.gid;
+      result = left.gid - right.gid;
+    } else if (sortMode === 'GID desc') {
+      result = right.gid - left.gid;
+    } else if (sortMode === 'Rating desc') {
+      result = right.rating - left.rating;
+    } else if (sortMode === 'Rating asc') {
+      result = left.rating - right.rating;
+    } else if (sortMode === 'Name asc') {
+      result = left.title.localeCompare(right.title);
+    } else if (sortMode === 'Name desc') {
+      result = right.title.localeCompare(left.title);
+    } else if (sortMode === 'Size asc') {
+      result = left.fileSize - right.fileSize;
+    } else if (sortMode === 'Size desc') {
+      result = right.fileSize - left.fileSize;
+    } else if (sortMode === 'Time asc') {
+      result = left.time - right.time;
+    } else {
+      result = right.time - left.time;
     }
-    if (sortMode === 'GID desc') {
-      return right.gid - left.gid;
-    }
-    if (sortMode === 'Rating desc') {
-      return right.rating - left.rating;
-    }
-    if (sortMode === 'Rating asc') {
-      return left.rating - right.rating;
-    }
-    if (sortMode === 'Name asc') {
-      return left.title.localeCompare(right.title);
-    }
-    if (sortMode === 'Name desc') {
-      return right.title.localeCompare(left.title);
-    }
-    if (sortMode === 'Size asc') {
-      return left.fileSize - right.fileSize;
-    }
-    if (sortMode === 'Size desc') {
-      return right.fileSize - left.fileSize;
-    }
-    if (sortMode === 'Time asc') {
-      return left.time - right.time;
-    }
-    return right.time - left.time;
+    // 相同时间/大小时按 gid 兜底，保证两台设备排序一致。
+    return result !== 0 ? result : right.gid - left.gid;
   });
 }
 
