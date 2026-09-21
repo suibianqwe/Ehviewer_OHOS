@@ -9,6 +9,9 @@ const SYNC_SECTION_BOOKMARKS: string = 'bookmarks';
 
 const PREFERENCES_NAME: string = 'ehviewer_bookmarks';
 const VALUES_KEY: string = 'items';
+// 升级后首次启动时，把旧格式（缺少“$”终止符、简写命名空间等）统一转换为当前样式。
+const LEGACY_KEYWORD_MIGRATION_KEY: string = 'legacyKeywordMigration';
+const LEGACY_KEYWORD_MIGRATION_VERSION: number = 1;
 
 export interface SearchBookmarkBackupInfo {
   id?: string;
@@ -248,9 +251,16 @@ export class EhBookmarkStore {
       next.sort((left: SearchBookmarkInfo, right: SearchBookmarkInfo): number => left.time - right.time);
       this.items = next;
       const normalizedSnapshot = this.getBackupItems();
-      if (JSON.stringify(parsed) !== JSON.stringify(normalizedSnapshot)) {
+      const migrationValue = await prefs.get(LEGACY_KEYWORD_MIGRATION_KEY, 0);
+      const needsLegacyMigration = typeof migrationValue !== 'number' ||
+        migrationValue < LEGACY_KEYWORD_MIGRATION_VERSION;
+      if (needsLegacyMigration || JSON.stringify(parsed) !== JSON.stringify(normalizedSnapshot)) {
         try {
           await this.saveSnapshot(context, normalizedSnapshot);
+          if (needsLegacyMigration) {
+            await prefs.put(LEGACY_KEYWORD_MIGRATION_KEY, LEGACY_KEYWORD_MIGRATION_VERSION);
+            await prefs.flush();
+          }
         } catch (error) {
         }
       }

@@ -193,3 +193,14 @@ test('all text inputs have the shared search background, never transparent syste
   }
   assert.ok(count >= 34, 'the audit must cover the whole application');
 });
+
+test('legacy bookmarks are normalized and persisted on first launch after the update', () => {
+  const store = read('entry/src/main/ets/services/EhBookmarkStore.ets');
+  const normalize = bodyOf(store, 'function normalizeBookmark(');
+  assert.match(normalize, /normalizeSubmittedSearchKeywordValue\(sourceKeyword\)/);
+  const load = bodyOf(store, 'private async load(');
+  assert.match(load, /LEGACY_KEYWORD_MIGRATION_KEY/);
+  assert.match(load, /saveSnapshot\(context, normalizedSnapshot\)/);
+  const importer = read('entry/src/main/ets/services/AndroidDataImporter.ets');
+  assert.match(importer, /normalizeSubmittedSearchKeywordValue\(sourceKeyword\)/);
+});

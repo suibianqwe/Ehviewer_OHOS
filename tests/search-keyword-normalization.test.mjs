@@ -42,6 +42,27 @@ test('plain keywords without namespaces are untouched apart from whitespace', ()
   assert.equal(normalize(''), '');
 });
 
+test('android quick-search keywords convert to the HarmonyOS format', () => {
+  const cases = [
+    ['female:sole_female language:chinese', 'female:sole_female$ language:chinese$'],
+    ['f:sole_female l:chinese', 'female:sole_female$ language:chinese$'],
+    ['artist:bai lao shi', 'artist:bai lao shi$'],
+    ['group:some circle name parody:some work', 'group:some circle name$ parody:some work$'],
+    ['character:miyabi hoshimi$', 'character:miyabi hoshimi$'],
+    ['male:sole_male female:big breasts', 'male:sole_male$ female:big breasts$'],
+    ['artist:"quoted artist" $parody:x', 'artist:quoted artist$ parody:x$'],
+    ['f:big breasts$ language:chinese', 'female:big breasts$ language:chinese$']
+  ];
+  for (const [input, expected] of cases) {
+    assert.equal(normalize(input), expected, input);
+  }
+});
+
+test('android importer normalizes quick-search keywords through the shared converter', () => {
+  const importer = read('entry/src/main/ets/services/AndroidDataImporter.ets');
+  assert.match(importer, /normalizeSubmittedSearchKeywordValue\(sourceKeyword\)/);
+});
+
 test('normalization is idempotent', () => {
   for (const value of ['artist:foo bar', 'f:big breasts artist:foo bar l:chinese',
     'artist:foo bar$parody:x$', 'a:some artist$']) {
