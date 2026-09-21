@@ -755,25 +755,12 @@ struct TagVoteOverlay {
         .alignItems(VerticalAlign.Top)
 
         Column({ space: 0 }) {
-          TagSettingsRow({
-            symbolIcon: $r('sys.symbol.arrow_up_circle'),
-            label: 'Vote+',
+          TagVoteRow({
             isEnabled: this.tag.id > 0,
-            selected: this.tag.voteUpEd === true,
-            accentColor: '#0A8F5A',
-            firstInGroup: true,
-            onTap: () => {
-              this.onVote(1);
-            }
-          })
-          TagSettingsRow({
-            symbolIcon: $r('sys.symbol.arrow_down_circle'),
-            label: 'Vote-',
-            isEnabled: this.tag.id > 0,
-            selected: this.tag.voteDownEd === true,
-            accentColor: '#C43C3C',
-            onTap: () => {
-              this.onVote(-1);
+            upSelected: this.tag.voteUpEd === true,
+            downSelected: this.tag.voteDownEd === true,
+            onVote: (vote: number) => {
+              this.onVote(vote);
             }
           })
           TagSettingsRow({
@@ -851,6 +838,100 @@ struct TagVoteOverlay {
     }
     .width('100%')
     .height('100%')
+  }
+}
+
+@Component
+struct TagVoteRow {
+  isEnabled: boolean = true;
+  upSelected: boolean = false;
+  downSelected: boolean = false;
+  onVote: (vote: number) => void = (_vote: number) => {};
+
+  build() {
+    Row() {
+      TagVoteCell({
+        symbolIcon: $r('sys.symbol.arrow_up_circle'),
+        label: 'Vote+',
+        isEnabled: this.isEnabled,
+        selected: this.upSelected,
+        accentColor: '#0A8F5A',
+        onTap: () => {
+          this.onVote(1);
+        }
+      })
+      .layoutWeight(1)
+      Divider()
+        .vertical(true)
+        .height(26)
+        .strokeWidth(0.5)
+        .color(themeDividerColor())
+      TagVoteCell({
+        symbolIcon: $r('sys.symbol.arrow_down_circle'),
+        label: 'Vote-',
+        isEnabled: this.isEnabled,
+        selected: this.downSelected,
+        accentColor: '#C43C3C',
+        onTap: () => {
+          this.onVote(-1);
+        }
+      })
+      .layoutWeight(1)
+    }
+    .width('100%')
+    .backgroundColor(uiListItemBackground(themeSurface()))
+    .border({ width: { bottom: 0.5 }, color: themeDividerColor() })
+    .borderRadius({ topLeft: uiRadius(16), topRight: uiRadius(16) })
+    .opacity(this.isEnabled ? 1 : 0.5)
+  }
+}
+
+@Component
+struct TagVoteCell {
+  symbolIcon: Resource = $r('sys.symbol.arrow_up_circle');
+  label: string = '';
+  isEnabled: boolean = true;
+  selected: boolean = false;
+  accentColor: string = '#0A8F5A';
+  onTap: () => void = () => {};
+
+  private contentColor(): string {
+    if (!this.isEnabled) {
+      return themeInactiveActionText();
+    }
+    return this.selected ? this.accentColor : themePrimaryText();
+  }
+
+  private iconColor(): string {
+    if (!this.isEnabled) {
+      return themeInactiveActionText();
+    }
+    return this.selected ? this.accentColor : themeSecondaryText();
+  }
+
+  build() {
+    Row({ space: 8 }) {
+      SymbolGlyph(this.symbolIcon)
+        .fontSize(18)
+        .fontColor([uiMaterialForegroundColor(this.iconColor())])
+      Text(uiText(this.label))
+        .fontSize(15)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(uiMaterialForegroundColor(this.contentColor()))
+      if (this.selected) {
+        SymbolGlyph($r('sys.symbol.checkmark'))
+          .fontSize(14)
+          .fontColor([uiMaterialForegroundColor(this.accentColor)])
+      }
+    }
+    .width('100%')
+    .height(49)
+    .justifyContent(FlexAlign.Center)
+    .onClick(() => {
+      if (this.isEnabled) {
+        this.onTap();
+      }
+    })
   }
 }
 
