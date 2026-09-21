@@ -51,7 +51,11 @@ test('android quick-search keywords convert to the HarmonyOS format', () => {
     ['character:miyabi hoshimi$', 'character:miyabi hoshimi$'],
     ['male:sole_male female:big breasts', 'male:sole_male$ female:big breasts$'],
     ['artist:"quoted artist" $parody:x', 'artist:quoted artist$ parody:x$'],
-    ['f:big breasts$ language:chinese', 'female:big breasts$ language:chinese$']
+    ['f:big breasts$ language:chinese', 'female:big breasts$ language:chinese$'],
+    ['artist:"bai lao shi$"', 'artist:bai lao shi$'],
+    ['group:"some circle$" parody:"some work$"', 'group:some circle$ parody:some work$'],
+    ['language:"chinese$"', 'language:chinese$'],
+    ['parody:"harry potter$"  language:"chinese$"', 'parody:harry potter$ language:chinese$']
   ];
   for (const [input, expected] of cases) {
     assert.equal(normalize(input), expected, input);

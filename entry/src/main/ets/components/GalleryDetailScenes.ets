@@ -18,12 +18,15 @@ import {
 } from '../shared/EhShared';
 import { themePageBackground } from '../shared/EhTheme';
 import {
+  themeAccentTextColor,
+  themeDangerText,
   themeDividerColor,
   themeInactiveActionText,
   themePrimaryText,
   themeSecondaryText,
   themeSurface,
-  themeSurfaceVariant
+  themeSurfaceVariant,
+  themeTertiaryText
 } from '../shared/EhTheme';
 import {
   uiAdaptiveToolbarHeight,
@@ -35,6 +38,7 @@ import {
   uiDialogSurfaceBackground,
   uiDialogSurfaceRadius,
   uiDialogSurfaceShadow,
+  uiListItemBackground,
   uiMaterialForegroundColor,
   uiRadius,
   uiMaterialBackground
@@ -750,88 +754,84 @@ struct TagVoteOverlay {
         .width('100%')
         .alignItems(VerticalAlign.Top)
 
-        Row({ space: 10 }) {
-          TagVoteWideButton({
+        Column({ space: 0 }) {
+          TagSettingsRow({
             symbolIcon: $r('sys.symbol.arrow_up_circle'),
             label: 'Vote+',
-            enabledValue: this.tag.id > 0,
+            isEnabled: this.tag.id > 0,
             selected: this.tag.voteUpEd === true,
             accentColor: '#0A8F5A',
-            selectedBackground: '#E8F6EF',
-            onClickAction: () => {
+            firstInGroup: true,
+            onTap: () => {
               this.onVote(1);
             }
           })
-          .layoutWeight(1)
-          TagVoteWideButton({
+          TagSettingsRow({
             symbolIcon: $r('sys.symbol.arrow_down_circle'),
             label: 'Vote-',
-            enabledValue: this.tag.id > 0,
+            isEnabled: this.tag.id > 0,
             selected: this.tag.voteDownEd === true,
             accentColor: '#C43C3C',
-            selectedBackground: '#FDECEC',
-            onClickAction: () => {
+            onTap: () => {
               this.onVote(-1);
             }
           })
-          .layoutWeight(1)
-        }
-        .width('100%')
-
-        TagActionButton({
-          label: 'Show Tagged Galleries',
-          symbolIcon: $r('sys.symbol.square_grid_2x2'),
-          onTap: this.onShowTaggedGalleries
-        })
-        TagActionButton({
-          label: 'Show Tag Definition',
-          symbolIcon: $r('sys.symbol.book'),
-          onTap: this.onShowTagDefinition
-        })
-        TagActionButton({
-          label: 'Copy Tag',
-          symbolIcon: $r('sys.symbol.save'),
-          onTap: this.onCopyTag
-        })
-        if (this.confirmingBlock) {
-          Text(uiText('Block this tag locally?'))
-            .fontSize(13)
-            .fontColor(themeSecondaryText())
-            .width('100%')
-            .textAlign(TextAlign.Center)
-          Row({ space: 10 }) {
-            TagVoteWideButton({
-              symbolIcon: $r('sys.symbol.xmark'),
-              label: 'Cancel',
-              enabledValue: true,
-              accentColor: themeSecondaryText(),
-              onClickAction: () => {
-                this.confirmingBlock = false;
-              }
-            })
-            .layoutWeight(1)
-            TagVoteWideButton({
-              symbolIcon: $r('sys.symbol.xmark_circle'),
-              label: 'Block',
-              enabledValue: true,
-              accentColor: '#C43C3C',
-              onClickAction: () => {
-                this.confirmingBlock = false;
-                this.onBlockTag();
-              }
-            })
-            .layoutWeight(1)
-          }
-          .width('100%')
-        } else {
-          TagActionButton({
-            label: 'Block Tag Locally',
+          TagSettingsRow({
+            symbolIcon: $r('sys.symbol.square_grid_2x2'),
+            label: 'Show Tagged Galleries',
+            navigation: true,
+            onTap: this.onShowTaggedGalleries
+          })
+          TagSettingsRow({
+            symbolIcon: $r('sys.symbol.book'),
+            label: 'Show Tag Definition',
+            navigation: true,
+            onTap: this.onShowTagDefinition
+          })
+          TagSettingsRow({
+            symbolIcon: $r('sys.symbol.save'),
+            label: 'Copy Tag',
+            navigation: true,
+            onTap: this.onCopyTag
+          })
+          TagSettingsRow({
             symbolIcon: $r('sys.symbol.xmark_circle'),
+            label: 'Block Tag Locally',
+            navigation: true,
+            danger: true,
+            lastInGroup: !this.confirmingBlock,
             onTap: () => {
               this.confirmingBlock = true;
             }
           })
+          if (this.confirmingBlock) {
+            Text(uiText('Block this tag locally?'))
+              .fontSize(13)
+              .fontColor(themeSecondaryText())
+              .width('100%')
+              .padding({ top: 10, bottom: 6, left: 2 })
+            TagSettingsRow({
+              symbolIcon: $r('sys.symbol.xmark'),
+              label: 'Cancel',
+              firstInGroup: true,
+              onTap: () => {
+                this.confirmingBlock = false;
+              }
+            })
+            TagSettingsRow({
+              symbolIcon: $r('sys.symbol.xmark_circle'),
+              label: 'Block',
+              danger: true,
+              lastInGroup: true,
+              onTap: () => {
+                this.confirmingBlock = false;
+                this.onBlockTag();
+              }
+            })
+          }
         }
+        .width('100%')
+        .clip(true)
       }
       .width('86%')
       .constraintSize({ maxWidth: 440 })
@@ -855,80 +855,80 @@ struct TagVoteOverlay {
 }
 
 @Component
-struct TagVoteWideButton {
-  symbolIcon: Resource = $r('sys.symbol.arrow_up_circle');
-  label: string = '';
-  enabledValue: boolean = false;
-  selected: boolean = false;
-  accentColor: string = '#0A8F5A';
-  selectedBackground: string = '#E8F6EF';
-  onClickAction: () => void = () => {};
-
-  build() {
-    Button({ type: ButtonType.Normal, stateEffect: true }) {
-      Row({ space: 8 }) {
-        SymbolGlyph(this.symbolIcon)
-          .fontSize(22)
-          .fontColor([this.enabledValue ? uiMaterialForegroundColor(this.accentColor) :
-            themeInactiveActionText()])
-        Text(uiText(this.label))
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(this.enabledValue ? uiMaterialForegroundColor(themePrimaryText()) : themeInactiveActionText())
-      }
-      .justifyContent(FlexAlign.Center)
-      .alignItems(VerticalAlign.Center)
-      .width('100%')
-    }
-    .width('100%')
-    .height(44)
-    .padding(0)
-    .backgroundColor(uiMaterialBackground(this.selected ? this.selectedBackground : themeSurfaceVariant()))
-    .opacity(this.enabledValue ? 1 : 0.56)
-    .enabled(this.enabledValue)
-    .borderRadius(uiRadius(6))
-    .border({
-      width: this.selected ? 1.2 : 0,
-      color: this.selected ? this.accentColor : Color.Transparent
-    })
-    .backgroundEffect(uiTransparentButtonBackgroundEffect())
-    .systemMaterial(uiButtonMaterial())
-    .onClick(() => {
-      this.onClickAction();
-    })
-  }
-}
-
-@Component
-struct TagActionButton {
-  label: string = '';
+struct TagSettingsRow {
   symbolIcon: Resource = $r('sys.symbol.square_grid_2x2');
+  label: string = '';
+  isEnabled: boolean = true;
+  selected: boolean = false;
+  navigation: boolean = false;
+  danger: boolean = false;
+  accentColor: string = '';
+  firstInGroup: boolean = false;
+  lastInGroup: boolean = false;
   onTap: () => void = () => {};
 
+  private accent(): string {
+    return this.accentColor.length > 0 ? this.accentColor : themeAccentTextColor();
+  }
+
+  private textColor(): string {
+    if (!this.isEnabled) {
+      return themeInactiveActionText();
+    }
+    if (this.selected) {
+      return this.accent();
+    }
+    return this.danger ? themeDangerText() : themePrimaryText();
+  }
+
+  private iconColor(): string {
+    if (!this.isEnabled) {
+      return themeInactiveActionText();
+    }
+    if (this.selected) {
+      return this.accent();
+    }
+    return this.danger ? themeDangerText() : themeSecondaryText();
+  }
+
   build() {
-    Button({ type: ButtonType.Normal, stateEffect: true }) {
-      Row({ space: 8 }) {
-        SymbolGlyph(this.symbolIcon)
-          .fontSize(18)
-          .fontColor([uiMaterialForegroundColor(themeSecondaryText())])
-        Text(uiText(this.label))
-          .fontSize(14)
-          .fontColor(uiMaterialForegroundColor(themePrimaryText()))
-          .layoutWeight(1)
-          .textAlign(TextAlign.Start)
+    Row() {
+      SymbolGlyph(this.symbolIcon)
+        .fontSize(18)
+        .fontColor([uiMaterialForegroundColor(this.iconColor())])
+      Text(uiText(this.label))
+        .fontSize(15)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(uiMaterialForegroundColor(this.textColor()))
+        .layoutWeight(1)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .margin({ left: 12 })
+      if (this.selected) {
+        SymbolGlyph($r('sys.symbol.checkmark'))
+          .fontSize(16)
+          .fontColor([uiMaterialForegroundColor(this.accent())])
+      } else if (this.navigation) {
+        SymbolGlyph($r('sys.symbol.chevron_right'))
+          .fontSize(16)
+          .fontColor([themeTertiaryText()])
       }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
     }
     .width('100%')
-    .height(40)
-    .padding({ left: 10, right: 10 })
-    .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
-    .borderRadius(uiRadius(6))
-    .backgroundEffect(uiTransparentButtonBackgroundEffect())
-    .systemMaterial(uiButtonMaterial())
+    .padding(14)
+    .backgroundColor(uiListItemBackground(themeSurface()))
+    .border({ width: { bottom: this.lastInGroup ? 0 : 0.5 }, color: themeDividerColor() })
+    .borderRadius({
+      topLeft: this.firstInGroup ? uiRadius(16) : 0,
+      topRight: this.firstInGroup ? uiRadius(16) : 0,
+      bottomLeft: this.lastInGroup ? uiRadius(16) : 0,
+      bottomRight: this.lastInGroup ? uiRadius(16) : 0
+    })
+    .opacity(this.isEnabled ? 1 : 0.5)
     .onClick(() => {
-      this.onTap();
+      if (this.isEnabled) {
+        this.onTap();
+      }
     })
   }
 }

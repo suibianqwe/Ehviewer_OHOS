@@ -57,13 +57,26 @@ function collectTagTokens(keyword: string): TagToken[] {
 }
 
 function stripTagQuotes(value: string): string {
-  const trimmed = value.trim();
+  let trimmed = value.trim();
   if (trimmed.length >= 2) {
     const first = trimmed.charAt(0);
     const last = trimmed.charAt(trimmed.length - 1);
     if ((first === '"' && last === '"') || (first === '“' && last === '”') ||
       (first === '＂' && last === '＂')) {
-      return trimmed.substring(1, trimmed.length - 1).trim();
+      trimmed = trimmed.substring(1, trimmed.length - 1).trim();
+    }
+  }
+  // 安卓版书签形如 ns:"tag$"：终止符在引号内，切分后会留下单个未配对的引号。
+  if (trimmed.length > 0) {
+    const first = trimmed.charAt(0);
+    if (first === '"' || first === '“' || first === '＂') {
+      trimmed = trimmed.substring(1).trim();
+    }
+  }
+  if (trimmed.length > 0) {
+    const last = trimmed.charAt(trimmed.length - 1);
+    if (last === '"' || last === '”' || last === '＂') {
+      trimmed = trimmed.substring(0, trimmed.length - 1).trim();
     }
   }
   return trimmed;
@@ -95,8 +108,13 @@ function normalizeSearchTags(keyword: string): string {
     if (dollar >= 0 && dollar < nextStart) {
       end = dollar;
       skipTo = dollar + 1;
+      const after = spaced.charAt(skipTo);
+      if (after === '"' || after === '”' || after === '＂') {
+        skipTo++;
+      }
     }
-    const tag = stripTagQuotes(spaced.substring(token.contentStart, end)).replace(/\$+$/, '').trim();
+    const rawValue = spaced.substring(token.contentStart, end).replace(/\$+$/, '');
+    const tag = stripTagQuotes(rawValue).trim();
     if (tag.length > 0) {
       result += fullTagNamespace(token.namespace) + ':' + tag + '$';
     }

@@ -10,6 +10,7 @@ import { ehHistoryStore } from './EhHistoryStore';
 import { ehLocalFavoritesStore } from './EhLocalFavoritesStore';
 import { HISTORY_INFO_SIZE_KEY, ehSettingsStore, historyInfoSizeLimitFromValue } from './EhSettingsStore';
 import { ehSearchHistoryStore } from './EhSearchHistoryStore';
+import { ListMode } from './EhUrl';
 import { normalizeSubmittedSearchKeywordValue } from './SearchKeywordNormalization';
 import {
   CommentBlacklistBackupEntry,
@@ -268,14 +269,19 @@ async function importQuickSearch(store: relationalStore.RdbStore): Promise<numbe
   }
   let count = 0;
   await queryEach(store, 'SELECT * FROM "QUICK_SEARCH" ORDER BY "TIME" ASC', (row: relationalStore.ResultSet) => {
-    const sourceKeyword = getStringColumn(row, 'KEYWORD', '').trim();
+    const mode = getNumberColumn(row, 'MODE', 0);
+    let sourceKeyword = getStringColumn(row, 'KEYWORD', '').trim();
+    // 原安卓应用旧库的 uploader 模式关键词会带前缀，导入时按官方迁移逻辑去掉。
+    if (mode === ListMode.Uploader && sourceKeyword.startsWith('uploader:')) {
+      sourceKeyword = sourceKeyword.substring('uploader:'.length).trim();
+    }
     const keyword = normalizeSubmittedSearchKeywordValue(sourceKeyword);
     if (keyword.length > 0) {
       ehSearchHistoryStore.record(keyword);
     }
     const bookmark: SearchBookmarkBackupInfo = {
       name: normalizedAndroidBookmarkName(getStringColumn(row, 'NAME', '').trim(), sourceKeyword, keyword),
-      mode: getNumberColumn(row, 'MODE', 0),
+      mode: mode,
       category: getNumberColumn(row, 'CATEGORY', GalleryCategory.None),
       keyword: keyword,
       advanceSearch: getNumberColumn(row, 'ADVANCE_SEARCH', -1),
