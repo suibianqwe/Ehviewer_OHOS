@@ -1487,6 +1487,12 @@ export struct GalleryListScene {
     this.statusText = 'Bookmark removed';
   }
 
+  private clearAllSearchBookmarks(): void {
+    const removed = ehBookmarkStore.clearAll();
+    this.refreshSearchBookmarks();
+    this.statusText = removed > 0 ? 'All bookmarks removed' : 'No bookmarks';
+  }
+
   private openBookmarkManager(): void {
     this.refreshSearchBookmarks();
     this.showBookmarkManager = true;
@@ -2494,6 +2500,9 @@ export struct GalleryListScene {
               },
               onDelete: (bookmark: SearchBookmarkInfo) => {
                 this.removeSearchBookmark(bookmark);
+              },
+              onDeleteAll: () => {
+                this.clearAllSearchBookmarks();
               }
             })
               .width(this.useSplitLayout() ? this.splitSidePaneWidth() : '100%')

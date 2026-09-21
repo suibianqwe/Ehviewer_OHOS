@@ -117,6 +117,16 @@ export class EhBookmarkStore {
     this.queueSave();
   }
 
+  clearAll(): number {
+    const removed = this.items.length;
+    for (let i = 0; i < this.items.length; i++) {
+      syncTombstoneStore.recordDeletion(this.context, SYNC_SECTION_BOOKMARKS, this.items[i].id);
+    }
+    this.items = [];
+    this.queueSave();
+    return removed;
+  }
+
   renameBookmark(id: string, name: string): boolean {
     const trimmed = name.trim();
     if (trimmed.length === 0) {

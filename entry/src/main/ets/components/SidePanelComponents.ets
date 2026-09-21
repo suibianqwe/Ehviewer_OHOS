@@ -120,8 +120,10 @@ export struct SidePanelManagerHeader {
   @Prop statusBarHeight: number = 0;
   @Prop title: string = '';
   @Prop showAdd: boolean = false;
+  @Prop showDeleteAll: boolean = false;
   onBack: () => void = () => {};
   onAdd: () => void = () => {};
+  onDeleteAll: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
 
   build() {
@@ -155,6 +157,24 @@ export struct SidePanelManagerHeader {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .margin({ left: 12 })
+
+        if (this.showDeleteAll) {
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r('sys.symbol.trash'))
+              .fontSize(20)
+              .fontColor([sidePanelChromeText()])
+          }
+          .width(40)
+          .height(40)
+          .margin({ right: 8 })
+          .backgroundColor(uiMaterialBackground(sidePanelChromeBackground()))
+          .border({ width: 1, color: uiButtonHighlightBorderColor() })
+          .backgroundEffect(uiTransparentButtonBackgroundEffect())
+          .systemMaterial(uiButtonMaterial())
+          .onClick(() => {
+            this.onDeleteAll();
+          })
+        }
 
         if (this.showAdd) {
           Button({ type: ButtonType.Circle, stateEffect: true }) {

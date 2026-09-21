@@ -778,6 +778,10 @@ export function zhText(text: string): string {
     case 'Open the current comic page on another device': return '在另一台设备打开当前漫画的阅读页';
     case 'Bookmark name': return '书签名称';
     case 'No bookmarks': return '这里是书签栏';
+    case 'Delete all': return '全部删除';
+    case 'Delete all bookmarks?': return '删除全部书签？';
+    case 'All bookmarks will be removed. This cannot be undone.': return '所有书签都会被删除，且无法恢复。';
+    case 'All bookmarks removed': return '已删除全部书签';
     case 'Tap plus to bookmark the current gallery list': return '点击“+”添加当前画廊列表状态';
     case 'All site': return '全站';
     case 'Filter Off': return '过滤关闭';

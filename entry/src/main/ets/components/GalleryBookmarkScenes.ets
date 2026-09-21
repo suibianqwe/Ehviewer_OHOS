@@ -32,6 +32,7 @@ import {
   uiRadius,
 } from '../shared/EhUiStyle';
 import { PopupScrim } from './PopupScrim';
+import { ConfirmActionOverlay } from './ConfirmActionOverlay';
 import {
   SidePanelHeader,
   SidePanelEditableManagerRow,
@@ -526,18 +527,25 @@ export struct SearchBookmarkManagerScene {
   onEdit: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
   onMoveIndex: (from: number, to: number) => void = (_from: number, _to: number) => {};
   onDelete: (bookmark: SearchBookmarkInfo) => void = (_bookmark: SearchBookmarkInfo) => {};
+  onDeleteAll: () => void = () => {};
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   @State editingBookmarkId: string = '';
+  @State deleteAllConfirmVisible: boolean = false;
 
   build() {
-    Column() {
-      SidePanelManagerHeader({
-        statusBarHeight: this.statusBarHeight,
-        title: 'Bookmark settings',
-        onBack: () => {
-          this.onBack();
-        }
-      })
+    Stack() {
+      Column() {
+        SidePanelManagerHeader({
+          statusBarHeight: this.statusBarHeight,
+          title: 'Bookmark settings',
+          showDeleteAll: this.bookmarks.length > 0,
+          onBack: () => {
+            this.onBack();
+          },
+          onDeleteAll: () => {
+            this.deleteAllConfirmVisible = true;
+          }
+        })
 
       if (this.bookmarks.length === 0) {
         Column({ space: 8 }) {
@@ -609,9 +617,28 @@ export struct SearchBookmarkManagerScene {
         .padding({ left: 10, right: 10 })
         .clip(false)
       }
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor(themePageBackground())
+
+      if (this.deleteAllConfirmVisible) {
+        ConfirmActionOverlay({
+          title: 'Delete all bookmarks?',
+          message: 'All bookmarks will be removed. This cannot be undone.',
+          confirmLabel: 'Delete all',
+          onCancel: () => {
+            this.deleteAllConfirmVisible = false;
+          },
+          onConfirm: () => {
+            this.deleteAllConfirmVisible = false;
+            this.onDeleteAll();
+          }
+        })
+          .zIndex(20)
+      }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(themePageBackground())
   }
 }

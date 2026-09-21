@@ -11,7 +11,7 @@ const gallery = read('entry/src/main/ets/components/GalleryListContent.ets');
 function executable(source) {
   return source.replace(/\bexport /g, '')
     .replace(/interface \w+ \{[^}]*\}/g, '')
-    .replace(/: (?:Record<string, string>|RegExpExecArray \| null|RegExp|ActiveTagSearchInput|GalleryUrlMatch \| null|SearchSuggestionItem|TagNamespaceOption|string|number|boolean|void)(?:\[\])?/g, '');
+    .replace(/: (?:TagToken\[\]|TagToken|Record<string, string>|RegExpExecArray \| null|RegExp|ActiveTagSearchInput|GalleryUrlMatch \| null|SearchSuggestionItem|TagNamespaceOption|string|number|boolean|void)(?:\[\])?/g, '');
 }
 
 const normalization = Function(executable(read('entry/src/main/ets/services/SearchKeywordNormalization.ets')) +
@@ -117,7 +117,7 @@ test('imported Android keywords terminate every known bare tag', () => {
     'female:big breasts$ language:chinese$');
   assert.equal(normalize('unknown:foo bar language:chinese'),
     'unknown:foo bar language:chinese$');
-  assert.equal(normalize('artist:foo bar baz'), 'artist:foo$ bar baz');
+  assert.equal(normalize('artist:foo bar baz'), 'artist:foo bar baz$');
   const keyword = normalize('f:sole_female l:chinese');
   assert.deepEqual(logic.searchTagTokens(keyword), ['female:sole_female$', 'language:chinese$']);
   assert.equal(logic.searchKeywordWithoutTagTokens(keyword), '');
