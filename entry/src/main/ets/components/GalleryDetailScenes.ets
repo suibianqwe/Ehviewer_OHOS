@@ -24,6 +24,7 @@ import {
   themeInactiveActionText,
   themePrimaryText,
   themeSecondaryText,
+  themeSuccessText,
   themeSurface,
   themeSurfaceVariant,
   themeTertiaryText
@@ -398,7 +399,6 @@ export struct GalleryDetailScene {
 
   private submitTagVote(vote: number): void {
     const fullTag = this.tagVoteTarget.fullTag;
-    this.tagVotePanelVisible = false;
     this.onVoteTag(fullTag, vote);
   }
 
@@ -684,7 +684,8 @@ struct TagVoteOverlay {
   @State popupWidth: number = 0;
   @State popupHeight: number = 0;
   @State confirmingBlock: boolean = false;
-  tag: GalleryTagInfo = createEmptyTagInfo();
+  @State voteSelection: number = 0;
+  @Prop tag: GalleryTagInfo = createEmptyTagInfo();
   onDismiss: () => void = () => {};
   onVote: (vote: number) => void = (_vote: number) => {};
   onShowTaggedGalleries: () => void = () => {};
@@ -694,6 +695,10 @@ struct TagVoteOverlay {
 
   private translatedTitle(): string {
     return translatedTagLabel(this.tag);
+  }
+
+  aboutToAppear(): void {
+    this.voteSelection = this.tag.voteUpEd === true ? 1 : (this.tag.voteDownEd === true ? -1 : 0);
   }
 
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
@@ -757,9 +762,10 @@ struct TagVoteOverlay {
         Column({ space: 0 }) {
           TagVoteRow({
             isEnabled: this.tag.id > 0,
-            upSelected: this.tag.voteUpEd === true,
-            downSelected: this.tag.voteDownEd === true,
+            upSelected: this.voteSelection > 0,
+            downSelected: this.voteSelection < 0,
             onVote: (vote: number) => {
+              this.voteSelection = vote;
               this.onVote(vote);
             }
           })
@@ -843,9 +849,9 @@ struct TagVoteOverlay {
 
 @Component
 struct TagVoteRow {
-  isEnabled: boolean = true;
-  upSelected: boolean = false;
-  downSelected: boolean = false;
+  @Prop isEnabled: boolean = true;
+  @Prop upSelected: boolean = false;
+  @Prop downSelected: boolean = false;
   onVote: (vote: number) => void = (_vote: number) => {};
 
   build() {
@@ -855,7 +861,7 @@ struct TagVoteRow {
         label: 'Vote+',
         isEnabled: this.isEnabled,
         selected: this.upSelected,
-        accentColor: '#0A8F5A',
+        votePositive: true,
         onTap: () => {
           this.onVote(1);
         }
@@ -871,7 +877,7 @@ struct TagVoteRow {
         label: 'Vote-',
         isEnabled: this.isEnabled,
         selected: this.downSelected,
-        accentColor: '#C43C3C',
+        votePositive: false,
         onTap: () => {
           this.onVote(-1);
         }
@@ -890,38 +896,42 @@ struct TagVoteRow {
 struct TagVoteCell {
   symbolIcon: Resource = $r('sys.symbol.arrow_up_circle');
   label: string = '';
-  isEnabled: boolean = true;
-  selected: boolean = false;
-  accentColor: string = '#0A8F5A';
+  @Prop isEnabled: boolean = true;
+  @Prop selected: boolean = false;
+  votePositive: boolean = true;
   onTap: () => void = () => {};
 
-  private contentColor(): string {
-    if (!this.isEnabled) {
-      return themeInactiveActionText();
-    }
-    return this.selected ? this.accentColor : themePrimaryText();
+  private accent(): string {
+    return this.votePositive ? themeSuccessText() : themeDangerText();
   }
 
-  private iconColor(): string {
+  private contentColor(): ResourceColor {
     if (!this.isEnabled) {
       return themeInactiveActionText();
     }
-    return this.selected ? this.accentColor : themeSecondaryText();
+    return this.selected ? this.accent() : uiMaterialForegroundColor(themePrimaryText());
+  }
+
+  private iconColor(): ResourceColor {
+    if (!this.isEnabled) {
+      return themeInactiveActionText();
+    }
+    return this.selected ? this.accent() : uiMaterialForegroundColor(themeSecondaryText());
   }
 
   build() {
     Row({ space: 8 }) {
       SymbolGlyph(this.symbolIcon)
         .fontSize(18)
-        .fontColor([uiMaterialForegroundColor(this.iconColor())])
+        .fontColor([this.iconColor()])
       Text(uiText(this.label))
         .fontSize(15)
         .fontWeight(FontWeight.Medium)
-        .fontColor(uiMaterialForegroundColor(this.contentColor()))
+        .fontColor(this.contentColor())
       if (this.selected) {
         SymbolGlyph($r('sys.symbol.checkmark'))
           .fontSize(14)
-          .fontColor([uiMaterialForegroundColor(this.accentColor)])
+          .fontColor([this.accent()])
       }
     }
     .width('100%')
@@ -952,35 +962,35 @@ struct TagSettingsRow {
     return this.accentColor.length > 0 ? this.accentColor : themeAccentTextColor();
   }
 
-  private textColor(): string {
+  private textColor(): ResourceColor {
     if (!this.isEnabled) {
       return themeInactiveActionText();
     }
     if (this.selected) {
       return this.accent();
     }
-    return this.danger ? themeDangerText() : themePrimaryText();
+    return this.danger ? themeDangerText() : uiMaterialForegroundColor(themePrimaryText());
   }
 
-  private iconColor(): string {
+  private iconColor(): ResourceColor {
     if (!this.isEnabled) {
       return themeInactiveActionText();
     }
     if (this.selected) {
       return this.accent();
     }
-    return this.danger ? themeDangerText() : themeSecondaryText();
+    return this.danger ? themeDangerText() : uiMaterialForegroundColor(themeSecondaryText());
   }
 
   build() {
     Row() {
       SymbolGlyph(this.symbolIcon)
         .fontSize(18)
-        .fontColor([uiMaterialForegroundColor(this.iconColor())])
+        .fontColor([this.iconColor()])
       Text(uiText(this.label))
         .fontSize(15)
         .fontWeight(FontWeight.Medium)
-        .fontColor(uiMaterialForegroundColor(this.textColor()))
+        .fontColor(this.textColor())
         .layoutWeight(1)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -988,7 +998,7 @@ struct TagSettingsRow {
       if (this.selected) {
         SymbolGlyph($r('sys.symbol.checkmark'))
           .fontSize(16)
-          .fontColor([uiMaterialForegroundColor(this.accent())])
+          .fontColor([this.accent()])
       } else if (this.navigation) {
         SymbolGlyph($r('sys.symbol.chevron_right'))
           .fontSize(16)
