@@ -13,8 +13,8 @@ const TAG = 'ReaderSuperResolution';
 const DOMAIN = 0x3210;
 const MIN_DIMENSION: number = 32;
 const MEDIUM_MAX_DIMENSION: number = 3000;
-// API 23+ accepts HIGH input dimensions from 180 px while HIGH output still starts at 512 px.
-const HIGH_MIN_INPUT_DIMENSION: number = 180;
+// HIGH 档要求输入与输出分辨率均在 [512, 2000]，切块时每块输入也必须达到 512 像素。
+const HIGH_MIN_INPUT_DIMENSION: number = 512;
 const HIGH_MIN_OUTPUT_DIMENSION: number = 512;
 const HIGH_MAX_DIMENSION: number = 2000;
 const SEGMENT_OVERLAP: number = 32;
@@ -66,6 +66,7 @@ class ReaderSuperResolutionService {
   private processor: videoProcessingEngine.ImageProcessor | undefined = undefined;
   private environmentPromise: Promise<boolean> | undefined = undefined;
   private detailEnhancerUnavailable: boolean = false;
+  private tiledEnhancementUnavailable: boolean = false;
   private coreVisionAnalyzer: imageSuperResolution.ImageSRAnalyzer | undefined = undefined;
   private coreVisionAnalyzerPromise: Promise<boolean> | undefined = undefined;
   private coreVisionUnavailable: boolean = false;
@@ -728,111 +729,25 @@ class ReaderSuperResolutionService {
     return plan;
   }
 
-  private async enhanceSegmented(source: image.ImageSource, sourceWidth: number, sourceHeight: number,
-    plan: ReaderSuperResolutionPlan, entry: ReaderSuperResolutionEntry): Promise<image.PixelMap | undefined> {
-    if (this.processor === undefined) {
-      return undefined;
+  // 切块路径失败时的兜底：用 MEDIUM 档一次性处理整图（MEDIUM 支持最大 3000 像素）。
+  private mediumEnhancementPlan(width: number, height: number,
+    targetWidth: number, targetHeight: number): ReaderSuperResolutionPlan | null {
+    if (width < MIN_DIMENSION || height < MIN_DIMENSION || width > MEDIUM_MAX_DIMENSION ||
+      height > MEDIUM_MAX_DIMENSION) {
+      return null;
     }
-    const outputBuffer = new ArrayBuffer(plan.width * plan.height * 4);
-    const outputPixels = new Uint8Array(outputBuffer);
-    const highQuality = plan.level === videoProcessingEngine.QualityLevel.HIGH;
-    const minimumInputDimension = highQuality ? HIGH_MIN_INPUT_DIMENSION : MIN_DIMENSION;
-    const minimumOutputDimension = highQuality ? HIGH_MIN_OUTPUT_DIMENSION : MIN_DIMENSION;
-    const maximumDimension = highQuality ? HIGH_MAX_DIMENSION : MEDIUM_MAX_DIMENSION;
-    const minimumRegionDimension = Math.max(minimumInputDimension,
-      Math.ceil(minimumOutputDimension / plan.scale));
-    const maximumRegionDimension = Math.min(maximumDimension, Math.floor(maximumDimension / plan.scale));
-    if (minimumRegionDimension > maximumRegionDimension) {
-      return undefined;
+    if (targetWidth <= 0 && targetHeight <= 0) {
+      return null;
     }
-    const coreDimension = Math.max(minimumInputDimension,
-      maximumRegionDimension - SEGMENT_OVERLAP * 2);
-    let coreStartY = 0;
-    while (coreStartY < sourceHeight) {
-      if (!this.isEntryActive(entry)) {
-        return undefined;
-      }
-      const coreEndY = Math.min(sourceHeight, coreStartY + coreDimension);
-      const regionY = this.segmentRegion(coreStartY, coreEndY, sourceHeight, minimumRegionDimension);
-      let coreStartX = 0;
-      while (coreStartX < sourceWidth) {
-        if (!this.isEntryActive(entry)) {
-          return undefined;
-        }
-        const coreEndX = Math.min(sourceWidth, coreStartX + coreDimension);
-        const regionX = this.segmentRegion(coreStartX, coreEndX, sourceWidth, minimumRegionDimension);
-        const regionWidth = regionX.end - regionX.start;
-        const regionHeight = regionY.end - regionY.start;
-        const segmentTargetWidth = Math.max(minimumOutputDimension, Math.round(regionWidth * plan.scale));
-        const segmentTargetHeight = Math.max(minimumOutputDimension, Math.round(regionHeight * plan.scale));
-        let sourcePixelMap: image.PixelMap | undefined = undefined;
-        let enhancedPixelMap: image.PixelMap | undefined = undefined;
-        try {
-          sourcePixelMap = await source.createPixelMapUsingAllocator({
-            editable: false,
-            index: 0,
-            desiredRegion: {
-              x: regionX.start,
-              y: regionY.start,
-              size: { width: regionWidth, height: regionHeight }
-            },
-            desiredPixelFormat: image.PixelMapFormat.RGBA_8888,
-            desiredDynamicRange: image.DecodingDynamicRange.SDR
-          }, image.AllocatorType.DMA);
-          enhancedPixelMap = await this.enhancePixelMap(sourcePixelMap, segmentTargetWidth,
-            segmentTargetHeight, plan.level);
-          const segmentInfo = enhancedPixelMap.getImageInfoSync();
-          const segmentStride = enhancedPixelMap.getBytesNumberPerRow();
-          const segmentBuffer = new ArrayBuffer(enhancedPixelMap.getPixelBytesNumber());
-          await enhancedPixelMap.readPixelsToBuffer(segmentBuffer);
-          const segmentPixels = new Uint8Array(segmentBuffer);
-          const copyStartX = Math.max(0, Math.round((coreStartX - regionX.start) * plan.scale));
-          const copyStartY = Math.max(0, Math.round((coreStartY - regionY.start) * plan.scale));
-          const destinationX = Math.round(coreStartX * plan.scale);
-          const destinationY = Math.round(coreStartY * plan.scale);
-          const desiredCopyWidth = coreEndX >= sourceWidth ? plan.width - destinationX :
-            Math.round((coreEndX - coreStartX) * plan.scale);
-          const desiredCopyHeight = coreEndY >= sourceHeight ? plan.height - destinationY :
-            Math.round((coreEndY - coreStartY) * plan.scale);
-          const copyWidth = Math.max(0, Math.min(desiredCopyWidth,
-            segmentInfo.size.width - copyStartX, plan.width - destinationX));
-          const copyHeight = Math.max(0, Math.min(desiredCopyHeight,
-            segmentInfo.size.height - copyStartY, plan.height - destinationY));
-          const copyRowBytes = copyWidth * 4;
-          const outputRowBytes = plan.width * 4;
-          for (let row = 0; row < copyHeight; row++) {
-            const sourceOffset = (copyStartY + row) * segmentStride + copyStartX * 4;
-            const destinationOffset = (destinationY + row) * outputRowBytes + destinationX * 4;
-            outputPixels.set(segmentPixels.subarray(sourceOffset, sourceOffset + copyRowBytes), destinationOffset);
-          }
-        } catch (error) {
-          hilog.warn(DOMAIN, TAG, `Image super-resolution segment failed: ${String(error)}`);
-          return undefined;
-        } finally {
-          if (enhancedPixelMap !== undefined) {
-            await this.releasePixelMap(enhancedPixelMap);
-          }
-          if (sourcePixelMap !== undefined) {
-            await this.releasePixelMap(sourcePixelMap);
-          }
-        }
-        coreStartX = coreEndX;
-      }
-      coreStartY = coreEndY;
-    }
-    if (!this.isEntryActive(entry)) {
-      return undefined;
-    }
-    try {
-      return await image.createPixelMapUsingAllocator(outputBuffer, {
-        editable: false,
-        pixelFormat: image.PixelMapFormat.RGBA_8888,
-        size: { width: plan.width, height: plan.height }
-      }, image.AllocatorType.DMA);
-    } catch (error) {
-      hilog.warn(DOMAIN, TAG, `Image super-resolution stitching failed: ${String(error)}`);
-      return undefined;
-    }
+    let scale = Math.max(1, targetWidth / width, targetHeight / height);
+    scale = Math.min(scale, MEDIUM_MAX_DIMENSION / width, MEDIUM_MAX_DIMENSION / height);
+    const plan = new ReaderSuperResolutionPlan();
+    plan.width = Math.max(MIN_DIMENSION, Math.round(width * scale));
+    plan.height = Math.max(MIN_DIMENSION, Math.round(height * scale));
+    plan.scale = scale;
+    plan.segmented = false;
+    plan.level = videoProcessingEngine.QualityLevel.MEDIUM;
+    return plan;
   }
 
   private async enhanceSegmentedPixelMap(sourcePixelMap: image.PixelMap, sourceWidth: number,
@@ -1022,8 +937,24 @@ class ReaderSuperResolutionService {
         return undefined;
       }
       if (plan.segmented) {
-        return await this.enhanceSegmentedPixelMap(sourcePixelMap, sourceInfo.size.width,
-          sourceInfo.size.height, plan, entry);
+        if (!this.tiledEnhancementUnavailable) {
+          const segmented = await this.enhanceSegmentedPixelMap(sourcePixelMap, sourceInfo.size.width,
+            sourceInfo.size.height, plan, entry);
+          if (segmented !== undefined) {
+            return segmented;
+          }
+          if (!this.isEntryActive(entry)) {
+            return undefined;
+          }
+          this.tiledEnhancementUnavailable = true;
+        }
+        const fallback = this.mediumEnhancementPlan(sourceInfo.size.width, sourceInfo.size.height,
+          entry.targetWidth, entry.targetHeight);
+        if (fallback === null) {
+          return undefined;
+        }
+        hilog.info(DOMAIN, TAG, 'Using a single MEDIUM pass for super-resolution');
+        return await this.enhancePixelMap(sourcePixelMap, fallback.width, fallback.height, fallback.level);
       }
       return await this.enhancePixelMap(sourcePixelMap, plan.width, plan.height, plan.level);
     } catch (error) {
@@ -1076,9 +1007,6 @@ class ReaderSuperResolutionService {
         this.processor === undefined) {
         return undefined;
       }
-      if (plan.segmented) {
-        return await this.enhanceSegmented(source, sourceInfo.size.width, sourceInfo.size.height, plan, entry);
-      }
       sourcePixelMap = await source.createPixelMapUsingAllocator({
         editable: false,
         index: 0,
@@ -1089,6 +1017,27 @@ class ReaderSuperResolutionService {
       if (pixelInfo.isHdr || pixelInfo.pixelFormat !== image.PixelMapFormat.RGBA_8888 ||
         !this.isEntryActive(entry)) {
         return undefined;
+      }
+      if (plan.segmented) {
+        // 源图按区域解码在部分设备上会报 62980115，改为整图解码后按缓冲区切块。
+        if (!this.tiledEnhancementUnavailable) {
+          const segmented = await this.enhanceSegmentedPixelMap(sourcePixelMap, sourceInfo.size.width,
+            sourceInfo.size.height, plan, entry);
+          if (segmented !== undefined) {
+            return segmented;
+          }
+          if (!this.isEntryActive(entry)) {
+            return undefined;
+          }
+          this.tiledEnhancementUnavailable = true;
+        }
+        const fallback = this.mediumEnhancementPlan(sourceInfo.size.width, sourceInfo.size.height,
+          entry.targetWidth, entry.targetHeight);
+        if (fallback === null) {
+          return undefined;
+        }
+        hilog.info(DOMAIN, TAG, 'Using a single MEDIUM pass for super-resolution');
+        return await this.enhancePixelMap(sourcePixelMap, fallback.width, fallback.height, fallback.level);
       }
       return await this.enhancePixelMap(sourcePixelMap, plan.width, plan.height, plan.level);
     } catch (error) {
