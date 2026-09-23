@@ -624,6 +624,15 @@ export struct ReaderContinuousImageItem {
     return this.displayHeight();
   }
 
+  // 连续阅读时让 SR/HDR 角标贴在图片左下角：图片横向居中并可能带共享平移，超出屏幕时贴住左边缘。
+  private badgeAnchorX(): number {
+    return Math.max(8, (this.componentWidth - this.displayWidth()) / 2 + this.sharedOffsetX + 8);
+  }
+
+  private badgeAnchorY(): number {
+    return this.displayHeight() - 24;
+  }
+
   private updateDisplayImageSize(): void {
     if (this.componentWidth <= 0) {
       return;
@@ -767,7 +776,7 @@ export struct ReaderContinuousImageItem {
             .backgroundColor('#80000000')
             .borderRadius(4)
             .padding({ left: 5, right: 5, top: 2, bottom: 2 })
-            .position({ x: 8, y: this.itemHeight() - 24 })
+            .position({ x: this.badgeAnchorX(), y: this.badgeAnchorY() })
             .hitTestBehavior(HitTestMode.None)
         } else if (this.superResolutionPixelMap !== undefined) {
           Text('SR')
@@ -777,7 +786,7 @@ export struct ReaderContinuousImageItem {
             .backgroundColor('#80000000')
             .borderRadius(4)
             .padding({ left: 5, right: 5, top: 2, bottom: 2 })
-            .position({ x: 8, y: this.itemHeight() - 24 })
+            .position({ x: this.badgeAnchorX(), y: this.badgeAnchorY() })
             .hitTestBehavior(HitTestMode.None)
         }
       }

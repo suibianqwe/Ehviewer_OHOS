@@ -753,6 +753,56 @@ export struct ReaderImageViewport {
     return Alignment.Center;
   }
 
+  private startAlignmentFactorX(): number {
+    const alignment = this.startAlignment();
+    if (alignment === Alignment.TopEnd || alignment === Alignment.BottomEnd) {
+      return 1;
+    }
+    if (alignment === Alignment.Center) {
+      return 0.5;
+    }
+    return 0;
+  }
+
+  private startAlignmentFactorY(): number {
+    const alignment = this.startAlignment();
+    if (alignment === Alignment.BottomStart || alignment === Alignment.BottomEnd) {
+      return 1;
+    }
+    if (alignment === Alignment.Center) {
+      return 0.5;
+    }
+    return 0;
+  }
+
+  // 让 SR/HDR 角标始终贴在图片可见区域的左下角：按起始对齐与缩放/平移算出图片左下角的屏幕坐标，
+  // 图片放大后左/下边超出屏幕时贴住视口边缘，保证角标位置稳定可见。
+  private badgeCornerX(): number {
+    const viewportWidth = this.imageModel.componentWidth;
+    const boxWidth = this.displayImageWidth;
+    const layoutX = (viewportWidth - boxWidth) * this.startAlignmentFactorX();
+    return layoutX + boxWidth / 2 - this.renderScale * boxWidth / 2 + this.renderOffsetX;
+  }
+
+  private badgeCornerY(): number {
+    const viewportHeight = this.imageModel.componentHeight;
+    const boxHeight = this.displayImageHeight;
+    const layoutY = (viewportHeight - boxHeight) * this.startAlignmentFactorY();
+    return layoutY + boxHeight / 2 + this.renderScale * boxHeight / 2 + this.renderOffsetY;
+  }
+
+  private badgeAnchorX(): number {
+    return Math.max(8, this.badgeCornerX() + 8);
+  }
+
+  private badgeAnchorY(): number {
+    return Math.min(this.badgeCornerY(), this.imageModel.componentHeight - 6) - 24;
+  }
+
+  private badgeVisibility(): Visibility {
+    return this.badgeCornerY() > 0 ? Visibility.Visible : Visibility.None;
+  }
+
   private readAreaSize(value: Length): number {
     const parsed = Number.parseFloat(value.toString());
     return Number.isNaN(parsed) ? 0 : parsed;
@@ -878,7 +928,8 @@ export struct ReaderImageViewport {
               .backgroundColor('#80000000')
               .borderRadius(4)
               .padding({ left: 5, right: 5, top: 2, bottom: 2 })
-              .position({ x: 8, y: this.displayImageHeight - 24 })
+              .position({ x: this.badgeAnchorX(), y: this.badgeAnchorY() })
+              .visibility(this.badgeVisibility())
               .hitTestBehavior(HitTestMode.None)
           } else if (this.superResolutionPixelMap !== undefined) {
             Text('SR')
@@ -888,7 +939,8 @@ export struct ReaderImageViewport {
               .backgroundColor('#80000000')
               .borderRadius(4)
               .padding({ left: 5, right: 5, top: 2, bottom: 2 })
-              .position({ x: 8, y: this.displayImageHeight - 24 })
+              .position({ x: this.badgeAnchorX(), y: this.badgeAnchorY() })
+              .visibility(this.badgeVisibility())
               .hitTestBehavior(HitTestMode.None)
           }
         }
