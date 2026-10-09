@@ -583,19 +583,22 @@ function childDivs(source: string): string[] {
   return result;
 }
 
-function parseFavoriteCategories(body: string): FavoriteCategoryInfo[] {
+export function parseFavoriteCategories(body: string): FavoriteCategoryInfo[] {
   const result: FavoriteCategoryInfo[] = [];
   const pattern = /<div\b[^>]*class=["'][^"']*\bfp\b[^"']*["'][^>]*>/gi;
   let match: RegExpExecArray | null = pattern.exec(body);
   while (match !== null && result.length < 10) {
     const block = findFirstTagBlock(body.substring(match.index), 'div');
     const children = childDivs(block);
-    if (children.length >= 3) {
+    const slotMatch = /[?&]favcat=(\d+)(?=[&\s'"<>]|$)/i.exec(decodeHtml(match[0]));
+    const slot = slotMatch === null ? -1 : parseIntSafe(slotMatch[1], -1);
+    if (children.length >= 3 && slot >= 0 && slot <= 9 &&
+      !result.some((item: FavoriteCategoryInfo) => item.favCat === slot)) {
       const name = cleanText(children[2]);
       const count = parseIntSafe(cleanText(children[0]), 0);
       if (name.length > 0) {
         result.push({
-          favCat: result.length,
+          favCat: slot,
           name: name,
           count: count
         });

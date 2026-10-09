@@ -387,7 +387,7 @@ function stripTags(html: string): string {
 
 function originFromUrl(url: string, fallbackSite: GallerySite): string {
   const matched = /^(https?:\/\/[^\/?#]+)/i.exec(url);
-  return matched === null ? EhUrl.getReferer(fallbackSite) : matched[1];
+  return matched === null ? EhUrl.getOrigin(fallbackSite) : matched[1];
 }
 
 function buildFormBody(fields: FormField[]): string {

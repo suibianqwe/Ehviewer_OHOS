@@ -145,6 +145,10 @@ export function yieldToUi(): Promise<void> {
 }
 
 export function settingsRowRenderKey(row: SettingsRowItem): string {
+  if (row.type === 'switch') {
+    // A value change must update the existing Toggle, not replace it during onChange/theme refresh.
+    return (row.key ?? row.title) + ':' + row.type + ':' + row.title;
+  }
   if (row.type === 'slider') {
     return row.title + ':' + row.type;
   }

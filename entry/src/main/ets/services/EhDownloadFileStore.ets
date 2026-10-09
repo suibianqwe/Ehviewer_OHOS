@@ -69,6 +69,17 @@ export interface DownloadDirectoryScanResult {
   bytes: number;
 }
 
+export interface DownloadMigrationResult extends DownloadDirectoryScanResult {
+  cleanupIncomplete: boolean;
+}
+
+interface MigratedDownloadFile {
+  source: string;
+  target: string;
+  size: number;
+  mtime: number;
+}
+
 export type DownloadMigrationPhase = 'scanning' | 'copying' | 'cleaning';
 
 export interface DownloadMigrationProgress {
@@ -85,6 +96,8 @@ interface DownloadMigrationProgressState {
   totalFiles: number;
   totalBytes: number;
   lastReportedAt: number;
+  copiedFiles: MigratedDownloadFile[];
+  copiedDirectories: string[];
   onProgress?: (progress: DownloadMigrationProgress) => void;
 }
 
@@ -157,12 +170,18 @@ export class EhDownloadFileStore {
 
   async migrateDownloadLocation(context: common.UIAbilityContext, fromLocation: string,
     toLocation: string, onProgress?: (progress: DownloadMigrationProgress) => void):
-    Promise<DownloadDirectoryScanResult> {
-    const source = this.rootForLocation(context, fromLocation);
-    const target = this.rootForLocation(context, toLocation);
+    Promise<DownloadMigrationResult> {
+    const source = normalizePath(this.rootForLocation(context, fromLocation));
+    const target = normalizePath(this.rootForLocation(context, toLocation));
+    if (source.length === 0 || target.length === 0 || source === '/' || target === '/') {
+      throw new Error('Invalid download migration directory');
+    }
     if (source === target || !exists(source)) {
       ensureDirectory(target);
-      return { directories: 0, files: 0, bytes: 0 };
+      return { directories: 0, files: 0, bytes: 0, cleanupIncomplete: false };
+    }
+    if (source.startsWith(target + '/') || target.startsWith(source + '/')) {
+      throw new Error('Download migration directories must not overlap');
     }
     ensureDirectory(target);
     if (onProgress !== undefined) {
@@ -175,6 +194,8 @@ export class EhDownloadFileStore {
       totalFiles: total.files,
       totalBytes: total.bytes,
       lastReportedAt: 0,
+      copiedFiles: [],
+      copiedDirectories: [],
       onProgress: onProgress
     };
     reportDownloadMigrationProgress(progressState, true);
@@ -188,8 +209,11 @@ export class EhDownloadFileStore {
         totalBytes: total.bytes
       });
     }
-    await removeDirectoryTreeAsync(source);
-    return copied;
+    // Picker grants access to the contents, not necessarily deletion of the selected root.
+    // Cleanup failures must not invalidate a fully copied destination or keep the old location active.
+    const cleanupIncomplete = await cleanupMigratedDownloadFiles(progressState, source);
+    return { directories: copied.directories, files: copied.files, bytes: copied.bytes,
+      cleanupIncomplete: cleanupIncomplete };
   }
 
   galleryDirectory(context: common.UIAbilityContext, gallery: GalleryInfo): string {
@@ -1628,6 +1652,12 @@ async function copyDirectoryTreeAsync(source: string, target: string,
         await removeDirectoryTreeAsync(target);
       }
       await fs.copyFile(source, target);
+      const copiedStat = await fs.stat(target);
+      const sourceAfterCopy = await fs.stat(source);
+      if (copiedStat.size !== stat.size || sourceAfterCopy.size !== stat.size || sourceAfterCopy.mtime !== stat.mtime) {
+        throw new Error('Download file changed or copy is incomplete');
+      }
+      progress.copiedFiles.push({ source: source, target: target, size: stat.size, mtime: stat.mtime });
       progress.files++;
       progress.bytes += stat.size;
       reportDownloadMigrationProgress(progress, progress.files >= progress.totalFiles);
@@ -1637,6 +1667,7 @@ async function copyDirectoryTreeAsync(source: string, target: string,
       await removeDirectoryTreeAsync(target);
     }
     ensureDirectory(target);
+    progress.copiedDirectories.push(source);
     let directories = 1;
     let files = 0;
     let bytes = 0;
@@ -1675,6 +1706,39 @@ async function removeDirectoryTreeAsync(path: string): Promise<DownloadDirectory
   } catch (error) {
     throw new Error('Download migration cleanup failed at ' + path + ': ' + String(error));
   }
+}
+
+async function cleanupMigratedDownloadFiles(progress: DownloadMigrationProgressState, sourceRoot: string): Promise<boolean> {
+  let incomplete = false;
+  // Only remove files from the verified copy snapshot, never new downloads created during migration.
+  for (let i = 0; i < progress.copiedFiles.length; i++) {
+    const file = progress.copiedFiles[i];
+    try {
+      const source = await fs.stat(file.source);
+      const target = await fs.stat(file.target);
+      if (source.size !== file.size || source.mtime !== file.mtime || target.size !== file.size) {
+        incomplete = true;
+        continue;
+      }
+      await fs.unlink(file.source);
+    } catch (_error) {
+      incomplete = true;
+    }
+  }
+  for (let i = progress.copiedDirectories.length - 1; i >= 0; i--) {
+    const directory = progress.copiedDirectories[i];
+    try {
+      const remaining = await fs.listFile(directory);
+      if (remaining.length > 0) {
+        incomplete = true;
+      } else if (directory !== sourceRoot) {
+        await fs.rmdir(directory);
+      }
+    } catch (_error) {
+      incomplete = true;
+    }
+  }
+  return incomplete;
 }
 
 function reportDownloadMigrationProgress(progress: DownloadMigrationProgressState, force: boolean): void {

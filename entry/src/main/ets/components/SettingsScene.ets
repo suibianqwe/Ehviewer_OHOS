@@ -888,8 +888,9 @@ export struct SettingsScene {
             this.updateDownloadMigrationProgress(progress);
           });
         this.hideBlockingBusy();
-        this.showFloatingStatus('Migrated downloads: ' + result.files.toString() + ' files, ' +
-          downloadSizeText(result.bytes) + '.');
+        this.showFloatingStatus(result.cleanupIncomplete
+          ? 'Downloads copied; new location selected. Some old files remain and can be cleaned up manually.'
+          : 'Migrated downloads: ' + result.files.toString() + ' files, ' + downloadSizeText(result.bytes) + '.');
       } catch (error) {
         this.hideBlockingBusy();
         this.showFloatingStatus('Download migration failed: ' + String(error));

@@ -459,6 +459,9 @@ function simplifiedUiStatusText(text: string): string {
       .replace(' files, ', ' 个文件，')
       .replace('.', '。');
   }
+  if (text === 'Downloads copied; new location selected. Some old files remain and can be cleaned up manually.') {
+    return '下载文件已复制并切换到新位置；旧目录仍有残留文件，可手动清理。';
+  }
   if (text.indexOf('Download migration failed: ') === 0) {
     return '下载文件迁移失败：' + text.substring('Download migration failed: '.length);
   }

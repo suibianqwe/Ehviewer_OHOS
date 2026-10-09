@@ -44,7 +44,7 @@ import {
   uiSwitchWidth,
   uiPageHorizontalPadding,
 } from '../shared/EhUiStyle';
-import { SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, settingsPanelTitle, settingsRowsForPanel } from '../shared/EhShared';
+import { SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, settingsPanelTitle, settingsRowsForPanel, settingEntryValue } from '../shared/EhShared';
 import { AppSubToolbar, AppToolbar } from './NavigationComponents';
 import {
   EH_WEB_COMPATIBILITY_SCRIPTS,
@@ -341,6 +341,7 @@ export struct SettingsDetailPanel {
             ListItem() {
               SettingsStaticRow({
                 row: row,
+                switchValue: settingEntryValue(this.settingEntries, row.key ?? '', row.value),
                 renderRevision: this.renderRevision,
                 firstInGroup: false,
                 lastInGroup: this.isLastSettingsRow(index),
@@ -366,6 +367,7 @@ export struct SettingsDetailPanel {
             ListItem() {
               SettingsStaticRow({
                 row: row,
+                switchValue: settingEntryValue(this.settingEntries, row.key ?? '', row.value),
                 renderRevision: this.renderRevision,
                 firstInGroup: this.isFirstSettingsRow(index),
                 lastInGroup: this.isLastSettingsRow(index),
@@ -707,9 +709,12 @@ export struct SettingsActionRow {
 
 @Component
 export struct SettingsStaticRow {
-  row: SettingsRowItem = { title: '', summary: '', value: '', type: '' };
+  @Prop @Watch('onRowChanged') row: SettingsRowItem = { title: '', summary: '', value: '', type: '' };
+  // ForEach can retain the old row object for a stable key. Observe the parent's entries directly.
+  @Prop @Watch('onSwitchValueChanged') switchValue: string = 'Off';
   @Prop renderRevision: number = 0;
   @State inputValue: string = '';
+  @State switchOn: boolean = false;
   firstInGroup: boolean = false;
   lastInGroup: boolean = false;
   onTap: () => void = () => {};
@@ -720,8 +725,26 @@ export struct SettingsStaticRow {
   private committedInputValue: string = '';
 
   aboutToAppear(): void {
-    this.inputValue = this.row.value;
-    this.committedInputValue = this.row.value;
+    this.onRowChanged();
+    this.onSwitchValueChanged();
+  }
+
+  private onRowChanged(): void {
+    if (this.row.value !== this.committedInputValue) {
+      this.inputValue = this.row.value;
+      this.committedInputValue = this.row.value;
+    }
+  }
+
+  private onSwitchValueChanged(): void {
+    this.switchOn = this.switchValue === 'On';
+  }
+
+  private changeSwitch(isOn: boolean): void {
+    this.switchOn = isOn;
+    if (this.row.key !== undefined && isOn !== (this.switchValue === 'On')) {
+      this.onSwitchChange(this.row.key, isOn);
+    }
   }
 
   private commitInputValue(): void {
@@ -768,16 +791,15 @@ export struct SettingsStaticRow {
               this.commitInputValue();
             })
         } else if (this.row.type === 'switch') {
-          Toggle({ type: ToggleType.Switch, isOn: this.row.value === 'On' })
+          Toggle({ type: ToggleType.Switch, isOn: $$this.switchOn })
+            .id('setting-switch-' + (this.row.key ?? this.row.title))
             .width(uiSwitchWidth())
             .height(uiSwitchHeight())
             .selectedColor(themeAccentTextColor())
             .switchPointColor(Color.White)
             .margin({ left: 12 })
             .onChange((isOn: boolean) => {
-              if (this.row.key !== undefined) {
-                this.onSwitchChange(this.row.key, isOn);
-              }
+              this.changeSwitch(isOn);
             })
         } else if (this.row.type === 'slider') {
           SettingsInlineSlider({

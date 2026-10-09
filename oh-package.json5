@@ -6,4 +6,7 @@
   "main": "",
   "author": "suibianqwe/Ehviewer_OHOS contributors",
   "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "@ohos/hypium": "1.0.24"
+  }
 }

@@ -43,6 +43,12 @@ export class EhUrl {
   }
 
   static getReferer(site: GallerySite = GallerySite.E): string {
+    // Ex thumbnail requests require a root URL with a path, just like browser Referer headers.
+    return EhUrl.getHost(site);
+  }
+
+  static getOrigin(site: GallerySite = GallerySite.E): string {
+    // Origin is only scheme + host; unlike Referer it must not contain a trailing slash.
     return site === GallerySite.Ex ? 'https://exhentai.org' : 'https://e-hentai.org';
   }
 

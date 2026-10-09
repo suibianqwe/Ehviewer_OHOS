@@ -16,7 +16,7 @@ import { galleryStatusStore } from './GalleryStatusStore';
 import { EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder } from './EhUrl';
 import { GalleryDetailParseResult, parseGalleryDetail } from './GalleryDetailParser';
 import { mergeGalleryApiMetadata } from './GalleryApiParser';
-import { FavoriteCategoryInfo, GalleryListParseResult, parseGalleryList } from './GalleryListParser';
+import { FavoriteCategoryInfo, GalleryListParseResult, parseGalleryList, parseFavoriteCategories } from './GalleryListParser';
 import { GalleryPageApiParseResult, parseGalleryPageApi } from './GalleryPageApiParser';
 import { GalleryPageParseResult, parseGalleryPage } from './GalleryPageParser';
 import { GalleryPageUrlInfo, parseGalleryPageUrl } from './GalleryPageParser';
@@ -657,7 +657,7 @@ export class EhHttpClient {
     ]);
     const url = EhUrl.getAddFavoritesUrl(gid, token, site);
     const referer = EhUrl.getGalleryDetailUrl(gid, token, 0, false, site);
-    const origin = EhUrl.getHost(site);
+    const origin = EhUrl.getOrigin(site);
     try {
       const response = await this.postForm(url, form, referer, origin);
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -699,7 +699,7 @@ export class EhHttpClient {
     });
     const url = EhUrl.getApiUrl(site);
     const referer = EhUrl.getGalleryDetailUrl(gid, token, 0, false, site);
-    const origin = EhUrl.getHost(site);
+    const origin = EhUrl.getOrigin(site);
     try {
       const response = await this.postJson(url, payload, referer, origin);
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -742,6 +742,15 @@ export class EhHttpClient {
   async loadFavoritesList(builder: FavListUrlBuilder, site: GallerySite = GallerySite.E): Promise<GalleryListLoadResult> {
     const url = builder.build(site);
     return this.loadGalleryListUrl(url, site);
+  }
+
+  async loadFavoriteCategories(site: GallerySite): Promise<FavoriteCategoryInfo[]> {
+    // Share the favorites page parser, without loading galleries or their API metadata.
+    const response = await this.getText(EhUrl.getFavoritesUrl(site), EhUrl.getReferer(site), 0);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw new Error(httpStatusMessage(response.statusCode, response.body));
+    }
+    return parseFavoriteCategories(response.body);
   }
 
   async loadGalleryListUrl(url: string, site: GallerySite = GallerySite.E,
@@ -823,7 +832,7 @@ export class EhHttpClient {
         gidlist: gidlist,
         namespace: 1
       });
-      batchPromises.push(this.postJson(EhUrl.getApiUrl(site), payload, referer, EhUrl.getReferer(site))
+      batchPromises.push(this.postJson(EhUrl.getApiUrl(site), payload, referer, EhUrl.getOrigin(site))
         .then((response: EhHttpResponse) => {
           if (response.statusCode >= 200 && response.statusCode < 300) {
             mergeGalleryApiMetadata(response.body, galleries);
@@ -987,7 +996,7 @@ export class EhHttpClient {
     }
     const url = EhUrl.getDownloadArchiveUrl(gid, token, formParamOr, site);
     const referer = EhUrl.getGalleryDetailUrl(gid, token, 0, false, site);
-    const origin = EhUrl.getReferer(site);
+    const origin = EhUrl.getOrigin(site);
     try {
       const response = await this.postForm(url, buildFormBody([{ key: 'hathdl_xres', value: resolution }]), referer, origin);
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -1042,7 +1051,7 @@ export class EhHttpClient {
       { key: 'dlcheck', value: option.dlCheck }
     ]);
     try {
-      const response = await this.postForm(option.url, form, referer, EhUrl.getReferer(site));
+      const response = await this.postForm(option.url, form, referer, EhUrl.getOrigin(site));
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return {
           ok: false,
@@ -1153,7 +1162,7 @@ export class EhHttpClient {
       showkey: showKey
     });
     const requestReferer = referer.length > 0 ? referer : pageUrl;
-    const origin = EhUrl.getReferer(site);
+    const origin = EhUrl.getOrigin(site);
     const url = EhUrl.getApiUrl(site);
     try {
       const response = await this.postJson(url, payload, requestReferer, origin, {
@@ -1272,8 +1281,8 @@ export class EhHttpClient {
     try {
       const multipart = buildImageSearchMultipartBody(builder.imagePath, builder.useSimilarityScan,
         builder.onlySearchCovers, builder.showExpunged);
-      const referer = EhUrl.getReferer(site) + '/';
-      let response = await this.postMultipart(url, multipart.body, multipart.contentType, referer, EhUrl.getReferer(site),
+      const referer = EhUrl.getReferer(site);
+      let response = await this.postMultipart(url, multipart.body, multipart.contentType, referer, EhUrl.getOrigin(site),
         IMAGE_SEARCH_TIMEOUT_MS);
       const redirectUrl = imageSearchRedirectUrl(response, url);
       if (redirectUrl.length > 0) {
@@ -1340,7 +1349,7 @@ export class EhHttpClient {
     });
     const url = EhUrl.getApiUrl(site);
     const referer = EhUrl.getGalleryDetailUrl(gid, token, 0, false, site);
-    const origin = EhUrl.getHost(site);
+    const origin = EhUrl.getOrigin(site);
     try {
       const response = await this.postJson(url, payload, referer, origin);
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -1412,7 +1421,7 @@ export class EhHttpClient {
     });
     const url = EhUrl.getApiUrl(site);
     const referer = EhUrl.getGalleryDetailUrl(gid, token, 0, false, site);
-    const origin = EhUrl.getHost(site);
+    const origin = EhUrl.getOrigin(site);
     try {
       const response = await this.postJson(url, payload, referer, origin);
       if (response.statusCode < 200 || response.statusCode >= 300) {

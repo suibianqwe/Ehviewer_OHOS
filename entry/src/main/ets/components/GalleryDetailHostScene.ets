@@ -25,6 +25,8 @@ import {
 } from '../services/EhHttpClient';
 import { PublicDownloadStartResult, startPublicDownload } from '../services/PublicDownloadService';
 import { EhUrl } from '../services/EhUrl';
+import { FavoriteCategoryInfo } from '../services/GalleryListParser';
+import { FavoriteSlotOption, favoriteSlotOptions } from '../services/FavoriteCollectionSupport';
 import {
   archiveUnavailableReason,
   createCategorySearchRequest,
@@ -122,31 +124,19 @@ const detailHostNavigationCache: Map<string, DetailHostNavigationState> = new Ma
 const FAVORITE_SLOT_ROW_HEIGHT: number = 52;
 const FAVORITE_SLOT_PANEL_CHROME_HEIGHT: number = 112;
 
-interface FavoriteSlotOption {
-  slot: number;
-  label: string;
-}
-
-function favoriteSlotOptions(): FavoriteSlotOption[] {
-  const options: FavoriteSlotOption[] = [{ slot: -1, label: 'Local Favorites' }];
-  for (let i = 0; i < 10; i++) {
-    options.push({ slot: i, label: 'Favorites ' + i.toString() });
-  }
-  return options;
-}
-
 @Component
 struct AddFavoriteDialog {
   @State popupWidth: number = 0;
   @State popupHeight: number = 0;
   @Prop remember: boolean = false;
   @Prop panelMaxHeight: number = 680;
+  @Prop categories: FavoriteCategoryInfo[] = [];
   onRememberChange: (remember: boolean) => void = (_remember: boolean) => {};
   onSelect: (slot: number) => void = (_slot: number) => {};
   onClose: () => void = () => {};
 
   private listHeight(): number {
-    const contentHeight = favoriteSlotOptions().length * FAVORITE_SLOT_ROW_HEIGHT;
+    const contentHeight = favoriteSlotOptions(this.categories).length * FAVORITE_SLOT_ROW_HEIGHT;
     const availableHeight = Math.max(160, this.panelMaxHeight - FAVORITE_SLOT_PANEL_CHROME_HEIGHT);
     return Math.min(contentHeight, availableHeight);
   }
@@ -197,7 +187,7 @@ struct AddFavoriteDialog {
         Divider().color(themeDividerColor()).strokeWidth(0.5)
 
         List() {
-          ForEach(favoriteSlotOptions(), (item: FavoriteSlotOption) => {
+          ForEach(favoriteSlotOptions(this.categories), (item: FavoriteSlotOption) => {
             ListItem() {
               Row() {
                 Column() {
@@ -225,7 +215,7 @@ struct AddFavoriteDialog {
                 this.onSelect(item.slot);
               })
             }
-          }, (item: FavoriteSlotOption) => item.slot.toString())
+          }, (item: FavoriteSlotOption) => item.slot.toString() + ':' + item.label)
         }
         .width('100%')
         .height(this.listHeight())
@@ -337,6 +327,7 @@ export struct GalleryDetailHostScene {
   private client: EhHttpClient = new EhHttpClient();
   private detailRequestGate: AsyncRequestGate = new AsyncRequestGate();
   private archiveRequestGate: AsyncRequestGate = new AsyncRequestGate();
+  private favoriteCategoryRequestGate: AsyncRequestGate = new AsyncRequestGate();
   private detailPreviewPager: DetailPreviewPager = new DetailPreviewPager();
   private previewMap: Map<number, GalleryPreview> = new Map();
   private previewPageSize: number = 0;
@@ -358,6 +349,7 @@ export struct GalleryDetailHostScene {
   @State optimisticFavorite: boolean = false;
   @State favoriteBusy: boolean = false;
   @State addFavoriteDialogVisible: boolean = false;
+  @State favoriteCategories: FavoriteCategoryInfo[] = [];
   @State rememberFavoriteSlot: boolean = false;
   @State downloadLabelDialogVisible: boolean = false;
   @State downloadLabelOptions: DownloadLabel[] = [];
@@ -384,6 +376,7 @@ export struct GalleryDetailHostScene {
   }
 
   aboutToDisappear(): void {
+    this.favoriteCategoryRequestGate.begin();
     this.saveNavigationState();
     this.unsubscribeDownloadStore();
     this.unregisterDetailBackHandler();
@@ -889,8 +882,21 @@ export struct GalleryDetailHostScene {
       return;
     }
     this.rememberFavoriteSlot = false;
+    this.favoriteCategories = [];
     this.addFavoriteDialogVisible = true;
     this.renderVersion++;
+    const generation = this.favoriteCategoryRequestGate.begin();
+    const gid = this.detail.gid;
+    const token = this.detail.token;
+    const site = this.detailLink.site;
+    this.client.loadFavoriteCategories(site).then((categories: FavoriteCategoryInfo[]) => {
+      if (this.favoriteCategoryRequestGate.isCurrent(generation) && this.addFavoriteDialogVisible &&
+        this.detail.gid === gid && this.detail.token === token && this.detailLink.site === site) {
+        this.favoriteCategories = categories;
+      }
+    }).catch(() => {
+      // Keep local favorites and numbered slots usable when the site is temporarily unavailable.
+    });
   }
 
   private confirmDetailDownloadLabel(label: string): void {
@@ -1719,6 +1725,7 @@ export struct GalleryDetailHostScene {
 
       if (this.addFavoriteDialogVisible) {
         AddFavoriteDialog({
+          categories: this.favoriteCategories,
           remember: this.rememberFavoriteSlot,
           panelMaxHeight: this.addFavoriteDialogMaxHeight(),
           onRememberChange: (remember: boolean) => {
