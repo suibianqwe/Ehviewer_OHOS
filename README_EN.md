@@ -12,8 +12,8 @@ EhViewer HarmonyOS is a HarmonyOS port of [Ehviewer_CN_SXJ](https://github.com/x
 
 Download the latest unsigned HAP from [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases). It can be installed with tools such as [Auto Installer](https://github.com/likuai2010/auto-installer).
 
-- Current version: `0.7.2`
-- Package: [`EhViewer_OHOS_0.7.2.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.2/EhViewer_OHOS_0.7.2.hap)
+- Current version: `0.7.3`
+- Package: [`EhViewer_OHOS_0.7.3.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.3/EhViewer_OHOS_0.7.3.hap)
 - Target API: `26.0.0`
 - Compatible API: `6.0.0(20)`
 
@@ -37,6 +37,17 @@ See the [complete English user guide](docs/USER_GUIDE_EN.md) for first launch, l
 - Wide screens: resizable split panes with independent routes and focus-aware Back behavior.
 - Migration: JSON/Android database import, legacy EhViewer download recovery, and selectable Wi-Fi Direct transfer of reading progress, app settings, login cookies, bookmarks, favorites, blocklists, download metadata, and images. Local `igneous` is never exported or overwritten by incoming data.
 - Personalization and network: multiple languages/themes, translated tags, filters, privacy controls, HTTP/SOCKS5 proxy, DoH, hosts, SNI fronting, direct-connect detection, and diagnostics.
+
+## 0.7.3 updates
+
+- Fixed missing history/download records and inconsistent ordering during multi-device sync.
+- Improved search bookmark parsing to preserve spaces in tag names and accept Android quoting/terminator formats. Existing bookmarks are normalized after upgrading, and bookmark settings now offer Delete all.
+- Reworked the tag action popup with side-by-side upvote/downvote buttons and immediate green/red selection feedback.
+- Fixed Detail enhancer upscaling producing no effect after tiled processing fails on large images. SR and HDR badges now stay at the bottom-left of the visible image area.
+- The add-favorite dialog now displays custom collection names configured on the website.
+- Fixed download migration reporting failure after a successful copy. Authorized root folders are retained, leftover files receive a separate warning, and the migration button is easier to read.
+- Fixed the Follow system dark mode switch not updating visually after the setting takes effect.
+- Fixed ExHentai cover thumbnails returning 403 because of an incomplete request header URL.
 
 ## 0.7.2 updates
 

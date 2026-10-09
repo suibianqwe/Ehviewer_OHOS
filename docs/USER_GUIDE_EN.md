@@ -2,7 +2,7 @@
 
 English · [简体中文](USER_GUIDE.md)
 
-This guide applies to EhViewer HarmonyOS `0.7.2`. Button positions may vary with the device, system version, window size, and permissions, but the entry points and behavior are the same. Portrait screenshots were captured on a phone and landscape screenshots on a tablet. Every reader screenshot in this guide was reached through `Subscriptions → Gallery details → Read`.
+This guide applies to EhViewer HarmonyOS `0.7.3`. Button positions may vary with the device, system version, window size, and permissions, but the entry points and behavior are the same. Portrait screenshots were captured on a phone and landscape screenshots on a tablet. Every reader screenshot in this guide was reached through `Subscriptions → Gallery details → Read`.
 
 > Tip: the app follows the system proxy and language by default. On a working network, advanced options such as custom hosts, SNI fronting, and DoH are normally unnecessary.
 
@@ -169,6 +169,10 @@ Submit text for a normal search. Tapping a tag in gallery details opens the full
 
 Use the advanced button beside the search field to select categories, name/tag/description/torrent scope, and other conditions. Save a useful combination as a search bookmark and restore it later from the bookmark row.
 
+Open Bookmark settings from the bookmark drawer to edit a bookmark's name, keywords, and advanced options. Delete all in the top-right asks for confirmation before clearing search bookmarks; it does not remove favorites or downloads. Export a backup first if needed.
+
+Android imports and the first load of older bookmarks after upgrading normalize tag syntax while preserving spaces in names and terminators inside quotes. A chip may display a Chinese translation, but its actual search query retains the original English tag and namespace.
+
 <p align="center">
   <img src="images/advanced-search-phone.jpg" width="360" alt="Advanced gallery search on a phone" />
 </p>
@@ -202,6 +206,8 @@ Common actions include:
 - Open the embedded reader over the current page, or enter the independent full-screen reader when that mode is selected.
 
 Tap a tag to search it. Use the add button beside the tag section to enter tag editing and voting. Translated tag names and categories follow `Show tag translations`, independently of the app language.
+
+The tag action popup places upvote and downvote buttons side by side. Selections update immediately in green and red respectively.
 
 Closing gallery details or the reader restores the previous list position, split-pane focus, and floating toolbar state.
 
@@ -254,6 +260,8 @@ Open the Layout tab and choose Reader preset. A preset stores direction, scaling
 
 These options can coexist. Pre-rendering follows `moiré removal and image adjustments → upscaling → HDR`. Cached results include target size and settings, and work outside the active pre-render range is released. A long-press save prefers the currently displayed processed result.
 
+If tiled Detail enhancer processing fails on a large image, the app attempts supported whole-image processing. SR and HDR badges stay at the bottom-left of the visible image area, including while zooming or reading continuously.
+
 <p align="center">
   <img src="images/reader-adjustment-phone.jpg" width="360" alt="Moiré removal and image adjustments" />
 </p>
@@ -292,6 +300,8 @@ Use Download in gallery details or a card's long-press menu.
 - Resolution/Original images: requested image size.
 - Timeout, file order, and large-list pagination.
 
+When switching between app files and public Downloads, choose Migrate to copy existing files or Switch only to leave them in place. Migration verifies copies before cleaning up the old files and keeps the authorized root folder. If some old files cannot be cleaned up, the new location still takes effect with a warning; verify that the new copies are complete and readable before manually removing leftovers. A copy failure leaves the selected location and source files unchanged.
+
 ### 9.2 Download page
 
 <p align="center">
@@ -321,6 +331,8 @@ Open `Settings → Downloads → Recover download items`. The app scans gallery 
 
 JSON backup, supported Android database import, and Wi-Fi Direct transfer can carry the comment blocklist. Incoming entries are merged by username.
 
+To rename a cloud favorite collection, open `Settings → EH → Account configuration`, edit its name in the webpage's Favorites section, and click Apply. Reopening the add-favorite dialog retrieves the current site's custom names. Local favorites and numbered fallback slots remain available when the network is unavailable.
+
 ## 11. Appearance, language, and privacy
 
 The Settings home groups options under EH, Reading, Downloads, Privacy, Translation, Advanced, and About.
@@ -330,6 +342,8 @@ The Settings home groups options under EH, Reading, Downloads, Privacy, Translat
 </p>
 
 `Settings → EH` supports light, dark, black, and follow-system themes, plus several theme colors. Open `Settings → Advanced → App language` for Follow system, English, Simplified Chinese, or Traditional Chinese. Tag translation is independent of the app language.
+
+The Follow system dark mode switch reflects its saved state immediately without reopening Settings. When enabled, the app's light/dark appearance follows the system.
 
 `Settings → Privacy` includes app authentication, screenshot/task-preview protection, private download notifications, saved error bodies, and crash logs. Enable diagnostic storage only while investigating a problem and clear it afterward.
 
@@ -381,6 +395,12 @@ Multiple categories can be selected together:
 
 OCR translation results are not included in progress sync. Local `igneous` is never exported, and imports or incoming transfers ignore any supplied value so the receiver keeps its own persistent value.
 
+### 13.3 WebDAV multi-device sync
+
+Open `Settings → Downloads → Remote storage`, configure the same server and folder on both devices, and enable its data-sync purpose. Enable download mirroring separately if image files should also transfer; syncing the download list is not the same as copying images.
+
+After upgrading to 0.7.3, history shards are rechecked to merge previously missed records in actual browse-time order. Download-list merging preserves local download progress. Update both devices; there is no need to clear local history or delete the cloud folder.
+
 ## 14. Migrating downloads from the original EhViewer
 
 <table>
@@ -410,6 +430,8 @@ If only ZIP files are available, place supported unencrypted archives in the pub
 Use `Settings → About → Check for updates`, or visit [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases). The tag translation database has a separate version check.
 
 ### 15.2 Covers or images do not load
+
+If an older version returns 403 only for ExHentai covers while lists and reader pages work, upgrade to 0.7.3 and retry first. This version corrects the cover request Referer. If the problem remains, continue below.
 
 1. First open `Settings → EH → Account configuration`, wait for the page to load, return, and retry the image.
 2. Confirm that a browser can reach the selected site.
