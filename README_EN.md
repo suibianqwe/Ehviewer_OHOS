@@ -12,8 +12,8 @@ EhViewer HarmonyOS is a HarmonyOS port of [Ehviewer_CN_SXJ](https://github.com/x
 
 Download the latest unsigned HAP from [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases). It can be installed with tools such as [Auto Installer](https://github.com/likuai2010/auto-installer).
 
-- Current version: `0.7.3`
-- Package: [`EhViewer_OHOS_0.7.3.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.3/EhViewer_OHOS_0.7.3.hap)
+- Current version: `0.7.4`
+- Package: [`EhViewer_OHOS_0.7.4.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.4/EhViewer_OHOS_0.7.4.hap)
 - Target API: `26.0.0`
 - Compatible API: `6.0.0(20)`
 
@@ -29,14 +29,29 @@ See the [complete English user guide](docs/USER_GUIDE_EN.md) for first launch, l
 
 - Browsing: E-Hentai/ExHentai, home, subscriptions, popular, toplists, cloud/local favorites, history, and downloads.
 - Search: keywords, multiple tags, uploaders, advanced filters, saved searches, search history, similarity search, and cover search.
-- Gallery details: favorites, rating, system sharing, Torrent magnet links, archives, H@H, comments, previews, similar galleries, and tag editing/voting.
+- Gallery details: favorites, rating, system sharing, Torrent magnet links, archives, H@H, reading/posting comments, previews, similar galleries, and tag editing/voting/subscription/account blocking, separate from local filtering.
 - Reader: horizontal/continuous reading, presets, gestures, rotation, adaptive two-page mode, border cropping, preloading, an embedded overlay reader, and an independent full-screen reader.
-- Image processing: adjustments, adaptive moiré removal, system/API 26 Core Vision AI upscaling, and SDR-to-HDR. Pre-rendering uses `moiré removal and adjustments → upscaling → HDR`.
+- Image processing: adjustments, system/API 26 Core Vision AI upscaling, and SDR-to-HDR. Pre-rendering uses `adjustments → upscaling → HDR`.
 - Translation: titles, details, comments, and OCR manga translation through web services, DeepSeek, OpenAI, Gemini, or a custom compatible API.
-- Downloads: a cross-gallery shared worker pool, progress/speed notifications, privacy notifications, status filters, multi-select actions, item recovery, and ZIP import/export.
+- Downloads: a cross-gallery shared worker pool, progress/speed notifications, privacy notifications, status filters, sorting by ID/time/artist and more, multi-select actions, item recovery, and ZIP import/export.
 - Wide screens: resizable split panes with independent routes and focus-aware Back behavior.
 - Migration: JSON/Android database import, legacy EhViewer download recovery, and selectable Wi-Fi Direct transfer of reading progress, app settings, login cookies, bookmarks, favorites, blocklists, download metadata, and images. Local `igneous` is never exported or overwritten by incoming data.
 - Personalization and network: multiple languages/themes, translated tags, filters, privacy controls, HTTP/SOCKS5 proxy, DoH, hosts, SNI fronting, direct-connect detection, and diagnostics.
+
+## 0.7.4 updates
+
+- Added comment posting with an automatically growing input field and scrolling for longer drafts.
+- Long-press tags to subscribe or block them on the account, separately from local filtering, while preserving existing watch/hide flags, colors, and weights.
+- Added ascending/descending download sorting by ID, added time, artist, title, rating, and file size. Large-list filtering, sorting, and progress updates now use batched or background work.
+- Fixed download and download-search scrolling state, toolbar visibility, and split-view issues when opening details.
+- Adaptive spreads retain the current image while a delayed second page slides in from the reading direction and settles into place, reducing black flashes. Improved initial spread detection for local galleries.
+- Fixed a native network-cancellation crash during rapid page turns, stuck image loading, and thumbnails being mistaken for reader pages. Visible pages take priority and requests outside the preload range stop.
+- Offscreen animations pause and continuous reading schedules work for actually visible pages. Improved upscaling preparation, task reuse, and resource cleanup.
+- Added asynchronous cover pre-decoding and cache reuse. Directory statistics, check-in cookie reads, and tag database processing no longer perform the same heavy work on the UI thread.
+- Cover search opens immediately while the cover and results are prepared in the background.
+- Fixed in-app update checks returning 403, with a fallback to GitHub release pages.
+- Fixed edited remote storage profiles reopening with old values. Failed saves preserve the draft and display an error.
+- Removed moiré reduction and its processing code.
 
 ## 0.7.3 updates
 

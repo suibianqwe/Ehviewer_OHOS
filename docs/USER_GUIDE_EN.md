@@ -2,7 +2,7 @@
 
 English · [简体中文](USER_GUIDE.md)
 
-This guide applies to EhViewer HarmonyOS `0.7.3`. Button positions may vary with the device, system version, window size, and permissions, but the entry points and behavior are the same. Portrait screenshots were captured on a phone and landscape screenshots on a tablet. Every reader screenshot in this guide was reached through `Subscriptions → Gallery details → Read`.
+This guide applies to EhViewer HarmonyOS `0.7.4`. Button positions may vary with the device, system version, window size, and permissions, but the entry points and behavior are the same. Portrait screenshots were captured on a phone and landscape screenshots on a tablet. Every reader screenshot in this guide was reached through `Subscriptions → Gallery details → Read`.
 
 > Tip: the app follows the system proxy and language by default. On a working network, advanced options such as custom hosts, SNI fronting, and DoH are normally unnecessary.
 
@@ -202,12 +202,21 @@ Common actions include:
 - View Torrent entries and copy a magnet link.
 - Request an original/resampled archive or H@H download into the public Download root.
 - Search for similar galleries or the current cover.
+- Post a comment from the bottom composer on the comments page using the circular send button. A valid login is required. The field starts at one line, grows with the draft, and scrolls after reaching its height limit; successful posts refresh the comments.
 - Add the gallery to the download queue.
 - Open the embedded reader over the current page, or enter the independent full-screen reader when that mode is selected.
 
 Tap a tag to search it. Use the add button beside the tag section to enter tag editing and voting. Translated tag names and categories follow `Show tag translations`, independently of the app language.
 
 The tag action popup places upvote and downvote buttons side by side. Selections update immediately in green and red respectively.
+
+Long-press a tag to copy it, subscribe to it, or block it:
+
+- Subscribe to Tag adds it to the website account's My Tags and avoids duplicate submissions.
+- Block Tag on Account updates the website account's blocked tags. It requires login and follows the website's account configuration.
+- Filter Tag Locally adds a rule under `Settings → EH → Filters` without changing website account data.
+
+Account actions submit the original English tag and namespace, not its translated display name, while retaining existing watch/hide flags, colors, and weights.
 
 Closing gallery details or the reader restores the previous list position, split-pane focus, and floating toolbar state.
 
@@ -218,6 +227,8 @@ Closing gallery details or the reader restores the previous list position, split
 ## 7. Reader
 
 The embedded reader overlays the current page while the list stays mounted; the independent reader uses a separate full-screen window. Tap the center to show or hide controls. Use the side regions to turn pages, double-tap for quick zoom, pinch for continuous zoom, and long-press the image for image actions. Exiting restores the list position and split-view state.
+
+Visible pages take loading priority, and requests outside the preload range stop after rapid navigation. Offscreen animations pause and restart when revisited. If a second page becomes ready late in adaptive spread mode, the first image stays visible while the new page slides in from the reading direction and settles into place. With system animations disabled, the layout changes immediately.
 
 <p align="center">
   <img src="images/reader-phone.jpg" width="300" alt="Phone reader opened from Subscriptions" />
@@ -252,18 +263,17 @@ Open the Layout tab and choose Reader preset. A preset stores direction, scaling
 
 ### 7.5 Image adjustment and enhancement
 
-- Moiré removal offers Off, Auto, Weak, Medium, and Strong. Auto considers the source size and target physical display size.
 - Image adjustment controls exposure, brightness, contrast, highlights, shadows, clarity, sharpening, and related values.
 - Upscaling targets the current display area. API 26 devices can use Core Vision AI; other environments use the system capability.
 - SDR-to-HDR enhances brightness, highlights, and color on supported devices.
 - Automatic white/black border cropping removes near-solid outer margins during pre-rendering without altering the original file.
 
-These options can coexist. Pre-rendering follows `moiré removal and image adjustments → upscaling → HDR`. Cached results include target size and settings, and work outside the active pre-render range is released. A long-press save prefers the currently displayed processed result.
+These options can coexist. Pre-rendering follows `image adjustments → upscaling → HDR`. Cached results include settings and the upscaling target size, and work outside the active pre-render range is released. A long-press save prefers the currently displayed processed result.
 
 If tiled Detail enhancer processing fails on a large image, the app attempts supported whole-image processing. SR and HDR badges stay at the bottom-left of the visible image area, including while zooming or reading continuously.
 
 <p align="center">
-  <img src="images/reader-adjustment-phone.jpg" width="360" alt="Moiré removal and image adjustments" />
+  <img src="images/reader-adjustment-phone.jpg" width="360" alt="Reader image adjustments" />
 </p>
 
 ## 8. Title, comment, and manga translation
@@ -312,6 +322,7 @@ When switching between app files and public Downloads, choose Migrate to copy ex
 - Long-press a card to enter multi-select.
 - Delete shows the selected count and asks for confirmation.
 - The status filter chooses Waiting, Downloading, Completed, Failed, and other visible states.
+- Expand the floating toolbar and choose Sort to order by gallery ID, added time, artist, title, rating, or file size in either direction. The choice is remembered. Artist ordering uses artist tags and puts unknown artists last; it does not change the download queue order.
 - With no gallery selected, Download and Pause act on the galleries visible under the current status filter rather than every gallery.
 - Export writes a ZIP to the public Download root.
 
@@ -398,6 +409,8 @@ OCR translation results are not included in progress sync. Local `igneous` is ne
 ### 13.3 WebDAV multi-device sync
 
 Open `Settings → Downloads → Remote storage`, configure the same server and folder on both devices, and enable its data-sync purpose. Enable download mirroring separately if image files should also transfer; syncing the download list is not the same as copying images.
+
+Tap a profile to edit its name, URL, port, credentials, folder, or purposes. Choose Save and wait for completion before leaving. Saved is shown only after persistence succeeds; failures preserve the draft and show an error for retry. Reopening the profile or restarting the app should show the last successfully saved values.
 
 After upgrading to 0.7.3, history shards are rechecked to merge previously missed records in actual browse-time order. Download-list merging preserves local download progress. Update both devices; there is no need to clear local history or delete the cloud folder.
 

@@ -171,4 +171,3 @@ export function parseTagTsv(text: string): EhTagSuggestion[] {
 export function prepareTagDatabase(body: string, expectedSha: string): ParsedTagDatabase {
   return new TagDatabaseParser().parseDatabaseDocument(body, expectedSha);
 }
-
