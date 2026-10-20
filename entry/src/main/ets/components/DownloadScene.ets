@@ -18,7 +18,7 @@ import { REMOTE_STORAGE_PURPOSE_DOWNLOADS, remoteStorageProfileStore } from '../
 import { FloatingActionSideController } from '../services/EhFloatingActionSideSupport';
 import { BrowsePosition, ehBrowsePositionStore } from '../services/EhBrowsePositionStore';
 import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
-import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
+import { DownloadInfo, DownloadLabel, DownloadProgress, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
 import {
   FLOATING_ACTION_HOLDING_HAND_REVISION_KEY,
   FLOATING_ACTION_SIDE_REVISION_KEY,
@@ -42,6 +42,7 @@ import {
 import { DEFAULT_ADVANCE_SEARCH, EhUrl, ListMode } from '../services/EhUrl';
 import { galleryMatchesLocalSearch, LocalGallerySearchOptions } from '../services/LocalGallerySearch';
 import { DetailSearchRequest } from '../services/GalleryDetailSupport';
+import { CoverSearchSource } from '../model/GalleryModels';
 import {
   createEmptyGalleryDetailLink,
   createGalleryDetailLink,
@@ -61,6 +62,9 @@ import {
   takePendingContinuationSnapshot,
 } from '../services/DistributedContinuationService';
 import { readerSessionStore } from '../services/ReaderSessionStore';
+import { DOWNLOAD_SORT_OPTIONS, DOWNLOAD_SORT_SETTING_KEY, normalizeDownloadSortMode } from '../services/DownloadSortSupport';
+import { applyDownloadProgressUpdates, DownloadListProjection } from '../services/DownloadListProjection';
+import { SettingsOptionPanel } from './SettingsPanels';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, nextFloatingToolbarOffset, runDetailBackHandler, setActiveBackHandler } from '../shared/EhShared';
 import { sortedStringKey, toggleStringValue } from '../shared/EhShared';
 import { GalleryCardScrollAnchor } from '../shared/GalleryCardScrollAnchor';
@@ -217,6 +221,7 @@ interface DownloadNavigationCache {
   tagSearchMode: ListMode;
   tagSearchCategory?: number;
   tagSearchImagePath: string;
+  tagSearchCoverSource?: CoverSearchSource;
   tagSearchImageUseSimilarity: boolean;
   tagSearchImageOnlyCovers: boolean;
   tagSearchImageShowExpunged: boolean;
@@ -272,6 +277,7 @@ export struct DownloadScene {
   @State statusFilterDraft: string[] = DOWNLOAD_STATUS_FILTER_OPTIONS.slice();
   @State statusFilterPanelVisible: boolean = false;
   @State sortMode: string = 'Default';
+  @State sortPanelVisible: boolean = false;
   @State categoryFilter: string = 'All';
   @State statusText: string = 'Downloads: idle';
   @State showDetail: boolean = false;
@@ -287,6 +293,7 @@ export struct DownloadScene {
   @State tagSearchMode: ListMode = ListMode.Tag;
   @State tagSearchCategory: number = GalleryCategory.None;
   @State tagSearchImagePath: string = '';
+  @State tagSearchCoverSource: CoverSearchSource | undefined = undefined;
   @State tagSearchImageUseSimilarity: boolean = false;
   @State tagSearchImageOnlyCovers: boolean = false;
   @State tagSearchImageShowExpunged: boolean = false;
@@ -345,9 +352,13 @@ export struct DownloadScene {
   private cellularWarningDialogOpen: boolean = false;
   private deleteConfirmationDialogOpen: boolean = false;
   private downloadCardStates: Map<number, DownloadCardState> = new Map<number, DownloadCardState>();
+  private downloadItemsByGid: Map<number, DownloadInfo> = new Map();
+  private downloadProjection: DownloadListProjection = new DownloadListProjection();
+  private downloadSceneActive: boolean = false;
   private translationVisibleItems: number[] = [];
 
   aboutToAppear(): void {
+    this.downloadSceneActive = true;
     applyAppChromeImmersiveMode();
     this.restoreEmbeddedContinuationIfPresent();
     this.floatingActionSideController.syncFromSettings();
@@ -359,18 +370,24 @@ export struct DownloadScene {
     this.unsubscribeStore = ehDownloadStore.subscribe((items: DownloadInfo[], labels: DownloadLabel[]) => {
       this.items = items;
       this.labels = labels;
+      this.downloadProjection.clearKeys();
+      this.syncDownloadCardStates(items);
       if (this.selectedDownloadLabel !== DOWNLOAD_LABEL_FILTER_ALL && this.selectedDownloadLabel.length > 0 &&
         !ehDownloadStore.hasLabel(this.selectedDownloadLabel)) {
         this.selectedDownloadLabel = DOWNLOAD_LABEL_FILTER_ALL;
       }
       this.refreshDownloadRows();
-    });
+    }, (updates: DownloadProgress[]) => { this.updateDownloadProgress(updates); });
     this.unsubscribeDownloadManager = ehDownloadManager.subscribe((status: string) => {
       this.statusText = status;
     });
     this.refreshSearchSuggestions();
     const context = getAbilityContext();
     if (context !== undefined) {
+      ehSettingsStore.ensureLoaded(context).then(() => {
+        this.sortMode = normalizeDownloadSortMode(ehSettingsStore.getValue(DOWNLOAD_SORT_SETTING_KEY, 'Default'));
+        this.refreshDownloadRows();
+      }).catch(() => {});
       ehSearchHistoryStore.load(context).then(() => {
         this.refreshSearchSuggestions();
       }).catch(() => {});
@@ -384,6 +401,7 @@ export struct DownloadScene {
   }
 
   aboutToDisappear(): void {
+    this.stopDownloadListWork();
     this.rememberDownloadScrollOffset();
     ehBrowsePositionStore.flush();
     this.cardScrollAnchor.clear();
@@ -398,6 +416,10 @@ export struct DownloadScene {
   }
 
   private handleSystemBack(): boolean {
+    if (this.sortPanelVisible) {
+      this.sortPanelVisible = false;
+      return true;
+    }
     if (this.downloadLabelEditDialogVisible) {
       this.downloadLabelEditDialogVisible = false;
       return true;
@@ -472,6 +494,7 @@ export struct DownloadScene {
     this.advancedPanelVisible = false;
     this.downloadActionsExpanded = false;
     this.statusFilterPanelVisible = false;
+    this.sortPanelVisible = false;
     this.downloadLabelDrawerVisible = false;
     this.downloadLabelDrawerOffsetX = SIDE_PANEL_WIDTH;
     this.downloadLabelDrawerOverlayOpacity = 0;
@@ -494,6 +517,7 @@ export struct DownloadScene {
     this.tagSearchMode = ListMode.Tag;
     this.tagSearchCategory = GalleryCategory.None;
     this.tagSearchImagePath = '';
+    this.tagSearchCoverSource = undefined;
     this.tagSearchImageUseSimilarity = false;
     this.tagSearchImageOnlyCovers = false;
     this.tagSearchImageShowExpunged = false;
@@ -530,6 +554,7 @@ export struct DownloadScene {
     this.tagSearchMode = cache.tagSearchMode;
     this.tagSearchCategory = cache.tagSearchCategory === undefined ? GalleryCategory.None : cache.tagSearchCategory;
     this.tagSearchImagePath = cache.tagSearchImagePath;
+    this.tagSearchCoverSource = cache.tagSearchCoverSource;
     this.tagSearchImageUseSimilarity = cache.tagSearchImageUseSimilarity;
     this.tagSearchImageOnlyCovers = cache.tagSearchImageOnlyCovers;
     this.tagSearchImageShowExpunged = cache.tagSearchImageShowExpunged;
@@ -549,6 +574,7 @@ export struct DownloadScene {
       tagSearchMode: this.tagSearchMode,
       tagSearchCategory: this.tagSearchCategory,
       tagSearchImagePath: this.tagSearchImagePath,
+      tagSearchCoverSource: this.tagSearchCoverSource,
       tagSearchImageUseSimilarity: this.tagSearchImageUseSimilarity,
       tagSearchImageOnlyCovers: this.tagSearchImageOnlyCovers,
       tagSearchImageShowExpunged: this.tagSearchImageShowExpunged
@@ -636,7 +662,10 @@ export struct DownloadScene {
   }
 
   private updateToolbarForScrollFrame(scrollOffset: number): number {
-    const offset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
+    const offset = this.readDownloadScrollOffset();
+    if (offset === undefined) {
+      return scrollOffset;
+    }
     if (offset <= 4) {
       this.restoreToolbarOnReverseScroll();
       return scrollOffset;
@@ -667,11 +696,13 @@ export struct DownloadScene {
     const context = getAbilityContext();
     if (context === undefined) {
       this.items = ehDownloadStore.getItems();
+      this.downloadProjection.clearKeys();
+      this.syncDownloadCardStates();
       this.refreshDownloadRows();
       return;
     }
 
-    ehDownloadStore.load(context).then(() => {
+    ehDownloadStore.ensureLoaded(context).then(() => {
       this.refreshDownloadRows();
       this.statusText = this.items.length.toString() + ' download items';
       if (ehDownloadManager.hasWaitingDownloads()) {
@@ -680,6 +711,8 @@ export struct DownloadScene {
     }).catch((error: Error) => {
       this.statusText = 'Download load failed: ' + error.message;
       this.items = ehDownloadStore.getItems();
+      this.downloadProjection.clearKeys();
+      this.syncDownloadCardStates();
       this.refreshDownloadRows();
     });
   }
@@ -902,18 +935,41 @@ export struct DownloadScene {
     this.blockingBusyMessage = 'Loading...';
   }
 
-  private computeVisibleDownloadItems(): DownloadInfo[] {
-    const visible = filterDownloadItems(this.items, '', this.statusFilters, this.selectedDownloadLabel, this.sortMode,
-      this.categoryFilter);
-    const filtered: DownloadInfo[] = [];
+  private computeVisibleDownloadItems(revision: number): Promise<DownloadInfo[] | undefined> {
+    const statusFilters = this.statusFilters.slice();
+    const label = this.selectedDownloadLabel;
+    const category = this.categoryFilter;
+    const mode = this.sortMode;
     const options = this.downloadSearchOptions();
     const query = this.query;
-    for (let i = 0; i < visible.length; i++) {
-      if (galleryMatchesLocalSearch(visible[i], query, options)) {
-        filtered.push(visible[i]);
+    return this.downloadProjection.project(this.items, mode, revision, (chunk: DownloadInfo[]): DownloadInfo[] => {
+      const candidates = filterDownloadItems(chunk, '', statusFilters, label, mode,
+        category, false);
+      return candidates.filter((item: DownloadInfo): boolean => galleryMatchesLocalSearch(item, query, options));
+    });
+  }
+
+  private applyDownloadSort(value: string): void {
+    this.sortMode = normalizeDownloadSortMode(value);
+    this.sortPanelVisible = false;
+    this.downloadJumpPageIndex = 0;
+    this.downloadScrollOffset = 0;
+    this.cardScrollAnchor.clear();
+    this.refreshDownloadRows();
+    this.downloadFirstVisibleIndex = 0;
+    this.toolbarOffsetY = 0;
+    setTimeout(() => {
+      try {
+        this.downloadScroller.scrollTo({ xOffset: 0, yOffset: 0 });
+        this.rememberDownloadScrollOffset(0);
+      } catch (_error) {
       }
+    }, 0);
+    ehSettingsStore.setValue(DOWNLOAD_SORT_SETTING_KEY, this.sortMode);
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSettingsStore.save(context).catch(() => {});
     }
-    return filtered;
   }
 
   private downloadSearchOptions(): LocalGallerySearchOptions {
@@ -1120,16 +1176,14 @@ export struct DownloadScene {
 
   private toggleDownloadSelection(gid: number): void {
     const key = this.selectedKey(gid);
-    if (this.selectedDownloadGids.indexOf(key) >= 0) {
-      this.selectedDownloadGids = this.selectedDownloadGids.replace(key, '|');
-      if (this.downloadSelectionCount() === 0) {
-        this.selectedDownloadGids = '';
-        this.downloadActionsExpanded = false;
-      }
-      return;
+    const selected = this.selectedDownloadGids;
+    const removing = selected.indexOf(key) >= 0;
+    const next = removing ? selected.replace(key, '|') : selected + key;
+    const hasSelection = /\d/.test(next);
+    this.selectedDownloadGids = hasSelection ? next : '';
+    if (!removing || !hasSelection) {
+      this.downloadActionsExpanded = hasSelection;
     }
-    this.selectedDownloadGids += key;
-    this.downloadActionsExpanded = true;
   }
 
   private handleDownloadCardTap(item: DownloadInfo, event?: ClickEvent): void {
@@ -1278,8 +1332,11 @@ export struct DownloadScene {
   }
 
   private handleDownloadListDidScroll(): void {
+    const yOffset = this.readDownloadScrollOffset();
+    if (yOffset === undefined) {
+      return;
+    }
     markGalleryListScrolling();
-    const yOffset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
     const delta = yOffset - this.lastToolbarScrollOffset;
     this.lastToolbarScrollOffset = yOffset;
     if (yOffset <= 4) {
@@ -1293,7 +1350,7 @@ export struct DownloadScene {
     } else if (delta < -0.1) {
       this.restoreToolbarOnReverseScroll();
     }
-    this.rememberDownloadScrollOffset();
+    this.rememberDownloadScrollOffset(yOffset);
   }
 
   private availableSceneWidth(): number {
@@ -1343,12 +1400,38 @@ export struct DownloadScene {
   }
 
   private refreshDownloadRows(): void {
-    this.visibleItems = this.computeVisibleDownloadItems();
-    this.syncDownloadCardStates();
-    if (this.downloadBrowsePositionLoaded && !this.downloadBrowsePositionRestored) {
-      setTimeout(() => {
-        this.restoreDownloadScrollOffset();
-      }, 0);
+    if (!this.downloadSceneActive) {
+      return;
+    }
+    this.downloadProjection.cancelScheduledRefresh();
+    const revision = this.downloadProjection.invalidate();
+    this.computeVisibleDownloadItems(revision).then((items: DownloadInfo[] | undefined) => {
+      if (items === undefined || !this.downloadSceneActive || !this.downloadProjection.isCurrent(revision)) {
+        return;
+      }
+      this.visibleItems = items;
+      if (this.downloadBrowsePositionLoaded && !this.downloadBrowsePositionRestored) {
+        setTimeout(() => { this.restoreDownloadScrollOffset(); }, 0);
+      }
+    }).catch(() => {});
+  }
+
+  private stopDownloadListWork(): void {
+    this.downloadSceneActive = false;
+    this.downloadProjection.dispose();
+  }
+
+  private updateDownloadProgress(updates: DownloadProgress[]): void {
+    const sizeChanged = applyDownloadProgressUpdates(updates, this.downloadItemsByGid,
+      (item: DownloadInfo, changed: boolean) => {
+        if (changed) {
+          this.downloadProjection.dropKey(item.gid);
+        }
+        this.downloadCardStateFor(item.gid).update(item.state, downloadProgressText(item),
+          this.downloadProgressValue(item), this.downloadSpeedLabel(item));
+      });
+    if (sizeChanged && this.sortMode.startsWith('Size')) {
+      this.downloadProjection.scheduleRefresh(() => { this.refreshDownloadRows(); });
     }
   }
 
@@ -1392,10 +1475,12 @@ export struct DownloadScene {
       this.downloadColumnCount());
   }
 
-  private syncDownloadCardStates(): void {
+  private syncDownloadCardStates(items: DownloadInfo[] = this.items): void {
     const live: Map<number, DownloadCardState> = new Map<number, DownloadCardState>();
-    for (let i = 0; i < this.items.length; i++) {
-      const item = this.items[i];
+    this.downloadItemsByGid.clear();
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      this.downloadItemsByGid.set(item.gid, item);
       let cardState = this.downloadCardStates.get(item.gid);
       if (cardState === undefined) {
         cardState = new DownloadCardState();
@@ -1810,6 +1895,7 @@ export struct DownloadScene {
     this.tagSearchMode = ListMode.Tag;
     this.tagSearchCategory = GalleryCategory.None;
     this.tagSearchImagePath = '';
+    this.tagSearchCoverSource = undefined;
     this.tagSearchImageUseSimilarity = false;
     this.tagSearchImageOnlyCovers = false;
     this.tagSearchImageShowExpunged = false;
@@ -1825,6 +1911,7 @@ export struct DownloadScene {
     this.tagSearchMode = request.mode;
     this.tagSearchCategory = request.category;
     this.tagSearchImagePath = request.imagePath;
+    this.tagSearchCoverSource = request.coverSearchSource;
     this.tagSearchImageUseSimilarity = request.useSimilarityScan;
     this.tagSearchImageOnlyCovers = request.onlySearchCovers;
     this.tagSearchImageShowExpunged = request.showExpunged;
@@ -2124,7 +2211,21 @@ export struct DownloadScene {
     }, 0);
   }
 
-  private rememberDownloadScrollOffset(): void {
+  private readDownloadScrollOffset(): number | undefined {
+    try {
+      // currentOffset() can return undefined after the List/WaterFlow is detached,
+      // although its SDK return type omits it. Keep this path compatible with API 20.
+      const offset: OffsetResult | undefined = this.downloadScroller.currentOffset();
+      if (offset === undefined || offset === null || !Number.isFinite(offset.yOffset)) {
+        return undefined;
+      }
+      return normalizeSceneScrollOffset(offset.yOffset);
+    } catch (_error) {
+      return undefined;
+    }
+  }
+
+  private rememberDownloadScrollOffset(observedOffset?: number): void {
     if (this.restoringDownloadBrowsePosition) {
       return;
     }
@@ -2135,7 +2236,13 @@ export struct DownloadScene {
       }
       return;
     }
-    this.downloadScrollOffset = normalizeSceneScrollOffset(this.downloadScroller.currentOffset().yOffset);
+    const offset = observedOffset === undefined ? this.readDownloadScrollOffset() : observedOffset;
+    if (offset === undefined) {
+      // onDidScroll/onScrollStop already saved the last valid position. During
+      // teardown leave that snapshot intact for aboutToDisappear() to flush.
+      return;
+    }
+    this.downloadScrollOffset = offset;
     if (!this.downloadBrowsePositionLoaded) {
       return;
     }
@@ -2354,6 +2461,10 @@ export struct DownloadScene {
             onStatus: () => {
               this.openDownloadStatusPanel();
             },
+            onSort: () => {
+              this.downloadActionsExpanded = false;
+              this.sortPanelVisible = true;
+            },
             onJump: () => {
               this.openDownloadJumpPanel();
             },
@@ -2501,6 +2612,17 @@ export struct DownloadScene {
           .zIndex(24)
           .transition(TransitionEffect.OPACITY.animation({ duration: 180, curve: Curve.EaseInOut }))
       }
+      if (this.sortPanelVisible) {
+        SettingsOptionPanel({
+          title: 'Sort',
+          summary: 'Author sorting uses artist tags; unknown authors are placed last.',
+          value: this.sortMode,
+          options: DOWNLOAD_SORT_OPTIONS,
+          onBack: () => { this.sortPanelVisible = false; },
+          onSelect: (value: string) => { this.applyDownloadSort(value); }
+        })
+          .zIndex(25)
+      }
     }
     .id('download-list-pane')
     .width(this.useSplitLayout() ? this.splitListPaneWidth() : '100%')
@@ -2533,6 +2655,7 @@ export struct DownloadScene {
         initialAdvanceSearch: DEFAULT_ADVANCE_SEARCH,
         initialSearchSubmitted: true,
         initialImagePath: this.tagSearchImagePath,
+        initialCoverSearchSource: this.tagSearchCoverSource,
         initialImageUseSimilarityScan: this.tagSearchImageUseSimilarity,
         initialImageOnlySearchCovers: this.tagSearchImageOnlyCovers,
         initialImageShowExpunged: this.tagSearchImageShowExpunged,

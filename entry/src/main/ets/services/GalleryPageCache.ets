@@ -41,7 +41,8 @@ export class GalleryPageCache {
   }
 
   put(url: string, page: GalleryPage, maxSize: number = 80): void {
-    if (url.length === 0) {
+    // This cache is consumed by network downloads too. Offline pages have no remote image URL.
+    if (url.length === 0 || !/^https?:\/\//i.test(page.imageUrl)) {
       return;
     }
     const key = cacheKeyForUrl(url);

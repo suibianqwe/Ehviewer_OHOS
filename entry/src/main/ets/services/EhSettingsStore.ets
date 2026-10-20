@@ -108,7 +108,6 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'reader_super_resolution_engine', value: 'Detail enhancer' },
     { key: 'reader_sdr_to_hdr', value: 'Off' },
     { key: 'reader_image_adjustment', value: 'Off' },
-    { key: 'reader_moire_reduction', value: 'Off' },
     { key: 'reader_image_contrast', value: '0' },
     { key: 'reader_image_clarity', value: '0' },
     { key: 'reader_image_sharpening', value: '0' },
@@ -143,6 +142,7 @@ export function defaultSettingEntries(): SettingEntry[] {
     { key: 'download_location', value: 'App files' },
     { key: 'download_public_root_path', value: '' },
     { key: 'download_thread', value: '3' },
+    { key: 'download_sort_mode', value: 'Default' },
     { key: 'preload_image', value: '5' },
     { key: 'download_list_pagination', value: 'On' },
     { key: 'image_size', value: 'Auto' },
@@ -303,21 +303,20 @@ export class EhSettingsStore {
       this.getValue('reader_translation_enabled', 'Off') === 'On');
   }
 
-  async ensureLoaded(context: common.UIAbilityContext): Promise<void> {
+  ensureLoaded(context: common.UIAbilityContext): Promise<void> {
     if (this.loaded) {
-      return;
+      return Promise.resolve();
     }
     if (this.ensurePromise !== null) {
-      await this.ensurePromise;
-      return;
+      return this.ensurePromise;
     }
-    this.ensurePromise = this.load(context);
-    try {
-      await this.ensurePromise;
+    const pending: Promise<void> = this.load(context).then(() => {
       this.loaded = true;
-    } finally {
-      this.ensurePromise = null;
-    }
+    }).finally(() => {
+      if (this.ensurePromise === pending) this.ensurePromise = null;
+    });
+    this.ensurePromise = pending;
+    return pending;
   }
 
   async load(context: common.UIAbilityContext): Promise<void> {

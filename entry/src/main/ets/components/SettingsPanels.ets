@@ -1,4 +1,7 @@
 import { webview } from '@kit.ArkWeb';
+import { readerImageCache } from '../services/ReaderImageCache';
+import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
+import { ehDownloadStore } from '../services/EhDownloadStore';
 import {
   SettingEntry,
 } from '../services/EhSettingsStore';
@@ -44,7 +47,7 @@ import {
   uiSwitchWidth,
   uiPageHorizontalPadding,
 } from '../shared/EhUiStyle';
-import { SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, settingsPanelTitle, settingsRowsForPanel, settingEntryValue } from '../shared/EhShared';
+import { SettingsHeaderItem, SettingsRowItem, SettingsPanel, SETTINGS_HEADERS, uiText, uiValue, settingsPanelTitle, settingsRowsForPanel, settingEntryValue, getAbilityContext, downloadSizeText } from '../shared/EhShared';
 import { AppSubToolbar, AppToolbar } from './NavigationComponents';
 import {
   EH_WEB_COMPATIBILITY_SCRIPTS,
@@ -61,9 +64,6 @@ import {
   settingsSliderDisplayText,
   settingsRowRenderKey,
 } from './SettingsSupport';
-
-
-
 
 @Component
 export struct SettingsHomePanel {
@@ -260,11 +260,18 @@ export struct SettingsTextBlock {
 
 @Component
 export struct SettingsDetailPanel {
-  @Prop panel: SettingsPanel = SettingsPanel.Eh;
+  @Prop @Watch('onPanelChanged') panel: SettingsPanel = SettingsPanel.Eh;
   @Prop signedIn: boolean = false;
-  @Prop themeName: string = 'Light';
-  @Prop renderRevision: number = 0;
-  @Prop settingEntries: SettingEntry[] = [];
+  @Prop @Watch('rebuildSettingsRows') themeName: string = 'Light';
+  @Prop @Watch('onRenderRevisionChanged') renderRevision: number = 0;
+  @Prop @Watch('onSettingEntriesChanged') settingEntries: SettingEntry[] = [];
+  @State rows: SettingsRowItem[] = [];
+  private readerCacheSizeText: string = '...';
+  private downloadRedundancyText: string = '...';
+  private statisticsDownloadLocation: string = 'App files';
+  private statisticsRequestId: number = 0;
+  private statisticsTimer: number = -1;
+  private mounted: boolean = false;
   onBack: () => void = () => {};
   onOpenSession: () => void = () => {};
   onSignOut: () => void = () => {};
@@ -278,6 +285,10 @@ export struct SettingsDetailPanel {
   private settingsScroller: Scroller = new Scroller();
 
   aboutToAppear(): void {
+    this.mounted = true;
+    this.statisticsDownloadLocation = settingEntryValue(this.settingEntries, 'download_location', 'App files');
+    this.rebuildSettingsRows();
+    this.scheduleStorageStatistics();
     const offset = Math.max(0, this.initialScrollOffset);
     if (offset > 0) {
       setTimeout(() => {
@@ -286,21 +297,98 @@ export struct SettingsDetailPanel {
     }
   }
 
+  aboutToDisappear(): void {
+    this.mounted = false;
+    this.cancelStorageStatistics();
+  }
+
+  private rebuildSettingsRows(): void {
+    this.rows = settingsRowsForPanel(this.panel, this.themeName, this.settingEntries,
+      this.readerCacheSizeText, this.downloadRedundancyText);
+  }
+
+  private onPanelChanged(): void {
+    this.rebuildSettingsRows();
+    this.scheduleStorageStatistics();
+  }
+
+  private onSettingEntriesChanged(): void {
+    const location = settingEntryValue(this.settingEntries, 'download_location', 'App files');
+    if (location !== this.statisticsDownloadLocation) {
+      this.statisticsDownloadLocation = location;
+      this.downloadRedundancyText = '...';
+      if (this.panel === SettingsPanel.Download) {
+        this.scheduleStorageStatistics();
+      }
+    }
+    this.rebuildSettingsRows();
+  }
+
+  private onRenderRevisionChanged(): void {
+    this.rebuildSettingsRows();
+    this.scheduleStorageStatistics();
+  }
+
+  private cancelStorageStatistics(): void {
+    this.statisticsRequestId++;
+    if (this.statisticsTimer >= 0) {
+      clearTimeout(this.statisticsTimer);
+      this.statisticsTimer = -1;
+    }
+  }
+
+  private scheduleStorageStatistics(): void {
+    this.cancelStorageStatistics();
+    if (!this.mounted || (this.panel !== SettingsPanel.Advanced && this.panel !== SettingsPanel.Download)) {
+      return;
+    }
+    const requestId = this.statisticsRequestId;
+    // Let the page transition finish; actual directory I/O is asynchronous, not deferred sync work.
+    this.statisticsTimer = setTimeout(() => {
+      this.statisticsTimer = -1;
+      this.refreshStorageStatistics(requestId).catch(() => {});
+    }, 320);
+  }
+
+  private async refreshStorageStatistics(requestId: number): Promise<void> {
+    const context = getAbilityContext();
+    if (context === undefined || !this.mounted || requestId !== this.statisticsRequestId) {
+      return;
+    }
+    const panel = this.panel;
+    let bytes = 0;
+    if (panel === SettingsPanel.Advanced) {
+      bytes = (await readerImageCache.sizeAsync(context)).bytes;
+    } else if (panel === SettingsPanel.Download) {
+      await ehDownloadStore.ensureLoaded(context);
+      if (!this.mounted || requestId !== this.statisticsRequestId || panel !== this.panel) return;
+      const keepGids = ehDownloadStore.getGalleryIds();
+      bytes = (await ehDownloadFileStore.scanRedundantDirectoriesAsync(context, keepGids)).bytes;
+    } else {
+      return;
+    }
+    if (!this.mounted || requestId !== this.statisticsRequestId || panel !== this.panel) {
+      return;
+    }
+    if (panel === SettingsPanel.Advanced) {
+      this.readerCacheSizeText = downloadSizeText(bytes);
+    } else {
+      this.downloadRedundancyText = downloadSizeText(bytes);
+    }
+    this.rebuildSettingsRows();
+  }
+
   private totalBarHeight(): number {
     return this.getUIContext().px2vp(this.statusBarHeightPx) + uiAdaptiveToolbarHeight(this.contentWidth);
   }
 
-  private settingsRows(): SettingsRowItem[] {
-    return settingsRowsForPanel(this.panel, this.themeName, this.settingEntries);
-  }
-
   private isFirstSettingsRow(index: number): boolean {
-    const rows = this.settingsRows();
+    const rows = this.rows;
     return index === 0 || rows[index - 1].type === 'section';
   }
 
   private isLastSettingsRow(index: number): boolean {
-    const rows = this.settingsRows();
+    const rows = this.rows;
     return index === rows.length - 1 || rows[index + 1].type === 'section';
   }
 
@@ -337,7 +425,7 @@ export struct SettingsDetailPanel {
             })
           }
           .reuseId('settings-signout-action')
-          ForEach(this.settingsRows(), (row: SettingsRowItem, index: number) => {
+          ForEach(this.rows, (row: SettingsRowItem, index: number) => {
             ListItem() {
               SettingsStaticRow({
                 row: row,
@@ -363,7 +451,7 @@ export struct SettingsDetailPanel {
             .reuseId('settings-static-row')
           }, (row: SettingsRowItem) => settingsRowRenderKey(row))
         } else {
-          ForEach(this.settingsRows(), (row: SettingsRowItem, index: number) => {
+          ForEach(this.rows, (row: SettingsRowItem, index: number) => {
             ListItem() {
               SettingsStaticRow({
                 row: row,
@@ -418,7 +506,6 @@ export struct SettingsDetailPanel {
     .backgroundColor(themePageBackground())
   }
 }
-
 
 @Component
 export struct SettingsOptionPanel {

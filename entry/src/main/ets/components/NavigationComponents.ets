@@ -93,7 +93,7 @@ export struct EhDrawer {
     this.unsubscribeDownloadStore();
     this.unsubscribeDownloadStore = ehDownloadStore.subscribe((items: DownloadInfo[]) => {
       this.downloadSummary = downloadQueueSummary(items);
-    });
+    }, () => {});
     const ctx = getAbilityContext();
     if (ctx !== undefined) {
       ehDownloadStore.load(ctx).catch(() => {});

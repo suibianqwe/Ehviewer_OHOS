@@ -44,6 +44,24 @@ export interface DownloadLabel {
 
 type DownloadStoreListener = (items: DownloadInfo[], labels: DownloadLabel[]) => void;
 
+export interface DownloadProgress {
+  gid: number;
+  finished: number;
+  downloaded: number;
+  total: number;
+  speed: number;
+  remaining: number;
+  fileSize: number;
+  archiveUri: string;
+}
+
+type DownloadProgressListener = (updates: DownloadProgress[]) => void;
+
+interface DownloadStoreSubscription {
+  listener: DownloadStoreListener;
+  onProgress?: DownloadProgressListener;
+}
+
 interface StoredDownloadInfo {
   gid?: number;
   token?: string;
@@ -94,18 +112,21 @@ export class EhDownloadStore {
   private labels: DownloadLabel[] = [];
   private loaded: boolean = false;
   private loadPromise: Promise<void> | null = null;
-  private listeners: DownloadStoreListener[] = [];
+  private listeners: DownloadStoreSubscription[] = [];
+  private pendingProgress: Map<number, DownloadInfo> = new Map();
+  private cachedItemIndexes: Map<number, number> = new Map();
   private notifyTimer: number = -1;
   private saveRevision: number = 0;
   private savePromise: Promise<void> | null = null;
 
-  subscribe(listener: DownloadStoreListener): () => void {
-    this.listeners.push(listener);
+  subscribe(listener: DownloadStoreListener, onProgress?: DownloadProgressListener): () => void {
+    const subscription: DownloadStoreSubscription = { listener: listener, onProgress: onProgress };
+    this.listeners.push(subscription);
     listener(this.getItems(), this.getLabels());
     return () => {
-      const next: DownloadStoreListener[] = [];
+      const next: DownloadStoreSubscription[] = [];
       for (let i = 0; i < this.listeners.length; i++) {
-        if (this.listeners[i] !== listener) {
+        if (this.listeners[i] !== subscription) {
           next.push(this.listeners[i]);
         }
       }
@@ -115,6 +136,10 @@ export class EhDownloadStore {
 
   getItems(): DownloadInfo[] {
     return cloneDownloadInfos(this.items);
+  }
+
+  getGalleryIds(): number[] {
+    return this.items.map((item: DownloadInfo) => item.gid);
   }
 
   getLabels(): DownloadLabel[] {
@@ -291,7 +316,7 @@ export class EhDownloadStore {
     item.finished = finished;
     item.downloaded = downloaded;
     item.total = total;
-    this.scheduleNotifyChanged();
+    this.scheduleNotifyChanged(item);
   }
 
   setTransfer(gid: number, speed: number, remaining: number): void {
@@ -307,7 +332,7 @@ export class EhDownloadStore {
     }
     item.speed = normalizedSpeed;
     item.remaining = normalizedRemaining;
-    this.scheduleNotifyChanged();
+    this.scheduleNotifyChanged(item);
   }
 
   setStorage(gid: number, archiveUri: string, fileSize: number): void {
@@ -321,7 +346,7 @@ export class EhDownloadStore {
     }
     item.archiveUri = archiveUri;
     item.fileSize = fileSize;
-    this.scheduleNotifyChanged();
+    this.scheduleNotifyChanged(item);
   }
 
   setLabel(gid: number, label: string): void {
@@ -517,19 +542,20 @@ export class EhDownloadStore {
     this.notifyChanged();
   }
 
-  async load(context: common.UIAbilityContext): Promise<void> {
+  load(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
     if (this.loadPromise !== null) {
-      await this.loadPromise;
-      return;
+      return this.loadPromise;
     }
-    this.loadPromise = this.loadNow(context);
-    try {
-      await this.loadPromise;
+    const pending = this.loadNow(context).then(() => {
       this.loaded = true;
-    } finally {
-      this.loadPromise = null;
-    }
+    }).finally(() => {
+      if (this.loadPromise === pending) {
+        this.loadPromise = null;
+      }
+    });
+    this.loadPromise = pending;
+    return pending;
   }
 
   async ensureLoaded(context: common.UIAbilityContext): Promise<void> {
@@ -571,21 +597,20 @@ export class EhDownloadStore {
     }
   }
 
-  async save(context: common.UIAbilityContext): Promise<void> {
+  save(context: common.UIAbilityContext): Promise<void> {
     this.saveRevision++;
-    if (this.savePromise === null) {
-      this.savePromise = this.saveLatest(context);
+    if (this.savePromise !== null) {
+      return this.savePromise;
     }
-    const pending = this.savePromise;
-    try {
-      await pending;
-    } catch (error) {
+    const pending = this.saveLatest(context).catch((error: Error) => {
       throw new Error(String(error));
-    } finally {
+    }).finally(() => {
       if (this.savePromise === pending) {
         this.savePromise = null;
       }
-    }
+    });
+    this.savePromise = pending;
+    return pending;
   }
 
   private async saveLatest(context: common.UIAbilityContext): Promise<void> {
@@ -624,8 +649,13 @@ export class EhDownloadStore {
   }
 
   private findIndex(gid: number): number {
+    const cached = this.cachedItemIndexes.get(gid);
+    if (cached !== undefined && cached < this.items.length && this.items[cached].gid === gid) {
+      return cached;
+    }
     for (let i = 0; i < this.items.length; i++) {
       if (this.items[i].gid === gid) {
+        this.cachedItemIndexes.set(gid, i);
         return i;
       }
     }
@@ -633,20 +663,23 @@ export class EhDownloadStore {
   }
 
   private notifyChanged(): void {
+    this.cachedItemIndexes.clear();
     if (this.notifyTimer >= 0) {
       clearTimeout(this.notifyTimer);
       this.notifyTimer = -1;
     }
+    this.pendingProgress.clear();
     this.emitChanged();
   }
 
-  private scheduleNotifyChanged(): void {
+  private scheduleNotifyChanged(item: DownloadInfo): void {
+    this.pendingProgress.set(item.gid, item);
     if (this.notifyTimer >= 0) {
       return;
     }
     this.notifyTimer = setTimeout(() => {
       this.notifyTimer = -1;
-      this.emitChanged();
+      this.emitProgress();
     }, DOWNLOAD_NOTIFY_DEBOUNCE_MS) as number;
   }
 
@@ -655,7 +688,30 @@ export class EhDownloadStore {
     const items = this.getItems();
     const labels = this.getLabels();
     for (let i = 0; i < this.listeners.length; i++) {
-      this.listeners[i](items, labels);
+      this.listeners[i].listener(items, labels);
+    }
+  }
+
+  private emitProgress(): void {
+    const updates: DownloadProgress[] = [];
+    this.pendingProgress.forEach((item: DownloadInfo) => {
+      updates.push({ gid: item.gid, finished: item.finished, downloaded: item.downloaded, total: item.total,
+        speed: item.speed, remaining: item.remaining, fileSize: item.fileSize, archiveUri: item.archiveUri });
+    });
+    this.pendingProgress.clear();
+    let legacyItems: DownloadInfo[] | undefined = undefined;
+    let legacyLabels: DownloadLabel[] = [];
+    for (const subscription of this.listeners) {
+      if (subscription.onProgress !== undefined) {
+        subscription.onProgress(updates);
+      } else {
+        // Preserve the existing API for consumers that require full snapshots.
+        if (legacyItems === undefined) {
+          legacyItems = this.getItems();
+          legacyLabels = this.getLabels();
+        }
+        subscription.listener(legacyItems, legacyLabels);
+      }
     }
   }
 }

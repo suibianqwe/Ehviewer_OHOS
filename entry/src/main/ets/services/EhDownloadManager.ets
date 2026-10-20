@@ -10,6 +10,7 @@ import { ehDownloadFileStore } from './EhDownloadFileStore';
 import { DownloadInfo, DownloadState, ehDownloadStore } from './EhDownloadStore';
 import { EhHttpClient } from './EhHttpClient';
 import { galleryPageCache } from './GalleryPageCache';
+import { readerPageSourceGuard } from './ReaderPageSourceGuard';
 import { GalleryDetail, GalleryPage, GallerySite } from '../model/GalleryModels';
 import {
   cloneGalleryDetail,
@@ -374,8 +375,12 @@ export class EhDownloadManager {
       let finished = 0;
       let fileSize = ehDownloadFileStore.directorySizeByPath(downloadDirectory);
       for (let i = 0; i < detail.previewSet.length; i++) {
-        if (ehDownloadFileStore.findPageImage(context, detail, i, downloadDirectory).length > 0) {
+        const path = ehDownloadFileStore.findPageImage(context, detail, i, downloadDirectory);
+        if (path.length > 0 && !await readerPageSourceGuard.isPreview(context, path, detail.previewSet[i],
+          detail.previewSet, detailResult.url)) {
           finished++;
+        } else if (path.length > 0) {
+          fileSize -= ehDownloadFileStore.statFileSize(path);
         }
       }
       if (finished > 0) {
@@ -474,8 +479,9 @@ export class EhDownloadManager {
 
       const pageIndex = pageIndexes[orderIndex];
       const preview = detail.previewSet[pageIndex];
-      if (preview.pageUrl.length === 0 ||
-        ehDownloadFileStore.findPageImage(context, detail, pageIndex, downloadDirectory).length > 0) {
+      const existingPath = ehDownloadFileStore.findPageImage(context, detail, pageIndex, downloadDirectory);
+      if (preview.pageUrl.length === 0 || (existingPath.length > 0 &&
+        !await readerPageSourceGuard.isPreview(context, existingPath, preview, detail.previewSet, detailUrl))) {
         continue;
       }
 
@@ -488,8 +494,13 @@ export class EhDownloadManager {
           return;
         }
         const downloaded = await this.downloadPageWithRetry(context, item, detail, detailUrl, pageIndex, total, state);
-        const savedPath = ehDownloadFileStore.savePageImage(context, detail, downloaded.page, pageIndex,
-          downloaded.cachedPath, downloadDirectory);
+        const savedPath = existingPath.length > 0 ?
+          await readerPageSourceGuard.repairDownload(existingPath, downloaded.cachedPath) :
+          ehDownloadFileStore.savePageImage(context, detail, downloaded.page, pageIndex,
+            downloaded.cachedPath, downloadDirectory);
+        if (existingPath.length > 0 && savedPath === downloaded.cachedPath) {
+          throw new Error('Unable to repair downloaded page; original retained');
+        }
         state.fileSize += ehDownloadFileStore.statFileSize(savedPath);
         state.finished++;
         state.averagePageBytes = state.finished > 0 ? Math.max(1, Math.round(state.fileSize / state.finished)) :
@@ -609,6 +620,10 @@ export class EhDownloadManager {
       galleryPageCache.remove(preview.pageUrl);
     }
     let page = forceReloadPage ? null : galleryPageCache.get(preview.pageUrl);
+    if (page !== null && page.imageUrl === preview.imageUrl) {
+      galleryPageCache.remove(preview.pageUrl);
+      page = null;
+    }
     if (page === null) {
       const referer = readerPageReferer(detailUrl, detail.previewSet, pageIndex, currentGallerySite());
       const pageResult = previousPage !== null && previousPage.skipHathKey.length > 0 ?
@@ -635,7 +650,12 @@ export class EhDownloadManager {
     }
 
     const cacheKey = readerPageImageCacheKey(page, page.originImageUrl.length > 0 && imageUrl === page.originImageUrl);
-    const existingCachedPath = readerImageCache.getCachedPath(context, imageUrl, cacheKey);
+    let existingCachedPath = readerImageCache.getCachedPath(context, imageUrl, cacheKey);
+    if (existingCachedPath.length > 0 && await readerPageSourceGuard.isPreview(context, existingCachedPath,
+      preview, detail.previewSet, detailUrl)) {
+      readerImageCache.removeCached(context, imageUrl, cacheKey);
+      existingCachedPath = '';
+    }
     let lastProgressBytes = 0;
     const onProgress = (progress: ImageDownloadProgress): void => {
       const receivedBytes = Math.max(0, progress.receivedBytes);
@@ -651,6 +671,9 @@ export class EhDownloadManager {
       } catch (error) {
         throw new DownloadImageError(String(error), page);
       }
+    }
+    if (await readerPageSourceGuard.isPreview(context, cachedPath, preview, detail.previewSet, detailUrl)) {
+      throw new DownloadImageError('Server returned a preview instead of a full page', page);
     }
     const downloadedBytes = Math.max(readerImageCache.cachedSize(context, imageUrl, cacheKey), lastProgressBytes);
     if (downloadedBytes > lastProgressBytes) {
@@ -778,8 +801,8 @@ export class EhDownloadManager {
   }
 
   private async stopBackgroundTask(context: common.UIAbilityContext): Promise<void> {
-    const recovery = this.backgroundRecoveryPromise;
-    if (recovery !== null) {
+    if (this.backgroundRecoveryPromise !== null) {
+      const recovery: Promise<void> = this.backgroundRecoveryPromise;
       await recovery;
     }
     if (!this.backgroundRunning) {
@@ -939,8 +962,8 @@ export class EhDownloadManager {
       }
       await wait(500);
     }
-    const recovery = this.backgroundRecoveryPromise;
-    if (recovery !== null) {
+    if (this.backgroundRecoveryPromise !== null) {
+      const recovery: Promise<void> = this.backgroundRecoveryPromise;
       await recovery;
     }
   }

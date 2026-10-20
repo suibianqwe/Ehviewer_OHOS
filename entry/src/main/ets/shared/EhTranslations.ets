@@ -328,6 +328,12 @@ function simplifiedUiStatusText(text: string): string {
   if (text.indexOf('My Tags save failed: ') === 0) {
     return '我的标签保存失败：' + text.substring('My Tags save failed: '.length);
   }
+  if (text.indexOf('Tag subscription failed: ') === 0) {
+    return '标签订阅未完成：' + uiText(text.substring('Tag subscription failed: '.length));
+  }
+  if (text.indexOf('Account tag blocking failed: ') === 0) {
+    return '账号标签屏蔽未完成：' + uiText(text.substring('Account tag blocking failed: '.length));
+  }
   if (text === 'Running network diagnostics...') {
     return '正在运行网络诊断...';
   }
@@ -1019,6 +1025,9 @@ export function zhText(text: string): string {
     case 'Filter': return '过滤';
     case 'Comment blacklist': return '评论黑名单';
     case 'Remote storage': return '远程存储';
+    case 'Remote storage save failed': return '远程存储配置保存失败，请重试';
+    case 'Remote storage load failed': return '远程存储配置读取失败，请重试';
+    case 'Remote storage remove failed': return '远程存储配置删除失败，请重试';
     case 'No remote storage profiles': return '还没有远程存储配置';
     case 'Add a WebDAV server to back up or sync app data': return '添加一个 WebDAV 服务器来备份或同步应用数据';
     case 'Add remote storage': return '添加远程存储';
@@ -1200,6 +1209,18 @@ export function zhText(text: string): string {
       case 'Show Tagged Galleries': return '显示含此标签的画廊';
       case 'Show Tag Definition': return '显示标签定义';
       case 'Copy Tag': return '复制标签';
+      case 'Subscribe to Tag': return '订阅标签';
+      case 'Block Tag on Account': return '屏蔽标签（账号）';
+      case 'Filter Tag Locally': return '本地过滤标签';
+      case 'Updating account tag...': return '正在更新账号标签...';
+      case 'Blocking tag on account...': return '正在屏蔽账号标签...';
+      case 'Tag blocked on account': return '账号标签已屏蔽';
+      case 'Tag already blocked on account': return '该标签已在账号中屏蔽';
+      case 'Cannot confirm tag blocking': return '未能确认屏蔽结果，请在我的标签中检查';
+      case 'Subscribing to tag...': return '正在订阅标签...';
+      case 'Tag subscribed': return '标签已订阅';
+      case 'Tag already subscribed': return '该标签已订阅';
+      case 'Cannot confirm tag subscription': return '未能确认订阅结果，请在我的标签中检查';
       case 'Block Tag Locally': return '本地屏蔽标签';
       case 'Block this tag locally?': return '将此标签添加到本地屏蔽项？';
       case 'Block': return '屏蔽';
@@ -1345,6 +1366,20 @@ export function zhText(text: string): string {
     case 'Select statuses to display': return '选择要显示的下载状态';
     case 'Current status filter': return '当前状态筛选';
     case 'Sort': return '排序';
+    case 'GID asc': return '画廊 ID 从小到大';
+    case 'GID desc': return '画廊 ID 从大到小';
+    case 'Time asc': return '添加时间从旧到新';
+    case 'Time desc': return '添加时间从新到旧';
+    case 'Author asc': return '作者名称升序';
+    case 'Author desc': return '作者名称降序';
+    case 'Name asc': return '标题升序';
+    case 'Name desc': return '标题降序';
+    case 'Rating asc': return '评分从低到高';
+    case 'Rating desc': return '评分从高到低';
+    case 'Size asc': return '文件大小从小到大';
+    case 'Size desc': return '文件大小从大到小';
+    case 'Author sorting uses artist tags; unknown authors are placed last.':
+      return '作者排序使用 artist 标签；没有作者信息的条目排在末尾。';
     case 'Selected': return '已选择';
     case 'Sign in': return '登录';
     case 'Sign out': return '退出登录';
@@ -1432,10 +1467,6 @@ export function zhText(text: string): string {
     case 'Thumb': return '缩略图';
     case 'Extended': return '扩展';
     case 'Auto': return '自动';
-    case 'Low': return '弱';
-    case 'High': return '强';
-    case 'Moiré reduction': return '去除摩尔纹';
-    case 'Reduce screentone interference patterns while scaling reader pages': return '缩放阅读页时减轻网点产生的干涉条纹';
     case 'HTTP': return 'HTTP';
     case 'SOCKS': return 'SOCKS';
     case 'Read cache size': return '阅读缓存大小';
@@ -1923,6 +1954,15 @@ export function zhText(text: string): string {
     case 'Comment vote requires gallery API key': return '评论投票需要画廊 API 密钥';
     case 'Comment is not voteable': return '该评论不可投票';
     case 'Comment vote submitted': return '评论投票已提交';
+    case 'Write comment': return '写评论';
+    case 'Write a comment...': return '写下你的评论……';
+    case 'Comments are public': return '评论将公开发布';
+    case 'Post comment': return '发表评论';
+    case 'Posting comment...': return '正在发表……';
+    case 'Comment posted': return '评论已发表';
+    case 'Enter a comment first': return '请先输入评论内容';
+    case 'Comment submission could not be confirmed. Check the comments before sending again.':
+      return '无法确认评论是否已发表，请先检查评论列表再决定是否重新发送。';
     case 'Invalid comment vote response': return '评论投票响应无效';
     case 'Torrent URL is unavailable': return '种子 URL 不可用';
     case 'Invalid H@H resolution': return '无效的 H@H 分辨率';

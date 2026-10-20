@@ -1,10 +1,12 @@
+import { image } from '@kit.ImageKit';
 import { GalleryCategory, GalleryInfo, GallerySite } from '../model/GalleryModels';
+import { DecodedGalleryThumbnail, GalleryThumbnailLease } from '../services/GalleryThumbnailDecodeCache';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { GALLERY_STATUS_REVISION_KEY, galleryStatusStore } from '../services/GalleryStatusStore';
 import { remoteStorageDownloadDeletionService } from '../services/RemoteStorageDownloadDeletionService';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import {
-  cacheThumbnailImage,
+  acquireThumbnailImage,
   categoryColor,
   categoryDisplayName,
   createEmptyGallery,
@@ -553,53 +555,119 @@ export struct GalleryThumb {
   radiusValue: number = 4;
   onImageAspectRatio: (aspectRatio: number) => void = (_aspectRatio: number) => {};
 
-  @State localUrl: string = '';
+  @State thumbnailSource: string | image.PixelMap = '';
   @State loadFailed: boolean = false;
   private cachedUrl: string = '';
   private imageRetryCount: number = 0;
+  private thumbnailLease: GalleryThumbnailLease | null = null;
+  private thumbnailRequest: number = 0;
+  private retryTimer: number = -1;
+  private mounted: boolean = false;
 
   aboutToAppear(): void {
-    if (this.url.length > 0) {
-      this.cacheThumb();
-    } else {
-      this.loadFailed = true;
-    }
+    this.mounted = true;
+    this.cacheThumb();
+  }
+
+  aboutToDisappear(): void {
+    this.mounted = false;
+    this.releaseThumbnail();
   }
 
   onUrlChange(): void {
-    if (this.url.length > 0) {
+    if (this.mounted) {
       this.cacheThumb();
-    } else {
-      this.cachedUrl = '';
-      this.localUrl = '';
-      this.loadFailed = true;
+    }
+  }
+
+  private releaseThumbnail(): void {
+    this.thumbnailRequest++;
+    if (this.retryTimer !== -1) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = -1;
+    }
+    this.thumbnailSource = '';
+    if (this.thumbnailLease !== null) {
+      this.thumbnailLease.release();
+      this.thumbnailLease = null;
     }
   }
 
   private cacheThumb(): void {
-    if (this.cachedUrl === this.url && (this.localUrl.length > 0 || this.loadFailed)) {
+    if (this.cachedUrl === this.url && this.thumbnailLease !== null) {
       return;
     }
     const urlChanged = this.cachedUrl !== this.url;
+    this.releaseThumbnail();
     this.cachedUrl = this.url;
     if (urlChanged) {
       this.imageRetryCount = 0;
     }
-    this.localUrl = '';
-    this.loadFailed = false;
-    cacheThumbnailImage(this.url, (path: string) => {
-      if (this.cachedUrl !== this.url) {
-        return;
-      }
-      this.localUrl = readerLocalImageSource(path);
-      this.loadFailed = false;
-    }, () => {
-      if (this.cachedUrl !== this.url) {
-        return;
-      }
-      this.localUrl = '';
-      this.loadFailed = true;
+    const url = this.url;
+    this.loadFailed = url.length === 0;
+    if (this.loadFailed) {
+      return;
+    }
+    const request = this.thumbnailRequest;
+    const lease = acquireThumbnailImage(url);
+    this.thumbnailLease = lease;
+    if (lease.ready !== null) {
+      // A warmed cover can appear immediately, without a file decode or the old
+      // global 48 ms per-thumbnail delivery queue.
+      this.applyThumbnail(lease.ready, url, request);
+      return;
+    }
+    lease.pending.then((result: DecodedGalleryThumbnail | null) => {
+      this.applyThumbnail(result, url, request);
     });
+  }
+
+  private applyThumbnail(result: DecodedGalleryThumbnail | null, url: string, request: number): void {
+    if (!this.mounted || request !== this.thumbnailRequest || url !== this.url) {
+      return;
+    }
+    this.loadFailed = result === null;
+    if (result !== null) {
+      this.thumbnailSource = result.pixelMap === undefined ? readerLocalImageSource(result.path) : result.pixelMap;
+      // Metadata updates are deferred even on memory-cache hits, never from build.
+      this.reportThumbnailAspectRatio(result.width, result.height, url, request);
+    }
+  }
+
+  private reportThumbnailAspectRatio(width: number, height: number, url: string, request: number): void {
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    const aspectRatio = normalizedThumbnailAspectRatio(width, height);
+    rememberGalleryThumbAspectRatio(url, aspectRatio);
+    setTimeout(() => {
+      if (this.mounted && request === this.thumbnailRequest && url === this.url) {
+        this.onImageAspectRatio(aspectRatio);
+      }
+    }, 0);
+  }
+
+  private onThumbnailError(): void {
+    const request = this.thumbnailRequest;
+    if (this.retryTimer !== -1) {
+      return;
+    }
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = -1;
+      if (!this.mounted || request !== this.thumbnailRequest) {
+        return;
+      }
+      if (this.thumbnailLease !== null) {
+        this.thumbnailLease.invalidate();
+      }
+      if (this.imageRetryCount < 2 && this.url.length > 0) {
+        this.imageRetryCount++;
+        this.releaseThumbnail();
+        this.cacheThumb();
+      } else {
+        this.loadFailed = true;
+      }
+    }, 120) as number;
   }
 
   private hasSiteMismatch(): boolean {
@@ -621,7 +689,11 @@ export struct GalleryThumb {
       return;
     }
     if (this.url.length > 0) {
-      this.cachedUrl = '';
+      this.imageRetryCount = 0;
+      if (this.thumbnailLease !== null) {
+        this.thumbnailLease.invalidate();
+      }
+      this.releaseThumbnail();
       this.cacheThumb();
     }
   }
@@ -652,37 +724,21 @@ export struct GalleryThumb {
         .onClick(() => {
           this.handleLoadErrorTap();
         })
-      } else if (this.localUrl.length > 0) {
-        Image(this.localUrl)
+      } else if (this.thumbnailSource !== '') {
+        Image(this.thumbnailSource)
           .width('100%')
           .height('100%')
           .objectFit(ImageFit.Cover)
-          // 图源已由异步下载缓存为本地缩略图，同步加载可在屏外布局时完成解码。
-          .syncLoad(true)
+          // Static covers already hold decoded pixels; format/animation fallbacks
+          // must also avoid synchronous decoding in the scrolling layout pass.
+          .syncLoad(false)
           .borderRadius(uiControlRadius(this.radiusValue))
           .onComplete((event?: GalleryImageCompleteEvent) => {
-            if (event === undefined || event.width <= 0 || event.height <= 0) {
-              return;
-            }
-            const aspectRatio = normalizedThumbnailAspectRatio(event.width, event.height);
-            GALLERY_THUMB_ASPECT_RATIO_CACHE.set(this.url, aspectRatio);
-            // Parsed gallery metadata is the layout contract. The callback is only
-            // needed for legacy entries whose metadata did not contain dimensions.
-            this.onImageAspectRatio(aspectRatio);
-          })
-          .onError(() => {
-            if (this.imageRetryCount < 2 && this.url.length > 0) {
-              this.imageRetryCount++;
-              this.cachedUrl = this.url;
-              this.localUrl = '';
-              this.loadFailed = false;
-              setTimeout(() => {
-                this.cacheThumb();
-              }, 120);
-            } else {
-              this.loadFailed = true;
+            if (event !== undefined && event.loadingStatus === 0) {
+              this.reportThumbnailAspectRatio(event.width, event.height, this.url, this.thumbnailRequest);
             }
           })
+          .onError(() => this.onThumbnailError())
       } else {
         LoadingProgress()
           .width(32)

@@ -5,7 +5,6 @@ import {
 } from './ReaderSuperResolutionSupport';
 import {
   cloneReaderImageAdjustmentSettings,
-  normalizeReaderMoireReduction,
   ReaderImageAdjustmentSettings,
   readerImageAdjustmentSettingsFromStore,
   saveReaderImageAdjustmentSettings
@@ -436,8 +435,6 @@ function parseStoredImageAdjustment(value: ReaderImageAdjustmentSettings | undef
   }
   const result = new ReaderImageAdjustmentSettings();
   result.enabled = value.enabled === true;
-  result.moireReduction = normalizeReaderMoireReduction(
-    typeof value.moireReduction === 'string' ? value.moireReduction : 'Off');
   result.contrast = storedNumber(value.contrast, -100, 100);
   result.clarity = storedNumber(value.clarity, 0, 100);
   result.sharpening = storedNumber(value.sharpening, 0, 100);

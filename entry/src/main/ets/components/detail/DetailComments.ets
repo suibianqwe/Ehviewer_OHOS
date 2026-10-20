@@ -2,6 +2,7 @@ import { GalleryComment } from '../../model/GalleryModels';
 import { uiText } from '../../shared/EhShared';
 import { themeAccentTextColor, themePrimaryText, themeSecondaryText, themeSurface } from '../../shared/EhTheme';
 import { GalleryCommentRow } from './CommentComponents';
+import { uiCapsuleButtonBackground, uiRadius } from '../../shared/EhUiStyle';
 import {
   COMMENT_BLACKLIST_REVISION_KEY,
   ehCommentBlacklistStore
@@ -50,11 +51,21 @@ export struct DetailComments {
             .fontSize(13)
             .fontColor(themeSecondaryText())
         }
+        if (this.isDetailLoaded) {
+          Button(uiText('Write comment'), { type: ButtonType.Capsule, stateEffect: true })
+            .height(34)
+            .fontSize(13)
+            .fontColor(themeAccentTextColor())
+            .backgroundColor(uiCapsuleButtonBackground())
+            .borderRadius(uiRadius(17))
+            .margin({ left: 10 })
+            .onClick(() => this.onComments())
+        }
       }
       .width('100%')
       .margin({ bottom: 10 })
       .onClick(() => {
-        if (this.isDetailLoaded && this.visibleCommentItems.length > 0) {
+        if (this.isDetailLoaded) {
           this.onComments();
         }
       })

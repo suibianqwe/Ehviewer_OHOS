@@ -86,7 +86,9 @@ test('large ArkTS units cannot grow without an explicit budget review', () => {
     ['entry/src/main/ets/components/GalleryListSupport.ets', 500],
     ['entry/src/main/ets/components/GalleryBookmarkScenes.ets', 750],
     ['entry/src/main/ets/components/GalleryOverlayComponents.ets', 550],
-    ['entry/src/main/ets/components/DownloadScene.ets', 2900],
+    // Projection/filter/key caching and task lifecycle live in DownloadListProjection;
+    // allow only the small amount of scene wiring, not the processing implementation.
+    ['entry/src/main/ets/components/DownloadScene.ets', 2930],
     ['entry/src/main/ets/components/DownloadComponents.ets', 750],
     ['entry/src/main/ets/shared/EhShared.ets', 2600],
     ['entry/src/main/ets/shared/EhTranslations.ets', 2100],
@@ -228,8 +230,10 @@ test('daily check-in uses a cookie-backed background Web and keeps the foregroun
   assert.match(index,
     /prepareDailyCheckInWebCookies\(\)[\s\S]*loadEhWebUrlWithAndroidCompatibility\(this\.dailyCheckInWebController, EhUrl\.getNewsUrl\(\)\)/,
     'saved cookies must be synchronized before news.php is loaded');
-  assert.match(index, /syncCookieHeaderToWebView\(EhUrl\.HOST_E, cookieHeader, false\)/);
-  assert.match(index, /captureEhAccountWebCookies\(url\)[\s\S]*ehCookieStore\.save\(context\)/,
+  assert.match(index, /await syncCookieHeaderToWebView\(EhUrl\.HOST_E, cookieHeader, false, false\)/);
+  assert.match(index, /await webview.WebCookieManager.saveCookieAsync\(\)/);
+  assert.doesNotMatch(index, /saveCookieSync\(|configCookieSync\(/);
+  assert.match(index, /await captureEhAccountWebCookies\(url,[\s\S]*ehCookieStore\.save\(context\)/,
     'cookies updated by ArkWeb must be persisted back to the app session');
   assert.match(index,
     /if \(result\.event !== null\)[\s\S]*this\.dailyCheckInDialogVisible = true/,

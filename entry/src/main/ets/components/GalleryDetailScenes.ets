@@ -60,6 +60,11 @@ export struct GalleryDetailOverlayScene {
   @Prop renderVersion: number = 0;
   @Prop showInfo: boolean = false;
   @Prop showComments: boolean = false;
+  @Prop commentDraft: string = '';
+  @Prop commentPosting: boolean = false;
+  @Prop commentPostStatus: string = '';
+  onCommentDraftChange: (value: string) => void = (_value: string) => {};
+  onPostComment: () => void = () => {};
   @Prop detail: GalleryDetail = createEmptyDetail();
   @Prop isDetailLoaded: boolean = false;
   @Prop isFavorited: boolean = false;
@@ -107,6 +112,8 @@ export struct GalleryDetailOverlayScene {
   onVoteTag: (fullTag: string, vote: number) => void = (_fullTag: string, _vote: number) => {};
   onAddTag: (fullTag: string) => void = (_fullTag: string) => {};
   onCopyTag: (fullTag: string) => void = (_fullTag: string) => {};
+  onSubscribeTag: (fullTag: string) => void = (_fullTag: string) => {};
+  onHideTag: (fullTag: string) => void = (_fullTag: string) => {};
   onBlockTag: (fullTag: string) => void = (_fullTag: string) => {};
   onShowTagDefinition: (fullTag: string) => void = (_fullTag: string) => {};
   @StorageProp(STATUS_BAR_HEIGHT_KEY) statusBarHeightPx: number = 0;
@@ -165,6 +172,8 @@ export struct GalleryDetailOverlayScene {
         onVoteTag: this.onVoteTag,
         onAddTag: this.onAddTag,
         onCopyTag: this.onCopyTag,
+        onSubscribeTag: this.onSubscribeTag,
+        onHideTag: this.onHideTag,
         onBlockTag: this.onBlockTag,
         onShowTagDefinition: this.onShowTagDefinition
       })
@@ -185,6 +194,11 @@ export struct GalleryDetailOverlayScene {
       if (this.showComments) {
         CommentsScene({
           renderVersion: this.renderVersion,
+          commentDraft: this.commentDraft,
+          commentPosting: this.commentPosting,
+          commentPostStatus: this.commentPostStatus,
+          onCommentDraftChange: this.onCommentDraftChange,
+          onPostComment: this.onPostComment,
           comments: this.detail.comments,
           galleryTitle: galleryDisplayTitle(this.detail),
           onBack: this.onCloseComments,
@@ -254,6 +268,8 @@ export struct GalleryDetailScene {
   onBlockTag: (fullTag: string) => void = (_fullTag: string) => {};
   onShowTagDefinition: (fullTag: string) => void = (_fullTag: string) => {};
   private detailScroller: Scroller = new Scroller();
+  onSubscribeTag: (fullTag: string) => void = (_fullTag: string) => {};
+  onHideTag: (fullTag: string) => void = (_fullTag: string) => {};
   @State showRatingDialog: boolean = false;
   @State pendingRating: number = 0;
   @State ratingPopupWidth: number = 0;
@@ -424,6 +440,18 @@ export struct GalleryDetailScene {
     const fullTag = this.tagVoteTarget.fullTag;
     this.tagVotePanelVisible = false;
     this.onBlockTag(fullTag);
+  }
+
+  private subscribeTag(): void {
+    const fullTag = this.tagVoteTarget.fullTag;
+    this.tagVotePanelVisible = false;
+    this.onSubscribeTag(fullTag);
+  }
+
+  private hideTag(): void {
+    const fullTag = this.tagVoteTarget.fullTag;
+    this.tagVotePanelVisible = false;
+    this.onHideTag(fullTag);
   }
 
   private startDetailPullRefresh(): void {
@@ -649,6 +677,12 @@ export struct GalleryDetailScene {
           onCopyTag: () => {
             this.copyTag();
           },
+          onSubscribeTag: () => {
+            this.subscribeTag();
+          },
+          onHideTag: () => {
+            this.hideTag();
+          },
           onBlockTag: () => {
             this.blockTag();
           }
@@ -691,6 +725,8 @@ struct TagVoteOverlay {
   onShowTaggedGalleries: () => void = () => {};
   onShowTagDefinition: () => void = () => {};
   onCopyTag: () => void = () => {};
+  onSubscribeTag: () => void = () => {};
+  onHideTag: () => void = () => {};
   onBlockTag: () => void = () => {};
 
   private translatedTitle(): string {
@@ -788,8 +824,21 @@ struct TagVoteOverlay {
             onTap: this.onCopyTag
           })
           TagSettingsRow({
+            symbolIcon: $r('sys.symbol.star'),
+            label: 'Subscribe to Tag',
+            navigation: true,
+            onTap: this.onSubscribeTag
+          })
+          TagSettingsRow({
             symbolIcon: $r('sys.symbol.xmark_circle'),
-            label: 'Block Tag Locally',
+            label: 'Block Tag on Account',
+            navigation: true,
+            danger: true,
+            onTap: this.onHideTag
+          })
+          TagSettingsRow({
+            symbolIcon: $r('sys.symbol.xmark_circle'),
+            label: 'Filter Tag Locally',
             navigation: true,
             danger: true,
             lastInGroup: !this.confirmingBlock,

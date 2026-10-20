@@ -6,8 +6,11 @@ import { EhHttpClient, GalleryDetailLoadResult, GalleryPageLoadResult } from '..
 import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
 import { ehDownloadStore } from '../services/EhDownloadStore';
 import { cloudGalleryPageService } from '../services/CloudGalleryPageService';
+import { readerCloudPageWithFallback } from '../services/ReaderLoadingRecovery';
+import { readerImageRequestControl } from '../services/ReaderImageRequestControl';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { galleryPageCache } from '../services/GalleryPageCache';
+import { cloudReaderImageKey, readerPageSourceGuard } from '../services/ReaderPageSourceGuard';
 import {
   createReaderSessionState,
   readerSessionStore,
@@ -34,6 +37,7 @@ import {
   saveGalleryReadPosition
 } from '../shared/EhShared';
 import { ReaderPageState, ReaderScene } from './ReaderScenes';
+import { ReaderSourceImageSize, readReaderSourceImageSize } from './reader/core/ReaderCore';
 
 const READER_IMAGE_SERVER_ATTEMPT_LIMIT: number = 5;
 
@@ -70,6 +74,9 @@ export struct ReaderSessionScene {
   private readerPreloadRevision: number = 0;
   private readerSceneActive: boolean = false;
   private readerSettingsReady: boolean = false;
+  private readerImageWindowOwner: number = readerImageRequestControl.createOwner();
+  private readerVisiblePageIndexes: number[] = [];
+  private downloadedImageSizes: Map<string, Promise<ReaderSourceImageSize>> = new Map();
 
   aboutToAppear(): void {
     this.readerSceneActive = true;
@@ -109,6 +116,7 @@ export struct ReaderSessionScene {
     this.readerPreviewPageRequests.clear();
     this.readerPageLoadRequests.clear();
     this.readerImageRecoveryRequests.clear();
+    this.downloadedImageSizes.clear();
     this.readerPreviewPageSize = 0;
     this.readerTranslationLoads = [];
     this.readerTranslationLoadPriorities.clear();
@@ -122,6 +130,7 @@ export struct ReaderSessionScene {
     this.site = session.site;
     const usesSavedPosition = session.pageIndex < 0;
     this.pageIndex = usesSavedPosition ? readerStartIndex(this.detail) : session.pageIndex;
+    this.updateReaderImageWindow([this.pageIndex]);
     this.seedReaderPreviewCache(this.detail.previewSet);
     this.readerPages = this.cloneSessionReaderPages(session.pages);
     const restoredPage = this.restoredPageForIndex(session.page, this.pageIndex);
@@ -156,13 +165,17 @@ export struct ReaderSessionScene {
         }
       }).catch(() => {
         this.cacheReaderImage(restoredIndex, restoredPage);
+      }).finally(() => {
+        if (this.readerSceneActive && this.pageIndex === restoredIndex) {
+          this.preloadReaderPages(restoredIndex);
+        }
       });
-      this.preloadReaderPages(this.pageIndex);
     }
   }
 
   aboutToDisappear(): void {
     this.readerSceneActive = false;
+    readerImageRequestControl.clear(this.readerImageWindowOwner);
     this.readerPreloadRevision++;
     cancelQueuedReaderImageRequests();
     this.cancelReaderTranslationScope();
@@ -193,9 +206,12 @@ export struct ReaderSessionScene {
     return getAbilityContext();
   }
 
-  private loadReaderPage(preview: GalleryPreview): void {
+  private async loadReaderPage(preview: GalleryPreview): Promise<void> {
+    const galleryId = this.detail.gid;
     this.readerPreviewMap.set(preview.index, preview);
     this.pageIndex = preview.index;
+    this.updateReaderImageWindowForIndex(preview.index);
+    this.readerPreloadRevision++;
     saveGalleryReadPosition(this.detail.gid, preview.index, this.detail);
     this.statusText = 'Loading page ' + (preview.index + 1).toString() + '...';
     this.page = createReaderLoadingPage(preview.pageUrl);
@@ -204,33 +220,41 @@ export struct ReaderSessionScene {
     if (this.comicTranslationActive) {
       this.requestReaderTranslationWindow(false);
     }
-    this.preloadReaderPages(preview.index);
-
-    if (this.tryUseDownloadedPage(preview.index, preview)) {
+    if (await this.tryUseDownloadedPage(preview.index, preview)) {
+      this.preloadReaderPages(this.pageIndex);
       this.persistSession();
+      return;
+    }
+    if (!this.readerSceneActive || this.detail.gid !== galleryId) {
       return;
     }
 
     // 仅云端画廊：先按页从云端取图，云端失败再走原有的页面解析与网络回退。
     this.tryUseCloudPage(preview.index).then((used: boolean) => {
-      if (!this.readerSceneActive) {
+      if (!this.readerSceneActive || this.detail.gid !== galleryId) {
         return;
       }
       if (used) {
         if (this.pageIndex === preview.index) {
           this.persistSession();
         }
+        this.preloadReaderPages(this.pageIndex);
         return;
       }
       this.continueLoadReaderPage(preview);
+      this.preloadReaderPages(this.pageIndex);
     }).catch(() => {
-      if (this.readerSceneActive) {
+      if (this.readerSceneActive && this.detail.gid === galleryId) {
         this.continueLoadReaderPage(preview);
+        this.preloadReaderPages(this.pageIndex);
       }
     });
   }
 
   private continueLoadReaderPage(preview: GalleryPreview): void {
+    if (!this.isReaderPageWanted(preview.index)) {
+      return;
+    }
     if (preview.pageUrl.length === 0 || preview.pageUrl.indexOf('ehviewer://') === 0) {
       this.statusText = 'Preview has no page URL';
       this.renderVersion++;
@@ -238,12 +262,18 @@ export struct ReaderSessionScene {
       return;
     }
 
-    const cached = galleryPageCache.get(preview.pageUrl);
+    let cached = galleryPageCache.get(preview.pageUrl);
+    if (cached !== null && cached.imageUrl === preview.imageUrl) {
+      galleryPageCache.remove(preview.pageUrl);
+      cached = null;
+    }
     if (cached !== null) {
       this.statusText = 'Page loaded from cache';
-      this.page = cloneGalleryPage(cached);
       this.setReaderPage(preview.index, cached);
-      this.renderVersion++;
+      if (this.pageIndex === preview.index) {
+        this.page = cloneGalleryPage(cached);
+        this.renderVersion++;
+      }
       this.cacheReaderImage(preview.index, cached);
       this.persistSession();
       return;
@@ -251,6 +281,9 @@ export struct ReaderSessionScene {
 
     this.requestReaderPage(preview)
       .then((result: GalleryPageLoadResult) => {
+        if (!this.isReaderPageWanted(preview.index)) {
+          return;
+        }
         if (!result.ok || result.page === null) {
           this.statusText = 'Page load failed: ' + result.message;
           this.renderVersion++;
@@ -279,7 +312,7 @@ export struct ReaderSessionScene {
   }
 
   private cacheReaderImage(index: number, page: GalleryPage): Promise<void> {
-    if (!this.readerSceneActive) {
+    if (!this.isReaderPageWanted(index)) {
       return Promise.resolve();
     }
     const requestKey = index.toString() + ':' + page.pageUrl + ':' + page.imageUrl;
@@ -311,15 +344,21 @@ export struct ReaderSessionScene {
     let lastError = '';
 
     for (let attempt = 0; attempt < READER_IMAGE_SERVER_ATTEMPT_LIMIT; attempt++) {
+      if (!this.isReaderPageWanted(index)) {
+        return;
+      }
       let ready = false;
       lastError = '';
       await cacheReaderImageForPage(current, (cachedPage: GalleryPage) => {
         ready = true;
-        this.applyCachedReaderPage(index, cachedPage, page.pageUrl);
+        if (this.readerSceneActive && this.detail.gid === galleryId) {
+          this.applyCachedReaderPage(index, cachedPage, page.pageUrl);
+        }
       }, this.detail, index, this.readerContext(), (message: string) => {
         lastError = message;
-      }, IMAGE_DOWNLOAD_PRIORITY_READER, { retryLimit: 1 });
-      if (ready || !this.readerSceneActive || this.detail.gid !== galleryId) {
+      }, IMAGE_DOWNLOAD_PRIORITY_READER, { retryLimit: 1, readerPageUrl: current.pageUrl });
+      if (ready || !this.isReaderPageWanted(index) || this.detail.gid !== galleryId ||
+        lastError.indexOf('Reader image request cancelled') >= 0) {
         return;
       }
 
@@ -334,7 +373,7 @@ export struct ReaderSessionScene {
         break;
       }
       const result = await this.client.skipHathAndReloadPage(reloadUrl, skipKey, this.site, referer);
-      if (!this.readerSceneActive || this.detail.gid !== galleryId || !result.ok || result.page === null) {
+      if (!this.isReaderPageWanted(index) || this.detail.gid !== galleryId || !result.ok || result.page === null) {
         if (!result.ok && result.message.length > 0) {
           lastError = result.message;
         }
@@ -371,8 +410,10 @@ export struct ReaderSessionScene {
     }
   }
 
-  private tryUseDownloadedPage(index: number, preview: GalleryPreview): boolean {
+  private async tryUseDownloadedPage(index: number, preview: GalleryPreview): Promise<boolean> {
     const context = this.readerContext();
+    const galleryId = this.detail.gid;
+    const revision = this.loadedSessionRevision;
     if (context === undefined) {
       return false;
     }
@@ -380,15 +421,25 @@ export struct ReaderSessionScene {
     if (path.length <= 0) {
       return false;
     }
+    if (await readerPageSourceGuard.isPreview(context, path, preview, this.detail.previewSet,
+      this.detailRequestUrl) || !this.readerSceneActive || this.detail.gid !== galleryId) {
+      return false;
+    }
+    // Imported books have no useful preview dimensions. Decide the local spread
+    // from headers before publishing pixels, rather than rendering a single page
+    // and replacing its Image subtree once onComplete discovers the second page.
+    await this.prepareDownloadedSpreadSizes(context, index, path);
+    if (!this.readerSceneActive || this.detail.gid !== galleryId || this.loadedSessionRevision !== revision) {
+      return false;
+    }
     const page: GalleryPage = {
       pageUrl: preview.pageUrl,
-      imageUrl: preview.imageUrl,
+      imageUrl: '',
       skipHathKey: '',
       originImageUrl: '',
       showKey: '',
       cachedImagePath: path
     };
-    galleryPageCache.put(preview.pageUrl, page);
     this.setReaderPage(index, page);
     if (this.pageIndex === index) {
       this.statusText = 'Page loaded from downloads';
@@ -398,7 +449,58 @@ export struct ReaderSessionScene {
     return true;
   }
 
-  private tryUseCloudPage(index: number): Promise<boolean> {
+  private async prepareDownloadedSpreadSizes(context: common.UIAbilityContext, index: number,
+    path: string): Promise<void> {
+    if (ehSettingsStore.getValue('adaptive_dual_page', 'Off') !== 'On') {
+      return;
+    }
+    const galleryId = this.detail.gid;
+    const revision = this.loadedSessionRevision;
+    const indexes: number[] = [index];
+    const paths: string[] = [path];
+    if (index + 1 < this.readerTotalPages()) {
+      const nextPath = ehDownloadFileStore.findPageImage(context, this.detail, index + 1);
+      if (nextPath.length > 0) {
+        indexes.push(index + 1);
+        paths.push(nextPath);
+      }
+    }
+    const requests: Promise<ReaderSourceImageSize>[] = [];
+    for (const sourcePath of paths) {
+      let request = this.downloadedImageSizes.get(sourcePath);
+      if (request === undefined) {
+        request = readReaderSourceImageSize(sourcePath);
+        this.downloadedImageSizes.set(sourcePath, request);
+      }
+      requests.push(request);
+    }
+    const sizes = await Promise.all(requests);
+    if (!this.readerSceneActive || this.detail.gid !== galleryId || this.loadedSessionRevision !== revision) {
+      return;
+    }
+    const previews = cloneGalleryPreviews(this.detail.previewSet);
+    let changed = false;
+    for (let i = 0; i < sizes.length; i++) {
+      if (sizes[i].width <= 0 || sizes[i].height <= 0) {
+        this.downloadedImageSizes.delete(paths[i]);
+        continue;
+      }
+      const preview = previews.find((value: GalleryPreview) => value.index === indexes[i]);
+      if (preview !== undefined && (preview.width !== sizes[i].width || preview.height !== sizes[i].height)) {
+        preview.width = sizes[i].width;
+        preview.height = sizes[i].height;
+        changed = true;
+      }
+    }
+    if (changed) {
+      const detail = cloneGalleryDetail(this.detail);
+      detail.previewSet = previews;
+      this.detail = detail;
+      this.seedReaderPreviewCache(previews);
+    }
+  }
+
+  private async tryUseCloudPage(index: number): Promise<boolean> {
     const context = this.readerContext();
     const galleryId = this.detail.gid;
     if (context === undefined || galleryId <= 0 || !cloudGalleryPageService.hasDownloadsProfile() ||
@@ -411,20 +513,33 @@ export struct ReaderSessionScene {
     const preview = this.readerPreviewForIndex(index);
     const page: GalleryPage = {
       pageUrl: preview === null ? '' : preview.pageUrl,
-      imageUrl: preview === null ? '' : preview.imageUrl,
+      imageUrl: '',
       skipHathKey: '',
       originImageUrl: '',
       showKey: '',
       cachedImagePath: ''
     };
-    const imageKey = page.imageUrl.length > 0 ? page.imageUrl :
-      'ehviewer://cloud/' + galleryId.toString() + '/' + index.toString();
-    const cacheKey = readerPageImageCacheKey(page, false);
+    const imageKey = cloudReaderImageKey(galleryId, index);
+    const cacheKey = imageKey;
     const existing = readerImageCache.getCachedPath(context, imageKey, cacheKey);
     if (existing.length > 0) {
+      if (await readerPageSourceGuard.isPreview(context, existing, preview === null ? undefined : preview,
+        this.detail.previewSet, this.detailRequestUrl)) {
+        return false;
+      }
+      if (!this.readerSceneActive || this.detail.gid !== galleryId) {
+        return false;
+      }
       return Promise.resolve(this.applyCloudPage(index, page, existing));
     }
-    return cloudGalleryPageService.fetchPage(context, this.detail, index, imageKey, cacheKey).then((path: string) => {
+    const cloud = cloudGalleryPageService.fetchPage(context, this.detail, index, imageKey, cacheKey,
+      () => this.isReaderPageWanted(index));
+    const timeoutMs = preview !== null && /^https?:\/\//i.test(preview.pageUrl) ? 3000 : 0;
+    return readerCloudPageWithFallback(cloud, timeoutMs).then(async (path: string) => {
+      if (await readerPageSourceGuard.isPreview(context, path, preview === null ? undefined : preview,
+        this.detail.previewSet, this.detailRequestUrl)) {
+        return false;
+      }
       if (path.length === 0 || !this.readerSceneActive || this.detail.gid !== galleryId) {
         return false;
       }
@@ -474,6 +589,9 @@ export struct ReaderSessionScene {
   }
 
   private async preloadReaderPage(index: number, galleryId: number): Promise<void> {
+    if (!this.isReaderPageWanted(index)) {
+      return;
+    }
     const context = this.readerContext();
     if (context !== undefined && galleryId === this.detail.gid &&
       cloudGalleryPageService.hasDownloadsProfile() && ehDownloadStore.contains(galleryId) &&
@@ -482,17 +600,27 @@ export struct ReaderSessionScene {
         return;
       }
     }
-    const preview = await this.ensureReaderPreview(index, true);
-    if (!this.readerSceneActive || galleryId !== this.detail.gid || preview === null || preview.pageUrl.length === 0) {
+    if (!this.isReaderPageWanted(index)) {
       return;
     }
-    if (this.tryUseDownloadedPage(index, preview)) {
+    const preview = await this.ensureReaderPreview(index, true);
+    if (!this.isReaderPageWanted(index) || galleryId !== this.detail.gid || preview === null || preview.pageUrl.length === 0) {
+      return;
+    }
+    if (await this.tryUseDownloadedPage(index, preview)) {
+      return;
+    }
+    if (!this.isReaderPageWanted(index) || galleryId !== this.detail.gid) {
       return;
     }
     if (preview.pageUrl.indexOf('ehviewer://') === 0) {
       return;
     }
-    const cached = galleryPageCache.get(preview.pageUrl);
+    let cached = galleryPageCache.get(preview.pageUrl);
+    if (cached !== null && cached.imageUrl === preview.imageUrl) {
+      galleryPageCache.remove(preview.pageUrl);
+      cached = null;
+    }
     if (cached !== null) {
       this.setReaderPage(index, cached);
       await this.cacheReaderImage(index, cached);
@@ -500,7 +628,7 @@ export struct ReaderSessionScene {
     }
     try {
       const result = await this.requestReaderPage(preview);
-      if (!this.readerSceneActive || galleryId !== this.detail.gid || !result.ok || result.page === null) {
+      if (!this.isReaderPageWanted(index) || galleryId !== this.detail.gid || !result.ok || result.page === null) {
         return;
       }
       const cacheUrl = result.page.pageUrl.length > 0 ? result.page.pageUrl : preview.pageUrl;
@@ -514,10 +642,7 @@ export struct ReaderSessionScene {
 
   private async preloadReaderPages(index: number): Promise<void> {
     const revision = ++this.readerPreloadRevision;
-    const configuredCount = readerPreloadCount();
-    const dualPageCount = ehSettingsStore.getValue('adaptive_dual_page', 'Off') === 'On' ?
-      Math.max(1, configuredCount) : configuredCount;
-    const forwardCount = this.comicTranslationActive ? Math.max(2, dualPageCount) : dualPageCount;
+    const forwardCount = this.readerPreloadForwardCount();
     if (forwardCount <= 0) {
       return;
     }
@@ -539,6 +664,52 @@ export struct ReaderSessionScene {
     }
   }
 
+  private readerPreloadForwardCount(): number {
+    const configuredCount = readerPreloadCount();
+    const dualPageCount = ehSettingsStore.getValue('adaptive_dual_page', 'Off') === 'On' ?
+      Math.max(1, configuredCount) : configuredCount;
+    return this.comicTranslationActive ? Math.max(2, dualPageCount) : dualPageCount;
+  }
+
+  private updateReaderImageWindowForIndex(index: number): void {
+    if (this.readerVisiblePageIndexes.indexOf(index) >= 0) {
+      this.updateReaderImageWindow(this.readerVisiblePageIndexes);
+      return;
+    }
+    this.updateReaderImageWindow([index]);
+  }
+
+  private updateReaderImageWindow(visible: number[]): void {
+    if (!this.readerSceneActive || this.detail.gid <= 0 || visible.length === 0) {
+      return;
+    }
+    this.readerVisiblePageIndexes = visible.slice();
+    readerImageRequestControl.update(this.readerImageWindowOwner, this.detail.gid, visible,
+      this.readerPreloadForwardCount());
+    for (const key of Array.from(this.readerImageRecoveryRequests.keys())) {
+      const index = Number.parseInt(key.split(':')[0]);
+      if (!this.isReaderPageWanted(index)) {
+        this.readerImageRecoveryRequests.delete(key);
+      }
+    }
+  }
+
+  private isReaderPageWanted(index: number): boolean {
+    return this.readerSceneActive && readerImageRequestControl.wants(this.readerImageWindowOwner, index);
+  }
+
+  private handleReaderVisiblePagesChange(indexes: number[]): void {
+    const previous = this.readerVisiblePageIndexes;
+    this.updateReaderImageWindow(indexes);
+    // A short continuous page/spread may expose more than its anchor even when
+    // preloading is disabled. These are foreground pages, not speculative work.
+    for (const index of indexes) {
+      if (index !== indexes[0] && previous.indexOf(index) < 0) {
+        this.preloadReaderPage(index, this.detail.gid).catch(() => {});
+      }
+    }
+  }
+
   private loadReaderPageByIndex(index: number): void {
     if (index < 0 || index >= this.readerTotalPages()) {
       return;
@@ -549,6 +720,8 @@ export struct ReaderSessionScene {
       return;
     }
     this.pageIndex = index;
+    this.updateReaderImageWindowForIndex(index);
+    this.readerPreloadRevision++;
     saveGalleryReadPosition(this.detail.gid, index, this.detail);
     this.statusText = 'Resolving page ' + (index + 1).toString() + '...';
     this.page = createReaderLoadingPage('');
@@ -1005,6 +1178,9 @@ export struct ReaderSessionScene {
       },
       onRefreshPage: (index: number) => {
         this.loadReaderPageByIndex(index);
+      },
+      onVisiblePageIndexesChange: (indexes: number[]) => {
+        this.handleReaderVisiblePagesChange(indexes);
       },
       onAdaptiveDualPageChange: (enabled: boolean) => {
         if (enabled) {

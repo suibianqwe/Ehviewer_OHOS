@@ -146,20 +146,26 @@ export function parseRemoteStorageProfiles(raw: string): RemoteStorageProfile[] 
 export class RemoteStorageProfileStore {
   private items: RemoteStorageProfile[] = [];
   private loaded: boolean = false;
-  private context: common.UIAbilityContext | null = null;
+  private loadPromise: Promise<void> | null = null;
+  private mutations: Promise<void> = Promise.resolve();
 
   async ensureLoaded(context: common.UIAbilityContext): Promise<void> {
     if (this.loaded) {
       return;
     }
-    this.context = context;
+    const loading: Promise<void> = this.loadPromise ?? this.loadNow(context);
+    this.loadPromise = loading;
     try {
-      const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
-      const raw = await prefs.get(PROFILES_KEY, '[]');
-      this.items = parseRemoteStorageProfiles(typeof raw === 'string' ? raw : '[]');
-    } catch (error) {
-      this.items = [];
+      await loading;
+    } finally {
+      if (this.loadPromise === loading) this.loadPromise = null;
     }
+  }
+
+  private async loadNow(context: common.UIAbilityContext): Promise<void> {
+    const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
+    const raw = await prefs.get(PROFILES_KEY, '[]');
+    this.items = parseRemoteStorageProfiles(typeof raw === 'string' ? raw : '[]');
     this.loaded = true;
   }
 
@@ -182,14 +188,18 @@ export class RemoteStorageProfileStore {
 
   async upsert(context: common.UIAbilityContext, profile: RemoteStorageProfile,
     recordClear: boolean = true): Promise<RemoteStorageProfile | null> {
+    const snapshot = normalizeRemoteStorageProfile(profile);
+    const operation = this.mutations.then(() => this.upsertNow(context, snapshot, recordClear));
+    this.mutations = operation.then(() => {}, () => {});
+    return operation;
+  }
+
+  private async upsertNow(context: common.UIAbilityContext, profile: RemoteStorageProfile,
+    recordClear: boolean): Promise<RemoteStorageProfile | null> {
     await this.ensureLoaded(context);
-    this.context = context;
     const normalized = normalizeRemoteStorageProfile(profile);
     if (!isValidRemoteStorageUrl(normalized.url)) {
       return null;
-    }
-    if (recordClear) {
-      syncTombstoneStore.recordClear(context, SYNC_SECTION_REMOTE_STORAGE, normalized.id);
     }
     let replaced = false;
     const next: RemoteStorageProfile[] = [];
@@ -207,15 +217,23 @@ export class RemoteStorageProfileStore {
       }
       next.push(normalized);
     }
+    await this.persist(context, next);
     this.items = next;
-    await this.persist();
+    if (recordClear) {
+      syncTombstoneStore.recordClear(context, SYNC_SECTION_REMOTE_STORAGE, normalized.id);
+    }
     this.notifyChanged();
     return normalized;
   }
 
   async remove(context: common.UIAbilityContext, id: string): Promise<boolean> {
+    const operation = this.mutations.then(() => this.removeNow(context, id));
+    this.mutations = operation.then(() => {}, () => {});
+    return operation;
+  }
+
+  private async removeNow(context: common.UIAbilityContext, id: string): Promise<boolean> {
     await this.ensureLoaded(context);
-    this.context = context;
     const next: RemoteStorageProfile[] = [];
     let removed = false;
     for (let i = 0; i < this.items.length; i++) {
@@ -228,23 +246,23 @@ export class RemoteStorageProfileStore {
     if (!removed) {
       return false;
     }
+    await this.persist(context, next);
     this.items = next;
     syncTombstoneStore.recordDeletion(context, SYNC_SECTION_REMOTE_STORAGE, id);
-    await this.persist();
     this.notifyChanged();
     return true;
   }
 
-  private async persist(): Promise<void> {
-    const context = this.context;
-    if (context === null) {
-      return;
-    }
+  private async persist(context: common.UIAbilityContext, profiles: RemoteStorageProfile[]): Promise<void> {
+    const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
+    const previous = await prefs.get(PROFILES_KEY, '[]');
     try {
-      const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
-      await prefs.put(PROFILES_KEY, JSON.stringify(this.items));
+      await prefs.put(PROFILES_KEY, JSON.stringify(profiles));
       await prefs.flush();
     } catch (error) {
+      // put() updates the Preferences cache before flush(); undo it on failure.
+      await prefs.put(PROFILES_KEY, previous);
+      throw new Error('Remote storage save failed');
     }
   }
 

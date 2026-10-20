@@ -41,6 +41,15 @@ export interface GalleryDetail extends GalleryInfo {
   previewSet: GalleryPreview[];
 }
 
+// Immutable request data: preparing a cover must not retain a mutable detail-page component.
+export interface CoverSearchSource {
+  gid: number;
+  site: GallerySite;
+  referer: string;
+  previewPageUrl: string;
+  thumb: string;
+}
+
 export interface GalleryTagGroup {
   namespace: string;
   tags: string[];

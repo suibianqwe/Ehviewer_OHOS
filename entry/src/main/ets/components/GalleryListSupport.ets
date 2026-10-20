@@ -1,6 +1,6 @@
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { image } from '@kit.ImageKit';
-import { GalleryCategory, GalleryDetail, GalleryInfo, GalleryRoute, GallerySite } from '../model/GalleryModels';
+import { CoverSearchSource, GalleryCategory, GalleryDetail, GalleryInfo, GalleryRoute, GallerySite } from '../model/GalleryModels';
 import { DEFAULT_ADVANCE_SEARCH, FavListUrlBuilder, ListMode } from '../services/EhUrl';
 import {
   GalleryDetailLink,
@@ -35,18 +35,22 @@ export const GALLERY_THUMBNAIL_CACHE_COUNT: number = 16;
 export const GALLERY_THUMBNAIL_PREFETCH_BEFORE: number = GALLERY_THUMBNAIL_CACHE_COUNT;
 export const GALLERY_THUMBNAIL_PREFETCH_AFTER: number = GALLERY_THUMBNAIL_CACHE_COUNT + 8;
 
-export function readThumbnailImageSize(path: string): ThumbnailImageSize {
+export async function readThumbnailImageSize(path: string): Promise<ThumbnailImageSize> {
+  let file: fs.File | undefined = undefined;
   let source: image.ImageSource | undefined = undefined;
   try {
-    source = image.createImageSource(path);
-    const info = source.getImageInfoSync();
+    file = await fs.open(path.startsWith('file://') ? path.substring(7) : path, fs.OpenMode.READ_ONLY);
+    source = image.createImageSource(file.fd);
+    const info = await source.getImageInfo();
     return { width: info.size.width, height: info.size.height };
   } catch (error) {
     return { width: 0, height: 0 };
   } finally {
     if (source !== undefined) {
-      source.release().catch(() => {
-      });
+      await source.release().catch(() => {});
+    }
+    if (file !== undefined) {
+      await fs.close(file).catch(() => {});
     }
   }
 }
@@ -99,6 +103,7 @@ export interface SearchResultDraft {
   submitted: boolean;
   sourceRoute: GalleryRoute;
   imagePath: string;
+  coverSearchSource?: CoverSearchSource;
   imageUseSimilarityScan: boolean;
   imageOnlySearchCovers: boolean;
   imageShowExpunged: boolean;
@@ -180,6 +185,7 @@ export function cloneSearchResultDraft(draft: SearchResultDraft): SearchResultDr
     submitted: draft.submitted,
     sourceRoute: draft.sourceRoute,
     imagePath: draft.imagePath,
+    coverSearchSource: draft.coverSearchSource,
     imageUseSimilarityScan: draft.imageUseSimilarityScan,
     imageOnlySearchCovers: draft.imageOnlySearchCovers,
     imageShowExpunged: draft.imageShowExpunged

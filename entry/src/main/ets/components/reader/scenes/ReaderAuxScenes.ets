@@ -1,4 +1,6 @@
 import { GalleryComment } from '../../../model/GalleryModels';
+import { KeyboardAvoidMode } from '@kit.ArkUI';
+import { CommentComposer } from '../../detail/CommentComposer';
 import {
   TRANSLATION_ENABLED_KEY,
   ehTranslationService,
@@ -29,6 +31,11 @@ export struct CommentsScene {
   @Prop renderVersion: number = 0;
   @Prop @Watch('refreshVisibleComments') comments: GalleryComment[] = [];
   @Prop galleryTitle: string = '';
+  @Prop commentDraft: string = '';
+  @Prop commentPosting: boolean = false;
+  @Prop commentPostStatus: string = '';
+  onCommentDraftChange: (value: string) => void = (_value: string) => {};
+  onPostComment: () => void = () => {};
   onBack: () => void = () => {};
   onVoteComment: (comment: GalleryComment, vote: number) => void = (_comment: GalleryComment, _vote: number) => {};
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
@@ -42,9 +49,29 @@ export struct CommentsScene {
   @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
   private commentsScroller: Scroller = new Scroller();
   private toolbarRestoring: boolean = false;
+  private previousKeyboardAvoidMode: KeyboardAvoidMode | null = null;
 
   aboutToAppear(): void {
     this.refreshVisibleComments();
+    try {
+      this.previousKeyboardAvoidMode = this.getUIContext().getKeyboardAvoidMode();
+      // Comments contains a List and an auto-growing TextArea. RESIZE only
+      // reacts to the first keyboard presentation; the caret-aware mode keeps
+      // later line changes visible without repeatedly rebuilding the input
+      // hierarchy (API 14+, compatible SDK 20).
+      this.getUIContext().setKeyboardAvoidMode(KeyboardAvoidMode.RESIZE_WITH_CARET);
+    } catch (_error) {
+      this.previousKeyboardAvoidMode = null;
+    }
+  }
+
+  aboutToDisappear(): void {
+    if (this.previousKeyboardAvoidMode !== null) {
+      try {
+        this.getUIContext().setKeyboardAvoidMode(this.previousKeyboardAvoidMode);
+      } catch (_error) {
+      }
+    }
   }
 
   private translationPriorityFor(index: number): number {
@@ -103,13 +130,14 @@ export struct CommentsScene {
     this.visibleCommentItems = ehCommentBlacklistStore.filterComments(this.comments);
   }
 
-  build() {
+  @Builder
+  private commentsContent() {
     Stack({ alignContent: Alignment.TopStart }) {
       if (this.visibleCommentItems.length === 0) {
         Column() {
           PlaceholderScene({
-            title: 'Comments',
-            detail: 'No comments for this gallery.'
+            title: uiText('Comments'),
+            detail: uiText('No comments')
           })
         }
         .width('100%')
@@ -190,6 +218,28 @@ export struct CommentsScene {
           ehTranslationService.setEnabled(!this.translationEnabled);
         }
       })
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor(themePageBackground())
+  }
+
+  build() {
+    Column() {
+      Column() {
+        this.commentsContent()
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .clip(true)
+      CommentComposer({
+        draft: this.commentDraft,
+        posting: this.commentPosting,
+        status: this.commentPostStatus,
+        onDraftChange: this.onCommentDraftChange,
+        onPost: this.onPostComment
+      })
+      .flexShrink(0)
     }
     .width('100%')
     .height('100%')

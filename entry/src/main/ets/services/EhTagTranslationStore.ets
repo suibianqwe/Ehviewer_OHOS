@@ -1,7 +1,11 @@
 import { common } from '@kit.AbilityKit';
-import { util } from '@kit.ArkTS';
+import { taskpool, util } from '@kit.ArkTS';
+import { EhTagSuggestion, ParsedTagDatabase } from './TagTranslationProcessing';
+import { parseTagTsvTask, prepareTagDatabaseTask } from './TagTranslationTasks';
+import { notifyLanguageChanged } from '../shared/EhTranslations';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { http } from '@kit.NetworkKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { EH_APP_VERSION_NAME } from './EhBuildInfo';
 import {
   applyEhNetworkOptions,
@@ -12,12 +16,7 @@ import {
 } from './EhNetworkConfig';
 import { acquireHttpRequest, markHttpRequestVolatile, retireHttpRequest } from './HttpRequestLifecycle';
 
-export interface EhTagSuggestion {
-  namespace: string;
-  tag: string;
-  translated: string;
-  searchText: string;
-}
+export { EhTagSuggestion } from './TagTranslationProcessing';
 
 export interface EhTagTranslationUpdateResult {
   updated: boolean;
@@ -33,45 +32,6 @@ interface TagDatabaseMetadata {
   sourceUpdatedAt?: number;
   installedAt?: number;
   count?: number;
-}
-
-interface TagDatabaseCommitter {
-  when?: string;
-}
-
-interface TagDatabaseHead {
-  sha?: string;
-  committer?: TagDatabaseCommitter;
-}
-
-interface TagDatabaseTextItem {
-  name?: string;
-}
-
-interface TagDatabaseExample {
-  raw?: string;
-  name?: string;
-}
-
-interface TagDatabaseFrontMatters {
-  example?: TagDatabaseExample;
-}
-
-interface TagDatabaseSection {
-  namespace?: string;
-  frontMatters?: TagDatabaseFrontMatters;
-  data?: Record<string, TagDatabaseTextItem>;
-}
-
-interface TagDatabaseDocument {
-  head?: TagDatabaseHead;
-  data?: TagDatabaseSection[];
-}
-
-interface ParsedTagDatabase {
-  entries: EhTagSuggestion[];
-  sha: string;
-  sourceUpdatedAt: number;
 }
 
 const TAG_TRANSLATION_RAWFILE: string = 'ehtag_translations.tsv';
@@ -90,6 +50,7 @@ const TAG_DATABASE_RESPONSE_LIMIT: number = 8 * 1024 * 1024;
 
 class EhTagTranslationStore {
   private loaded: boolean = false;
+  private pendingLoad: Promise<void> | null = null;
   private entries: EhTagSuggestion[] = [];
   private translations: Map<string, string> = new Map<string, string>();
   private pendingUpdate: Promise<EhTagTranslationUpdateResult> | null = null;
@@ -142,13 +103,13 @@ class EhTagTranslationStore {
 
   private async updateInternal(context: common.UIAbilityContext, onProgress?: EhTagTranslationUpdateProgressCallback):
     Promise<EhTagTranslationUpdateResult> {
+    await this.preload(context);
     const latestSha = (await requestTagDatabaseText(TAG_TRANSLATION_LATEST_SHA_URL, 'text/plain')).trim().toLowerCase();
     if (!isValidSha(latestSha)) {
       throw new Error('invalid database version');
     }
-    const currentSha = this.currentDatabaseSha(context);
+    const currentSha = await this.currentDatabaseSha(context);
     if (currentSha === latestSha) {
-      this.loadFromContext(context);
       return {
         updated: false,
         count: this.entries.length,
@@ -157,10 +118,11 @@ class EhTagTranslationStore {
     }
     this.reportUpdateProgress('downloading', onProgress);
     const body = await requestTagDatabaseText(TAG_TRANSLATION_LATEST_DATA_URL, 'application/json');
-    const parsed = this.parseDatabaseDocument(body, latestSha);
-    this.saveOverride(context, parsed);
+    const parsed = await taskpool.execute(prepareTagDatabaseTask, body, latestSha) as ParsedTagDatabase;
+    const translations = await this.buildTranslationMap(parsed.entries);
+    await this.saveOverride(context, parsed);
     this.entries = parsed.entries;
-    this.rebuildTranslationMap();
+    this.translations = translations;
     this.loaded = true;
     return {
       updated: true,
@@ -178,180 +140,138 @@ class EhTagTranslationStore {
   }
 
   private ensureLoaded(): void {
-    if (this.loaded) {
-      return;
-    }
     const context = AppStorage.get<common.UIAbilityContext>('abilityContext');
-    if (context === undefined) {
-      return;
+    if (!this.loaded && context !== undefined) {
+      this.preload(context).catch(() => {});
     }
-    this.loadFromContext(context);
   }
 
-  private loadFromContext(context: common.UIAbilityContext): void {
+  async preload(context: common.UIAbilityContext): Promise<void> {
     if (this.loaded) {
       return;
     }
-    try {
-      const overridePath = this.usableOverridePath(context);
-      if (overridePath.length > 0) {
-        const overrideEntries = this.parseTsv(fs.readTextSync(overridePath));
-        if (overrideEntries.length >= TAG_DATABASE_MINIMUM_ENTRY_COUNT) {
-          this.entries = overrideEntries;
-          this.rebuildTranslationMap();
-          this.loaded = true;
-          return;
-        }
-      }
-      const data = context.resourceManager.getRawFileContentSync(TAG_TRANSLATION_RAWFILE);
-      const decoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
-      this.entries = this.parseTsv(decoder.decodeToString(data, { stream: false }));
-      this.rebuildTranslationMap();
-    } catch (error) {
-      this.entries = [];
-      this.translations = new Map<string, string>();
+    if (this.pendingLoad !== null) {
+      return this.pendingLoad;
     }
+    const startedAt = Date.now();
+    const pending = this.loadFromContext(context).then(() => {
+      hilog.info(0x3210, 'TagDatabase', 'Loaded tags=%{public}d elapsedMs=%{public}d',
+        this.entries.length, Date.now() - startedAt);
+      notifyLanguageChanged();
+    });
+    this.pendingLoad = pending;
+    try {
+      await pending;
+    } finally {
+      if (this.pendingLoad === pending) {
+        this.pendingLoad = null;
+      }
+    }
+  }
+
+  private async loadFromContext(context: common.UIAbilityContext): Promise<void> {
+    let entries: EhTagSuggestion[] = [];
+    const override = await this.usableOverridePath(context);
+    if (override.length > 0) {
+      try {
+        entries = await taskpool.execute(parseTagTsvTask, await fs.readText(override)) as EhTagSuggestion[];
+      } catch (_error) {
+      }
+    }
+    if (entries.length < TAG_DATABASE_MINIMUM_ENTRY_COUNT) {
+      const data = await context.resourceManager.getRawFileContent(TAG_TRANSLATION_RAWFILE);
+      const decoder = util.TextDecoder.create('utf-8', { ignoreBOM: true });
+      entries = await taskpool.execute(parseTagTsvTask,
+        decoder.decodeToString(data, { stream: false })) as EhTagSuggestion[];
+    }
+    const translations = await this.buildTranslationMap(entries);
+    this.entries = entries;
+    this.translations = translations;
     this.loaded = true;
   }
 
-  private currentDatabaseSha(context: common.UIAbilityContext): string {
-    const metadata = this.readMetadata(context);
-    if (this.isOverrideNewEnough(context, metadata) && typeof metadata.sha === 'string') {
-      return metadata.sha.toLowerCase();
-    }
-    return BUNDLED_DATABASE_SHA;
+  private async currentDatabaseSha(context: common.UIAbilityContext): Promise<string> {
+    const metadata = await this.readMetadata(context);
+    return await this.isOverrideNewEnough(context, metadata) && typeof metadata.sha === 'string' ?
+      metadata.sha.toLowerCase() : BUNDLED_DATABASE_SHA;
   }
 
-  private usableOverridePath(context: common.UIAbilityContext): string {
-    const metadata = this.readMetadata(context);
-    if (!this.isOverrideNewEnough(context, metadata)) {
-      return '';
-    }
-    return this.overridePath(context);
+  private async usableOverridePath(context: common.UIAbilityContext): Promise<string> {
+    return await this.isOverrideNewEnough(context, await this.readMetadata(context)) ? this.overridePath(context) : '';
   }
 
-  private isOverrideNewEnough(context: common.UIAbilityContext, metadata: TagDatabaseMetadata): boolean {
-    if (typeof metadata.sha !== 'string' || !isValidSha(metadata.sha)) {
+  private async isOverrideNewEnough(context: common.UIAbilityContext, metadata: TagDatabaseMetadata): Promise<boolean> {
+    if (typeof metadata.sha !== 'string' || !isValidSha(metadata.sha) ||
+      typeof metadata.sourceUpdatedAt !== 'number' || metadata.sourceUpdatedAt < BUNDLED_DATABASE_SOURCE_UPDATED_AT) {
       return false;
     }
-    if (typeof metadata.sourceUpdatedAt !== 'number' ||
-      metadata.sourceUpdatedAt < BUNDLED_DATABASE_SOURCE_UPDATED_AT) {
-      return false;
-    }
-    return exists(this.overridePath(context));
-  }
-
-  private readMetadata(context: common.UIAbilityContext): TagDatabaseMetadata {
     try {
-      const path = this.metadataPath(context);
-      if (!exists(path)) {
-        return {};
-      }
-      return JSON.parse(fs.readTextSync(path)) as TagDatabaseMetadata;
-    } catch (error) {
+      return await fs.access(this.overridePath(context));
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  private async readMetadata(context: common.UIAbilityContext): Promise<TagDatabaseMetadata> {
+    try {
+      return JSON.parse(await fs.readText(this.metadataPath(context))) as TagDatabaseMetadata;
+    } catch (_error) {
       return {};
     }
   }
 
-  private parseDatabaseDocument(body: string, expectedSha: string): ParsedTagDatabase {
-    let document: TagDatabaseDocument;
-    try {
-      document = JSON.parse(body) as TagDatabaseDocument;
-    } catch (error) {
-      throw new Error('invalid database JSON');
-    }
-    const actualSha = document.head !== undefined && typeof document.head.sha === 'string' ?
-      document.head.sha.trim().toLowerCase() : '';
-    if (!isValidSha(actualSha) || actualSha !== expectedSha) {
-      throw new Error('database version mismatch');
-    }
-    if (document.data === undefined || !Array.isArray(document.data)) {
-      throw new Error('database has no tag data');
-    }
-    const sections = document.data;
-    sections.sort((left: TagDatabaseSection, right: TagDatabaseSection): number => {
-      const leftName = typeof left.namespace === 'string' ? left.namespace : '';
-      const rightName = typeof right.namespace === 'string' ? right.namespace : '';
-      return leftName < rightName ? -1 : leftName > rightName ? 1 : 0;
-    });
-    const entries: EhTagSuggestion[] = [];
-    for (let i = 0; i < sections.length; i++) {
-      this.appendDatabaseSection(entries, sections[i]);
-    }
-    if (entries.length < TAG_DATABASE_MINIMUM_ENTRY_COUNT) {
-      throw new Error('database contains too few tags');
-    }
-    const when = document.head !== undefined && document.head.committer !== undefined &&
-      typeof document.head.committer.when === 'string' ? Date.parse(document.head.committer.when) : Number.NaN;
-    return {
-      entries: entries,
-      sha: actualSha,
-      sourceUpdatedAt: Number.isNaN(when) ? Date.now() : when
-    };
-  }
 
-  private appendDatabaseSection(target: EhTagSuggestion[], section: TagDatabaseSection): void {
-    const namespace = typeof section.namespace === 'string' ? cleanDatabaseField(section.namespace).toLowerCase() : '';
-    if (namespace.length === 0) {
-      return;
-    }
-    if (section.frontMatters !== undefined && section.frontMatters.example !== undefined) {
-      const example = section.frontMatters.example;
-      this.appendDatabaseEntry(target, namespace,
-        typeof example.raw === 'string' ? example.raw : '',
-        typeof example.name === 'string' ? example.name : '');
-    }
-    if (section.data === undefined) {
-      return;
-    }
-    const keys = Object.keys(section.data);
-    keys.sort();
-    for (let i = 0; i < keys.length; i++) {
-      const item = section.data[keys[i]];
-      this.appendDatabaseEntry(target, namespace, keys[i],
-        item !== undefined && typeof item.name === 'string' ? item.name : '');
-    }
-  }
 
-  private appendDatabaseEntry(target: EhTagSuggestion[], namespace: string, rawTag: string, name: string): void {
-    const tag = cleanDatabaseField(rawTag);
-    const translated = cleanDatabaseField(name);
-    if (tag.length === 0 || translated.length === 0) {
-      return;
-    }
-    const fullTag = namespace + ':' + tag;
-    target.push({
-      namespace: namespace,
-      tag: fullTag,
-      translated: translated,
-      searchText: (fullTag + ' ' + tag + ' ' + translated).toLowerCase()
-    });
-  }
 
-  private saveOverride(context: common.UIAbilityContext, parsed: ParsedTagDatabase): void {
+  private async saveOverride(context: common.UIAbilityContext, parsed: ParsedTagDatabase): Promise<void> {
     const directory = this.databaseDirectory(context);
-    ensureDirectory(directory);
+    try {
+      await fs.mkdir(directory, true);
+    } catch (error) {
+      if (!await fs.access(directory)) {
+        throw new Error('create database directory failed: ' + String(error));
+      }
+    }
     const overridePath = this.overridePath(context);
     const metadataPath = this.metadataPath(context);
     const overrideTempPath = overridePath + '.tmp';
     const metadataTempPath = metadataPath + '.tmp';
-    removeFileQuietly(overrideTempPath);
-    removeFileQuietly(metadataTempPath);
+    const backupPath = overridePath + '.backup';
+    let hasBackup = false;
+    let replaced = false;
+    let preserveBackup = false;
     try {
-      writeTextFile(overrideTempPath, serializeTsv(parsed.entries));
-      const metadata: TagDatabaseMetadata = {
-        sha: parsed.sha,
-        sourceUpdatedAt: parsed.sourceUpdatedAt,
-        installedAt: Date.now(),
-        count: parsed.entries.length
-      };
-      writeTextFile(metadataTempPath, JSON.stringify(metadata));
-      replaceFile(overrideTempPath, overridePath);
-      replaceFile(metadataTempPath, metadataPath);
+      await writeTextFile(overrideTempPath, parsed.tsv);
+      const metadata: TagDatabaseMetadata = { sha: parsed.sha, sourceUpdatedAt: parsed.sourceUpdatedAt,
+        installedAt: Date.now(), count: parsed.entries.length };
+      await writeTextFile(metadataTempPath, JSON.stringify(metadata));
+      if (await fs.access(overridePath)) {
+        await fs.copyFile(overridePath, backupPath);
+        hasBackup = true;
+      }
+      await fs.rename(overrideTempPath, overridePath);
+      replaced = true;
+      await fs.rename(metadataTempPath, metadataPath);
     } catch (error) {
-      removeFileQuietly(overrideTempPath);
-      removeFileQuietly(metadataTempPath);
-      throw new Error('database save failed: ' + errorMessage(error as Object));
+      if (replaced) {
+        if (hasBackup) {
+          try {
+            await fs.rename(backupPath, overridePath);
+          } catch (rollbackError) {
+            preserveBackup = true;
+            throw new Error('database rollback failed; previous database preserved at backup: ' + String(rollbackError));
+          }
+        } else {
+          await removeFileQuietly(overridePath);
+        }
+      }
+      throw new Error('database save failed: ' + String(error));
+    } finally {
+      await removeFileQuietly(overrideTempPath);
+      await removeFileQuietly(metadataTempPath);
+      if (!preserveBackup) {
+        await removeFileQuietly(backupPath);
+      }
     }
   }
 
@@ -367,35 +287,16 @@ class EhTagTranslationStore {
     return this.databaseDirectory(context) + '/' + TAG_TRANSLATION_METADATA_FILE;
   }
 
-  private parseTsv(text: string): EhTagSuggestion[] {
-    const next: EhTagSuggestion[] = [];
-    const lines = text.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (line.length === 0) {
-        continue;
+
+  private async buildTranslationMap(entries: EhTagSuggestion[]): Promise<Map<string, string>> {
+    const next: Map<string, string> = new Map<string, string>();
+    for (let i = 0; i < entries.length; i++) {
+      next.set(entries[i].tag.toLowerCase(), entries[i].translated);
+      if ((i + 1) % 512 === 0) {
+        await new Promise<void>((resolve: () => void) => { setTimeout(resolve, 0); });
       }
-      const parts = line.split('\t');
-      if (parts.length < 4 || parts[0].length === 0 || parts[1].length === 0 || parts[2].length === 0) {
-        continue;
-      }
-      next.push({
-        namespace: parts[0],
-        tag: parts[1],
-        translated: parts[2],
-        searchText: parts[3]
-      });
     }
     return next;
-  }
-
-  private rebuildTranslationMap(): void {
-    const next: Map<string, string> = new Map<string, string>();
-    for (let i = 0; i < this.entries.length; i++) {
-      const entry = this.entries[i];
-      next.set(entry.tag.toLowerCase(), entry.translated);
-    }
-    this.translations = next;
   }
 }
 
@@ -478,75 +379,25 @@ function normalizeFullTag(namespace: string, tag: string): string {
   return normalizedNamespace.length === 0 ? normalizedTag : normalizedNamespace + ':' + normalizedTag;
 }
 
-function cleanDatabaseField(value: string): string {
-  return value.replace(/\t/g, ' ').replace(/\r/g, ' ').replace(/\n/g, ' ').trim();
-}
 
-function serializeTsv(entries: EhTagSuggestion[]): string {
-  const lines: string[] = [];
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i];
-    lines.push(entry.namespace + '\t' + entry.tag + '\t' + entry.translated + '\t' + entry.searchText);
-  }
-  return lines.join('\n') + '\n';
-}
 
 function isValidSha(value: string): boolean {
   return /^[0-9a-f]{40}$/i.test(value.trim());
 }
 
-function ensureDirectory(path: string): void {
-  if (exists(path)) {
-    return;
-  }
+async function writeTextFile(path: string, value: string): Promise<void> {
+  const file = await fs.open(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
   try {
-    fs.mkdirSync(path, true);
-  } catch (error) {
-    throw new Error('create database directory failed: ' + errorMessage(error as Object));
-  }
-}
-
-function writeTextFile(path: string, value: string): void {
-  let fd = -1;
-  try {
-    const file = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
-    fd = file.fd;
-    fs.writeSync(fd, value);
-  } catch (error) {
-    throw new Error('write database file failed: ' + errorMessage(error as Object));
+    await fs.write(file.fd, value);
   } finally {
-    if (fd >= 0) {
-      try {
-        fs.closeSync(fd);
-      } catch (error) {
-      }
-    }
+    await fs.close(file);
   }
 }
 
-function replaceFile(source: string, target: string): void {
-  removeFileQuietly(target);
+async function removeFileQuietly(path: string): Promise<void> {
   try {
-    fs.moveFileSync(source, target);
-  } catch (error) {
-    throw new Error('replace database file failed: ' + errorMessage(error as Object));
-  }
-}
-
-function removeFileQuietly(path: string): void {
-  try {
-    if (exists(path)) {
-      fs.unlinkSync(path);
-    }
-  } catch (error) {
-  }
-}
-
-function exists(path: string): boolean {
-  try {
-    return fs.accessSync(path);
-  } catch (error) {
-    return false;
+    await fs.unlink(path);
+  } catch (_error) {
   }
 }
 

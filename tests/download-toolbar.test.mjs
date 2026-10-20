@@ -48,8 +48,28 @@ function state(height) {
     restoreToolbarOnReverseScroll() { this.restores++; this.toolbarOffsetY = 0; }
   };
   model.downloadScroller = model.listScroller = { currentOffset: () => ({ yOffset: model.contentOffset }) };
+  model.readDownloadScrollOffset = () => Math.max(0, model.contentOffset);
   return model;
 }
+
+test('download selection preserves collapsed actions until a new selection is added', () => {
+  const toggle = Function('gid', body(download, 'private toggleDownloadSelection('));
+  const model = { selectedDownloadGids: '', downloadActionsExpanded: false,
+    selectedKey: gid => '|' + gid + '|' };
+  toggle.call(model, 1);
+  toggle.call(model, 2);
+  assert.equal(model.downloadActionsExpanded, true);
+  model.downloadActionsExpanded = false;
+  toggle.call(model, 1);
+  assert.equal(model.selectedDownloadGids, '||2|');
+  assert.equal(model.downloadActionsExpanded, false);
+  toggle.call(model, 2);
+  assert.equal(model.selectedDownloadGids, '');
+  assert.equal(model.downloadActionsExpanded, false);
+  toggle.call(model, 3);
+  assert.equal(model.selectedDownloadGids, '|3|');
+  assert.equal(model.downloadActionsExpanded, true);
+});
 
 test('downloads preserve the entire scroll delta while hiding and restoring the toolbar like home', () => {
   for (const height of [64, 88, 104, 128]) {

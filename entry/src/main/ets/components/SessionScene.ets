@@ -916,6 +916,46 @@ export function captureEhAccountWebCookies(url: string): boolean {
   return true;
 }
 
+export async function captureEhAccountWebCookiesAsync(url: string,
+  isCurrent: () => boolean = () => true): Promise<boolean> {
+  const storedHeader = ehCookieStore.getStoredCookieHeader();
+  const names: string[] = [];
+  const values: string[] = [];
+  const urls = [url, EhUrl.HOST_E, EhUrl.HOST_EX, EhUrl.FORUM_ORIGIN, EhUrl.URL_SIGN_IN];
+  for (let i = 0; i < urls.length; i++) {
+    try {
+      const header = await webview.WebCookieManager.fetchCookie(urls[i], false);
+      absorbCookieHeaderText(header, names, values);
+    } catch (_error) {
+    }
+  }
+  const parts: string[] = [];
+  for (let i = 0; i < names.length; i++) {
+    parts.push(names[i] + '=' + values[i]);
+  }
+  const header = parts.join('; ');
+  if (!hasLoginCookie(header) || !isCurrent() || ehCookieStore.getStoredCookieHeader() !== storedHeader) {
+    return false;
+  }
+  ehCookieStore.setCookieHeaderPreservingIgneous(header);
+  return true;
+}
+
+export async function syncCookieHeaderToWebViewAsync(url: string, cookieHeader: string,
+  incognito: boolean = false, persist: boolean = true): Promise<void> {
+  const names: string[] = [];
+  const values: string[] = [];
+  absorbCookieHeaderText(cookieHeader, names, values);
+  for (let i = 0; i < names.length; i++) {
+    if (names[i].length > 0 && values[i].length > 0) {
+      await webview.WebCookieManager.configCookie(url, names[i] + '=' + values[i] + '; path=/', incognito, false);
+    }
+  }
+  if (!incognito && persist) {
+    await webview.WebCookieManager.saveCookieAsync();
+  }
+}
+
 export function syncCookieHeaderToWebView(url: string, cookieHeader: string, incognito: boolean = false): void {
   if (url.length === 0 || cookieHeader.trim().length === 0) {
     return;

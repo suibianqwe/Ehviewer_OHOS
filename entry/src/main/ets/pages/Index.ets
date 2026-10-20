@@ -15,6 +15,7 @@ import { ehHistoryStore } from '../services/EhHistoryStore';
 import { ehSearchHistoryStore } from '../services/EhSearchHistoryStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { ehSpiderInfoStore } from '../services/EhSpiderInfoStore';
+import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { ehUpdateChecker, ReleaseInfo, UpdateCheckResult } from '../services/EhUpdateChecker';
 import { EhUrl } from '../services/EhUrl';
 import {
@@ -46,9 +47,9 @@ import { MigrationScene } from '../components/MigrationScene';
 import { SessionScene } from '../components/SessionScene';
 import { SettingsScene } from '../components/SettingsScene';
 import {
-  captureEhAccountWebCookies,
+  captureEhAccountWebCookiesAsync as captureEhAccountWebCookies,
   configureWebCookieAccess,
-  syncCookieHeaderToWebView
+  syncCookieHeaderToWebViewAsync as syncCookieHeaderToWebView
 } from '../components/SessionScene';
 import {
   LANGUAGE_REVISION_KEY,
@@ -211,6 +212,7 @@ struct Index {
     ehHistoryStore.load(context).catch(() => {});
     ehSearchHistoryStore.load(context).catch(() => {});
     ehSettingsStore.ensureLoaded(context).then(() => {
+      ehTagTranslationStore.preload(context).catch(() => {});
       this.settingsReady = true;
       this.loadSessionRoute(context);
       this.checkForUpdatesOnStartup();
@@ -278,37 +280,40 @@ struct Index {
     this.logDailyCheckInInfo('Background Web requested, reason=' + reason);
   }
 
-  private handleDailyCheckInWebAttached(): void {
+  private async handleDailyCheckInWebAttached(): Promise<void> {
     this.dailyCheckInWebAttached = true;
     if (!this.dailyCheckInPending || this.dailyCheckInWebLoading) {
       return;
     }
+    const startedAt = this.dailyCheckInStartedAt;
+    this.dailyCheckInWebLoading = true;
     try {
-      this.prepareDailyCheckInWebCookies();
-      this.dailyCheckInWebLoading = true;
       this.dailyCheckInWebTimeoutTimer = setTimeout(() => {
         this.finishDailyCheckIn(dailyCheckInFailureResult(
           'Background news page timed out', 'web-timeout'));
       }, DAILY_CHECK_IN_WEB_TIMEOUT_MS);
+      await this.prepareDailyCheckInWebCookies();
+      if (!this.dailyCheckInPending || startedAt !== this.dailyCheckInStartedAt) {
+        return;
+      }
       loadEhWebUrlWithAndroidCompatibility(this.dailyCheckInWebController, EhUrl.getNewsUrl());
       this.logDailyCheckInInfo('Background Web loading news.php');
     } catch (error) {
-      this.finishDailyCheckIn(dailyCheckInFailureResult(String(error), 'web-start-failed'));
+      if (this.dailyCheckInPending && startedAt === this.dailyCheckInStartedAt) {
+        this.finishDailyCheckIn(dailyCheckInFailureResult(String(error), 'web-start-failed'));
+      }
     }
   }
 
-  private prepareDailyCheckInWebCookies(): void {
+  private async prepareDailyCheckInWebCookies(): Promise<void> {
     configureWebCookieAccess();
     const cookieHeader = ehCookieStore.getStoredCookieHeader();
-    syncCookieHeaderToWebView(EhUrl.HOST_E, cookieHeader, false);
-    syncCookieHeaderToWebView(EhUrl.HOST_EX, cookieHeader, false);
-    syncCookieHeaderToWebView(EhUrl.FORUM_ORIGIN, cookieHeader, false);
-    try {
-      webview.WebCookieManager.configCookieSync(EhUrl.HOST_E, 'nw=1; path=/', false);
-      webview.WebCookieManager.configCookieSync(EhUrl.HOST_EX, 'nw=1; path=/', false);
-      webview.WebCookieManager.saveCookieSync();
-    } catch (_error) {
-    }
+    await syncCookieHeaderToWebView(EhUrl.HOST_E, cookieHeader, false, false);
+    await syncCookieHeaderToWebView(EhUrl.HOST_EX, cookieHeader, false, false);
+    await syncCookieHeaderToWebView(EhUrl.FORUM_ORIGIN, cookieHeader, false, false);
+    await webview.WebCookieManager.configCookie(EhUrl.HOST_E, 'nw=1; path=/', false, false);
+    await webview.WebCookieManager.configCookie(EhUrl.HOST_EX, 'nw=1; path=/', false, false);
+    await webview.WebCookieManager.saveCookieAsync();
   }
 
   private handleDailyCheckInWebPageEnd(url: string): void {
@@ -322,14 +327,14 @@ struct Index {
       }
       this.dailyCheckInWebController.runJavaScript(buildDailyCheckInInspectionScript())
         .then((raw: string) => {
-          this.handleDailyCheckInWebInspection(url, parseEhDailyCheckInWebResult(raw));
+          return this.handleDailyCheckInWebInspection(url, parseEhDailyCheckInWebResult(raw));
         }).catch((error: Error) => {
           this.finishDailyCheckIn(dailyCheckInFailureResult(error.message, 'inspection-failed'));
         });
     }, DAILY_CHECK_IN_WEB_INSPECTION_DELAY_MS);
   }
 
-  private handleDailyCheckInWebInspection(url: string, result: EhDailyCheckInResult): void {
+  private async handleDailyCheckInWebInspection(url: string, result: EhDailyCheckInResult): Promise<void> {
     if (!this.dailyCheckInPending) {
       return;
     }
@@ -341,17 +346,22 @@ struct Index {
       }, DAILY_CHECK_IN_WEB_VERIFICATION_RETRY_MS);
       return;
     }
-    this.captureDailyCheckInWebCookies(url);
-    this.finishDailyCheckIn(result);
+    const startedAt = this.dailyCheckInStartedAt;
+    await this.captureDailyCheckInWebCookies(url).catch(() => {});
+    if (this.dailyCheckInPending && startedAt === this.dailyCheckInStartedAt) {
+      this.finishDailyCheckIn(result);
+    }
   }
 
-  private captureDailyCheckInWebCookies(url: string): void {
-    if (!captureEhAccountWebCookies(url)) {
+  private async captureDailyCheckInWebCookies(url: string): Promise<void> {
+    const startedAt = this.dailyCheckInStartedAt;
+    if (!await captureEhAccountWebCookies(url,
+      () => this.dailyCheckInPending && startedAt === this.dailyCheckInStartedAt)) {
       return;
     }
     const context = getAbilityContext();
     if (context !== undefined) {
-      ehCookieStore.save(context).catch(() => {});
+      await ehCookieStore.save(context).catch(() => {});
     }
   }
 

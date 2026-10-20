@@ -562,6 +562,35 @@ export class EhDownloadFileStore {
     return scanRedundantDownloadDirectories(this.downloadRoot(context), keepGids, false);
   }
 
+  async scanRedundantDirectoriesAsync(context: common.UIAbilityContext,
+    keepGids: number[]): Promise<DownloadDirectoryScanResult> {
+    const root = this.downloadRoot(context);
+    let directories = 0;
+    let files = 0;
+    let bytes = 0;
+    const retained = new Set<number>(keepGids);
+    try {
+      const names = await fs.listFile(root);
+      for (let i = 0; i < names.length; i++) {
+        const directory = root + '/' + names[i];
+        const restored = await readRestoredGalleryAsync(directory, names[i]);
+        if (restored === null || retained.has(restored.gallery.gid)) {
+          continue;
+        }
+        try {
+          const result = await scanDirectoryTreeAsync(directory);
+          directories += result.directories;
+          files += result.files;
+          bytes += result.bytes;
+        } catch (_error) {
+          // Downloads can be moved or removed while their size is being refreshed.
+        }
+      }
+    } catch (_error) {
+    }
+    return { directories: directories, files: files, bytes: bytes };
+  }
+
   cleanRedundantDirectories(context: common.UIAbilityContext, keepGids: number[]): DownloadDirectoryScanResult {
     return scanRedundantDownloadDirectories(this.downloadRoot(context), keepGids, true);
   }
@@ -903,6 +932,27 @@ function readRestoredGallery(directory: string, directoryName: string): Restored
   };
 }
 
+// Statistics must neither migrate metadata nor block the UI with synchronous reads/writes.
+async function readRestoredGalleryAsync(directory: string, directoryName: string): Promise<RestoredGalleryData | null> {
+  for (const name of [OHOS_METADATA_FILENAME, ANDROID_SPIDER_INFO_FILENAME]) {
+    try {
+      const metadata = parseMetadata(await fs.readText(directory + '/' + name));
+      if (metadata !== null) {
+        return { gallery: metadataToGallery(metadata), total: metadata.pages };
+      }
+    } catch (_error) {
+    }
+  }
+  try {
+    const spiderInfo = parseAndroidSpiderInfo(await fs.readText(directory + '/' + ANDROID_SPIDER_INFO_FILENAME));
+    return spiderInfo === null ? null : {
+      gallery: spiderInfoToGallery(spiderInfo, directoryName), total: spiderInfo.pages
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
 function createAndroidSpiderInfoFromMetadata(metadata: GalleryMetadata): string {
   const lines: string[] = [];
   lines.push('VERSION2');
@@ -918,7 +968,15 @@ function createAndroidSpiderInfoFromMetadata(metadata: GalleryMetadata): string 
 
 function readMetadata(path: string): GalleryMetadata | null {
   try {
-    const parsed = JSON.parse(fs.readTextSync(path)) as GalleryMetadata;
+    return parseMetadata(fs.readTextSync(path));
+  } catch (error) {
+    return null;
+  }
+}
+
+function parseMetadata(text: string): GalleryMetadata | null {
+  try {
+    const parsed = JSON.parse(text) as GalleryMetadata;
     if (parsed.gid <= 0 || parsed.token === undefined || parsed.token.length === 0 ||
       parsed.title === undefined || parsed.title.length === 0) {
       return null;
@@ -931,7 +989,15 @@ function readMetadata(path: string): GalleryMetadata | null {
 
 function readAndroidSpiderInfo(path: string): AndroidSpiderInfo | null {
   try {
-    const lines = fs.readTextSync(path).split(/\r?\n/);
+    return parseAndroidSpiderInfo(fs.readTextSync(path));
+  } catch (error) {
+    return null;
+  }
+}
+
+function parseAndroidSpiderInfo(text: string): AndroidSpiderInfo | null {
+  try {
+    const lines = text.split(/\r?\n/);
     if (lines.length < 7) {
       return null;
     }

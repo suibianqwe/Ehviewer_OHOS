@@ -1,4 +1,5 @@
 import {
+  CoverSearchSource,
   GalleryDetail,
   GalleryInfo,
   GallerySite,
@@ -177,6 +178,7 @@ export interface DetailSearchRequest {
   mode: ListMode;
   category: number;
   imagePath: string;
+  coverSearchSource?: CoverSearchSource;
   useSimilarityScan: boolean;
   onlySearchCovers: boolean;
   showExpunged: boolean;
@@ -207,13 +209,14 @@ export function createSimilarGallerySearch(detail: GalleryDetail): DetailSearchR
   return null;
 }
 
-export function createCoverSearchRequest(imagePath: string): DetailSearchRequest {
+export function createCoverSearchRequest(imagePath: string, source?: CoverSearchSource): DetailSearchRequest {
   return {
     title: 'Search cover',
     keyword: '',
     mode: ListMode.ImageSearch,
     category: GalleryCategory.None,
     imagePath: imagePath,
+    coverSearchSource: source,
     useSimilarityScan: true,
     onlySearchCovers: false,
     showExpunged: true

@@ -293,7 +293,7 @@ export class RemoteStorageSyncService {
       this.downloadSignature = signature;
       this.downloadsDirty = true;
       this.markDirty();
-    });
+    }, () => {});
   }
 
   markDirty(): void {

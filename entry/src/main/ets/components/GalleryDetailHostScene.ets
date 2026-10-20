@@ -10,6 +10,7 @@ import { DownloadInfo, DownloadLabel, ehDownloadStore } from '../services/EhDown
 import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
 import { FILTER_MODE_TAG, ehFilterStore } from '../services/EhFilterStore';
+import { ehMyTagsService } from '../services/EhMyTagsService';
 import {
   ArchiverDownloadResult,
   ArchiverLoadResult,
@@ -25,6 +26,7 @@ import {
 } from '../services/EhHttpClient';
 import { PublicDownloadStartResult, startPublicDownload } from '../services/PublicDownloadService';
 import { EhUrl } from '../services/EhUrl';
+import { CommentPostResult, COMMENT_POST_UNCONFIRMED } from '../services/GalleryCommentSubmission';
 import { FavoriteCategoryInfo } from '../services/GalleryListParser';
 import { FavoriteSlotOption, favoriteSlotOptions } from '../services/FavoriteCollectionSupport';
 import {
@@ -35,8 +37,7 @@ import {
   createTagSearchRequest,
   createUploaderSearchRequest,
   DetailSearchRequest,
-  detailArchiveReferer,
-  detailCoverCacheKey
+  detailArchiveReferer
 } from '../services/GalleryDetailSupport';
 import {
   createDownloadReaderSessionState,
@@ -55,7 +56,7 @@ import {
   loadGalleryDetailModule
 } from '../services/GalleryDetailSupport';
 import { DetailPreviewPager, loadGalleryPreviewPage, mergeGalleryPreviewSets, seedPreviewMap } from '../services/GalleryPreviewLoader';
-import { IMAGE_DOWNLOAD_PRIORITY_INTERACTIVE, readerImageCache } from '../services/ReaderImageCache';
+import { createCoverSearchSource } from '../services/CoverSearchSupport';
 import { AsyncRequestGate } from '../services/HttpRequestLifecycle';
 import { createReaderSessionState, readerSessionStore } from '../services/ReaderSessionStore';
 import { isDetailCloudOnlyDownload } from '../services/GalleryDetailSupport';
@@ -79,7 +80,6 @@ import {
   pushDetailBackHandler,
   readerStartIndex,
   readerStartIndexAsync,
-  readerPageImageCacheKey,
   saveGalleryToHistory,
   saveDefaultDownloadLabelChoice,
   uiStatusText,
@@ -328,6 +328,9 @@ export struct GalleryDetailHostScene {
   private detailRequestGate: AsyncRequestGate = new AsyncRequestGate();
   private archiveRequestGate: AsyncRequestGate = new AsyncRequestGate();
   private favoriteCategoryRequestGate: AsyncRequestGate = new AsyncRequestGate();
+  private commentPostGate: AsyncRequestGate = new AsyncRequestGate();
+  private tagSubscriptionGate: AsyncRequestGate = new AsyncRequestGate();
+  private tagSubscriptionSaving: boolean = false;
   private detailPreviewPager: DetailPreviewPager = new DetailPreviewPager();
   private previewMap: Map<number, GalleryPreview> = new Map();
   private previewPageSize: number = 0;
@@ -339,6 +342,9 @@ export struct GalleryDetailHostScene {
   @State renderVersion: number = 0;
   @State showInfo: boolean = false;
   @State showComments: boolean = false;
+  @State commentDraft: string = '';
+  @State commentPosting: boolean = false;
+  @State commentPostStatus: string = '';
   @State detail: GalleryDetail = createEmptyDetail();
   @State visiblePreviews: GalleryPreview[] = [];
   @State detailLoaded: boolean = false;
@@ -372,10 +378,12 @@ export struct GalleryDetailHostScene {
     this.unregisterDetailBackHandler = pushDetailBackHandler(() => this.handleDetailSystemBack());
     this.unsubscribeDownloadStore = ehDownloadStore.subscribe((_items: DownloadInfo[]) => {
       this.refreshDetailDownloadText();
-    });
+    }, () => {});
   }
 
   aboutToDisappear(): void {
+    this.commentPostGate.begin();
+    this.tagSubscriptionGate.begin();
     this.favoriteCategoryRequestGate.begin();
     this.saveNavigationState();
     this.unsubscribeDownloadStore();
@@ -464,6 +472,13 @@ export struct GalleryDetailHostScene {
   }
 
   private loadDetailFromLink(done?: () => void): void {
+    this.commentPostGate.begin();
+    this.tagSubscriptionGate.begin();
+    this.commentPosting = false;
+    if (this.detail.gid !== this.detailLink.gid || this.detail.token !== this.detailLink.token) {
+      this.commentDraft = '';
+      this.commentPostStatus = '';
+    }
     if (this.detailLink.gid <= 0 || this.detailLink.token.length === 0) {
       this.detail = createEmptyDetail();
       this.detailStatus = 'No gallery loaded';
@@ -562,7 +577,7 @@ export struct GalleryDetailHostScene {
   }
 
   private openComments(): void {
-    if (!this.detailLoaded || this.detail.comments.length === 0) {
+    if (!this.detailLoaded) {
       return;
     }
     this.showInfo = false;
@@ -1344,78 +1359,14 @@ export struct GalleryDetailHostScene {
   }
 
   private openCoverSearch(): void {
-    const context = getAbilityContext();
-    const thumb = this.detail.thumb === undefined ? '' : this.detail.thumb;
-    if (context === undefined) {
+    const source = createCoverSearchSource(this.detail, this.detailLink.site, this.detailRequestUrl);
+    if (source.previewPageUrl.length === 0 && source.thumb.length === 0) {
       this.detailStatus = 'Cover image is unavailable';
       this.renderVersion++;
       return;
     }
-    if (this.coverSearchPreviewPageUrl().length === 0 && thumb.length === 0) {
-      this.detailStatus = 'Cover image is unavailable';
-      this.renderVersion++;
-      return;
-    }
-    this.detailStatus = 'Preparing cover search...';
-    this.renderVersion++;
-    const referer = this.detailRequestUrl.length > 0 ? this.detailRequestUrl :
-      EhUrl.getGalleryDetailUrl(this.detail.gid, this.detail.token, 0, false, this.detailLink.site);
-    this.prepareCoverSearchImage(context, referer)
-      .then((path: string) => {
-        if (path.length === 0) {
-          this.detailStatus = 'Cover image cache failed';
-          this.renderVersion++;
-          return;
-        }
-        this.onOpenSearch(createCoverSearchRequest(path));
-      }).catch((error: Error) => {
-        this.detailStatus = 'Cover search failed: ' + error.message;
-        this.renderVersion++;
-      });
-  }
-
-  private coverSearchPreviewPageUrl(): string {
-    if (this.detail.previewSet.length === 0) {
-      return '';
-    }
-    let best = this.detail.previewSet[0];
-    for (let i = 1; i < this.detail.previewSet.length; i++) {
-      if (this.detail.previewSet[i].index < best.index) {
-        best = this.detail.previewSet[i];
-      }
-    }
-    return best.pageUrl;
-  }
-
-  private async prepareCoverSearchImage(context: common.UIAbilityContext, referer: string): Promise<string> {
-    const previewPageUrl = this.coverSearchPreviewPageUrl();
-    if (previewPageUrl.length > 0) {
-      try {
-        const result = await this.client.loadGalleryPageFast(previewPageUrl, this.detailLink.site, referer);
-        if (result.ok && result.page !== null && result.page.imageUrl.length > 0) {
-          const imageUrl = result.page.imageUrl;
-          const pageReferer = result.page.pageUrl.length > 0 ? result.page.pageUrl : previewPageUrl;
-          const existingPath = readerImageCache.getCachedPath(context, imageUrl);
-          if (existingPath.length > 0) {
-            return existingPath;
-          }
-          const path = await readerImageCache.ensureCached(context, imageUrl, pageReferer,
-            IMAGE_DOWNLOAD_PRIORITY_INTERACTIVE, undefined, readerPageImageCacheKey(result.page, false),
-            { retryLimit: 3 });
-          if (path.length > 0) {
-            return path;
-          }
-        }
-      } catch (error) {
-      }
-    }
-
-    const thumb = this.detail.thumb === undefined ? '' : this.detail.thumb;
-    if (thumb.length === 0) {
-      return '';
-    }
-    return readerImageCache.ensureCached(context, thumb, referer, IMAGE_DOWNLOAD_PRIORITY_INTERACTIVE, undefined,
-      detailCoverCacheKey(this.detail));
+    // Present the search page in the click handler; its loader prepares and uploads the image.
+    this.onOpenSearch(createCoverSearchRequest('', source));
   }
 
   private openTagSearch(namespace: string, tag: string): void {
@@ -1491,6 +1442,39 @@ export struct GalleryDetailHostScene {
     }).catch((error: Error) => {
       this.showToast('Local tag filter load failed: ' + error.message);
     });
+  }
+
+  private subscribeDetailTag(fullTag: string): void {
+    this.saveAccountTag(fullTag, false);
+  }
+
+  private hideDetailTag(fullTag: string): void {
+    this.saveAccountTag(fullTag, true);
+  }
+
+  private saveAccountTag(fullTag: string, hidden: boolean): void {
+    const tag = fullTag.trim();
+    if (tag.length === 0) return;
+    if (this.tagSubscriptionSaving) {
+      this.showToast('Updating account tag...');
+      return;
+    }
+    const site = this.detailLink.site;
+    const gid = this.detailLink.gid;
+    const generation = this.tagSubscriptionGate.begin();
+    this.tagSubscriptionSaving = true;
+    this.showToast(hidden ? 'Blocking tag on account...' : 'Subscribing to tag...');
+    const operation = hidden ? ehMyTagsService.hideTag(site, tag) : ehMyTagsService.watchTag(site, tag);
+    operation.then((changed: boolean) => {
+      if (this.tagSubscriptionGate.isCurrent(generation) && this.detailLink.gid === gid && this.detailLink.site === site) {
+        this.showToast(hidden ? (changed ? 'Tag blocked on account' : 'Tag already blocked on account') :
+          (changed ? 'Tag subscribed' : 'Tag already subscribed'));
+      }
+    }).catch((error: Error) => {
+      if (this.tagSubscriptionGate.isCurrent(generation) && this.detailLink.gid === gid && this.detailLink.site === site) {
+        this.showToast((hidden ? 'Account tag blocking failed: ' : 'Tag subscription failed: ') + error.message);
+      }
+    }).finally(() => { this.tagSubscriptionSaving = false; });
   }
 
   private reloadCurrentDetailAfterTagChange(): void {
@@ -1569,6 +1553,43 @@ export struct GalleryDetailHostScene {
     });
   }
 
+  private async postDetailComment(): Promise<void> {
+    if (this.commentPosting || !this.detailLoaded || this.commentDraft.trim().length === 0) {
+      return;
+    }
+    const generation = this.commentPostGate.begin();
+    const gid = this.detail.gid;
+    const token = this.detail.token;
+    const site = this.detailLink.site;
+    this.commentPosting = true;
+    this.commentPostStatus = '';
+    try {
+      const result: CommentPostResult = await this.client.postComment(gid, token, this.commentDraft, site);
+      if (!this.commentPostGate.isCurrent(generation) || this.detail.gid !== gid ||
+        this.detail.token !== token || this.detailLink.site !== site) {
+        return;
+      }
+      this.commentPostStatus = result.message;
+      if (result.ok) {
+        const next = cloneGalleryDetail(this.detail);
+        next.comments = result.comments;
+        this.detail = next;
+        this.commentDraft = '';
+        this.onDetailLoaded(this.detail);
+        this.showToast('Comment posted');
+        this.renderVersion++;
+      }
+    } catch (_error) {
+      if (this.commentPostGate.isCurrent(generation)) {
+        this.commentPostStatus = COMMENT_POST_UNCONFIRMED;
+      }
+    } finally {
+      if (this.commentPostGate.isCurrent(generation)) {
+        this.commentPosting = false;
+      }
+    }
+  }
+
   private voteDetailComment(comment: GalleryComment, vote: number): void {
     if (!this.detailLoaded || this.detail.apiUid < 0 || this.detail.apiKey.length === 0) {
       this.detailStatus = 'Comment vote requires gallery API key';
@@ -1629,6 +1650,16 @@ export struct GalleryDetailHostScene {
         renderVersion: this.renderVersion,
         showInfo: this.showInfo,
         showComments: this.showComments,
+        commentDraft: this.commentDraft,
+        commentPosting: this.commentPosting,
+        commentPostStatus: this.commentPostStatus,
+        onCommentDraftChange: (value: string) => {
+          if (!this.commentPosting) {
+            this.commentDraft = value;
+            this.commentPostStatus = '';
+          }
+        },
+        onPostComment: () => { this.postDetailComment(); },
         detail: this.displayDetail(),
         isDetailLoaded: this.detailLoaded,
         isFavorited: this.optimisticFavorite || this.detail.isFavorited,
@@ -1703,6 +1734,8 @@ export struct GalleryDetailHostScene {
         onVoteTag: (fullTag: string, vote: number) => { this.voteDetailTag(fullTag, vote); },
         onAddTag: (fullTag: string) => { this.addDetailTag(fullTag); },
         onCopyTag: (fullTag: string) => { this.copyDetailTag(fullTag); },
+        onSubscribeTag: (fullTag: string) => { this.subscribeDetailTag(fullTag); },
+        onHideTag: (fullTag: string) => { this.hideDetailTag(fullTag); },
         onBlockTag: (fullTag: string) => { this.blockDetailTag(fullTag); },
         onShowTagDefinition: (fullTag: string) => { this.openTagDefinition(fullTag); }
       })

@@ -15,6 +15,7 @@ import { ehCookieStore } from './EhCookieStore';
 import { galleryStatusStore } from './GalleryStatusStore';
 import { EhUrl, FavListUrlBuilder, ListMode, ListUrlBuilder } from './EhUrl';
 import { GalleryDetailParseResult, parseGalleryDetail } from './GalleryDetailParser';
+import { CommentPostResult, COMMENT_POST_UNCONFIRMED, parseCommentPostResponse } from './GalleryCommentSubmission';
 import { mergeGalleryApiMetadata } from './GalleryApiParser';
 import { FavoriteCategoryInfo, GalleryListParseResult, parseGalleryList, parseFavoriteCategories } from './GalleryListParser';
 import { GalleryPageApiParseResult, parseGalleryPageApi } from './GalleryPageApiParser';
@@ -1128,7 +1129,7 @@ export class EhHttpClient {
       const showKey = getSharedShowKey(site, urlInfo.gid);
       if (showKey.length > 0) {
         const apiResult = await this.loadGalleryPageApi(urlInfo, showKey, pageUrl, site, referer);
-        if (apiResult.ok || apiResult.message !== 'Key mismatch') {
+        if (apiResult.ok) {
           if (apiResult.ok && apiResult.page !== null) {
             const parsed = parseGalleryPageUrl(apiResult.page.pageUrl.length > 0 ? apiResult.page.pageUrl : pageUrl);
             if (parsed !== null) {
@@ -1137,7 +1138,14 @@ export class EhHttpClient {
           }
           return apiResult;
         }
-        putSharedShowKey(site, urlInfo.gid, '');
+        if (apiResult.statusCode === 509) {
+          return apiResult;
+        }
+        if (apiResult.message === 'Key mismatch') {
+          putSharedShowKey(site, urlInfo.gid, '');
+        }
+        console.info('ReaderPageRecovery: API failed, falling back to HTML, status=' + apiResult.statusCode.toString());
+        // A failed API route must not permanently prevent the ordinary HTML reader path.
       }
     }
 
@@ -1321,6 +1329,37 @@ export class EhHttpClient {
     return requestTextWithRetry((): Promise<EhHttpResponse> => {
       return this.postMultipartOnce(url, body, contentType, referer, origin, timeoutMs);
     }, 2);
+  }
+
+  async postComment(gid: number, token: string, comment: string,
+    site: GallerySite = GallerySite.E): Promise<CommentPostResult> {
+    if (gid <= 0 || !/^[a-f0-9]+$/i.test(token) || comment.trim().length === 0) {
+      return { ok: false, statusCode: 0, message: 'Enter a comment first', comments: [] };
+    }
+    const url = EhUrl.getGalleryDetailUrl(gid, token, 0, true, site);
+    if (!ehCookieStore.getCookieDebugSummaryForUrl(url).hasLogin) {
+      return { ok: false, statusCode: 0, message: 'Sign in is required', comments: [] };
+    }
+    try {
+      // A comment is not idempotent: a timeout must never automatically resend it.
+      const response = await this.postFormOnce(url, buildFormBody([{ key: 'commenttext_new', value: comment.trim() }]),
+        url, EhUrl.getOrigin(site), ehCookieStore.getCookieHeaderForUrl(url));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return { ok: false, statusCode: response.statusCode,
+          message: httpStatusMessage(response.statusCode, response.body), comments: [] };
+      }
+      return parseCommentPostResponse(response.body, gid, token);
+    } catch (_error) {
+      return { ok: false, statusCode: 0, message: COMMENT_POST_UNCONFIRMED, comments: [] };
+    } finally {
+      // Also invalidate on an ambiguous timeout: the server may have accepted the comment.
+      const prefix = 'GET\n' + EhUrl.getGalleryDetailUrl(gid, token, 0, false, site);
+      for (let i = SHARED_RESPONSE_CACHE.length - 1; i >= 0; i--) {
+        if (SHARED_RESPONSE_CACHE[i].key.indexOf(prefix) === 0) {
+          SHARED_RESPONSE_CACHE.splice(i, 1);
+        }
+      }
+    }
   }
 
   async voteComment(gid: number, token: string, apiUid: number, apiKey: string, commentId: string, vote: number,

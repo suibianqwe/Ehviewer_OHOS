@@ -307,9 +307,9 @@ export default class EntryAbility extends UIAbility {
   }
 
   private pruneCacheOnStartup(): void {
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
-        const result = readerImageCache.prune(this.context);
+        const result = await readerImageCache.pruneAsync(this.context);
         if (result.files > 0) {
           ehAppLog.info(this.context, 'EntryAbility', 'Startup cache prune removed files=' +
             result.files.toString() + ', bytes=' + result.bytes.toString());

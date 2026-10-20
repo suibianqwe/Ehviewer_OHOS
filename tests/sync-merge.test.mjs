@@ -121,12 +121,13 @@ const downloadIndexOf = extractFunction(downloadStore, 'private findIndex(');
 function downloadModel(items = []) {
   return {
     items,
+    cachedItemIndexes: new Map(),
     notified: 0,
     mergeSyncItems,
     getSyncItems,
     findIndex: downloadIndexOf,
     getItems() { return JSON.parse(JSON.stringify(this.items)); },
-    notifyChanged() { this.notified++; }
+    notifyChanged() { this.cachedItemIndexes.clear(); this.notified++; }
   };
 }
 

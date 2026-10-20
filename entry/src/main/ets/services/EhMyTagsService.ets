@@ -102,6 +102,40 @@ export class EhMyTagsService {
     return this.addTag(site, currentPage, normalizedTag, kind);
   }
 
+  // Detail-page subscription is additive: do not remove an existing hidden
+  // flag, color, or weight, and never re-submit an already watched tag.
+  async watchTag(site: GallerySite, tag: string): Promise<boolean> {
+    return this.ensureTagKind(site, tag, MyTagKind.Watched);
+  }
+
+  async hideTag(site: GallerySite, tag: string): Promise<boolean> {
+    return this.ensureTagKind(site, tag, MyTagKind.Hidden);
+  }
+
+  private async ensureTagKind(site: GallerySite, tag: string, kind: MyTagKind): Promise<boolean> {
+    const normalizedTag = normalizeTag(tag);
+    if (normalizedTag.length === 0) {
+      throw new Error('Enter a tag first');
+    }
+    const page = await this.load(site);
+    const existing = findTag(page.all, normalizedTag);
+    if (existing !== null && (kind === MyTagKind.Watched ? existing.watched : existing.hidden)) {
+      return false;
+    }
+    let nextPage: MyTagsPage;
+    if (existing !== null) {
+      await this.setExistingTagKind(page.site, page, existing, kind, true);
+      nextPage = await this.load(page.site);
+    } else {
+      nextPage = await this.addTag(page.site, page, normalizedTag, kind);
+    }
+    const saved = findTag(nextPage.all, normalizedTag);
+    if (saved === null || !(kind === MyTagKind.Watched ? saved.watched : saved.hidden)) {
+      throw new Error(kind === MyTagKind.Watched ? 'Cannot confirm tag subscription' : 'Cannot confirm tag blocking');
+    }
+    return true;
+  }
+
   async deleteTag(site: GallerySite, page: MyTagsPage | null, item: MyTagItem): Promise<MyTagsPage> {
     const currentPage = page === null ? await this.load(site) : page;
     const fields: FormField[] = [
@@ -121,7 +155,7 @@ export class EhMyTagsService {
   }
 
   private async setExistingTagKind(site: GallerySite, page: MyTagsPage, item: MyTagItem,
-    kind: MyTagKind): Promise<void> {
+    kind: MyTagKind, preserveOtherKind: boolean = false): Promise<void> {
     if (page.apiUrl.length === 0 || page.apiUid <= 0 || page.apiKey.length === 0) {
       throw new Error('My Tags API key not found');
     }
@@ -130,8 +164,8 @@ export class EhMyTagsService {
       apiuid: page.apiUid,
       apikey: page.apiKey,
       tagid: item.id,
-      tagwatch: kind === MyTagKind.Watched ? 1 : 0,
-      taghide: kind === MyTagKind.Hidden ? 1 : 0,
+      tagwatch: kind === MyTagKind.Watched || (preserveOtherKind && item.watched) ? 1 : 0,
+      taghide: kind === MyTagKind.Hidden || (preserveOtherKind && item.hidden) ? 1 : 0,
       tagcolor: item.color,
       tagweight: parseTagWeight(item.weight)
     });

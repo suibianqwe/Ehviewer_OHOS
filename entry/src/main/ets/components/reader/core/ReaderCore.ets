@@ -24,6 +24,7 @@ export interface ReaderImageCompleteEvent {
 export interface ReaderSourceImageSize {
   width: number;
   height: number;
+  frameCount?: number;
 }
 
 const readerSourceImageSizeCache: Map<string, ReaderSourceImageSize> = new Map<string, ReaderSourceImageSize>();
@@ -121,10 +122,12 @@ export async function readReaderSourceImageSize(path: string): Promise<ReaderSou
   let imageSource: image.ImageSource | undefined = undefined;
   try {
     imageSource = image.createImageSource(path);
-    const imageInfo: image.ImageInfo = imageSource.getImageInfoSync();
+    const imageInfo: image.ImageInfo = await imageSource.getImageInfo();
+    const frameCount = await imageSource.getFrameCount();
     return {
       width: imageInfo.size.width,
-      height: imageInfo.size.height
+      height: imageInfo.size.height,
+      frameCount: frameCount
     };
   } catch (error) {
     return { width: 0, height: 0 };

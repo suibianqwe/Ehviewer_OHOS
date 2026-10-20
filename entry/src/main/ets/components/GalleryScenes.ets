@@ -21,6 +21,8 @@ import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import { AsyncRequestGate } from '../services/HttpRequestLifecycle';
 import { gallerySiteCandidates } from '../services/EhUrl';
 import { DetailSearchRequest } from '../services/GalleryDetailSupport';
+import { CoverSearchSource } from '../model/GalleryModels';
+import { prepareCoverSearchImage } from '../services/CoverSearchSupport';
 import {
   createGalleryDetailLink,
   createGalleryDetailLinkFromGallery,
@@ -182,6 +184,8 @@ export struct GalleryListScene {
   initialSearchSubmitted: boolean = false;
   initialSearchAdvancedPanelOpened: boolean = false;
   initialImagePath: string = '';
+  initialCoverSearchSource: CoverSearchSource | undefined = undefined;
+  private coverSearchSource: CoverSearchSource | undefined = undefined;
   initialImageUseSimilarityScan: boolean = false;
   initialImageOnlySearchCovers: boolean = false;
   initialImageShowExpunged: boolean = false;
@@ -573,6 +577,10 @@ export struct GalleryListScene {
       this.pageFrom = this.initialPageFrom;
       this.pageTo = this.initialPageTo;
       this.imageSearchPath = this.initialImagePath;
+      this.coverSearchSource = this.initialCoverSearchSource;
+      if (this.coverSearchSource !== undefined) {
+        this.statusText = 'Loading...';
+      }
       this.imageSearchUseSimilarityScan = this.initialImageUseSimilarityScan;
       this.imageSearchOnlyCovers = this.initialImageOnlySearchCovers;
       this.imageSearchShowExpunged = this.initialImageShowExpunged;
@@ -665,6 +673,9 @@ export struct GalleryListScene {
   }
 
   aboutToDisappear(): void {
+    if (this.coverSearchSource !== undefined) {
+      this.listRequestGate.begin();
+    }
     this.unregisterActiveBackHandler();
     this.unregisterActiveBackHandler = () => {};
     this.activeBackHandlerRegistered = false;
@@ -815,13 +826,33 @@ export struct GalleryListScene {
 
   private loadRemote(pageIndex: number, preserveExisting: boolean = false, onDone?: () => void): void {
     const generation = this.beginListReplacement(pageIndex, preserveExisting);
-    const request = this.loadRoutePageWithFallback(pageIndex);
+    const request = this.searchMode === ListMode.ImageSearch && this.coverSearchSource !== undefined &&
+      this.imageSearchPath.length === 0 ? this.loadCoverSearchPage(pageIndex, generation, this.coverSearchSource) :
+      this.loadRoutePageWithFallback(pageIndex);
 
     request.then((result: GalleryListLoadResult) => {
       this.applyListReplacementResult(generation, result, pageIndex, true, onDone);
     }).catch((error: Error) => {
       this.applyListReplacementFailure(generation, error, onDone);
     });
+  }
+
+  private async loadCoverSearchPage(pageIndex: number, generation: number,
+    source: CoverSearchSource): Promise<GalleryListLoadResult> {
+    const context = getAbilityContext();
+    if (context === undefined) {
+      throw new Error('Cover image is unavailable');
+    }
+    const path = await prepareCoverSearchImage(context, this.client, source,
+      () => this.listRequestGate.isCurrent(generation));
+    if (!this.listRequestGate.isCurrent(generation)) {
+      throw new Error('Search request cancelled');
+    }
+    if (path.length === 0) {
+      throw new Error('Cover image cache failed');
+    }
+    this.imageSearchPath = path;
+    return this.loadRoutePageWithFallback(pageIndex);
   }
 
   private loadRemoteUrl(url: string, preserveExisting: boolean = false, onDone?: () => void): void {
@@ -1622,6 +1653,7 @@ export struct GalleryListScene {
     this.pageFrom = -1;
     this.pageTo = -1;
     this.imageSearchPath = path;
+    this.coverSearchSource = undefined;
     this.imageSearchUseSimilarityScan = useSimilarityScan;
     this.imageSearchOnlyCovers = onlySearchCovers;
     this.imageSearchShowExpunged = true;
@@ -2117,6 +2149,7 @@ export struct GalleryListScene {
       submitted: true,
       sourceRoute: GalleryRoute.Home,
       imagePath: request.imagePath,
+      coverSearchSource: request.coverSearchSource,
       imageUseSimilarityScan: request.useSimilarityScan,
       imageOnlySearchCovers: request.onlySearchCovers,
       imageShowExpunged: request.showExpunged
@@ -2212,6 +2245,7 @@ export struct GalleryListScene {
         initialSearchSubmitted: this.searchResultDraft.submitted,
         initialSearchAdvancedPanelOpened: this.searchResultDraft.searchAdvancedPanelOpened,
         initialImagePath: this.searchResultDraft.imagePath,
+        initialCoverSearchSource: this.searchResultDraft.coverSearchSource,
         initialImageUseSimilarityScan: this.searchResultDraft.imageUseSimilarityScan,
         initialImageOnlySearchCovers: this.searchResultDraft.imageOnlySearchCovers,
         initialImageShowExpunged: this.searchResultDraft.imageShowExpunged,

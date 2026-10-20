@@ -24,6 +24,7 @@ export class CloudGalleryPageService {
   private indexes: Map<number, CloudGalleryIndex> = new Map<number, CloudGalleryIndex>();
   private pending: Map<string, Promise<string>> = new Map<string, Promise<string>>();
   private lastResolveAt: Map<number, number> = new Map<number, number>();
+  private pendingIndexes: Map<number, Promise<CloudGalleryIndex | null>> = new Map();
   private legacyCleaned: boolean = false;
 
   hasDownloadsProfile(): boolean {
@@ -31,7 +32,7 @@ export class CloudGalleryPageService {
   }
 
   async fetchPage(context: common.UIAbilityContext, gallery: GalleryInfo, index: number,
-    imageUrl: string, cacheKey: string): Promise<string> {
+    imageUrl: string, cacheKey: string, shouldContinue: () => boolean = () => true): Promise<string> {
     if (gallery.gid <= 0 || index < 0 || imageUrl.length === 0) {
       return '';
     }
@@ -40,7 +41,7 @@ export class CloudGalleryPageService {
     if (pending !== undefined) {
       return pending;
     }
-    const request = this.fetchPageInternal(context, gallery, index, imageUrl, cacheKey);
+    const request = this.fetchPageInternal(context, gallery, index, imageUrl, cacheKey, shouldContinue);
     this.pending.set(key, request);
     try {
       return await request;
@@ -50,26 +51,29 @@ export class CloudGalleryPageService {
   }
 
   private async fetchPageInternal(context: common.UIAbilityContext, gallery: GalleryInfo, index: number,
-    imageUrl: string, cacheKey: string): Promise<string> {
+    imageUrl: string, cacheKey: string, shouldContinue: () => boolean): Promise<string> {
     this.cleanupLegacyCache(context);
     const client = this.client();
     if (client === null) {
       return '';
     }
     let entry = await this.resolveIndex(client, gallery.gid, false);
-    if (entry === null) {
+    if (entry === null || !shouldContinue()) {
       return '';
     }
     let fileName = entry.files.get(index);
     if (fileName === undefined) {
       entry = await this.resolveIndex(client, gallery.gid, true);
-      if (entry === null) {
+      if (entry === null || !shouldContinue()) {
         return '';
       }
       fileName = entry.files.get(index);
       if (fileName === undefined) {
         return '';
       }
+    }
+    if (!shouldContinue()) {
+      return '';
     }
     const remotePath = DOWNLOADS_FOLDER + '/' + entry.directoryName + '/' + fileName;
     const data = await client.getBinary(remotePath);
@@ -78,7 +82,7 @@ export class CloudGalleryPageService {
         index.toString() + ' path=' + remotePath);
       return '';
     }
-    const path = readerImageCache.storeBytes(context, imageUrl, cacheKey, data, fileExtension(fileName));
+    const path = await readerImageCache.storeBytes(context, imageUrl, cacheKey, data, fileExtension(fileName));
     if (path.length === 0) {
       return '';
     }
@@ -95,10 +99,27 @@ export class CloudGalleryPageService {
       return cached;
     }
     const lastResolve = this.lastResolveAt.get(gid);
-    if (forceRefresh && lastResolve !== undefined && now - lastResolve < REFRESH_RETRY_MS) {
+    const pending = this.pendingIndexes.get(gid);
+    if (pending !== undefined) {
+      return pending;
+    }
+    if (lastResolve !== undefined && now - lastResolve < REFRESH_RETRY_MS) {
       return cached !== undefined ? cached : null;
     }
     this.lastResolveAt.set(gid, now);
+    const request = this.resolveIndexInternal(client, gid);
+    this.pendingIndexes.set(gid, request);
+    try {
+      return await request;
+    } finally {
+      if (this.pendingIndexes.get(gid) === request) {
+        this.pendingIndexes.delete(gid);
+      }
+    }
+  }
+
+  private async resolveIndexInternal(client: WebDavClient, gid: number): Promise<CloudGalleryIndex | null> {
+    const cached = this.indexes.get(gid);
     const listing = await client.list(DOWNLOADS_FOLDER);
     if (!listing.ok) {
       return cached !== undefined ? cached : null;
@@ -136,7 +157,7 @@ export class CloudGalleryPageService {
     const resolved: CloudGalleryIndex = {
       directoryName: directoryName,
       files: byIndex,
-      fetchedAt: now
+      fetchedAt: Date.now()
     };
     this.indexes.set(gid, resolved);
     return resolved;

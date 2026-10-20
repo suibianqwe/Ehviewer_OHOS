@@ -91,6 +91,7 @@ import {
 } from '../services/ReaderOcrDebugLog';
 import { galleryPageCache } from '../services/GalleryPageCache';
 import { CacheClearResult, CachePruneResult, readerImageCache } from '../services/ReaderImageCache';
+import { galleryThumbnailDecodeCache } from '../services/GalleryThumbnailDecodeCache';
 import { FilterRule, FILTER_MODE_RATING, FILTER_MODE_TITLE, FILTER_RULE_REVISION_KEY, ehFilterStore } from '../services/EhFilterStore';
 import { ehCommentBlacklistStore } from '../services/EhCommentBlacklistStore';
 import {
@@ -295,7 +296,7 @@ export struct SettingsScene {
       }).catch((error: Error) => {
         this.statusText = 'Settings load failed: ' + error.message;
       });
-      ehDownloadStore.load(context).then(() => {
+      ehDownloadStore.ensureLoaded(context).then(() => {
         this.settingsRenderRevision++;
       }).catch(() => {
       });
@@ -686,9 +687,9 @@ export struct SettingsScene {
         '. Refresh Homepage or run Network diagnostics.' : 'Saved in memory: ' + key + ' = ' + displayValue;
       return;
     }
-    let cachePrune: CachePruneResult | null = null;
+    let cachePrune: Promise<CachePruneResult | null> = Promise.resolve(null);
     if (key === 'read_cache_size') {
-      cachePrune = readerImageCache.prune(context);
+      cachePrune = readerImageCache.pruneAsync(context);
       this.settingsRenderRevision++;
     }
     if (key === HISTORY_INFO_SIZE_KEY) {
@@ -697,16 +698,17 @@ export struct SettingsScene {
         ehHistoryStore.save(context).catch(() => {});
       }).catch(() => {});
     }
-    ehSettingsStore.save(context).then(() => {
+    ehSettingsStore.save(context).then(() => cachePrune).then((pruned: CachePruneResult | null) => {
       const displayValue = settingDisplayValueForStatus(key, normalizedValue);
       this.statusText = isNetworkSettingKey(key) ? 'Saved network setting: ' + key + ' = ' + displayValue +
         '. Refresh Homepage or run Network diagnostics.' : 'Saved: ' + key + ' = ' + displayValue;
       if (key === 'theme' || key === 'theme_color' || key === 'follow_system_dark_mode' || key === 'ui_style') {
         this.statusText = 'Theme refreshed';
       }
-      if (cachePrune !== null && key === 'read_cache_size') {
+      if (pruned !== null && key === 'read_cache_size') {
+        this.settingsRenderRevision++;
         this.statusText = 'Cache limit saved: ' + normalizedValue + '. Cleared oldest cache: ' +
-          downloadSizeText(cachePrune.bytes) + '.';
+          downloadSizeText(pruned.bytes) + '.';
       }
     }).catch((error: Error) => {
       this.statusText = 'Save failed: ' + error.message;
@@ -1626,7 +1628,7 @@ export struct SettingsScene {
           if (settingResult.titleChanged) {
             notifyGalleryTitleChanged();
           }
-          readerImageCache.prune(context);
+          saves.push(readerImageCache.pruneAsync(context).then(() => {}));
           this.settingsRenderRevision++;
         }
 
@@ -2037,16 +2039,18 @@ export struct SettingsScene {
   }
 
   private clearMemoryCache(): void {
+    galleryThumbnailDecodeCache.clear();
     const pageCount = galleryPageCache.clear();
     const context = getAbilityContext();
     if (context === undefined) {
       this.statusText = 'Cleared page cache: ' + pageCount.toString() + ' entries.';
       return;
     }
-    const imageResult: CacheClearResult = readerImageCache.clear(context);
-    this.settingsRenderRevision++;
-    this.statusText = 'Cleared cache: ' + pageCount.toString() + ' pages, ' +
-      imageResult.files.toString() + ' images, ' + downloadSizeText(imageResult.bytes) + '.';
+    readerImageCache.clearAsync(context).then((imageResult: CacheClearResult) => {
+      this.settingsRenderRevision++;
+      this.statusText = 'Cleared cache: ' + pageCount.toString() + ' pages, ' +
+        imageResult.files.toString() + ' images, ' + downloadSizeText(imageResult.bytes) + '.';
+    }).catch((error: Error) => { this.statusText = 'Clear cache failed: ' + error.message; });
   }
 
   private runNetworkDiagnostics(): void {

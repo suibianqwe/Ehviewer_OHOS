@@ -53,6 +53,7 @@ import { SettingsSubToolbar, SettingsTextBlock } from './SettingsPanels';
 export struct RemoteStoragePanel {
   onBack: () => void = () => {};
   @State profiles: RemoteStorageProfile[] = [];
+  @State profilesRevision: number = 0;
   @State editorVisible: boolean = false;
   @State editorProfile: RemoteStorageProfile = emptyRemoteStorageProfile();
   @State editorIsNew: boolean = true;
@@ -70,8 +71,14 @@ export struct RemoteStoragePanel {
     if (context === undefined) {
       return;
     }
-    await remoteStorageProfileStore.ensureLoaded(context);
+    try {
+      await remoteStorageProfileStore.ensureLoaded(context);
+    } catch (error) {
+      this.panelStatus = uiText('Remote storage load failed');
+      return;
+    }
     this.profiles = remoteStorageProfileStore.getProfiles();
+    this.profilesRevision++;
   }
 
   private openNewProfile(): void {
@@ -81,7 +88,9 @@ export struct RemoteStoragePanel {
   }
 
   private openProfile(profile: RemoteStorageProfile): void {
-    this.editorProfile = profile;
+    const current = remoteStorageProfileStore.getProfile(profile.id);
+    if (current === null) return;
+    this.editorProfile = current;
     this.editorIsNew = false;
     this.editorVisible = true;
   }
@@ -90,33 +99,43 @@ export struct RemoteStoragePanel {
     this.editorVisible = false;
   }
 
-  private async saveProfile(profile: RemoteStorageProfile): Promise<void> {
+  private async saveProfile(profile: RemoteStorageProfile): Promise<string> {
     const context = getAbilityContext();
     if (context === undefined) {
-      this.panelStatus = uiText('Sign in is required');
-      return;
+      return 'Remote storage save failed';
     }
-    const saved = await remoteStorageProfileStore.upsert(context, profile);
+    let saved: RemoteStorageProfile | null = null;
+    try {
+      saved = await remoteStorageProfileStore.upsert(context, profile);
+    } catch (error) {
+      return 'Remote storage save failed';
+    }
     if (saved === null) {
-      this.panelStatus = uiText('Enter a valid server URL');
-      return;
+      return 'Enter a valid server URL';
     }
     this.editorVisible = false;
     this.panelStatus = uiText('Saved');
     await this.reloadProfiles();
     remoteStorageSyncService.refreshConfiguration();
+    return '';
   }
 
-  private async removeProfile(profile: RemoteStorageProfile): Promise<void> {
+  private async removeProfile(profile: RemoteStorageProfile): Promise<string> {
     const context = getAbilityContext();
     if (context === undefined) {
-      return;
+      return 'Remote storage remove failed';
     }
-    if (await remoteStorageProfileStore.remove(context, profile.id)) {
+    try {
+      if (!await remoteStorageProfileStore.remove(context, profile.id)) {
+        return 'Remote storage remove failed';
+      }
       this.editorVisible = false;
       this.panelStatus = uiText('Removed');
       await this.reloadProfiles();
       remoteStorageSyncService.refreshConfiguration();
+      return '';
+    } catch (error) {
+      return 'Remote storage remove failed';
     }
   }
 
@@ -268,7 +287,7 @@ export struct RemoteStoragePanel {
               ListItem() {
                 this.profileRow(profile, index)
               }
-            }, (profile: RemoteStorageProfile): string => profile.id)
+            }, (profile: RemoteStorageProfile): string => profile.id + ':' + this.profilesRevision.toString())
           }
           if (this.panelStatus.length > 0) {
             ListItem() {
@@ -295,11 +314,11 @@ export struct RemoteStoragePanel {
           onCancel: () => {
             this.closeEditor();
           },
-          onSave: (profile: RemoteStorageProfile) => {
-            this.saveProfile(profile);
+          onSave: (profile: RemoteStorageProfile): Promise<string> => {
+            return this.saveProfile(profile);
           },
-          onRemove: (profile: RemoteStorageProfile) => {
-            this.removeProfile(profile);
+          onRemove: (profile: RemoteStorageProfile): Promise<string> => {
+            return this.removeProfile(profile);
           }
         })
           .width('100%')
@@ -459,8 +478,8 @@ struct RemoteStorageEditorOverlay {
   profile: RemoteStorageProfile = emptyRemoteStorageProfile();
   isNew: boolean = true;
   onCancel: () => void = () => {};
-  onSave: (profile: RemoteStorageProfile) => void = (_profile: RemoteStorageProfile) => {};
-  onRemove: (profile: RemoteStorageProfile) => void = (_profile: RemoteStorageProfile) => {};
+  onSave: (profile: RemoteStorageProfile) => Promise<string> = async (_profile: RemoteStorageProfile) => 'Remote storage save failed';
+  onRemove: (profile: RemoteStorageProfile) => Promise<string> = async (_profile: RemoteStorageProfile) => 'Remote storage remove failed';
   @State draftName: string = '';
   @State draftUrl: string = '';
   @State draftPort: string = '';
@@ -516,6 +535,26 @@ struct RemoteStorageEditorOverlay {
 
   private showFloating(message: string): void {
     this.getUIContext().getPromptAction().showToast({ message: message });
+  }
+
+  private async submitDraft(remove: boolean): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    this.statusText = '';
+    try {
+      const draft = this.currentDraft();
+      const operation: Promise<string> = remove ? this.onRemove(draft) : this.onSave(draft);
+      const message = await operation;
+      if (message.length > 0) {
+        this.statusText = uiText(message);
+        this.showFloating(this.statusText);
+      }
+    } catch (error) {
+      this.statusText = uiText(remove ? 'Remote storage remove failed' : 'Remote storage save failed');
+      this.showFloating(this.statusText);
+    } finally {
+      this.busy = false;
+    }
   }
 
   private localizedRemoteMessage(message: string): string {
@@ -709,8 +748,9 @@ struct RemoteStorageEditorOverlay {
               .border({ width: 1, color: uiButtonHighlightBorderColor() })
               .backgroundEffect(uiTransparentButtonBackgroundEffect())
               .systemMaterial(uiButtonMaterial())
+              .enabled(!this.busy)
               .onClick(() => {
-                this.onRemove(this.currentDraft());
+                this.submitDraft(true);
               })
           }
           Button(uiText(this.busy ? 'Testing connection...' : 'Test'), { type: ButtonType.Capsule, stateEffect: true })
@@ -737,8 +777,9 @@ struct RemoteStorageEditorOverlay {
             .border({ width: 1, color: uiButtonHighlightBorderColor() })
             .backgroundEffect(uiTransparentButtonBackgroundEffect())
             .systemMaterial(uiButtonMaterial())
+            .enabled(!this.busy)
             .onClick(() => {
-              this.onSave(this.currentDraft());
+              this.submitDraft(false);
             })
         }
         .width('100%')

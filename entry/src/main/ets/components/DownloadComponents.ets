@@ -225,6 +225,7 @@ export struct DownloadToolColumn {
   @State activeActionIndex: number = -1;
   onToggle: () => void = () => {};
   onStatus: () => void = () => {};
+  onSort: () => void = () => {};
   onJump: () => void = () => {};
   onStart: () => void = () => {};
   onStop: () => void = () => {};
@@ -255,9 +256,9 @@ export struct DownloadToolColumn {
       return 0;
     }
     if (this.hasSelection) {
-      return this.showTranslationButton ? 8 : 7;
+      return this.showTranslationButton ? 9 : 8;
     }
-    return this.showTranslationButton ? 7 : 6;
+    return this.showTranslationButton ? 8 : 7;
   }
 
   private primaryIndex(): number {
@@ -294,6 +295,7 @@ export struct DownloadToolColumn {
       if (index === 5) return 'start';
       if (index === 6) return 'stop';
       if (index === 7 && this.showTranslationButton) return 'translate';
+      if (index === (this.showTranslationButton ? 8 : 7)) return 'sort';
       return '';
     }
     if (index === 0) return 'status';
@@ -303,6 +305,7 @@ export struct DownloadToolColumn {
     if (index === 4) return 'scan';
     if (index === 5 && this.showTranslationButton) return 'translate';
     if (index === (this.showTranslationButton ? 6 : 5)) return 'random';
+    if (index === (this.showTranslationButton ? 7 : 6)) return 'sort';
     return '';
   }
 
@@ -313,6 +316,7 @@ export struct DownloadToolColumn {
     if (kind === 'export') return uiText('Export');
     if (kind === 'delete') return uiText('Delete');
     if (kind === 'status') return uiText('Status');
+    if (kind === 'sort') return uiText('Sort');
     if (kind === 'jump') return uiText('Jump');
     if (kind === 'start') return this.hasSelection ? uiText('Start selected') : uiText('Start filtered');
     if (kind === 'stop') return this.hasSelection ? uiText('Stop selected') : uiText('Stop filtered');
@@ -331,6 +335,7 @@ export struct DownloadToolColumn {
     if (kind === 'export') return $r('sys.symbol.archivebox');
     if (kind === 'delete') return $r('sys.symbol.trash');
     if (kind === 'status') return $r('sys.symbol.funnel');
+    if (kind === 'sort') return $r('sys.symbol.list_number');
     if (kind === 'jump') return $r('sys.symbol.chevron_forward');
     if (kind === 'start') return $r('sys.symbol.play_fill');
     if (kind === 'stop') return $r('sys.symbol.pause_fill');
@@ -406,6 +411,8 @@ export struct DownloadToolColumn {
       this.onDelete();
     } else if (kind === 'status') {
       this.onStatus();
+    } else if (kind === 'sort') {
+      this.onSort();
     } else if (kind === 'jump' && this.canJump) {
       this.onJump();
     } else if (kind === 'start' && this.canOperate) {

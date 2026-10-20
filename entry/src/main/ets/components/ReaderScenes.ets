@@ -120,7 +120,7 @@ import {
   ReaderSliderPanel,
 } from './reader/overlays/ReaderOverlays';
 import { ReaderContinuousImageItem } from './reader/viewports/ReaderContinuousImageItem';
-import { ReaderImageViewport } from './reader/viewports/ReaderImageViewport';
+import { ReaderSpreadViewport } from './reader/viewports/ReaderSpreadViewport';
 import {
   SLIDER_AUTO_HIDE_DELAY,
   READER_SCREEN_TAP_DELAY,
@@ -138,7 +138,6 @@ import {
   ReaderSuperResolutionDisplayTarget,
   ReaderPageGroupItem,
   ReaderProcessedImageLease,
-  ReaderPairedTransformViewport,
   usableReaderLocalPath,
 } from './ReaderSceneSupport';
 export { ReaderNavButton, ReaderToolButton } from './reader/controls/ReaderButtons';
@@ -165,6 +164,7 @@ export struct ReaderScene {
   onJump: (index: number) => void = () => {};
   onRetry: () => void = () => {};
   onRefreshPage: (index: number) => void = () => {};
+  onVisiblePageIndexesChange: (indexes: number[]) => void = () => {};
   onAdaptiveDualPageChange: (enabled: boolean) => void = (_enabled: boolean) => {};
   onComicTranslationToggle: (enabled: boolean) => void = (_enabled: boolean) => {};
   onComicTranslationRefresh: (pageIndexes: number[]) => void = (_pageIndexes: number[]) => {};
@@ -206,6 +206,7 @@ export struct ReaderScene {
   @State viewportCommandVersion: number = 0;
   @State readerPageImageSizeRevision: number = 0;
   @State pairedImageModel: ReaderPreviewModel = new ReaderPreviewModel();
+  @State pairedJoining: boolean = false;
   @State comicTranslationButtonX: number = 0;
   @State comicTranslationButtonY: number = 160;
   // Swiper direction state (applied from menu)
@@ -224,7 +225,6 @@ export struct ReaderScene {
   private readerPageIndexesCount: number = -1;
   private readerPageIndexesReversed: boolean = false;
   private readerPageIndexesSignature: string = '';
-  private readerPageGroupRevision: number = 0;
   // Page grouping is rebuilt only when its inputs actually change; otherwise every build would
   // recompute the O(pages) group list for each mounted viewport.
   private readerGroupingCacheKey: string = '';
@@ -246,6 +246,7 @@ export struct ReaderScene {
   private swiperSourceSyncTimer: number = -1;
   private continuousScroller: Scroller = new Scroller();
   private continuousScrollTarget: number = -1;
+  private continuousVisiblePageIndexes: number[] = [];
   private continuousScrollRevision: number = 0;
   private continuousScrollTimer: number = -1;
   private activeImageWidth: number = 0;
@@ -671,7 +672,13 @@ export struct ReaderScene {
 
   onReaderPreviewsChange(): void {
     if (!this.cropWhiteBorders && this.syncReaderPreviewImageSizes()) {
-      this.schedulePageGroupRefresh();
+      // Local headers are published before the page source. Apply the grouping
+      // in that same prop update, not after pixels have painted as a single page.
+      if (this.readerWindowActive && !this.swiperAnimating) {
+        this.refreshPageGroups();
+      } else {
+        this.schedulePageGroupRefresh(0);
+      }
     }
   }
 
@@ -908,6 +915,7 @@ export struct ReaderScene {
       changed = true;
     }
     if (changed) {
+      this.readerPageImageSizeRevision++;
       this.readerPageSizeRevision++;
     }
     return changed;
@@ -965,20 +973,24 @@ export struct ReaderScene {
         return;
       }
       this.pageGroupRefreshPending = false;
-      const previousIndex = this.currentIndex;
-      const previousGroup = this.readerPageGroupItem(previousIndex);
-      const nextAnchor = this.pageGroupAnchorForPageIndex(previousIndex);
-      const currentGroupUnchanged = previousGroup !== null && previousGroup.index === nextAnchor &&
-        previousGroup.paired === this.shouldPairPage(nextAnchor);
-      // Size reports from prefetched pages may rebuild other groups; keep the active group's zoom in that case.
-      if (!currentGroupUnchanged) {
-        this.resetPairedViewport();
-      }
-      this.normalizeCurrentPageGroup();
-      this.syncReaderPageIndexSource();
-      this.scheduleImageProcessingPrefetch();
-      this.syncPairedViewport(this.currentIndex);
+      this.refreshPageGroups();
     }, Math.max(0, delay)) as number;
+  }
+
+  private refreshPageGroups(): void {
+    const previousIndex = this.currentIndex;
+    const previousGroup = this.readerPageGroupItem(previousIndex);
+    const nextAnchor = this.pageGroupAnchorForPageIndex(previousIndex);
+    const currentGroupUnchanged = previousGroup !== null && previousGroup.index === nextAnchor &&
+      previousGroup.paired === this.shouldPairPage(nextAnchor);
+    // Background headers may change other groups; retain the active group's zoom.
+    if (!currentGroupUnchanged) {
+      this.resetPairedViewport();
+    }
+    this.normalizeCurrentPageGroup();
+    this.syncReaderPageIndexSource();
+    this.scheduleImageProcessingPrefetch();
+    this.syncPairedViewport(this.currentIndex);
   }
 
   private shouldPairPage(index: number): boolean {
@@ -1156,6 +1168,9 @@ export struct ReaderScene {
   }
 
   private scheduleImageProcessingPrefetch(delay: number = 100): void {
+    if (this.readerWindowActive) {
+      this.onVisiblePageIndexesChange(this.visiblePageIndexesForImageRequests());
+    }
     if (this.imageProcessingPrefetchTimer !== -1) {
       clearTimeout(this.imageProcessingPrefetchTimer);
     }
@@ -1192,8 +1207,7 @@ export struct ReaderScene {
       const targetKey = this.superResolutionTargetKey(target);
       const engineKey = readerSuperResolutionEngineCacheKey(superResolutionEngine);
       const sourceInputKey = sourceKey + '|' + sourcePath;
-      const adjustmentKey = sourceInputKey + '|adjust|' + adjustmentSettings.detailCacheKey() +
-        '|target|' + targetKey;
+      const adjustmentKey = sourceInputKey + '|adjust|' + adjustmentSettings.detailCacheKey();
       const offlineAdjustment = adjustmentSettings.requiresOfflineProcessing();
       const superResolutionInputKey = offlineAdjustment ? adjustmentKey : sourceInputKey;
       const superResolutionKey = superResolutionInputKey + '|sr|' + engineKey + '|' + targetKey;
@@ -1238,16 +1252,17 @@ export struct ReaderScene {
     this.readerPageIndexesCount = count;
     this.readerPageIndexesReversed = this.swiperReversed;
     this.readerPageIndexesSignature = signature;
-    this.readerPageGroupRevision++;
     const items: ReaderPageGroupItem[] = [];
     for (let i = 0; i < pages.length; i++) {
       items.push({
         index: pages[i],
-        key: this.readerPageGroupRevision.toString() + ':' + pages[i].toString(),
+        key: this.galleryId.toString() + ':' + pages[i].toString(),
         paired: this.shouldPairPage(pages[i])
       });
     }
-    this.mountedPairedPageKeys = [];
+    // Keep unchanged groups mounted when another page finishes loading.
+    this.mountedPairedPageKeys = this.mountedPairedPageKeys.filter((key: string) =>
+      items.some((item: ReaderPageGroupItem) => item.key === key));
     const anchor = this.pageGroupAnchorForPageIndex(this.currentIndex);
     const targetVisualIndex = pages.indexOf(anchor);
     this.scheduleSwiperSourceSync(targetVisualIndex < 0 ? 0 : targetVisualIndex);
@@ -1319,7 +1334,7 @@ export struct ReaderScene {
   }
 
   private issueViewportCommand(command: string, centerX: number = -1, centerY: number = -1): void {
-    if (!this.isContinuousVerticalMode() && this.shouldPairPage(this.currentIndex)) {
+    if (!this.isContinuousVerticalMode() && this.pairedPageGroupMounted(this.currentIndex)) {
       this.syncPairedViewport(this.currentIndex);
       if (command === 'zoom_in') {
         this.pairedImageModel.zoomBy(1.25);
@@ -2301,8 +2316,7 @@ export struct ReaderScene {
   private async acquireProcessedImageForSave(page: GalleryPage, index: number,
     sourcePath: string): Promise<ReaderProcessedImageLease> {
     const lease = new ReaderProcessedImageLease();
-    if ((!this.imageSuperResolutionEnabled && !this.sdrToHdrEnabled && !this.imageAdjustmentSettings.enabled &&
-      !this.imageAdjustmentSettings.hasMoireReduction()) ||
+    if ((!this.imageSuperResolutionEnabled && !this.sdrToHdrEnabled && !this.imageAdjustmentSettings.enabled) ||
       sourcePath.length === 0) {
       return lease;
     }
@@ -2311,12 +2325,12 @@ export struct ReaderScene {
     const target = this.superResolutionDisplayTarget(index);
     const targetKey = this.superResolutionTargetKey(target);
     let adjustedPixelMap: image.PixelMap | undefined = undefined;
-    if (this.imageAdjustmentSettings.enabled || this.imageAdjustmentSettings.hasMoireReduction()) {
+    if (this.imageAdjustmentSettings.enabled) {
       lease.adjustmentKey = sourceKey + '|' + sourcePath + '|adjust-baked|' +
-        this.imageAdjustmentSettings.cacheKey() + '|target|' + targetKey;
+        this.imageAdjustmentSettings.cacheKey();
       try {
         adjustedPixelMap = await readerImageAdjustmentService.acquire(lease.adjustmentKey, sourcePath,
-          this.imageAdjustmentSettings, 0, true, target.width, target.height);
+          this.imageAdjustmentSettings, 0, true);
       } catch (_error) {
         adjustedPixelMap = undefined;
       }
@@ -2492,6 +2506,13 @@ export struct ReaderScene {
       pageIndexes.push(anchor + 1);
     }
     return pageIndexes;
+  }
+
+  private visiblePageIndexesForImageRequests(): number[] {
+    if (this.isContinuousVerticalMode() && this.continuousVisiblePageIndexes.indexOf(this.currentIndex) >= 0) {
+      return this.continuousVisiblePageIndexes.slice();
+    }
+    return this.visiblePageIndexesForComicTranslation();
   }
 
   private async ensureLocalImagePathForPage(page: GalleryPage): Promise<string> {
@@ -2757,7 +2778,7 @@ export struct ReaderScene {
     this.onJump(index);
   }
 
-  private onContinuousScrollIndex(index: number): void {
+  private onContinuousScrollIndex(index: number, lastIndex: number = index): void {
     const pageIndex = this.pageIndexForVisualIndex(index);
     if (this.continuousScrollTarget >= 0) {
       if (pageIndex !== this.continuousScrollTarget) {
@@ -2768,6 +2789,18 @@ export struct ReaderScene {
         clearTimeout(this.continuousScrollTimer);
         this.continuousScrollTimer = -1;
       }
+    }
+    const endPage = this.pageIndexForVisualIndex(lastIndex);
+    const first = Math.min(pageIndex, endPage);
+    const last = Math.max(pageIndex, endPage);
+    const previous = this.continuousVisiblePageIndexes;
+    if (previous.length !== last - first + 1 || previous[0] !== first || previous[previous.length - 1] !== last) {
+      const visible: number[] = [];
+      for (let page = first; page <= last; page++) {
+        visible.push(page);
+      }
+      this.continuousVisiblePageIndexes = visible;
+      this.onVisiblePageIndexesChange(visible);
     }
     if (pageIndex === this.currentIndex) {
       return;
@@ -2912,6 +2945,7 @@ export struct ReaderScene {
   }
 
   private resetPairedViewport(): void {
+    this.pairedJoining = false;
     this.clearPairedTapTimer();
     this.pairedTouchMoved = false;
     this.pairedTouchHadMultipleFingers = false;
@@ -3021,7 +3055,7 @@ export struct ReaderScene {
   }
 
   private pairedGestureReady(): boolean {
-    return !this.isContinuousVerticalMode() && this.shouldPairPage(this.currentIndex) &&
+    return !this.pairedJoining && !this.isContinuousVerticalMode() && this.pairedPageGroupMounted(this.currentIndex) &&
       this.pairedViewportIndex === this.currentIndex;
   }
 
@@ -3098,124 +3132,81 @@ export struct ReaderScene {
   }
 
   @Builder
-  private ReaderPageViewport(index: number, width: Length, height: Length, interactive: boolean = true) {
-    ReaderImageViewport({
-      page: this.pageForIndex(index),
+  private ReaderSpreadPage(index: number, key: string) {
+    ReaderSpreadViewport({
+      firstPage: this.pageForIndex(index),
+      secondPage: this.pageForIndex(index + 1),
+      paired: this.readerPageImageSizeRevision >= 0 && this.shouldPairPage(index),
+      isActive: index === this.currentIndex,
+      reversed: this.swiperReversed,
+      viewportWidth: this.readerLayoutWidth,
+      viewportHeight: this.readerLayoutHeight,
+      firstWidth: this.pageImageSize(index)?.width ?? 0,
+      firstHeight: this.pageImageSize(index)?.height ?? 0,
+      secondWidth: this.pageImageSize(index + 1)?.width ?? 0,
+      secondHeight: this.pageImageSize(index + 1)?.height ?? 0,
+      model: this.pairedImageModel,
       statusText: index === this.pageIndex ? this.statusText : uiText('Image page is loading'),
       preferOriginal: this.preferOriginal,
       fitMode: this.fitMode,
       fixedScale: this.fixedScale,
       startPosition: this.startPosition,
-      isActive: this.pageGroupAnchorForPageIndex(index) === this.currentIndex,
       hdrEnabled: this.sdrToHdrEnabled,
       imageAdjustmentSettings: this.imageAdjustmentSettings,
       superResolutionEnabled: this.imageSuperResolutionEnabled,
       superResolutionEngine: this.imageSuperResolutionEngine,
-      superResolutionTargetWidth: this.superResolutionDisplayTarget(index).width,
-      superResolutionTargetHeight: this.superResolutionDisplayTarget(index).height,
+      firstTargetWidth: this.superResolutionDisplayTarget(index).width,
+      firstTargetHeight: this.superResolutionDisplayTarget(index).height,
+      secondTargetWidth: this.superResolutionDisplayTarget(index + 1).width,
+      secondTargetHeight: this.superResolutionDisplayTarget(index + 1).height,
       cropWhiteBorders: this.cropWhiteBorders,
       hdrPriority: Math.abs(this.visualIndexForPageIndex(index) - this.visualIndexForPageIndex(this.currentIndex)),
-      translation: this.pageGroupAnchorForPageIndex(index) === this.currentIndex ?
-        this.readerTranslationForPage(index) : null,
+      firstTranslation: index === this.currentIndex ? this.readerTranslationForPage(index) : null,
+      secondTranslation: index === this.currentIndex ? this.readerTranslationForPage(index + 1) : null,
       allowEdgeSwipe: !this.swiperVertical,
-      interactive: interactive,
       readerBackgroundColorValue: this.currentReaderBackgroundColor(),
       command: this.viewportCommand,
       commandVersion: this.viewportCommandVersion,
-      onTap: (x: number, y: number, w: number, h: number) => {
-        if (interactive && this.pageGroupAnchorForPageIndex(index) === this.currentIndex) {
-          this.onTap(x, y, w, h);
-        }
-      },
-      onRetry: () => {
+      onPresentationChange: (ready: boolean, animating: boolean) => {
+        if (this.readerPageGroupItem(index)?.key !== key) return;
+        if (ready) this.rememberMountedPairedPage(key);
+        else this.forgetMountedPairedPage(key);
         if (index === this.currentIndex) {
-          this.onRetry();
-        } else {
-          this.onRefreshPage(index);
+          this.pairedJoining = animating;
+          this.syncPairedViewport(index);
         }
       },
-      onImageLongPress: () => {
-        if (this.pageGroupAnchorForPageIndex(index) === this.currentIndex) {
-          this.showImageActions(index);
-        }
+      onTap: (x: number, y: number, w: number, h: number) => {
+        if (index === this.currentIndex) this.onTap(x, y, w, h);
+      },
+      onRetry: (offset: number) => {
+        if (index + offset === this.currentIndex) this.onRetry();
+        else this.onRefreshPage(index + offset);
+      },
+      onImageLongPress: (offset: number) => {
+        if (index === this.currentIndex) this.showImageActions(index + offset);
       },
       onSwipeLockChange: (locked: boolean) => {
-        if (this.pageGroupAnchorForPageIndex(index) === this.currentIndex) {
-          this.isDisableSwipe = locked;
-        }
+        if (index === this.currentIndex) this.isDisableSwipe = locked;
       },
       onZoomChange: (percent: number) => {
-        if (this.pageGroupAnchorForPageIndex(index) === this.currentIndex) {
-          this.zoomPercent = percent;
-        }
+        if (index === this.currentIndex) this.zoomPercent = percent;
       },
       onZoomCommit: (percent: number) => {
-        if (this.pageGroupAnchorForPageIndex(index) === this.currentIndex && this.isFixedScaleMode()) {
+        if (index === this.currentIndex && this.isFixedScaleMode()) {
           this.fixedScale = Math.max(READER_MIN_SCALE, Math.min(READER_MAX_SCALE, percent / 100));
         }
       },
-      onImageSizeChange: (width: number, height: number) => {
-        this.rememberPageImageSize(index, width, height);
-        if (index === this.currentIndex) {
-          this.onActiveImageSizeChange(width, height);
-        }
+      onImageSizeChange: (offset: number, width: number, height: number) => {
+        this.rememberPageImageSize(index + offset, width, height);
+        if (index + offset === this.currentIndex) this.onActiveImageSizeChange(width, height);
       },
       onEdgeSwipe: (direction: number) => {
-        if (this.pageGroupAnchorForPageIndex(index) === this.currentIndex) {
-          this.jumpByVisualDirection(direction);
-        }
+        if (index === this.currentIndex) this.jumpByVisualDirection(direction);
       }
     })
-      .width(width)
-      .height(height)
-  }
-
-  @Builder
-  private ReaderPairedPageGroup(index: number, key: string) {
-    Stack({ alignContent: Alignment.Center }) {
-      if (this.readerLayoutHeight >= this.readerLayoutWidth) {
-        ReaderPairedTransformViewport({ model: this.pairedImageModel }) {
-          Column({ space: 0 }) {
-            this.ReaderPageViewport(index, '100%', this.pairedPageDisplayExtent(index, index), false)
-            this.ReaderPageViewport(index + 1, '100%', this.pairedPageDisplayExtent(index, index + 1), false)
-          }
-          .width(this.pairedCanvasWidth(index))
-          .height(this.pairedCanvasHeight(index))
-        }
-      } else {
-        ReaderPairedTransformViewport({ model: this.pairedImageModel }) {
-          Row({ space: 0 }) {
-            if (this.swiperReversed) {
-              this.ReaderPageViewport(index + 1, this.pairedPageDisplayExtent(index, index + 1), '100%', false)
-              this.ReaderPageViewport(index, this.pairedPageDisplayExtent(index, index), '100%', false)
-            } else {
-              this.ReaderPageViewport(index, this.pairedPageDisplayExtent(index, index), '100%', false)
-              this.ReaderPageViewport(index + 1, this.pairedPageDisplayExtent(index, index + 1), '100%', false)
-            }
-          }
-          .width(this.pairedCanvasWidth(index))
-          .height(this.pairedCanvasHeight(index))
-        }
-      }
-    }
-    .width('100%')
-    .height('100%')
-    .clip(true)
-    .onAppear(() => {
-      this.rememberMountedPairedPage(key);
-      this.syncPairedViewport(index);
-    })
-    .onDisAppear(() => {
-      // A data-source refresh can temporarily unmount this cached node without changing the active page group.
-      this.forgetMountedPairedPage(key);
-    })
-    .onAreaChange((_oldArea: Area, newArea: Area) => {
-      this.rememberMountedPairedPage(key);
-      const width = Number.parseFloat(newArea.width.toString());
-      const height = Number.parseFloat(newArea.height.toString());
-      this.syncPairedViewport(index, width, height);
-    })
-    .draggable(false)
+      .width('100%')
+      .height('100%')
   }
 
   @Builder
@@ -3301,14 +3292,11 @@ export struct ReaderScene {
   }
 
   @Builder
-  private ReaderPageGroup(index: number, paired: boolean, key: string) {
+  private ReaderPageGroup(index: number, key: string) {
     Stack({ alignContent: Alignment.Center }) {
+      // Keep the physical first page mounted while its presentation changes.
       if (this.shouldRenderPageGroup(index)) {
-        if (paired) {
-          this.ReaderPairedPageGroup(index, key)
-        } else {
-          this.ReaderPageViewport(index, '100%', '100%')
-        }
+        this.ReaderSpreadPage(index, key)
       }
     }
     .width('100%')
@@ -3403,14 +3391,14 @@ export struct ReaderScene {
         .scrollBar(BarState.Off)
         .cachedCount(this.readerContinuousCacheCount())
         .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-        .onScrollIndex((first: number) => {
-          this.onContinuousScrollIndex(first);
+        .onScrollIndex((first: number, last: number) => {
+          this.onContinuousScrollIndex(first, last);
         })
       } else {
         Swiper(this.swiperController) {
           LazyForEach(this.readerPageIndexSource(), (item: ReaderPageGroupItem) => {
             // Each Swiper child is one screen. A paired child renders two physical pages.
-            this.ReaderPageGroup(item.index, item.paired, item.key)
+            this.ReaderPageGroup(item.index, item.key)
           }, (item: ReaderPageGroupItem) => item.key)
         }
         .index(this.visualIndexForPageIndex(this.currentIndex))
@@ -3426,7 +3414,7 @@ export struct ReaderScene {
         .duration(isHarmonyUiStyle() ? 220 : 180)
         .curve(Curve.EaseOut)
         .effectMode(EdgeEffect.None)
-        .disableSwipe(this.isDisableSwipe)
+        .disableSwipe(this.isDisableSwipe || this.pairedJoining)
         .onChange((index: number) => {
           this.onSwiperChange(index);
         })
@@ -3574,7 +3562,6 @@ export struct ReaderScene {
           menuImageSuperResolution: this.menuImageSuperResolutionEnabled,
           menuImageSuperResolutionEngine: this.menuImageSuperResolutionEngine,
           menuSdrToHdrEnabled: this.menuSdrToHdrEnabled,
-          menuMoireReduction: this.menuImageAdjustmentSettings.moireReduction,
           menuImageAdjustmentEnabled: this.menuImageAdjustmentSettings.enabled,
           menuImageContrast: this.menuImageAdjustmentSettings.contrast,
           menuImageClarity: this.menuImageAdjustmentSettings.clarity,
@@ -3663,11 +3650,6 @@ export struct ReaderScene {
           },
           onSdrToHdrChange: (value: boolean) => {
             this.onMenuSdrToHdrChange(value);
-          },
-          onMoireReductionChange: (value: string) => {
-            this.menuImageAdjustmentSettings.moireReduction = value;
-            this.menuImageAdjustmentSettings = cloneReaderImageAdjustmentSettings(this.menuImageAdjustmentSettings);
-            this.markMenuReaderPresetCustom();
           },
           onImageAdjustmentEnabledChange: (value: boolean) => {
             this.menuImageAdjustmentSettings.enabled = value;

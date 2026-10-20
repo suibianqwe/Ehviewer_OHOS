@@ -9,6 +9,7 @@ import {
 import { TRANSLATION_BUTTONS_VISIBLE_KEY } from '../services/EhSettingsStore';
 import { DEFAULT_ADVANCE_SEARCH, ListMode } from '../services/EhUrl';
 import { DetailSearchRequest } from '../services/GalleryDetailSupport';
+import { CoverSearchSource } from '../model/GalleryModels';
 import {
   createGalleryDetailLink,
   createEmptyGalleryDetailLink,
@@ -100,6 +101,7 @@ interface TopListNavigationCache {
   tagSearchMode: ListMode;
   tagSearchCategory?: number;
   tagSearchImagePath: string;
+  tagSearchCoverSource?: CoverSearchSource;
   tagSearchImageUseSimilarity: boolean;
   tagSearchImageOnlyCovers: boolean;
   tagSearchImageShowExpunged: boolean;
@@ -156,6 +158,7 @@ export struct TopListScene {
   @State tagSearchMode: ListMode = ListMode.Tag;
   @State tagSearchCategory: number = GalleryCategory.None;
   @State tagSearchImagePath: string = '';
+  @State tagSearchCoverSource: CoverSearchSource | undefined = undefined;
   @State tagSearchImageUseSimilarity: boolean = false;
   @State tagSearchImageOnlyCovers: boolean = false;
   @State tagSearchImageShowExpunged: boolean = false;
@@ -233,6 +236,7 @@ export struct TopListScene {
     this.tagSearchMode = ListMode.Tag;
     this.tagSearchCategory = GalleryCategory.None;
     this.tagSearchImagePath = '';
+    this.tagSearchCoverSource = undefined;
     this.tagSearchImageUseSimilarity = false;
     this.tagSearchImageOnlyCovers = false;
     this.tagSearchImageShowExpunged = false;
@@ -270,6 +274,7 @@ export struct TopListScene {
     this.tagSearchMode = cache.tagSearchMode;
     this.tagSearchCategory = cache.tagSearchCategory === undefined ? GalleryCategory.None : cache.tagSearchCategory;
     this.tagSearchImagePath = cache.tagSearchImagePath;
+    this.tagSearchCoverSource = cache.tagSearchCoverSource;
     this.tagSearchImageUseSimilarity = cache.tagSearchImageUseSimilarity;
     this.tagSearchImageOnlyCovers = cache.tagSearchImageOnlyCovers;
     this.tagSearchImageShowExpunged = cache.tagSearchImageShowExpunged;
@@ -302,6 +307,7 @@ export struct TopListScene {
       tagSearchMode: this.tagSearchMode,
       tagSearchCategory: this.tagSearchCategory,
       tagSearchImagePath: this.tagSearchImagePath,
+      tagSearchCoverSource: this.tagSearchCoverSource,
       tagSearchImageUseSimilarity: this.tagSearchImageUseSimilarity,
       tagSearchImageOnlyCovers: this.tagSearchImageOnlyCovers,
       tagSearchImageShowExpunged: this.tagSearchImageShowExpunged,
@@ -320,6 +326,7 @@ export struct TopListScene {
     this.tagSearchMode = ListMode.Tag;
     this.tagSearchCategory = GalleryCategory.None;
     this.tagSearchImagePath = '';
+    this.tagSearchCoverSource = undefined;
     this.tagSearchImageUseSimilarity = false;
     this.tagSearchImageOnlyCovers = false;
     this.tagSearchImageShowExpunged = false;
@@ -336,6 +343,7 @@ export struct TopListScene {
     this.tagSearchMode = request.mode;
     this.tagSearchCategory = request.category;
     this.tagSearchImagePath = request.imagePath;
+    this.tagSearchCoverSource = request.coverSearchSource;
     this.tagSearchImageUseSimilarity = request.useSimilarityScan;
     this.tagSearchImageOnlyCovers = request.onlySearchCovers;
     this.tagSearchImageShowExpunged = request.showExpunged;
@@ -727,6 +735,7 @@ export struct TopListScene {
         initialAdvanceSearch: DEFAULT_ADVANCE_SEARCH,
         initialSearchSubmitted: true,
         initialImagePath: this.tagSearchImagePath,
+        initialCoverSearchSource: this.tagSearchCoverSource,
         initialImageUseSimilarityScan: this.tagSearchImageUseSimilarity,
         initialImageOnlySearchCovers: this.tagSearchImageOnlyCovers,
         initialImageShowExpunged: this.tagSearchImageShowExpunged,

@@ -1091,7 +1091,7 @@ function applyImportedSettingEffects(context: common.UIAbilityContext, result: S
   if (result.titleChanged) {
     notifyGalleryTitleChanged();
   }
-  readerImageCache.prune(context);
+  readerImageCache.pruneAsync(context).catch(() => {});
 }
 
 function createTransferPlan(context: common.UIAbilityContext, selectedKinds: WifiMigrationDataKind[],

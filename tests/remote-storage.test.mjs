@@ -7,11 +7,13 @@ const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf
 // Only erase the types used by these pure functions, not their implementation.
 function executable(source) {
   return source.replace(/^import[\s\S]*?from '[^']+';\r?\n/gm, '')
+    .replace(/: Promise<string>/g, '')
     .replace(/\bexport /g, '')
     .replace(/\b(private|readonly|protected|public) /g, '')
     .replace(/interface \w+ \{[^}]*\}/g, '')
     .replace(/ as (?:RemoteStorageProfile\[\] \| null|RemoteStorageProfile\[\]|RemoteStorageProfile)/g, '')
-    .replace(/: (?:common\.UIAbilityContext \| null|common\.UIAbilityContext|Promise<RemoteStorageProfile \| null>|Promise<RemoteStorageProfile\[\]>|Promise<boolean>|Promise<void>|RemoteStorageProfile \| null|RemoteStorageProfile\[\]|RemoteStorageProfile|RemoteStorageListEntry \| null|RemoteStorageListEntry\[\]|RemoteStorageListEntry|RegExpExecArray \| null|RegExp|string\[\]|string|number|boolean|void)(?:\[\])?/g, '');
+    .replace(/: (?:common\.UIAbilityContext \| null|common\.UIAbilityContext|Promise<void> \| null|Promise<RemoteStorageProfile \| null>|Promise<RemoteStorageProfile\[\]>|Promise<boolean>|Promise<void>|RemoteStorageProfile \| null|RemoteStorageProfile\[\]|RemoteStorageProfile|RemoteStorageListEntry \| null|RemoteStorageListEntry\[\]|RemoteStorageListEntry|RegExpExecArray \| null|RegExp|string\[\]|string|number|boolean|void)(?:\[\])?/g, '')
+    .replace(/AppStorage\.(get|setOrCreate)<number>/g, 'AppStorage.$1');
 }
 
 const supportSource = executable(read('entry/src/main/ets/services/RemoteStorageSupport.ets'))
@@ -29,14 +31,16 @@ const support = Function(supportSource +
   ' remoteStorageHost, normalizeRemoteStoragePort, remoteStoragePortFromUrl, remoteStorageUrlWithoutPort,' +
   ' remoteStorageApplyPort, resolveRedirectUrl, isRedirectStatus };')();
 
-const profiles = Function('createRemoteStorageProfileId', 'isValidRemoteStorageUrl', 'normalizeRemoteStorageBasePath',
+const profileFactory = Function('createRemoteStorageProfileId', 'isValidRemoteStorageUrl', 'normalizeRemoteStorageBasePath',
   'normalizeRemoteStorageUrl', 'remoteStorageHost', 'normalizeRemoteStoragePort', 'remoteStorageApplyPort',
-  'remoteStoragePortFromUrl',
+  'remoteStoragePortFromUrl', 'preferences', 'syncTombstoneStore', 'AppStorage',
   executable(read('entry/src/main/ets/services/RemoteStorageProfiles.ets')) +
   '\nreturn { parseRemoteStorageProfiles, normalizeRemoteStorageProfile, remoteStorageProfileForPurpose,' +
-  ' remoteStorageProfileSummary };')(support.createRemoteStorageProfileId, support.isValidRemoteStorageUrl,
+  ' remoteStorageProfileSummary, RemoteStorageProfileStore };');
+const supportArgs = [support.createRemoteStorageProfileId, support.isValidRemoteStorageUrl,
   support.normalizeRemoteStorageBasePath, support.normalizeRemoteStorageUrl, support.remoteStorageHost,
-  support.normalizeRemoteStoragePort, support.remoteStorageApplyPort, support.remoteStoragePortFromUrl);
+  support.normalizeRemoteStoragePort, support.remoteStorageApplyPort, support.remoteStoragePortFromUrl];
+const profiles = profileFactory(...supportArgs);
 
 test('remote storage paths normalize and join for WebDAV URLs', () => {
   assert.equal(support.normalizeRemoteStorageUrl('dav.example.com/dav/'), 'http://dav.example.com/dav');
@@ -202,4 +206,131 @@ test('https profiles default to port 5006 and keep explicit ports', () => {
   assert.equal(plainHttp.port, '');
   const ignored = profiles.normalizeRemoteStorageProfile(Object.assign({}, base, { ignoreCertificate: true }));
   assert.equal(ignored.ignoreCertificate, true);
+});
+
+const fixture = (fields = {}) => ({ id: 'fixture', name: 'Before', kind: 'webdav', url: 'https://example.invalid/dav',
+  port: '8443', username: 'synthetic', password: 'test-secret', basePath: 'test', useForBackup: false,
+  useForSync: false, useForDownloads: false, ignoreCertificate: false, updatedAt: 1, ...fields });
+function storageModel(initial = [fixture()]) {
+  let disk = JSON.stringify(initial); let cached = disk;
+  const events = []; const changes = []; const tombstones = [];
+  const prefs = {
+    async get() { events.push('get'); return cached; },
+    async put(key, value) { events.push('put'); cached = value; },
+    async flush() { events.push('flush'); disk = cached; }
+  };
+  const types = profileFactory(...supportArgs, { async getPreferences() { return prefs; } }, {
+    recordClear(...args) { tombstones.push(['clear', ...args]); },
+    recordDeletion(...args) { tombstones.push(['delete', ...args]); }
+  }, { get() { return changes.length; }, setOrCreate(key, value) { changes.push(value); } });
+  return { store: new types.RemoteStorageProfileStore(), fresh: () => new types.RemoteStorageProfileStore(),
+    prefs, events, changes, tombstones, disk: () => disk, cached: () => cached };
+}
+
+test('remote profile edits persist every field across reopen and cold reload, without losing other profiles', async () => {
+  const m = storageModel([fixture(), fixture({ id: 'other' })]);
+  const edited = fixture({ name: 'After', url: 'http://changed.invalid/dav', port: '5005', username: 'new-user',
+    password: 'new-test-secret', basePath: 'new-folder', useForBackup: true, useForSync: true,
+    useForDownloads: true, ignoreCertificate: true, updatedAt: 2 });
+  await m.store.upsert({}, edited);
+  assert.deepEqual(m.store.getProfile('fixture'), edited);
+  const cold = m.fresh(); await cold.ensureLoaded({});
+  assert.deepEqual(cold.getProfile('fixture'), edited);
+  assert.equal(cold.getProfiles().length, 2); assert.equal(m.changes.length, 1);
+  await m.store.remove({}, 'fixture');
+  const removed = m.fresh(); await removed.ensureLoaded({});
+  assert.equal(removed.getProfile('fixture'), null); assert.equal(removed.getProfiles().length, 1);
+});
+
+test('remote profile writes serialize concurrent edits and removal, and notify only after durable flush', async () => {
+  const m = storageModel(); await m.store.ensureLoaded({});
+  let release; const pending = new Promise(resolve => { release = resolve; });
+  const flush = m.prefs.flush; let first = true;
+  m.prefs.flush = async () => { if (first) { first = false; await pending; } await flush(); };
+  const write = m.store.upsert({}, fixture({ name: 'After' }));
+  const add = m.store.upsert({}, fixture({ id: 'added' }));
+  const remove = m.store.remove({}, 'fixture');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(m.store.getProfile('fixture').name, 'Before'); assert.equal(m.changes.length, 0);
+  release(); await Promise.all([write, add, remove]);
+  assert.deepEqual(m.store.getProfiles().map(p => p.id), ['added']);
+  assert.deepEqual(JSON.parse(m.disk()).map(p => p.id), ['added']);
+  assert.equal(m.changes.length, 3);
+});
+
+test('failed profile writes do not publish or retain unpersisted values, and subsequent saves recover', async () => {
+  for (const stage of ['put', 'flush']) {
+    const m = storageModel(); await m.store.ensureLoaded({});
+    const original = m.prefs[stage]; let once = true;
+    m.prefs[stage] = async (...args) => { if (once) { once = false; throw Error('storage failure'); }
+      return original(...args); };
+    await assert.rejects(m.store.upsert({}, fixture({ name: 'After' })), /Remote storage save failed/);
+    assert.equal(m.store.getProfile('fixture').name, 'Before');
+    assert.equal(JSON.parse(m.cached())[0].name, 'Before'); assert.equal(JSON.parse(m.disk())[0].name, 'Before');
+    assert.equal(m.changes.length, 0); assert.equal(m.tombstones.length, 0);
+    const cold = m.fresh(); await cold.ensureLoaded({}); assert.equal(cold.getProfile('fixture').name, 'Before');
+    await m.store.upsert({}, fixture({ name: 'Retry' }));
+    assert.equal(m.store.getProfile('fixture').name, 'Retry'); assert.equal(m.changes.length, 1);
+  }
+  const m = storageModel(); await m.store.ensureLoaded({});
+  m.prefs.flush = async () => { throw Error('storage failure'); };
+  await assert.rejects(m.store.remove({}, 'fixture'), /Remote storage save failed/);
+  assert.equal(m.store.getProfiles().length, 1); assert.equal(m.tombstones.length, 0);
+});
+
+test('simultaneous initial profile loads share one read, and read failure never overwrites stored profiles', async () => {
+  const m = storageModel();
+  await Promise.all([m.store.ensureLoaded({}), m.store.ensureLoaded({}), m.store.ensureLoaded({})]);
+  assert.equal(m.events.filter(e => e === 'get').length, 1);
+  const failed = storageModel(); const get = failed.prefs.get;
+  failed.prefs.get = async () => { throw Error('read failure'); };
+  await assert.rejects(failed.store.upsert({}, fixture({ id: 'new' })), /read failure/);
+  assert.equal(failed.events.includes('put'), false); assert.equal(JSON.parse(failed.disk())[0].id, 'fixture');
+  failed.prefs.get = get; await failed.store.upsert({}, fixture({ id: 'new' }));
+  assert.equal(failed.store.getProfiles().length, 2);
+});
+
+const panelSource = read('entry/src/main/ets/components/RemoteStoragePanel.ets').replaceAll('\r\n', '\n');
+function panelMethod(name) {
+  const start = panelSource.search(new RegExp('^  private (?:async )?' + name + '\\(', 'm'));
+  assert.ok(start >= 0, name);
+  return executable(panelSource.slice(start, panelSource.indexOf('\n  }', start) + 4));
+}
+
+test('remote profile rows invalidate stale closures and reopening always resolves latest store values by ID', () => {
+  assert.match(panelSource, /profile\.id \+ ':' \+ this\.profilesRevision\.toString\(\)/);
+  assert.match(panelMethod('reloadProfiles'), /this\.profilesRevision\+\+/);
+  const current = fixture({ name: 'After' });
+  const row = Function('remoteStorageProfileStore', 'return {' + panelMethod('openProfile') + '};')({
+    getProfile(id) { return id === current.id ? current : null; }
+  });
+  row.openProfile(fixture()); assert.equal(row.editorProfile.name, 'After'); assert.equal(row.editorVisible, true);
+});
+
+test('remote editor awaits save, blocks double submits, retains draft on failure and exposes localized error', async () => {
+  let release; let count = 0;
+  const row = Function('uiText', 'return {' + panelMethod('submitDraft') + '};')(x => x);
+  const messages = [];
+  Object.assign(row, { busy: false, currentDraft: () => fixture({ name: 'After' }),
+    onSave: () => { count++; return new Promise(resolve => { release = resolve; }); },
+    showFloating: message => messages.push(message) });
+  const save = row.submitDraft(false); await row.submitDraft(false);
+  assert.equal(count, 1); assert.equal(row.busy, true);
+  release('Remote storage save failed'); await save;
+  assert.equal(row.busy, false); assert.deepEqual(messages, ['Remote storage save failed']);
+  assert.equal(row.currentDraft().name, 'After');
+  row.onSave = async () => { throw Error('private remote endpoint'); };
+  await row.submitDraft(false); assert.equal(messages.at(-1), 'Remote storage save failed');
+  row.onSave = async () => ''; await row.submitDraft(false); assert.equal(row.statusText, '');
+  assert.match(panelSource, /return this\.saveProfile\(profile\)/);
+});
+
+test('failed remote save never closes the editor, refreshes configuration, or reports Saved', async () => {
+  const row = Function('getAbilityContext', 'remoteStorageProfileStore', 'uiText', 'remoteStorageSyncService',
+    'return {' + panelMethod('saveProfile') + '};')(() => ({}), {
+      async upsert() { throw Error('private endpoint'); }
+    }, x => x, { refreshConfiguration() { assert.fail('must not refresh failed save'); } });
+  Object.assign(row, { editorVisible: true });
+  assert.equal(await row.saveProfile(fixture()), 'Remote storage save failed');
+  assert.equal(row.editorVisible, true); assert.notEqual(row.panelStatus, 'Saved');
 });

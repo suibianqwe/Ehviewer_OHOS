@@ -122,6 +122,7 @@ import {
   GALLERY_THUMBNAIL_PREFETCH_BEFORE,
   GALLERY_THUMBNAIL_PREFETCH_AFTER,
   readThumbnailImageSize,
+  ThumbnailImageSize,
   normalizeGalleryListScrollOffset,
 } from './GalleryListSupport';
 import {
@@ -419,15 +420,16 @@ export struct GalleryListContent {
         continue;
       }
       cacheThumbnailImage(url, (path: string) => {
-        if (generation === this.thumbnailDimensionsGeneration) {
-          const size = readThumbnailImageSize(path);
-          if (size.width > 0 && size.height > 0) {
+        if (generation !== this.thumbnailDimensionsGeneration) {
+          return;
+        }
+        readThumbnailImageSize(path).then((size: ThumbnailImageSize) => {
+          if (generation === this.thumbnailDimensionsGeneration && size.width > 0 && size.height > 0) {
             gallery.thumbWidth = size.width;
             gallery.thumbHeight = size.height;
             rememberGalleryThumbAspectRatio(url, normalizedThumbnailAspectRatio(size.width, size.height));
           }
-        }
-        complete();
+        }).catch(() => {}).finally(complete);
       }, () => {
         complete();
       });

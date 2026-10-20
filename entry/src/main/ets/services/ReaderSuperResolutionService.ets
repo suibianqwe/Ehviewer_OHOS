@@ -31,6 +31,7 @@ interface ReaderSuperResolutionEntry {
   engine: string;
   targetWidth: number;
   targetHeight: number;
+  priority: number;
   references: number;
   cancelled: boolean;
   pixelMap: image.PixelMap | undefined;
@@ -85,29 +86,18 @@ class ReaderSuperResolutionService {
     return copied;
   }
 
-  async acquirePixelMap(key: string, sourcePixelMap: image.PixelMap, priority: number = 0,
+  acquirePixelMap(key: string, sourcePixelMap: image.PixelMap, priority: number = 0,
     targetWidth: number = 0, targetHeight: number = 0,
     engine: string = READER_SUPER_RESOLUTION_ENGINE_DETAIL): Promise<image.PixelMap | undefined> {
     if (key.length === 0) {
       return Promise.resolve(undefined);
     }
-    const effectiveEngine = effectiveReaderSuperResolutionEngine(engine);
-    const existing = this.entries.get(key);
-    if (existing !== undefined && existing.sourcePath.length === 0 && existing.engine === effectiveEngine) {
-      return this.acquireEntry(key, '', existing.sourcePixelMap, priority, targetWidth, targetHeight, engine, false);
-    }
-    try {
-      const ownedSourcePixelMap = await this.copyCompatibleSdrPixelMap(sourcePixelMap);
-      return this.acquireEntry(key, '', ownedSourcePixelMap, priority, targetWidth, targetHeight, engine, true);
-    } catch (error) {
-      hilog.warn(DOMAIN, TAG, `Copy adjusted image for super-resolution failed: ${String(error)}`);
-      return Promise.resolve(undefined);
-    }
+    return this.acquireEntry(key, '', sourcePixelMap, priority, targetWidth, targetHeight, engine);
   }
 
   private acquireEntry(key: string, sourcePath: string, sourcePixelMap: image.PixelMap | undefined,
-    priority: number, targetWidth: number, targetHeight: number, engine: string,
-    ownsSourcePixelMap: boolean = false): Promise<image.PixelMap | undefined> {
+    priority: number, targetWidth: number, targetHeight: number,
+    engine: string): Promise<image.PixelMap | undefined> {
     const effectiveEngine = effectiveReaderSuperResolutionEngine(engine);
     let entry = this.entries.get(key);
     if (entry === undefined || entry.sourcePath !== sourcePath || entry.engine !== effectiveEngine) {
@@ -117,11 +107,12 @@ class ReaderSuperResolutionService {
       entry = {
         key: key,
         sourcePath: sourcePath,
-        sourcePixelMap: sourcePixelMap,
-        ownsSourcePixelMap: ownsSourcePixelMap,
+        sourcePixelMap: undefined,
+        ownsSourcePixelMap: false,
         engine: effectiveEngine,
         targetWidth: Math.max(0, Math.round(targetWidth)),
         targetHeight: Math.max(0, Math.round(targetHeight)),
+        priority: Math.max(0, priority),
         references: 0,
         cancelled: false,
         pixelMap: undefined,
@@ -139,10 +130,38 @@ class ReaderSuperResolutionService {
       this.updatePriority(key, priority);
       return entry.pending;
     }
+    if (sourcePixelMap !== undefined) {
+      // Register ownership before copying so cancellation and concurrent readers share this request.
+      entry.pending = this.prepareSourcePixelMap(entry, sourcePixelMap);
+      return entry.pending;
+    }
     return this.enqueue(entry, priority);
   }
 
+  private async prepareSourcePixelMap(entry: ReaderSuperResolutionEntry,
+    sourcePixelMap: image.PixelMap): Promise<image.PixelMap | undefined> {
+    try {
+      const ownedSourcePixelMap = await this.copyCompatibleSdrPixelMap(sourcePixelMap);
+      if (!this.isEntryActive(entry)) {
+        await this.releasePixelMap(ownedSourcePixelMap);
+        return undefined;
+      }
+      entry.sourcePixelMap = ownedSourcePixelMap;
+      entry.ownsSourcePixelMap = true;
+      return this.enqueue(entry, entry.priority);
+    } catch (error) {
+      entry.pending = undefined;
+      entry.completed = true;
+      hilog.warn(DOMAIN, TAG, `Copy adjusted image for super-resolution failed: ${String(error)}`);
+      return undefined;
+    }
+  }
+
   updatePriority(key: string, priority: number): void {
+    const entry = this.entries.get(key);
+    if (entry !== undefined) {
+      entry.priority = Math.max(0, priority);
+    }
     const task = this.queue.find((item: ReaderSuperResolutionTask) => item.entry.key === key);
     if (task === undefined || task.priority === priority) {
       return;

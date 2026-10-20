@@ -3,6 +3,7 @@ import { fileIo as fs, fileUri } from '@kit.CoreFileKit';
 import { GalleryCategory, GalleryComment, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite, GalleryTagGroup, GalleryTagInfo, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
 import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
 import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
+import { DOWNLOAD_SORT_OPTIONS, sortDownloadItems } from '../services/DownloadSortSupport';
 import { ehHistoryStore, ReadingProgressBackupInfo } from '../services/EhHistoryStore';
 import { BrowsePositionsBackupInfo } from '../services/EhBrowsePositionStore';
 import {
@@ -26,6 +27,8 @@ import {
   readerImageCache,
 } from '../services/ReaderImageCache';
 import { previewThumbnailCache } from '../services/PreviewThumbnailCache';
+import { galleryThumbnailDecodeCache, GalleryThumbnailLease } from '../services/GalleryThumbnailDecodeCache';
+import { readerPageSourceGuard } from '../services/ReaderPageSourceGuard';
 import { FilterRule, ehFilterStore } from '../services/EhFilterStore';
 import { CommentBlacklistBackupEntry } from '../services/EhCommentBlacklistStore';
 import { readerSuperResolutionEngineOptions } from '../services/ReaderSuperResolutionSupport';
@@ -72,6 +75,7 @@ import {
   shouldShowTagTranslations,
   uiText,
 } from './EhTranslations';
+export { sortDownloadItems } from '../services/DownloadSortSupport';
 export {
   LANGUAGE_REVISION_KEY,
   THEME_REVISION_KEY,
@@ -859,7 +863,7 @@ export const DOWNLOAD_STATUS_FILTER_OPTIONS: string[] = [
 ];
 
 export function filterDownloadItems(items: DownloadInfo[], query: string, statusFilters: string[], labelFilter: string,
-  sortMode: string, categoryFilter: string = 'All'): DownloadInfo[] {
+  sortMode: string, categoryFilter: string = 'All', sortResults: boolean = true): DownloadInfo[] {
   const normalizedQuery = query.toLowerCase().trim();
   const filtered: DownloadInfo[] = [];
   for (let i = 0; i < items.length; i++) {
@@ -880,7 +884,9 @@ export function filterDownloadItems(items: DownloadInfo[], query: string, status
     }
     filtered.push(item);
   }
-  sortDownloadItems(filtered, sortMode);
+  if (sortResults) {
+    sortDownloadItems(filtered, sortMode);
+  }
   return filtered;
 }
 
@@ -890,35 +896,6 @@ function downloadItemMatches(item: DownloadInfo, query: string): boolean {
   const label = item.label.toLowerCase();
   return title.indexOf(query) >= 0 || uploader.indexOf(query) >= 0 || label.indexOf(query) >= 0 ||
     item.gid.toString().indexOf(query) >= 0;
-}
-
-export function sortDownloadItems(items: DownloadInfo[], sortMode: string): void {
-  items.sort((left: DownloadInfo, right: DownloadInfo): number => {
-    let result = 0;
-    if (sortMode === 'GID asc') {
-      result = left.gid - right.gid;
-    } else if (sortMode === 'GID desc') {
-      result = right.gid - left.gid;
-    } else if (sortMode === 'Rating desc') {
-      result = right.rating - left.rating;
-    } else if (sortMode === 'Rating asc') {
-      result = left.rating - right.rating;
-    } else if (sortMode === 'Name asc') {
-      result = left.title.localeCompare(right.title);
-    } else if (sortMode === 'Name desc') {
-      result = right.title.localeCompare(left.title);
-    } else if (sortMode === 'Size asc') {
-      result = left.fileSize - right.fileSize;
-    } else if (sortMode === 'Size desc') {
-      result = right.fileSize - left.fileSize;
-    } else if (sortMode === 'Time asc') {
-      result = left.time - right.time;
-    } else {
-      result = right.time - left.time;
-    }
-    // 相同时间/大小时按 gid 兜底，保证两台设备排序一致。
-    return result !== 0 ? result : right.gid - left.gid;
-  });
 }
 
 export function nextDownloadStatusFilter(current: string): string {
@@ -935,9 +912,7 @@ export function nextDownloadLabelFilter(current: string, labels: DownloadLabel[]
 }
 
 export function nextDownloadSortMode(current: string): string {
-  const options: string[] = ['Default', 'GID asc', 'GID desc', 'Time asc', 'Rating asc', 'Rating desc', 'Name asc', 'Name desc',
-    'Size asc', 'Size desc'];
-  return nextStringOption(current, options);
+  return nextStringOption(current, DOWNLOAD_SORT_OPTIONS);
 }
 
 export function nextDownloadCategoryFilter(current: string): string {
@@ -1149,31 +1124,6 @@ export function downloadSizeText(size: number): string {
   return Math.round(size / 1024 / 1024).toString() + ' MB';
 }
 
-function currentReaderCacheSizeText(): string {
-  const context = getAbilityContext();
-  if (context === undefined) {
-    return '0 B';
-  }
-  return downloadSizeText(readerImageCache.size(context).bytes);
-}
-
-function currentDownloadRedundancyText(): string {
-  const context = getAbilityContext();
-  if (context === undefined) {
-    return '0 B';
-  }
-  const items = ehDownloadStore.getItems();
-  const keepGids: number[] = [];
-  for (let i = 0; i < items.length; i++) {
-    keepGids.push(items[i].gid);
-  }
-  try {
-    return downloadSizeText(ehDownloadFileStore.scanRedundantDirectories(context, keepGids).bytes);
-  } catch (error) {
-    return '0 B';
-  }
-}
-
 export function downloadImageUrlForPage(page: GalleryPage): string {
   if (ehSettingsStore.getValue('download_origin_image', 'Off') === 'On' && page.originImageUrl.length > 0) {
     return page.originImageUrl;
@@ -1281,7 +1231,8 @@ export function settingsPanelTitle(panel: SettingsPanel): string {
   return 'Settings';
 }
 
-export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, entries: SettingEntry[]): SettingsRowItem[] {
+export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, entries: SettingEntry[],
+  readerCacheSizeText: string = '...', downloadRedundancyText: string = '...'): SettingsRowItem[] {
   if (panel === SettingsPanel.Eh) {
     const followSystemDarkMode = settingEntryValue(entries, 'follow_system_dark_mode', 'Off') === 'On';
     const listMode = settingEntryValue(entries, 'list_mode', 'Detail');
@@ -1357,9 +1308,6 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
         'Show two wide or narrow pages together when both fit on screen', entries, ON_OFF_OPTIONS),
       optionSettingsRow('reader_crop_white_borders', 'Crop white and black borders',
         'Automatically trim uniform light or dark margins while reading', entries, ON_OFF_OPTIONS),
-      optionSettingsRow('reader_moire_reduction', 'Moiré reduction',
-        'Reduce screentone interference patterns while scaling reader pages', entries,
-        ['Off', 'Auto', 'Low', 'Medium', 'High']),
       optionSettingsRow('reader_image_super_resolution', 'Image super resolution',
         'Use the system image engine to enhance low-resolution reader pages', entries, ON_OFF_OPTIONS)
     ];
@@ -1419,7 +1367,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       staticSettingsRow('restore_download_items', 'Restore download items', 'Rebuild queue from downloaded folders', 'Run', 'action'),
       staticSettingsRow('clean_redundancy', 'Clean redundancy',
         'Delete downloaded gallery folders that are no longer in the download list',
-        currentDownloadRedundancyText(), 'action')
+        downloadRedundancyText, 'action')
     ];
   }
 
@@ -1551,7 +1499,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
       staticSettingsRow('dump_logcat', 'Export log', 'Save the local app log to a text file', 'Export', 'action'),
       staticSettingsRow('clear_download_path_cache', 'Clear download path cache', 'Refresh cached file path and size lookups', 'Run', 'action'),
       staticSettingsRow('clear_memory_cache', 'Clear cache', 'Drop reader image and page caches',
-        currentReaderCacheSizeText(), 'action'),
+        readerCacheSizeText, 'action'),
       optionSettingsRow('read_cache_size', 'Read cache size', 'Reader cache budget', entries,
         ['160 MB', '320 MB', '640 MB', '1 GB', '2 GB']),
       optionSettingsRow('app_language', 'App language', 'Language override', entries,
@@ -1992,8 +1940,8 @@ export function readerDisplayImageUrl(page: GalleryPage, preferOriginal: boolean
   return '';
 }
 
-export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: GalleryPage) => void,
-  gallery?: GalleryInfo, index?: number, abilityContext?: common.UIAbilityContext,
+export async function cacheReaderImageForPage(page: GalleryPage, onReady: (page: GalleryPage) => void,
+  gallery?: GalleryDetail, index?: number, abilityContext?: common.UIAbilityContext,
   onError?: (message: string) => void, priority: number = IMAGE_DOWNLOAD_PRIORITY_READER,
   options?: ImageDownloadOptions): Promise<void> {
   const context = abilityContext !== undefined ? abilityContext : getAbilityContext();
@@ -2004,9 +1952,15 @@ export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: Galle
     return Promise.resolve();
   }
 
+  const previews: GalleryPreview[] = gallery === undefined ? [] : gallery.previewSet;
+  const preview = previews.find((item: GalleryPreview) => item.index === index);
+  let damagedDownload = '';
   if (gallery !== undefined && index !== undefined) {
     const downloadedPath = ehDownloadFileStore.findPageImage(context, gallery, index);
-    if (downloadedPath.length > 0) {
+    if (downloadedPath.length > 0 &&
+      await readerPageSourceGuard.isPreview(context, downloadedPath, preview, previews, page.pageUrl)) {
+      damagedDownload = downloadedPath;
+    } else if (downloadedPath.length > 0) {
       onReady(cloneGalleryPageWithCache(page, downloadedPath));
       return Promise.resolve();
     }
@@ -2019,24 +1973,29 @@ export function cacheReaderImageForPage(page: GalleryPage, onReady: (page: Galle
     return Promise.resolve();
   }
 
-  const existing = readerImageCache.getCachedPath(context, page.imageUrl, readerPageImageCacheKey(page, false));
-  if (existing.length > 0) {
-    onReady(cloneGalleryPageWithCache(page, existing));
-    return Promise.resolve();
-  }
-
-  return readerImageCache.ensureCached(context, page.imageUrl, page.pageUrl, priority, undefined,
-    readerPageImageCacheKey(page, false), options).then((path: string) => {
-    if (path.length > 0) {
-      onReady(cloneGalleryPageWithCache(page, path));
-    } else if (onError !== undefined) {
-      onError('Image cache path is empty');
+  try {
+    const cacheKey = readerPageImageCacheKey(page, false);
+    let path = readerImageCache.getCachedPath(context, page.imageUrl, cacheKey);
+    if (path.length > 0 && await readerPageSourceGuard.isPreview(context, path, preview, previews, page.pageUrl)) {
+      readerImageCache.removeCached(context, page.imageUrl, cacheKey);
+      path = '';
     }
-  }).catch((error: Error) => {
+    if (path.length === 0) {
+      path = await readerImageCache.ensureCached(context, page.imageUrl, page.pageUrl, priority, undefined,
+        cacheKey, options);
+    }
+    if (path.length === 0 || await readerPageSourceGuard.isPreview(context, path, preview, previews, page.pageUrl)) {
+      throw new Error('Full page image unavailable');
+    }
+    if (damagedDownload.length > 0) {
+      path = await readerPageSourceGuard.repairDownload(damagedDownload, path);
+    }
+    onReady(cloneGalleryPageWithCache(page, path));
+  } catch (error) {
     if (onError !== undefined) {
-      onError(error.message);
+      onError(String(error));
     }
-  });
+  }
 }
 
 export function readerPageImageCacheKey(page: GalleryPage, original: boolean = false): string {
@@ -2072,8 +2031,25 @@ function scheduleThumbnailReadyDelivery(): void {
   }, THUMBNAIL_READY_BATCH_DELAY_MS);
 }
 
-// 不传 onReady 时只预下载，不占用逐帧派发给卡片的图片更新队列。
+function loadThumbnailPath(url: string): Promise<string> {
+  const context = getAbilityContext();
+  if (context === undefined || url.length === 0) {
+    return Promise.resolve('');
+  }
+  return readerImageCache.ensureCached(context, url, EhUrl.getReferer(currentGallerySite()),
+    IMAGE_DOWNLOAD_PRIORITY_BACKGROUND, undefined, '', { retryLimit: THUMBNAIL_RETRY_LIMIT });
+}
+
+export function acquireThumbnailImage(url: string): GalleryThumbnailLease {
+  return galleryThumbnailDecodeCache.acquire(url, () => loadThumbnailPath(url));
+}
+
+// Prefetch includes asynchronous decoding, deduplicated before any disk lookup.
 export function cacheThumbnailImage(url: string, onReady?: (path: string) => void, onError?: () => void): void {
+  if (onReady === undefined && onError === undefined && url.length > 0) {
+    galleryThumbnailDecodeCache.prefetch(url, () => loadThumbnailPath(url));
+    return;
+  }
   const context = getAbilityContext();
   if (context === undefined || url.length === 0) {
     if (onError !== undefined) {
