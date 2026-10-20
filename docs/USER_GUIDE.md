@@ -2,9 +2,11 @@
 
 [English](USER_GUIDE_EN.md) · 简体中文
 
-本教程适用于 EhViewer HarmonyOS `0.7.4`。不同设备的系统版本、窗口尺寸和权限状态可能让按钮位置略有差异，但功能入口和操作逻辑相同。竖屏截图来自手机，横屏截图来自平板；教程中的阅读器均从 `订阅 → 画廊详情 → 阅读` 进入。
+本教程适用于 EhViewer HarmonyOS `0.7.4`。不同设备的系统版本、窗口尺寸和权限状态可能让按钮位置略有差异，但功能入口和操作逻辑相同。竖屏截图展示手机布局，横屏截图使用折叠屏展开态展示平板大屏布局；教程中的阅读器均从 `订阅 → 画廊详情 → 阅读` 进入。
 
 > 提示：应用默认遵循系统代理和系统语言。网络正常时不需要开启 Hosts、SNI 域名前置或 DoH 等高级网络功能。
+
+截图说明：26 张手机竖屏和 4 张展开态横屏截图均于 2026-10-21 使用 Pura X Max（API 26）、应用 `0.7.4` 实机重拍。侧边菜单的服务器地址、下载页的封面和标题已局部打码，其他区域保持原始像素；旧应用迁移步骤保留原图。
 
 ## 目录
 
@@ -85,14 +87,14 @@
 主界面由标题栏、画廊列表、右下角工具栏和侧边菜单组成。
 
 <p align="center">
-  <img src="images/drawer-phone.jpg" width="360" alt="手机侧边菜单与页面入口" />
+  <img src="images/drawer-phone-redacted.png" width="360" alt="手机侧边菜单与页面入口，服务器地址已隐藏" />
 </p>
 
 侧边菜单可进入主页、订阅、热门、排行、收藏、历史、下载和设置。右下角工具栏会根据页面显示布局、筛选、刷新、翻译或状态过滤等操作。
 
 <p align="center">
   <img src="images/home-phone.jpg" width="360" alt="手机竖屏主页" />
-  <img src="images/home-tablet.jpg" width="900" alt="平板横屏主页" />
+  <img src="images/home-tablet.jpg" width="900" alt="折叠屏展开态横屏主页" />
 </p>
 
 订阅页展示账号关注标签匹配的画廊，也是本教程进入阅读器的起点。
@@ -144,8 +146,8 @@
 在平板、折叠屏展开态和电脑窗口中，可通过 `设置 → EH → 分栏模式` 启用左右分栏。
 
 <p align="center">
-  <img src="images/subscriptions-tablet.jpg" width="900" alt="平板横屏订阅列表" />
-  <img src="images/gallery-detail-tablet.jpg" width="900" alt="平板横屏订阅与详情分栏" />
+  <img src="images/subscriptions-tablet.jpg" width="900" alt="折叠屏展开态横屏订阅列表" />
+  <img src="images/gallery-detail-tablet.jpg" width="900" alt="折叠屏展开态横屏订阅与详情分栏" />
 </p>
 
 - 左栏保留列表或上级页面，右栏显示详情或次级页面。
@@ -377,7 +379,7 @@
 ### 9.2 下载页操作
 
 <p align="center">
-  <img src="images/downloads-phone-redacted.jpg" width="360" alt="已对明确 R18 内容打码的手机下载页" />
+  <img src="images/downloads-phone-redacted.png" width="360" alt="封面和标题已局部打码的手机下载页" />
 </p>
 
 - 点击任务：打开本地详情或继续处理任务。
@@ -513,7 +515,7 @@
 可以同时多选多个数据类别再开始发送。发送端创建 Wi-Fi 直连群组，接收端扫描并选择发送设备；建立群组后仍需等待应用数据通道连接完成。
 
 <p align="center">
-  <img src="images/wifi-direct-tablet.jpg" width="900" alt="平板横屏 Wi-Fi 直连传输页" />
+  <img src="images/wifi-direct-tablet.jpg" width="900" alt="折叠屏展开态横屏 Wi-Fi 直连传输页" />
   <img src="images/wifi-direct-selection-phone.jpg" width="360" alt="手机竖屏 Wi-Fi 直连多选发送" />
 </p>
 

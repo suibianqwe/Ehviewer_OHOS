@@ -2,9 +2,11 @@
 
 English · [简体中文](USER_GUIDE.md)
 
-This guide applies to EhViewer HarmonyOS `0.7.4`. Button positions may vary with the device, system version, window size, and permissions, but the entry points and behavior are the same. Portrait screenshots were captured on a phone and landscape screenshots on a tablet. Every reader screenshot in this guide was reached through `Subscriptions → Gallery details → Read`.
+This guide applies to EhViewer HarmonyOS `0.7.4`. Button positions may vary with the device, system version, window size, and permissions, but the entry points and behavior are the same. Portrait screenshots show the phone layout; landscape screenshots use the unfolded foldable to demonstrate the tablet layout. Every reader screenshot in this guide was reached through `Subscriptions → Gallery details → Read`.
 
 > Tip: the app follows the system proxy and language by default. On a working network, advanced options such as custom hosts, SNI fronting, and DoH are normally unnecessary.
+
+Screenshot note: all 26 portrait phone views and 4 unfolded landscape views were recaptured on 2026-10-21 with Pura X Max (API 26), running `0.7.4`. The drawer's server address and download covers/titles are locally redacted; pixels outside those regions are unchanged. Legacy-app migration steps retain their original screenshots.
 
 ## Contents
 
@@ -83,14 +85,14 @@ This refreshes account-specific image loading, size, region, and filtering optio
 The main interface contains the title bar, gallery list, floating action button, and side drawer.
 
 <p align="center">
-  <img src="images/drawer-phone.jpg" width="360" alt="Side drawer on a phone" />
+  <img src="images/drawer-phone-redacted.png" width="360" alt="Side drawer on a phone with the server address hidden" />
 </p>
 
 The drawer opens Home, Subscriptions, Popular, Toplists, Favorites, History, Downloads, and Settings. The floating action menu changes by page and may expose layout, filters, refresh, translation, or status controls.
 
 <p align="center">
   <img src="images/home-phone.jpg" width="360" alt="Home on a portrait phone" />
-  <img src="images/home-tablet.jpg" width="900" alt="Home on a landscape tablet" />
+  <img src="images/home-tablet.jpg" width="900" alt="Landscape Home on an unfolded foldable" />
 </p>
 
 Subscriptions show galleries matched by followed tags and are the starting point for the reader walkthrough in this guide.
@@ -142,8 +144,8 @@ The mode only changes card layout; search conditions, pagination, and download s
 Enable `Settings → EH → Split view` on tablets, unfolded foldables, and PCs.
 
 <p align="center">
-  <img src="images/subscriptions-tablet.jpg" width="900" alt="Subscriptions on a landscape tablet" />
-  <img src="images/gallery-detail-tablet.jpg" width="900" alt="Gallery details beside subscriptions on a tablet" />
+  <img src="images/subscriptions-tablet.jpg" width="900" alt="Landscape subscriptions on an unfolded foldable" />
+  <img src="images/gallery-detail-tablet.jpg" width="900" alt="Gallery details beside subscriptions on an unfolded foldable" />
 </p>
 
 - The left pane keeps the list or parent page; the right pane shows details or another child page.
@@ -315,7 +317,7 @@ When switching between app files and public Downloads, choose Migrate to copy ex
 ### 9.2 Download page
 
 <p align="center">
-  <img src="images/downloads-phone-redacted.jpg" width="360" alt="Phone download page with explicit R18 areas pixelated" />
+  <img src="images/downloads-phone-redacted.png" width="360" alt="Phone download page with covers and titles locally redacted" />
 </p>
 
 - Tap a task to open its local details.
@@ -393,7 +395,7 @@ Under `Settings → Advanced`, Export data writes settings, history, download me
 Open `Settings → Advanced → Wi-Fi Direct transfer`. Choose Send on one nearby device and Receive on the other. The sender creates a Wi-Fi Direct group; the receiver scans and selects it. Keep both pages open until the application data channel finishes.
 
 <p align="center">
-  <img src="images/wifi-direct-tablet.jpg" width="900" alt="Wi-Fi Direct transfer on a landscape tablet" />
+  <img src="images/wifi-direct-tablet.jpg" width="900" alt="Landscape Wi-Fi Direct transfer on an unfolded foldable" />
   <img src="images/wifi-direct-selection-phone.jpg" width="360" alt="Selecting multiple transfer categories on a phone" />
 </p>
 

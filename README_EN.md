@@ -98,7 +98,9 @@ See the [complete English user guide](docs/USER_GUIDE_EN.md) for first launch, l
 
 ## Screenshots
 
-Portrait screenshots below come from a phone; landscape screenshots come from a tablet. The reader example follows `Subscriptions → Gallery details → Read`.
+The documentation's 26 portrait phone screenshots and 4 unfolded landscape screenshots were recaptured on 2026-10-21 with Pura X Max (API 26), running version `0.7.4`, with sensitive regions redacted.
+
+Portrait screenshots show the phone layout; landscape screenshots use the unfolded foldable to demonstrate the tablet layout. The reader example follows `Subscriptions → Gallery details → Read`.
 
 <table>
   <tr>
@@ -117,13 +119,13 @@ Portrait screenshots below come from a phone; landscape screenshots come from a 
     <td><img src="docs/images/image-search-phone.jpg" alt="Image search" width="220" /></td>
     <td><img src="docs/images/gallery-detail-actions-phone.jpg" alt="Gallery detail actions" width="220" /></td>
     <td><img src="docs/images/gallery-tag-vote-phone.jpg" alt="Tag editing and voting" width="220" /></td>
-    <td><img src="docs/images/home-tablet.jpg" alt="Gallery list on a landscape tablet" width="440" /></td>
+    <td><img src="docs/images/home-tablet.jpg" alt="Landscape gallery list on an unfolded foldable" width="440" /></td>
   </tr>
   <tr>
     <td align="center">Image search</td>
     <td align="center">Detail actions</td>
     <td align="center">Tag voting</td>
-    <td align="center">Tablet gallery list</td>
+    <td align="center">Unfolded large-screen gallery list</td>
   </tr>
 </table>
 
@@ -131,12 +133,12 @@ Portrait screenshots below come from a phone; landscape screenshots come from a 
   <tr>
     <td><img src="docs/images/subscriptions-phone.jpg" alt="Subscriptions on a phone" width="260" /></td>
     <td><img src="docs/images/reader-layout-phone.jpg" alt="Reader layout settings on a phone" width="260" /></td>
-    <td><img src="docs/images/gallery-detail-tablet.jpg" alt="Split gallery details on a tablet" width="520" /></td>
+    <td><img src="docs/images/gallery-detail-tablet.jpg" alt="Split gallery details on an unfolded foldable" width="520" /></td>
   </tr>
   <tr>
     <td align="center">Phone subscriptions</td>
     <td align="center">Reader layout</td>
-    <td align="center">Tablet split view</td>
+    <td align="center">Unfolded large-screen split view</td>
   </tr>
 </table>
 

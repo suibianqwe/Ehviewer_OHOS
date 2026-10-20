@@ -103,7 +103,9 @@ API 20 起可安装；低于 API 23 的设备会自动跳过不兼容的 SNI 域
 
 ## 界面预览
 
-以下截图分别来自手机竖屏和平板横屏实机；进入阅读器的示例路径为 `订阅 → 画廊详情 → 阅读`。
+以下截图分别展示手机竖屏和折叠屏展开态横屏（平板大屏布局）；进入阅读器的示例路径为 `订阅 → 画廊详情 → 阅读`。
+
+文档中的 26 张手机竖屏和 4 张展开态横屏截图均于 2026-10-21 使用 Pura X Max（API 26）、应用 `0.7.4` 实机重拍；敏感区域已局部打码。
 
 <table>
   <tr>
@@ -122,13 +124,13 @@ API 20 起可安装；低于 API 23 的设备会自动跳过不兼容的 SNI 域
     <td><img src="docs/images/image-search-phone.jpg" alt="图片搜索" width="220" /></td>
     <td><img src="docs/images/gallery-detail-actions-phone.jpg" alt="画廊详情操作" width="220" /></td>
     <td><img src="docs/images/gallery-tag-vote-phone.jpg" alt="标签编辑与投票" width="220" /></td>
-    <td><img src="docs/images/home-tablet.jpg" alt="平板横屏画廊列表" width="440" /></td>
+    <td><img src="docs/images/home-tablet.jpg" alt="折叠屏展开态横屏画廊列表" width="440" /></td>
   </tr>
   <tr>
     <td align="center">图片搜索</td>
     <td align="center">详情操作</td>
     <td align="center">标签编辑与投票</td>
-    <td align="center">平板横屏画廊列表</td>
+    <td align="center">展开态大屏画廊列表</td>
   </tr>
 </table>
 
@@ -136,12 +138,12 @@ API 20 起可安装；低于 API 23 的设备会自动跳过不兼容的 SNI 域
   <tr>
     <td><img src="docs/images/subscriptions-phone.jpg" alt="手机竖屏订阅页" width="260" /></td>
     <td><img src="docs/images/reader-layout-phone.jpg" alt="手机竖屏阅读器页面布局" width="260" /></td>
-    <td><img src="docs/images/gallery-detail-tablet.jpg" alt="平板横屏订阅与详情分栏" width="520" /></td>
+    <td><img src="docs/images/gallery-detail-tablet.jpg" alt="折叠屏展开态横屏订阅与详情分栏" width="520" /></td>
   </tr>
   <tr>
     <td align="center">手机订阅页</td>
     <td align="center">阅读器页面布局</td>
-    <td align="center">平板分栏详情</td>
+    <td align="center">展开态大屏分栏详情</td>
   </tr>
 </table>
 
