@@ -2,8 +2,9 @@ import { DownloadInfo } from './EhDownloadStore';
 import { DownloadSortKey } from './DownloadSortKeys';
 
 export const DOWNLOAD_SORT_SETTING_KEY: string = 'download_sort_mode';
+export const DOWNLOAD_DRAG_SORT_SETTING_KEY: string = 'download_drag_sort';
 export const DOWNLOAD_SORT_OPTIONS: string[] = [
-  'Default', 'GID asc', 'GID desc', 'Time asc', 'Time desc', 'Author asc', 'Author desc',
+  'Default', 'Manual', 'GID asc', 'GID desc', 'Time asc', 'Time desc', 'Author asc', 'Author desc',
   'Name asc', 'Name desc', 'Rating asc', 'Rating desc', 'Size asc', 'Size desc'
 ];
 
@@ -87,7 +88,7 @@ export function sortDownloadItems(items: DownloadInfo[], sortMode: string): void
       result = left.fileSize - right.fileSize;
     } else if (sortMode === 'Size desc') {
       result = right.fileSize - left.fileSize;
-    } else if (sortMode === 'Time asc') {
+    } else if (sortMode === 'Time asc' || sortMode === 'Manual') {
       result = left.time - right.time;
     } else {
       result = right.time - left.time;

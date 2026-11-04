@@ -86,10 +86,8 @@ import {
 import { ArrayDataSource } from '../shared/ListDataSource';
 import {
   isHarmonyUiStyle,
-  uiFloatingButtonBackgroundEffect,
-  uiMaterialBackground,
-  uiMaterialForegroundColor,
-  uiTintedButtonMaterial,
+  uiReaderTranslationButtonBackground,
+  uiReaderTranslationButtonBackgroundEffect,
 } from '../shared/EhUiStyle';
 import {
   READER_BASE_SCALE,
@@ -3777,16 +3775,14 @@ export struct ReaderScene {
         Button({ type: ButtonType.Circle }) {
           SymbolGlyph($r('sys.symbol.translate'))
             .fontSize(25)
-            .fontColor([uiMaterialForegroundColor(Color.White)])
+            .fontColor([Color.White])
         }
         .width(READER_TRANSLATION_BUTTON_SIZE)
         .height(READER_TRANSLATION_BUTTON_SIZE)
-        .backgroundColor(uiMaterialBackground(this.comicTranslationActive ? '#167A9A' : '#34454D'))
-        .backgroundEffect(uiFloatingButtonBackgroundEffect(this.comicTranslationActive ? '#167A9A' : '#34454D'))
-        .systemMaterial(uiTintedButtonMaterial(this.comicTranslationActive ? '#167A9A' : '#34454D'))
+        .backgroundColor(uiReaderTranslationButtonBackground(this.comicTranslationActive))
+        .backgroundEffect(uiReaderTranslationButtonBackgroundEffect(this.comicTranslationActive))
         .position({ x: this.comicTranslationButtonX, y: this.comicTranslationButtonY })
         .shadow({ radius: 8, color: 'rgba(0,0,0,0.28)', offsetX: 0, offsetY: 2 })
-        .opacity(this.comicTranslationActive ? 0.92 : 0.48)
         .accessibilityText(uiText('Comic translation'))
         .gesture(
           GestureGroup(GestureMode.Exclusive,

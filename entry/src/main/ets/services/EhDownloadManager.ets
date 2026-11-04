@@ -7,10 +7,13 @@ import {
   readerImageCache
 } from './ReaderImageCache';
 import { ehDownloadFileStore } from './EhDownloadFileStore';
-import { DownloadInfo, DownloadState, ehDownloadStore } from './EhDownloadStore';
+import { DownloadInfo, DownloadState, SYNC_SECTION_DOWNLOADS, ehDownloadStore } from './EhDownloadStore';
+import { syncTombstoneStore } from './SyncTombstoneStore';
+import { completeDownloadManifest } from './DownloadPageReuse';
 import { EhHttpClient } from './EhHttpClient';
 import { galleryPageCache } from './GalleryPageCache';
 import { readerPageSourceGuard } from './ReaderPageSourceGuard';
+import { remoteStorageDownloadDeletionService } from './RemoteStorageDownloadDeletionService';
 import { GalleryDetail, GalleryPage, GallerySite } from '../model/GalleryModels';
 import {
   cloneGalleryDetail,
@@ -364,10 +367,14 @@ export class EhDownloadManager {
 
       const detail = mergeDownloadDetailTitles(await this.loadCompleteDownloadDetail(detailResult.detail,
         detailResult.url), item);
+      if (item.updateSourceGid !== undefined && !completeDownloadManifest(detail)) {
+        throw new Error('Updated gallery page index is incomplete');
+      }
       const existingDownloadDirectory = ehDownloadFileStore.findExistingGalleryDirectory(context, item);
       ehDownloadStore.updateGallery(detail);
       const total = Math.max(detail.pages, detail.previewSet.length);
       const downloadDirectory = ehDownloadFileStore.prepareGallery(context, detail, existingDownloadDirectory);
+      await this.reuseUpdateSourcePages(context, item, detail, downloadDirectory);
       ehDownloadStore.setProgress(item.gid, 0, total, 0);
       ehDownloadStore.setStorage(item.gid, downloadDirectory, 0);
       await this.publishProgress(item, 0, total);
@@ -437,12 +444,16 @@ export class EhDownloadManager {
       if (workerState.failedMessage.length > 0) {
         throw new Error(workerState.failedMessage);
       }
+      if (item.updateSourceGid !== undefined && workerState.finished !== total) {
+        throw new Error('Updated gallery has missing pages');
+      }
 
       ehDownloadStore.setState(item.gid, DownloadState.Finish);
       ehDownloadStore.setProgress(item.gid, total, total, total * DOWNLOAD_PAGE_PROGRESS_SCALE);
       ehDownloadStore.setStorage(item.gid, downloadDirectory, workerState.fileSize);
       ehDownloadStore.setTransfer(item.gid, 0, 0);
       this.publishStatus('Download finished: ' + item.title);
+      await this.finishGalleryUpdate(context, item.gid, downloadDirectory);
       if (this.activeGalleryGids.length <= 1) {
         await this.finishProgressNotificationUpdates();
       }
@@ -460,6 +471,48 @@ export class EhDownloadManager {
       await publishDownloadResultNotification(context, DOWNLOAD_RESULT_NOTIFICATION_ID, item.title,
         'Download failed');
       this.saveDownloads(context);
+    }
+  }
+
+  private async reuseUpdateSourcePages(context: common.UIAbilityContext, item: DownloadInfo,
+    detail: GalleryDetail, destination: string): Promise<void> {
+    const source = ehDownloadStore.getItem(item.updateSourceGid ?? 0);
+    if (source === null || source.gid === item.gid) return;
+    const directory = ehDownloadFileStore.findExistingGalleryDirectory(context, source);
+    if (directory.length === 0 || directory === destination) return;
+    let previews = await ehDownloadFileStore.savedGalleryPreviews(directory, source.gid);
+    if (previews.length < source.pages) {
+      const loaded = await this.client.loadGalleryDetail(source.gid, source.token, 0, currentGallerySite());
+      if (loaded.ok && loaded.detail !== null) {
+        try {
+          previews = (await this.loadCompleteDownloadDetail(loaded.detail, loaded.url)).previewSet;
+        } catch (_error) {
+          // Retain identities from local metadata when the old version is no longer available.
+        }
+      }
+    }
+    const reused = await ehDownloadFileStore.reuseGalleryPages(directory, previews, destination, detail.previewSet,
+      () => this.shouldStop || this.isStopped(item.gid));
+    ehAppLog.info(context, 'DownloadManager', 'Updated gallery reused pages=' + reused.toString());
+  }
+
+  private async finishGalleryUpdate(context: common.UIAbilityContext, gid: number, destination: string): Promise<void> {
+    const source = ehDownloadStore.completeGalleryUpdate(gid);
+    if (source === null) return;
+    try {
+      await ehDownloadStore.save(context);
+    } catch (error) {
+      ehDownloadStore.restoreGalleryUpdate(source, gid);
+      throw new Error(error instanceof Error ? error.message : String(error));
+    }
+    syncTombstoneStore.recordDeletion(context, SYNC_SECTION_DOWNLOADS, source.gid.toString());
+    try {
+      const directory = ehDownloadFileStore.findExistingGalleryDirectory(context, source);
+      const cloudName = remoteStorageDownloadDeletionService.localDirectoryName(context, source.gid);
+      if (directory !== destination) await ehDownloadFileStore.removeGalleryDirectoryAsync(context, source);
+      await remoteStorageDownloadDeletionService.recordCloudDeletion(context, source.gid, cloudName);
+    } catch (_error) {
+      ehAppLog.warn(context, 'DownloadManager', 'Updated gallery complete; old files await later cleanup');
     }
   }
 

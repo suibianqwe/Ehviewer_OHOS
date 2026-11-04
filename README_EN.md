@@ -12,8 +12,8 @@ EhViewer HarmonyOS is a HarmonyOS port of [Ehviewer_CN_SXJ](https://github.com/x
 
 Download the latest unsigned HAP from [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases). It can be installed with tools such as [Auto Installer](https://github.com/likuai2010/auto-installer).
 
-- Current version: `0.7.4`
-- Package: [`EhViewer_OHOS_0.7.4.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.4/EhViewer_OHOS_0.7.4.hap)
+- Current version `0.7.5`
+- Package [`EhViewer_OHOS_0.7.5.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.5/EhViewer_OHOS_0.7.5.hap)
 - Target API: `26.0.0`
 - Compatible API: `6.0.0(20)`
 
@@ -33,10 +33,19 @@ See the [complete English user guide](docs/USER_GUIDE_EN.md) for first launch, l
 - Reader: horizontal/continuous reading, presets, gestures, rotation, adaptive two-page mode, border cropping, preloading, an embedded overlay reader, and an independent full-screen reader.
 - Image processing: adjustments, system/API 26 Core Vision AI upscaling, and SDR-to-HDR. Pre-rendering uses `adjustments → upscaling → HDR`.
 - Translation: titles, details, comments, and OCR manga translation through web services, DeepSeek, OpenAI, Gemini, or a custom compatible API.
-- Downloads: a cross-gallery shared worker pool, progress/speed notifications, privacy notifications, status filters, sorting by ID/time/artist and more, multi-select actions, item recovery, and ZIP import/export.
+- Downloads include a cross-gallery shared worker pool, progress/speed notifications, privacy notifications, status filters, field-based and manual drag sorting, WebDAV order sync, incremental gallery updates, multi-select actions, item recovery, and ZIP import/export.
 - Wide screens: resizable split panes with independent routes and focus-aware Back behavior.
 - Migration: JSON/Android database import, legacy EhViewer download recovery, and selectable Wi-Fi Direct transfer of reading progress, app settings, login cookies, bookmarks, favorites, blocklists, download metadata, and images. Local `igneous` is never exported or overwritten by incoming data.
 - Personalization and network: multiple languages/themes, translated tags, filters, privacy controls, HTTP/SOCKS5 proxy, DoH, hosts, SNI fronting, direct-connect detection, and diagnostics.
+
+## 0.7.5 updates
+
+- Added manual download ordering with neighboring cards moving during dragging in both list and waterfall layouts. The order persists and syncs through WebDAV.
+- Downloaded galleries can detect and incrementally download newer versions. Existing files are reused by image identity, so reordered pages do not require downloading the entire gallery again. Successful updates replace the old version while preserving its label, added time, and manual position.
+- Gallery details show Update and a separate Delete button when a newer version exists, or Delete otherwise. Deletion supports local and cloud choices.
+- Personally rated galleries use blue indicators. Lists and details refresh after rating, and rating response parsing has been fixed.
+- Fixed crashes when opening gallery links in comments. Links to the current gallery return to its details. Improved comment scrolling and translation rendering, and gave the composer a Gaussian-blur background.
+- Improved the reader translation button's visibility on light and dark backgrounds, with adjusted transparency and blur.
 
 ## 0.7.4 updates
 

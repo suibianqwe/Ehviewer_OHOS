@@ -28,7 +28,9 @@ function extractFunction(source, signature) {
   const parenEnd = source.indexOf(')', parenStart);
   const params = source.slice(parenStart + 1, parenEnd)
     .split(',').map((part) => part.trim().split(':')[0].trim()).filter((part) => part.length > 0);
-  return Function(...params, block(source, signature));
+  return Function(...params, block(source, signature)
+    .replace(/new Set<number>/g, 'new Set')
+    .replace(/\(item: DownloadInfo\)(?:: (?:boolean|number))?/g, '(item)'));
 }
 
 globalThis.HISTORY_SHARD_PREFIX = 'history~';

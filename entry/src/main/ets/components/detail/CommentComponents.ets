@@ -152,9 +152,19 @@ export struct CommentLinkedText {
   onTapText: () => void = () => {};
   @State translatedText: string = '';
   private translationRequestVersion: number = 0;
+  private cachedHtml: string | undefined = undefined;
+  private sourceText: string = '';
+  private sourceSegments: CommentTextSegment[] = [];
+  private cachedTranslation: string = '';
+  private translatedSegments: CommentTextSegment[] = [];
 
   aboutToAppear(): void {
     this.resetTranslation();
+  }
+
+  aboutToDisappear(): void {
+    // Lazy rows can leave the component tree while translation is pending.
+    this.translationRequestVersion++;
   }
 
   onContentChanged(): void {
@@ -170,6 +180,7 @@ export struct CommentLinkedText {
   }
 
   private resetTranslation(): void {
+    this.refreshSourceText();
     this.translationRequestVersion++;
     this.translatedText = '';
     this.requestTranslationIfNeeded();
@@ -182,7 +193,8 @@ export struct CommentLinkedText {
     if (this.translatedText.length > 0) {
       return;
     }
-    const source = commentPlainTextFromHtml(this.html);
+    this.refreshSourceText();
+    const source = this.sourceText;
     if (source.length === 0) {
       return;
     }
@@ -199,16 +211,30 @@ export struct CommentLinkedText {
     });
   }
 
-  private displayText(): string {
-    if (this.translateComment && this.translatedText.length > 0) {
-      return this.translatedText;
+  private refreshSourceText(): void {
+    if (this.cachedHtml === this.html) {
+      return;
     }
-    return commentPlainTextFromHtml(this.html);
+    this.cachedHtml = this.html;
+    this.sourceText = commentPlainTextFromHtml(this.html);
+    this.sourceSegments = commentTextSegments(this.sourceText);
+  }
+
+  private displaySegments(): CommentTextSegment[] {
+    this.refreshSourceText();
+    if (this.translateComment && this.translatedText.length > 0) {
+      if (this.cachedTranslation !== this.translatedText) {
+        this.cachedTranslation = this.translatedText;
+        this.translatedSegments = commentTextSegments(this.translatedText);
+      }
+      return this.translatedSegments;
+    }
+    return this.sourceSegments;
   }
 
   build() {
     Text() {
-      ForEach(commentTextSegments(this.displayText()), (segment: CommentTextSegment) => {
+      ForEach(this.displaySegments(), (segment: CommentTextSegment) => {
         Span(segment.text)
           .fontColor(segment.url.length > 0 ? themeAccentTextColor() : themePrimaryText())
           .decoration({
@@ -304,6 +330,8 @@ export struct GalleryCommentRow {
   rowClickable: boolean = false;
   @Prop translateComment: boolean = false;
   @Prop translationPriority: number = 2;
+  @Prop prioritizeVisibleTranslation: boolean = false;
+  @State commentInViewport: boolean = false;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   onVoteComment: (comment: GalleryComment, vote: number) => void = (_comment: GalleryComment, _vote: number) => {};
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
@@ -405,7 +433,8 @@ export struct GalleryCommentRow {
         openGalleryLinksInApp: this.openGalleryLinksInApp,
         selectable: this.selectableText,
         translateComment: this.translateComment,
-        translationPriority: this.translationPriority,
+        translationPriority: this.prioritizeVisibleTranslation ? (this.commentInViewport ? 2 : 1) :
+          this.translationPriority,
         onOpenGalleryLink: this.onOpenGalleryLink,
         onTapText: this.onTapRow
       })
@@ -423,6 +452,11 @@ export struct GalleryCommentRow {
     .padding(this.compact ? 10 : { left: 16, right: 16, top: 14, bottom: 14 })
     .backgroundColor(this.compact ? themeSurfaceVariant() : themeSurface())
     .borderRadius(this.compact ? uiRadius(6) : 0)
+    .onVisibleAreaChange([0.0], (visible: boolean, ratio: number) => {
+      if (this.prioritizeVisibleTranslation) {
+        this.commentInViewport = visible && ratio > 0;
+      }
+    })
     .onClick(() => {
       if (this.rowClickable) {
         this.onTapRow();

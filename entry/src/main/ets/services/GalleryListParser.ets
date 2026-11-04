@@ -1,5 +1,6 @@
 import { GalleryCategory, GalleryInfo } from '../model/GalleryModels';
 import { decodeHtmlEntities } from '../shared/HtmlEntitySupport';
+import { hasPersonalRatingClass } from './GalleryRatingSupport';
 import { inferSimpleLanguage, languageTagFromText } from './GalleryApiParser';
 
 export enum GalleryListDisplayMode {
@@ -369,7 +370,7 @@ function parseRating(row: string): number {
 
 function parseRated(row: string): boolean {
   const ir = findClassBlock(row, 'ir');
-  return /\b(?:irr|irg|irb)\b/i.test(ir);
+  return hasPersonalRatingClass(ir);
 }
 
 function parseSimpleTags(row: string): string[] {

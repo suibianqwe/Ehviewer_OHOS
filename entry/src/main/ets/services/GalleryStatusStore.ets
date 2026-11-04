@@ -8,11 +8,15 @@ export class GalleryStatusStore {
   private localFavorites: Set<number> = new Set<number>();
   private cloudFavorites: Map<number, boolean> = new Map<number, boolean>();
   private cloudAccount: string = '';
+  private ratedGalleries: Set<number> = new Set<number>();
+  private accountRevision: number = 0;
 
   setCloudAccount(account: string): void {
     if (this.cloudAccount !== account) {
       this.cloudAccount = account;
+      this.accountRevision++;
       this.cloudFavorites.clear();
+      this.ratedGalleries.clear();
       this.notifyChanged();
     }
   }
@@ -33,6 +37,21 @@ export class GalleryStatusStore {
 
   hasDownload(gid: number): boolean {
     return gid > 0 && this.downloads.has(gid);
+  }
+
+  isRated(gid: number, parsedRated: boolean): boolean {
+    return parsedRated || this.ratedGalleries.has(gid);
+  }
+
+  ratingAccountVersion(): number {
+    return this.accountRevision;
+  }
+
+  markRated(gid: number): void {
+    if (gid > 0 && !this.ratedGalleries.has(gid)) {
+      this.ratedGalleries.add(gid);
+      this.notifyChanged();
+    }
   }
 
   isFavorite(gallery: GalleryInfo): boolean {

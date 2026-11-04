@@ -6,7 +6,10 @@ import { systemShare } from '@kit.ShareKit';
 import { ArchiveOption, ArchiverInfo, ArchiverOption, GalleryComment, GalleryDetail, GalleryPreview, GallerySite, HathArchiveList, TorrentInfo } from '../model/GalleryModels';
 import { confirmCellularNetworkWarningForSession, shouldConfirmCellularNetworkOperation } from '../services/EhCellularNetworkGuard';
 import { ehDownloadManager } from '../services/EhDownloadManager';
-import { DownloadInfo, DownloadLabel, ehDownloadStore } from '../services/EhDownloadStore';
+import { DownloadInfo, DownloadLabel, DownloadState, ehDownloadStore } from '../services/EhDownloadStore';
+import { cloudGalleryPageService } from '../services/CloudGalleryPageService';
+import { remoteStorageDownloadDeletionService } from '../services/RemoteStorageDownloadDeletionService';
+import { checkGalleryDownloadUpdate, GalleryDownloadUpdateCheck } from '../services/GalleryDownloadUpdate';
 import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
 import { ehLocalFavoritesStore } from '../services/EhLocalFavoritesStore';
 import { FILTER_MODE_TAG, ehFilterStore } from '../services/EhFilterStore';
@@ -27,6 +30,8 @@ import {
 import { PublicDownloadStartResult, startPublicDownload } from '../services/PublicDownloadService';
 import { EhUrl } from '../services/EhUrl';
 import { CommentPostResult, COMMENT_POST_UNCONFIRMED } from '../services/GalleryCommentSubmission';
+import { canOpenCommentGallery, commentGalleryIdentity } from '../services/GalleryCommentNavigation';
+import { galleryStatusStore } from '../services/GalleryStatusStore';
 import { FavoriteCategoryInfo } from '../services/GalleryListParser';
 import { FavoriteSlotOption, favoriteSlotOptions } from '../services/FavoriteCollectionSupport';
 import {
@@ -318,6 +323,7 @@ export struct GalleryDetailHostScene {
   @Prop @Watch('onDetailLinkChanged') detailLink: GalleryDetailLink = createEmptyGalleryDetailLink();
   listRequestUrl: string = '';
   initialDetailScrollOffset: number = 0;
+  ancestorGalleryKeys: string[] = [];
   onBack: () => void = () => {};
   onShowEmbeddedReader: () => void = () => {};
   onOpenSearch: (request: DetailSearchRequest) => void = (_request: DetailSearchRequest) => {};
@@ -329,6 +335,7 @@ export struct GalleryDetailHostScene {
   private archiveRequestGate: AsyncRequestGate = new AsyncRequestGate();
   private favoriteCategoryRequestGate: AsyncRequestGate = new AsyncRequestGate();
   private commentPostGate: AsyncRequestGate = new AsyncRequestGate();
+  private ratingRequestGate: AsyncRequestGate = new AsyncRequestGate();
   private tagSubscriptionGate: AsyncRequestGate = new AsyncRequestGate();
   private tagSubscriptionSaving: boolean = false;
   private detailPreviewPager: DetailPreviewPager = new DetailPreviewPager();
@@ -339,6 +346,9 @@ export struct GalleryDetailHostScene {
   private unsubscribeDownloadStore: () => void = () => {};
   private unregisterDetailBackHandler: () => void = () => {};
   private cellularWarningDialogOpen: boolean = false;
+  private deleteDownloadDialogOpen: boolean = false;
+  private downloadUpdateGate: AsyncRequestGate = new AsyncRequestGate();
+  private downloadUpdateChecking: boolean = false;
   @State renderVersion: number = 0;
   @State showInfo: boolean = false;
   @State showComments: boolean = false;
@@ -382,6 +392,9 @@ export struct GalleryDetailHostScene {
   }
 
   aboutToDisappear(): void {
+    this.downloadUpdateGate.begin();
+    this.detailRequestGate.begin();
+    this.ratingRequestGate.begin();
     this.commentPostGate.begin();
     this.tagSubscriptionGate.begin();
     this.favoriteCategoryRequestGate.begin();
@@ -401,6 +414,8 @@ export struct GalleryDetailHostScene {
     if (this.detail.gid === this.detailLink.gid && this.detail.token === this.detailLink.token) {
       return;
     }
+    this.downloadUpdateGate.begin();
+    this.downloadUpdateChecking = false;
     this.detailStartScrollOffset = 0;
     this.detailScrollResetVersion++;
     this.onDetailScrollUpdate(0);
@@ -451,7 +466,8 @@ export struct GalleryDetailHostScene {
     detailHostNavigationCache.set(detailHostCacheKey(this.detailLink), {
       showInfo: this.showInfo,
       showComments: this.showComments,
-      commentGalleryLink: cloneDetailHostLink(this.commentGalleryLink)
+      commentGalleryLink: canOpenCommentGallery(this.detailLink, this.commentGalleryLink, this.ancestorGalleryKeys) ?
+        cloneDetailHostLink(this.commentGalleryLink) : createEmptyGalleryDetailLink()
     });
   }
 
@@ -467,11 +483,13 @@ export struct GalleryDetailHostScene {
     return {
       showInfo: saved.showInfo === true,
       showComments: saved.showComments,
-      commentGalleryLink: cloneDetailHostLink(saved.commentGalleryLink)
+      commentGalleryLink: canOpenCommentGallery(this.detailLink, saved.commentGalleryLink, this.ancestorGalleryKeys) ?
+        cloneDetailHostLink(saved.commentGalleryLink) : createEmptyGalleryDetailLink()
     };
   }
 
   private loadDetailFromLink(done?: () => void): void {
+    this.ratingRequestGate.begin();
     this.commentPostGate.begin();
     this.tagSubscriptionGate.begin();
     this.commentPosting = false;
@@ -529,6 +547,7 @@ export struct GalleryDetailHostScene {
         return;
       }
       this.detail = result.detail;
+      this.detail.rated = galleryStatusStore.isRated(this.detail.gid, this.detail.rated);
       this.visiblePreviews = cloneGalleryPreviews(this.detail.previewSet);
       this.detailRequestUrl = result.url;
       this.detailStatus = result.statusText;
@@ -537,7 +556,7 @@ export struct GalleryDetailHostScene {
       this.optimisticFavorite = this.detail.isFavorited;
       this.syncLocalFavoriteState(true);
       refreshDetailDownloadItem(this.detail);
-      this.detailDownloadText = detailDownloadButtonText(this.detail.gid);
+      this.refreshDetailDownloadText();
       saveGalleryToHistory(this.detail);
       this.onDetailLoaded(this.detail);
       this.renderVersion++;
@@ -566,7 +585,8 @@ export struct GalleryDetailHostScene {
     if (this.detail.gid <= 0) {
       return;
     }
-    this.detailDownloadText = detailDownloadButtonText(this.detail.gid);
+    this.detailDownloadText = this.downloadUpdateChecking ? 'Checking for updates...' :
+      detailDownloadButtonText(this.detail.gid, (this.detail.newerVersions?.length ?? 0) > 0);
     this.renderVersion++;
   }
 
@@ -599,6 +619,19 @@ export struct GalleryDetailHostScene {
     const link = createGalleryDetailLinkFromUrl(url, site, this.detailRequestUrl.length > 0 ?
       this.detailRequestUrl : this.detailLink.url);
     if (link === null) {
+      return;
+    }
+    if (commentGalleryIdentity(link) === commentGalleryIdentity(this.detailLink)) {
+      // Reveal the already-mounted detail instead of reloading or nesting it.
+      // Keep the draft and detail scroll position when leaving comments.
+      this.showComments = false;
+      this.showInfo = false;
+      this.commentGalleryLink = createEmptyGalleryDetailLink();
+      this.saveNavigationState();
+      this.renderVersion++;
+      return;
+    }
+    if (!canOpenCommentGallery(this.detailLink, link, this.ancestorGalleryKeys)) {
       return;
     }
     this.commentGalleryLink = link;
@@ -729,6 +762,16 @@ export struct GalleryDetailHostScene {
   }
 
   private toggleDownloadDetail(): void {
+    if (this.downloadUpdateChecking) return;
+    const current = findDetailDownloadItem(this.detail.gid);
+    if (current !== null && current.state === DownloadState.Finish) {
+      if ((this.detail.newerVersions?.length ?? 0) > 0) {
+        this.updateDownloadedGallery(current);
+      } else {
+        this.confirmDeleteDownloadedGallery(current);
+      }
+      return;
+    }
     if (isDetailCloudOnlyDownload(this.detail.gid)) {
       this.startCloudRestoreToLocal();
       return;
@@ -747,6 +790,88 @@ export struct GalleryDetailHostScene {
       return;
     }
     this.applyDownloadDetailToggle('');
+  }
+
+  private updateDownloadedGallery(source: DownloadInfo): void {
+    const context = getAbilityContext();
+    if (context === undefined) return;
+    const generation = this.downloadUpdateGate.begin();
+    this.downloadUpdateChecking = true;
+    this.refreshDetailDownloadText();
+    checkGalleryDownloadUpdate(this.client, source.gid, source.token, this.detailLink.site, this.detailRequestUrl)
+      .then((checked: GalleryDownloadUpdateCheck) => {
+        if (!this.downloadUpdateGate.isCurrent(generation) || this.detail.gid !== source.gid) return;
+        this.detail.newerVersions = checked.current.newerVersions;
+        if (checked.latest === null) {
+          this.showToast('No newer gallery version');
+          return;
+        }
+        const target = ehDownloadStore.queueGalleryUpdate(source.gid, checked.latest);
+        if (target === null) throw new Error('Unable to queue gallery update');
+        ehDownloadStore.save(context).catch(() => {});
+        this.startDownloadQueueWithCellularGuard(context);
+        this.openCommentGalleryLink(EhUrl.getGalleryDetailUrl(target.gid, target.token, 0, false, this.detailLink.site));
+      }).catch(() => {
+        if (this.downloadUpdateGate.isCurrent(generation)) this.showToast('Gallery update failed');
+      }).finally(() => {
+        if (this.downloadUpdateGate.isCurrent(generation)) {
+          this.downloadUpdateChecking = false;
+          this.refreshDetailDownloadText();
+        }
+      });
+  }
+
+  private confirmDeleteDownloadedGallery(item: DownloadInfo): void {
+    const context = getAbilityContext();
+    if (context === undefined || this.deleteDownloadDialogOpen) {
+      return;
+    }
+    this.deleteDownloadDialogOpen = true;
+    let deleting = false;
+    const cloud = cloudGalleryPageService.hasDownloadsProfile();
+    const cloudOnly = isDetailCloudOnlyDownload(item.gid);
+    this.getUIContext().getPromptAction().showDialog({
+      title: uiText('Delete'),
+      message: uiText(cloudOnly ? 'Delete this gallery from cloud and all devices?' :
+        (cloud ? 'Delete from this device or from the cloud (all devices)?' :
+          'Delete this downloaded gallery and its local files?')),
+      buttons: cloudOnly ? [
+        { text: uiText('Cancel'), color: themeSecondaryText() },
+        { text: uiText('Delete from cloud'), color: themeAccentTextColor() }
+      ] : cloud ? [
+        { text: uiText('Cancel'), color: themeSecondaryText() },
+        { text: uiText('Delete from this device'), color: themeAccentTextColor() },
+        { text: uiText('Delete from cloud'), color: themeAccentTextColor() }
+      ] : [
+        { text: uiText('Cancel'), color: themeSecondaryText() },
+        { text: uiText('Delete from this device'), color: themeAccentTextColor() }
+      ]
+    }).then(async (result) => {
+      const current = findDetailDownloadItem(item.gid);
+      if (result.index < 1 || current === null || current.state !== DownloadState.Finish) {
+        return;
+      }
+      deleting = true;
+      const fromCloud = cloudOnly || (cloud && result.index === 2);
+      const cloudName = fromCloud ? remoteStorageDownloadDeletionService.localDirectoryName(context, item.gid) : '';
+      ehDownloadManager.stopGallery(item.gid);
+      await ehDownloadFileStore.removeGalleryDirectoryAsync(context, current);
+      if (!cloud || fromCloud) {
+        ehDownloadStore.removeGallery(item.gid);
+      }
+      if (fromCloud) {
+        await remoteStorageDownloadDeletionService.recordCloudDeletion(context, item.gid, cloudName);
+        remoteStorageDownloadDeletionService.processPendingDeletions(context).catch(() => {});
+      }
+      await ehDownloadStore.save(context);
+      if (this.detail.gid === item.gid) {
+        this.refreshDetailDownloadText();
+      }
+    }).catch(() => {
+      if (deleting) this.showToast('Delete download failed');
+    }).finally(() => {
+      this.deleteDownloadDialogOpen = false;
+    });
   }
 
   private startCloudRestoreToLocal(): void {
@@ -1046,10 +1171,20 @@ export struct GalleryDetailHostScene {
       this.renderVersion++;
       return;
     }
+    const generation = this.ratingRequestGate.begin();
+    const accountVersion = galleryStatusStore.ratingAccountVersion();
+    const gid = this.detail.gid;
+    const token = this.detail.token;
+    const site = this.detailLink.site;
     this.detailStatus = 'Submitting rating...';
     this.renderVersion++;
     this.client.rateGallery(this.detail.gid, this.detail.token, this.detail.apiUid, this.detail.apiKey, rating,
       this.detailLink.site).then((result: RateGalleryResult) => {
+      if (!this.ratingRequestGate.isCurrent(generation) || this.detail.gid !== gid ||
+        this.detail.token !== token || this.detailLink.site !== site ||
+        galleryStatusStore.ratingAccountVersion() !== accountVersion) {
+        return;
+      }
       this.detailStatus = result.message;
       if (result.ok) {
         const nextDetail = cloneGalleryDetail(this.detail);
@@ -1057,10 +1192,17 @@ export struct GalleryDetailHostScene {
         nextDetail.ratingCount = result.ratingCount > 0 ? result.ratingCount : nextDetail.ratingCount;
         nextDetail.rated = true;
         this.detail = nextDetail;
+        galleryStatusStore.markRated(gid);
+        saveGalleryToHistory(this.detail);
+        this.onDetailLoaded(this.detail);
         this.showToast('Rating submitted');
       }
       this.renderVersion++;
     }).catch((error: Error) => {
+      if (!this.ratingRequestGate.isCurrent(generation) ||
+        galleryStatusStore.ratingAccountVersion() !== accountVersion) {
+        return;
+      }
       this.detailStatus = 'Rating failed: ' + error.message;
       this.renderVersion++;
     });
@@ -1694,6 +1836,13 @@ export struct GalleryDetailHostScene {
           this.renderVersion++;
         },
         onDownload: () => { this.toggleDownloadDetail(); },
+        onDeleteDownload: () => {
+          this.downloadUpdateGate.begin();
+          this.downloadUpdateChecking = false;
+          this.refreshDetailDownloadText();
+          const item = findDetailDownloadItem(this.detail.gid);
+          if (item !== null && item.state === DownloadState.Finish) this.confirmDeleteDownloadedGallery(item);
+        },
         onRead: () => { this.readDetail(); },
         onUploaderSearch: () => { this.openUploaderGalleryList(); },
         onCategorySearch: () => { this.openCategoryGalleryList(); },
@@ -1740,9 +1889,10 @@ export struct GalleryDetailHostScene {
         onShowTagDefinition: (fullTag: string) => { this.openTagDefinition(fullTag); }
       })
 
-      if (this.commentGalleryLink.gid > 0) {
+      if (canOpenCommentGallery(this.detailLink, this.commentGalleryLink, this.ancestorGalleryKeys)) {
         GalleryDetailHostScene({
           detailLink: this.commentGalleryLink,
+          ancestorGalleryKeys: this.ancestorGalleryKeys.concat(commentGalleryIdentity(this.detailLink)),
           listRequestUrl: this.detailRequestUrl,
           onBack: () => {
             this.commentGalleryLink = createEmptyGalleryDetailLink();

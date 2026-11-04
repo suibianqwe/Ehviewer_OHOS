@@ -3,11 +3,12 @@ import { KeyboardAvoidMode } from '@kit.ArkUI';
 import { CommentComposer } from '../../detail/CommentComposer';
 import {
   TRANSLATION_ENABLED_KEY,
-  ehTranslationService,
-  translationPriorityForIndex
+  ehTranslationService
 } from '../../../services/EhTranslationService';
 import { TRANSLATION_BUTTONS_VISIBLE_KEY } from '../../../services/EhSettingsStore';
 import { nextFloatingToolbarOffset, uiText } from '../../../shared/EhShared';
+import { ArrayDataSource } from '../../../shared/ListDataSource';
+import { buildCommentListItems, CommentListItem } from '../../../services/CommentListSupport';
 import {
   themeDividerColor,
   themePageBackground,
@@ -17,7 +18,7 @@ import {
 } from '../../../shared/EhTheme';
 import { EhSubNavBar } from '../../NavigationComponents';
 import { MAIN_CONTENT_WIDTH_VP_KEY } from '../../../services/EhWindowImmersive';
-import { uiAdaptiveToolbarHeight } from '../../../shared/EhUiStyle';
+import { uiAdaptiveToolbarHeight, uiSearchFieldHeight } from '../../../shared/EhUiStyle';
 import { GalleryCommentRow } from '../../detail/CommentComponents';
 import { TranslationText } from '../../TranslationComponents';
 import {
@@ -42,13 +43,15 @@ export struct CommentsScene {
   @StorageProp('statusBarHeight') statusBarHeightPx: number = 0;
   @StorageLink(TRANSLATION_ENABLED_KEY) translationEnabled: boolean = false;
   @StorageProp(TRANSLATION_BUTTONS_VISIBLE_KEY) translationButtonsVisible: boolean = true;
-  @State translationVisibleStart: number = -1;
-  @State translationVisibleEnd: number = -1;
   @State visibleCommentItems: GalleryComment[] = [];
   @State toolbarOffsetY: number = 0;
+  @State composerHeight: number = uiSearchFieldHeight() + 18;
   @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
   private commentsScroller: Scroller = new Scroller();
+  private commentItems: CommentListItem[] = [];
+  private commentsSource: ArrayDataSource<CommentListItem> = new ArrayDataSource<CommentListItem>([]);
   private toolbarRestoring: boolean = false;
+  private toolbarRestoreTimer: number = -1;
   private previousKeyboardAvoidMode: KeyboardAvoidMode | null = null;
 
   aboutToAppear(): void {
@@ -66,19 +69,16 @@ export struct CommentsScene {
   }
 
   aboutToDisappear(): void {
+    if (this.toolbarRestoreTimer >= 0) {
+      clearTimeout(this.toolbarRestoreTimer);
+      this.toolbarRestoreTimer = -1;
+    }
     if (this.previousKeyboardAvoidMode !== null) {
       try {
         this.getUIContext().setKeyboardAvoidMode(this.previousKeyboardAvoidMode);
       } catch (_error) {
       }
     }
-  }
-
-  private translationPriorityFor(index: number): number {
-    if (!this.translationEnabled) {
-      return 0;
-    }
-    return translationPriorityForIndex(index, this.translationVisibleStart, this.translationVisibleEnd);
   }
 
   private statusBarVp(): number {
@@ -101,11 +101,10 @@ export struct CommentsScene {
       return scrollOffset;
     }
     if (scrollOffset > 0 && this.visibleBarHeight() > 0) {
-      const previousOffsetY = this.toolbarOffsetY;
       this.toolbarRestoring = false;
       this.toolbarOffsetY = nextFloatingToolbarOffset(this.toolbarOffsetY, scrollOffset, yOffset,
         this.totalBarHeight());
-      return Math.max(0, scrollOffset - Math.max(0, previousOffsetY - this.toolbarOffsetY));
+      return scrollOffset;
     }
     if (scrollOffset < 0 && this.toolbarOffsetY < 0) {
       this.restoreToolbarOnReverseScroll();
@@ -121,13 +120,25 @@ export struct CommentsScene {
     this.getUIContext().animateTo({ duration: 260, curve: Curve.EaseOut }, () => {
       this.toolbarOffsetY = 0;
     });
-    setTimeout(() => {
+    if (this.toolbarRestoreTimer >= 0) {
+      clearTimeout(this.toolbarRestoreTimer);
+    }
+    this.toolbarRestoreTimer = setTimeout(() => {
       this.toolbarRestoring = false;
+      this.toolbarRestoreTimer = -1;
     }, 280);
   }
 
   private refreshVisibleComments(): void {
     this.visibleCommentItems = ehCommentBlacklistStore.filterComments(this.comments);
+    this.commentItems = buildCommentListItems(this.visibleCommentItems, this.commentItems);
+    this.commentsSource.setItems(this.commentItems);
+  }
+
+  private updateComposerHeight(height: number): void {
+    if (Number.isFinite(height) && height > 0 && Math.abs(height - this.composerHeight) > 0.5) {
+      this.composerHeight = height;
+    }
   }
 
   @Builder
@@ -142,7 +153,7 @@ export struct CommentsScene {
         }
         .width('100%')
         .height('100%')
-        .padding({ top: this.visibleBarHeight() })
+        .padding({ top: this.totalBarHeight() })
       } else {
         List({ space: 0, scroller: this.commentsScroller }) {
           ListItem() {
@@ -167,15 +178,15 @@ export struct CommentsScene {
           }
           .reuseId('comments-summary')
 
-          ForEach(this.visibleCommentItems, (comment: GalleryComment, index: number) => {
+          LazyForEach(this.commentsSource, (item: CommentListItem) => {
             ListItem() {
               GalleryCommentRow({
-                comment: this.visibleCommentItems[index],
+                comment: item.comment,
                 maxLines: 1000,
                 compact: false,
                 openGalleryLinksInApp: true,
                 translateComment: this.translationEnabled,
-                translationPriority: this.translationPriorityFor(index),
+                prioritizeVisibleTranslation: true,
                 onVoteComment: this.onVoteComment,
                 onOpenGalleryLink: this.onOpenGalleryLink,
                 onBlockUser: () => {
@@ -184,7 +195,7 @@ export struct CommentsScene {
               })
             }
             .reuseId('comment-row')
-          }, (comment: GalleryComment, index: number) => comment.id + ':' + index.toString())
+          }, (item: CommentListItem) => item.key)
           ListItem() {
             Divider()
               .height(1)
@@ -195,14 +206,12 @@ export struct CommentsScene {
         .divider({ strokeWidth: 1, color: themeDividerColor() })
         .width('100%')
         .height('100%')
-        .padding({ top: this.visibleBarHeight() })
+        .contentStartOffset(this.totalBarHeight())
+        .contentEndOffset(this.composerHeight)
+        .scrollBar(BarState.Auto)
         .cachedCount(4)
         .onScrollFrameBegin((offset: number, _state: ScrollState) => {
           return { offsetRemain: this.handleScrollFrame(offset) };
-        })
-        .onScrollIndex((first: number, last: number) => {
-          this.translationVisibleStart = Math.max(0, first - 1);
-          this.translationVisibleEnd = Math.min(Math.max(0, last - 1), this.visibleCommentItems.length - 1);
         })
       }
 
@@ -225,13 +234,10 @@ export struct CommentsScene {
   }
 
   build() {
-    Column() {
-      Column() {
-        this.commentsContent()
-      }
-      .width('100%')
-      .layoutWeight(1)
-      .clip(true)
+    Stack({ alignContent: Alignment.BottomStart }) {
+      this.commentsContent()
+      // Let list content pass behind the field so its blur samples comments,
+      // not an opaque footer. The end inset keeps the last comment reachable.
       CommentComposer({
         draft: this.commentDraft,
         posting: this.commentPosting,
@@ -239,11 +245,14 @@ export struct CommentsScene {
         onDraftChange: this.onCommentDraftChange,
         onPost: this.onPostComment
       })
-      .flexShrink(0)
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.updateComposerHeight(Number.parseFloat(newArea.height.toString()));
+      })
     }
     .width('100%')
     .height('100%')
     .backgroundColor(themePageBackground())
+    .clip(true)
   }
 }
 

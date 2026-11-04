@@ -2,7 +2,7 @@
 
 English · [简体中文](USER_GUIDE.md)
 
-This guide applies to EhViewer HarmonyOS `0.7.4`. Button positions may vary with the device, system version, window size, and permissions, but the entry points and behavior are the same. Portrait screenshots show the phone layout; landscape screenshots use the unfolded foldable to demonstrate the tablet layout. Every reader screenshot in this guide was reached through `Subscriptions → Gallery details → Read`.
+This guide applies to EhViewer HarmonyOS `0.7.5`. Button positions may vary with the device, system version, window size, and permissions, but the entry points and behavior are the same. Portrait screenshots show the phone layout; landscape screenshots use the unfolded foldable to demonstrate the tablet layout. Every reader screenshot in this guide was reached through `Subscriptions → Gallery details → Read`.
 
 > Tip: the app follows the system proxy and language by default. On a working network, advanced options such as custom hosts, SNI fronting, and DoH are normally unnecessary.
 
@@ -199,13 +199,14 @@ Gallery details contain the cover, titles, uploader, category, page count, size,
 Common actions include:
 
 - Favorite in a cloud or local favorite list.
-- Submit a star rating.
+- Submit a star rating. Personally rated galleries use blue rating indicators in lists and details.
 - Open the HarmonyOS system share panel.
 - View Torrent entries and copy a magnet link.
 - Request an original/resampled archive or H@H download into the public Download root.
 - Search for similar galleries or the current cover.
 - Post a comment from the bottom composer on the comments page using the circular send button. A valid login is required. The field starts at one line, grows with the draft, and scrolls after reaching its height limit; successful posts refresh the comments.
-- Add the gallery to the download queue.
+- Links to the current gallery in comments return to its details. Other gallery links open their corresponding details.
+- Add an undownloaded gallery to the queue. Downloaded galleries show Delete, or Update with a separate circular Delete button when a newer version is detected. See section 9.4.
 - Open the embedded reader over the current page, or enter the independent full-screen reader when that mode is selected.
 
 Tap a tag to search it. Use the add button beside the tag section to enter tag editing and voting. Translated tag names and categories follow `Show tag translations`, independently of the app language.
@@ -321,10 +322,12 @@ When switching between app files and public Downloads, choose Migrate to copy ex
 </p>
 
 - Tap a task to open its local details.
-- Long-press a card to enter multi-select.
+- Long-press a card to enter multi-select. While drag sorting is enabled, long-pressing starts a drag.
 - Delete shows the selected count and asks for confirmation.
 - The status filter chooses Waiting, Downloading, Completed, Failed, and other visible states.
 - Expand the floating toolbar and choose Sort to order by gallery ID, added time, artist, title, rating, or file size in either direction. The choice is remembered. Artist ordering uses artist tags and puts unknown artists last; it does not change the download queue order.
+- Choose manual ordering and enable drag sorting to move cards into place. Neighboring cards move during the drag in both list and waterfall layouts. Drops save the order. Choose Finish sorting when done.
+- With WebDAV sync enabled, manual order syncs to other devices. Select manual ordering on another device to view it. Each device remembers its own sorting mode.
 - With no gallery selected, Download and Pause act on the galleries visible under the current status filter rather than every gallery.
 - Export writes a ZIP to the public Download root.
 
@@ -333,6 +336,14 @@ Notifications show state, progress, and speed. Privacy mode hides gallery and fi
 ### 9.3 Recovering download items
 
 Open `Settings → Downloads → Recover download items`. The app scans gallery folders and unencrypted ZIP files in the public Download root. It can restore app exports, compatible legacy EhViewer ZIPs, and site archives whose gallery ID can be read from the filename. Unsupported, encrypted, or metadata-less archives are skipped without modification. A completion dialog reports recovered, processed, and skipped counts.
+
+### 9.4 Updating downloaded galleries
+
+Open a downloaded gallery's details. When a newer version is detected, Update checks again and downloads new or changed images. Existing files are matched by image identity, so reordered pages can still be reused.
+
+The list shows a single entry during updating. Its progress, pause, and retry controls apply to the update task. Old files remain until the new version downloads completely. Replacement preserves the label, added time, and manual position. Temporary update files enter WebDAV mirroring after replacement completes.
+
+If an old download has no verifiable image identities and the old gallery is no longer accessible online, unmatched images must be downloaded again. Delete opens a confirmation dialog with local and cloud scope choices.
 
 ## 10. Favorites, history, tags, and comment blocklist
 

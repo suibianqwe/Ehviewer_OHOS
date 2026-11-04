@@ -3,6 +3,7 @@ import { GalleryCategory, GalleryInfo, GallerySite } from '../model/GalleryModel
 import { DecodedGalleryThumbnail, GalleryThumbnailLease } from '../services/GalleryThumbnailDecodeCache';
 import { ehHistoryStore } from '../services/EhHistoryStore';
 import { GALLERY_STATUS_REVISION_KEY, galleryStatusStore } from '../services/GalleryStatusStore';
+import { galleryRatingColor } from '../services/GalleryRatingSupport';
 import { remoteStorageDownloadDeletionService } from '../services/RemoteStorageDownloadDeletionService';
 import { ehTagTranslationStore } from '../services/EhTagTranslationStore';
 import {
@@ -129,6 +130,7 @@ export struct GalleryListRow {
   @Prop selected: boolean = false;
   @Prop translateTitle: boolean = false;
   @Prop translationPriority: number = 2;
+  @Prop dragSortEnabled: boolean = false;
   onLongPress: (gallery: GalleryInfo) => void = (_gallery: GalleryInfo) => {
   };
   @StorageProp(HISTORY_READ_REVISION_KEY) historyReadRevision: number = 0;
@@ -380,6 +382,8 @@ export struct GalleryListRow {
         // eslint-disable-next-line @performance/hp-arkui-replace-nested-reusable-component-by-builder
         GalleryRatingStars({
           rating: this.gallery.rating,
+          galleryGid: this.gallery.gid,
+          rated: this.gallery.rated,
           widthValue: this.ratingWidth(),
           heightValue: this.ratingHeight()
         })
@@ -408,6 +412,7 @@ export struct GalleryListRow {
           url: this.gallery.thumb === undefined ? '' : this.gallery.thumb,
           widthValue: this.cardThumbWidth(),
           heightValue: this.detailAreaHeight(),
+          imageDraggable: !this.dragSortEnabled,
           radiusValue: 6
         })
           .height('100%')
@@ -517,10 +522,17 @@ export struct GalleryListRow {
     .clip(true)
     .gesture(
       LongPressGesture({ repeat: false })
+        .tag('gallery-selection')
         .onAction(() => {
           this.onLongPress(this.gallery);
         })
     )
+    .onGestureJudgeBegin((info: GestureInfo) => {
+      if (this.dragSortEnabled && info.tag === 'gallery-selection') {
+        return GestureJudgeResult.REJECT;
+      }
+      return GestureJudgeResult.CONTINUE;
+    })
   }
 }
 
@@ -550,6 +562,7 @@ export struct GalleryTagChip {
 @Component
 export struct GalleryThumb {
   @Prop @Watch('onUrlChange') url: string = '';
+  @Prop imageDraggable: boolean = true;
   widthValue: number = 86;
   heightValue: number = 118;
   radiusValue: number = 4;
@@ -726,6 +739,7 @@ export struct GalleryThumb {
         })
       } else if (this.thumbnailSource !== '') {
         Image(this.thumbnailSource)
+          .draggable(this.imageDraggable)
           .width('100%')
           .height('100%')
           .objectFit(ImageFit.Cover)
@@ -758,6 +772,7 @@ export struct GalleryThumbCard {
   @Prop selected: boolean = false;
   @Prop translateTitle: boolean = false;
   @Prop translationPriority: number = 2;
+  @Prop dragSortEnabled: boolean = false;
   onLongPress: (gallery: GalleryInfo) => void = (_gallery: GalleryInfo) => {
   };
   @StorageProp(HISTORY_READ_REVISION_KEY) historyReadRevision: number = 0;
@@ -861,6 +876,7 @@ export struct GalleryThumbCard {
             url: this.gallery.thumb === undefined ? '' : this.gallery.thumb,
             widthValue: 0,
             heightValue: 0,
+            imageDraggable: !this.dragSortEnabled,
             onImageAspectRatio: (aspectRatio: number) => {
               this.updateThumbnailAspectRatio(aspectRatio);
             }
@@ -896,7 +912,8 @@ export struct GalleryThumbCard {
             Column({ space: 6 }) {
               if (showGalleryRating()) {
                 // eslint-disable-next-line @performance/hp-arkui-replace-nested-reusable-component-by-builder
-                GalleryRatingStars({ rating: this.gallery.rating, widthValue: 86, heightValue: 16 })
+                GalleryRatingStars({ rating: this.gallery.rating, galleryGid: this.gallery.gid,
+                  rated: this.gallery.rated, widthValue: 86, heightValue: 16 })
               }
               // eslint-disable-next-line @performance/hp-arkui-replace-nested-reusable-component-by-builder
               CategoryBadge({ category: this.gallery.category })
@@ -927,10 +944,17 @@ export struct GalleryThumbCard {
     .clip(true)
     .gesture(
       LongPressGesture({ repeat: false })
+        .tag('gallery-selection')
         .onAction(() => {
           this.onLongPress(this.gallery);
         })
     )
+    .onGestureJudgeBegin((info: GestureInfo) => {
+      if (this.dragSortEnabled && info.tag === 'gallery-selection') {
+        return GestureJudgeResult.REJECT;
+      }
+      return GestureJudgeResult.CONTINUE;
+    })
   }
 }
 
@@ -999,6 +1023,9 @@ struct GalleryStatusBadges {
 @Component
 struct GalleryRatingStars {
   @Prop rating: number = 0;
+  @Prop galleryGid: number = 0;
+  @Prop rated: boolean = false;
+  @StorageProp(GALLERY_STATUS_REVISION_KEY) statusRevision: number = 0;
   @Prop widthValue: number = 86;
   @Prop heightValue: number = 16;
 
@@ -1013,7 +1040,8 @@ struct GalleryRatingStars {
       ForEach([0, 1, 2, 3, 4], (_index: number) => {
         SymbolGlyph($r('sys.symbol.star_fill'))
           .fontSize(this.heightValue)
-          .fontColor([filled ? '#F4C43F' : '#B8BEC6'])
+          .fontColor([filled ? galleryRatingColor(this.statusRevision >= 0 &&
+            galleryStatusStore.isRated(this.galleryGid, this.rated)) : '#B8BEC6'])
           .width(this.widthValue / 5)
           .height(this.heightValue)
       }, (index: number) => index.toString())

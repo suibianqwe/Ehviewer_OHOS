@@ -1358,6 +1358,15 @@ export function zhText(text: string): string {
     case 'Download completed': return '下载完成';
     case 'Download failed': return '下载失败';
     case 'Downloaded': return '已下载';
+    case 'Checking for updates...': return '检查更新中…';
+    case 'No newer gallery version': return '暂无更新的画廊版本';
+    case 'Gallery update failed': return '画廊更新失败，请稍后重试';
+    case 'Delete this downloaded gallery and its local files?': return '删除该画廊的本地下载及文件？';
+    case 'Delete this gallery from cloud and all devices?': return '从云端及所有设备删除该画廊？';
+    case 'Delete download failed': return '删除下载失败';
+    case 'Manual': return '手动排序';
+    case 'Drag to sort': return '拖动排序';
+    case 'Finish sorting': return '结束排序';
     case 'Failed': return '失败';
     case 'Updating': return '更新中';
     case 'Invalid': return '无效';

@@ -1,7 +1,7 @@
 import { taskpool } from '@kit.ArkTS';
 import { compareDownloadSortKeys, DownloadSortKey, sortDownloadKeys } from './DownloadSortKeys';
 import { sortDownloadKeysTask } from './DownloadSortTask';
-import { DownloadInfo, DownloadProgress } from './EhDownloadStore';
+import { DownloadInfo, DownloadProgress, DownloadState } from './EhDownloadStore';
 import { downloadSortKey } from './DownloadSortSupport';
 
 type DownloadChunkFilter = (items: DownloadInfo[]) => DownloadInfo[];
@@ -80,12 +80,12 @@ export class DownloadListProjection {
   }
 
   project(items: DownloadInfo[], mode: string, revision: number,
-    filterChunk: DownloadChunkFilter): Promise<DownloadInfo[] | undefined> {
+    filterChunk: DownloadChunkFilter, manualOrder: number[] = []): Promise<DownloadInfo[] | undefined> {
     if (!this.isCurrent(revision)) {
       return Promise.resolve(undefined);
     }
     this.workingRevision = revision;
-    return this.projectCurrent(items, mode, revision, filterChunk).finally(() => {
+    return this.projectCurrent(items, mode, revision, filterChunk, manualOrder).finally(() => {
       if (this.workingRevision === revision) {
         this.workingRevision = -1;
       }
@@ -93,22 +93,39 @@ export class DownloadListProjection {
   }
 
   private async projectCurrent(items: DownloadInfo[], mode: string, revision: number,
-    filterChunk: DownloadChunkFilter): Promise<DownloadInfo[] | undefined> {
+    filterChunk: DownloadChunkFilter, manualOrder: number[]): Promise<DownloadInfo[] | undefined> {
     if (this.mode !== mode) {
       this.clearKeys();
       this.mode = mode;
     }
     const keys: DownloadSortKey[] = [];
+    const updateSources: Set<number> = new Set();
+    if (items.some((item: DownloadInfo): boolean => item.updateSourceGid !== undefined)) {
+      const originals = new Set<number>(items.filter((item: DownloadInfo): boolean =>
+        item.state === DownloadState.Finish && item.updateSourceGid === undefined).map((item: DownloadInfo) => item.gid));
+      for (const item of items) {
+        if (item.updateSourceGid !== undefined && item.updateSourceGid !== item.gid && originals.has(item.updateSourceGid)) {
+          updateSources.add(item.updateSourceGid);
+        }
+      }
+    }
+    const manualIndexes: Map<number, number> = new Map();
+    manualOrder.forEach((gid: number, index: number) => { manualIndexes.set(gid, index); });
     const byGid: Map<number, DownloadInfo> = new Map();
     for (let start = 0; start < items.length; start += 256) {
       await yieldDownloadListWork();
       if (!this.isCurrent(revision)) {
         return undefined;
       }
-      for (const item of filterChunk(items.slice(start, start + 256))) {
+      const chunk = items.slice(start, start + 256).filter((item: DownloadInfo): boolean => !updateSources.has(item.gid));
+      for (const item of filterChunk(chunk)) {
         let key = this.keys.get(item.gid);
         if (key === undefined) {
           key = downloadSortKey(item, mode);
+          if (mode === 'Manual') {
+            key.value = manualIndexes.get(item.updateSourceGid ?? item.gid) ??
+              manualIndexes.get(item.gid) ?? manualOrder.length;
+          }
           this.keys.set(item.gid, key);
         }
         keys.push(key);

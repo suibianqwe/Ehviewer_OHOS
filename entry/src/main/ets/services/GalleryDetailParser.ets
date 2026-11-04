@@ -1,5 +1,6 @@
-import { GalleryCategory, GalleryComment, GalleryDetail, GalleryPreview, GalleryTagGroup, GalleryTagInfo } from '../model/GalleryModels';
+import { GalleryCategory, GalleryComment, GalleryDetail, GalleryPreview, GalleryTagGroup, GalleryTagInfo, GalleryVersion } from '../model/GalleryModels';
 import { decodeHtmlEntities } from '../shared/HtmlEntitySupport';
+import { parseDetailRated } from './GalleryRatingSupport';
 
 const DETAIL_PATTERN: RegExp =
   /var\s+gid\s*=\s*(\d+);[\s\S]*?var\s+token\s*=\s*["']([a-f0-9]+)["'];[\s\S]*?var\s+apiuid\s*=\s*([-\d]+);[\s\S]*?var\s+apikey\s*=\s*["']([a-f0-9]+)["'];/i;
@@ -62,7 +63,7 @@ export function parseGalleryDetail(body: string): GalleryDetailParseResult {
     posted: '',
     uploader: parseUploader(body),
     rating: parseRating(body),
-    rated: false,
+    rated: parseDetailRated(body),
     pages: 0,
     thumbWidth: 0,
     thumbHeight: 0,
@@ -74,6 +75,7 @@ export function parseGalleryDetail(body: string): GalleryDetailParseResult {
     torrentUrl: parseTorrentUrl(body),
     archiveUrl: parseArchiveUrl(body),
     parent: '',
+    newerVersions: parseNewerGalleryVersions(body, gid),
     visible: '',
     language: '',
     size: '',
@@ -86,6 +88,32 @@ export function parseGalleryDetail(body: string): GalleryDetailParseResult {
 
   parseDetailInfo(detail, body);
   return { detail: detail, warning: '' };
+}
+
+function parseNewerGalleryVersions(body: string, currentGid: number): GalleryVersion[] {
+  // Only the site's version notice is authoritative. Comment and parent links
+  // elsewhere in the page must not be mistaken for newer versions.
+  const notice = /<div\b[^>]*\sid\s*=\s*["']gnd["'][^>]*>([\s\S]*?)<\/div>/i.exec(body);
+  if (notice === null) {
+    return [];
+  }
+  const versions: GalleryVersion[] = [];
+  const seen = new Set<number>();
+  const anchors = /<a\b[^>]*\shref\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let anchor = anchors.exec(notice[1]);
+  while (anchor !== null) {
+    const url = decodeHtml(anchor[1]).trim().replace(/^\/\//, 'https://');
+    const identity = /^(?:https?:\/\/(?:e-hentai\.org|exhentai\.org))?\/g\/(\d+)\/([a-f0-9]+)\/?(?:[?#].*)?$/i.exec(url);
+    if (identity !== null) {
+      const gid = Number(identity[1]);
+      if (Number.isSafeInteger(gid) && gid > 0 && gid !== currentGid && !seen.has(gid)) {
+        seen.add(gid);
+        versions.push({ gid: gid, token: identity[2], title: cleanText(anchor[2]), url: url });
+      }
+    }
+    anchor = anchors.exec(notice[1]);
+  }
+  return versions;
 }
 
 function parseCover(body: string): string {

@@ -38,6 +38,7 @@ export struct DetailHeader {
   @Prop downloadText: string = 'Download';
   @Prop translateTitle: boolean = false;
   onDownload: () => void = () => {};
+  onDeleteDownload: () => void = () => {};
   onRead: () => void = () => {};
   onUploaderSearch: () => void = () => {};
   onCategorySearch: () => void = () => {};
@@ -104,11 +105,29 @@ export struct DetailHeader {
             .margin({ top: 12 })
 
           Row() {
-            HeaderActionButton({
-              symbolIcon: this.downloadIcon(),
-              text: uiText(this.downloadText),
-              onTap: this.onDownload
-            })
+            Row({ space: 6 }) {
+              if (this.downloadText === 'Update' || this.downloadText === 'Checking for updates...') {
+                Button({ type: ButtonType.Circle }) {
+                  SymbolGlyph($r('sys.symbol.trash'))
+                    .fontSize(18)
+                    .fontColor([uiMaterialForegroundColor(themePrimaryText())])
+                }
+                .width(36)
+                .height(36)
+                .backgroundColor(uiMaterialBackground(themeSurfaceVariant()))
+                .backgroundEffect(uiTransparentButtonBackgroundEffect())
+                .systemMaterial(uiButtonMaterial())
+                .accessibilityText(uiText('Delete'))
+                .onClick(this.onDeleteDownload)
+              }
+              HeaderActionButton({
+                symbolIcon: this.downloadIcon(),
+                text: uiText(this.downloadText),
+                showIcon: this.downloadText !== 'Update' && this.downloadText !== 'Checking for updates...',
+                onTap: this.onDownload
+              })
+                .layoutWeight(1)
+            }
               .width('48%')
             HeaderActionButton({
               symbolIcon: $r('sys.symbol.play_fill'),
@@ -134,9 +153,8 @@ export struct DetailHeader {
   }
 
   private downloadIcon(): Resource {
-    if (this.downloadText === 'Downloaded') {
-      return $r('sys.symbol.checkmark');
-    }
+    if (this.downloadText === 'Delete') return $r('sys.symbol.trash');
+    if (this.downloadText === 'Update' || this.downloadText === 'Checking for updates...') return $r('sys.symbol.arrow_clockwise');
     if (this.downloadText === 'Waiting' || this.downloadText === 'Downloading') {
       return $r('sys.symbol.pause_fill');
     }
@@ -173,6 +191,7 @@ export struct HeaderActionButton {
   @Prop symbolIcon: Resource = $r('sys.symbol.play_fill');
   @Prop text: string = '';
   @Prop accent: boolean = false;
+  @Prop showIcon: boolean = true;
   onTap: () => void = () => {};
   @State pressed: boolean = false;
 
@@ -186,14 +205,20 @@ export struct HeaderActionButton {
 
   build() {
     Row() {
-      SymbolGlyph(this.symbolIcon)
-        .fontSize(22)
-        .fontColor([uiMaterialForegroundColor(this.contentColor())])
+      if (this.showIcon) {
+        SymbolGlyph(this.symbolIcon)
+          .fontSize(22)
+          .fontColor([uiMaterialForegroundColor(this.contentColor())])
+      }
       Text(this.text)
         .fontSize(14)
         .fontWeight(FontWeight.Bold)
         .fontColor(uiMaterialForegroundColor(this.contentColor()))
-        .margin({ left: 10 })
+        .margin({ left: this.showIcon ? 10 : 0 })
+        .layoutWeight(this.showIcon ? 0 : 1)
+        .textAlign(TextAlign.Center)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
     }
     .justifyContent(FlexAlign.Center)
     .alignItems(VerticalAlign.Center)

@@ -62,7 +62,9 @@ import {
   takePendingContinuationSnapshot,
 } from '../services/DistributedContinuationService';
 import { readerSessionStore } from '../services/ReaderSessionStore';
-import { DOWNLOAD_SORT_OPTIONS, DOWNLOAD_SORT_SETTING_KEY, normalizeDownloadSortMode } from '../services/DownloadSortSupport';
+import { DOWNLOAD_SORT_OPTIONS, DOWNLOAD_SORT_SETTING_KEY, DOWNLOAD_DRAG_SORT_SETTING_KEY, normalizeDownloadSortMode } from '../services/DownloadSortSupport';
+import { unifiedDataChannel } from '@kit.ArkData';
+import { DownloadReorderController } from '../services/DownloadReorderController';
 import { applyDownloadProgressUpdates, DownloadListProjection } from '../services/DownloadListProjection';
 import { SettingsOptionPanel } from './SettingsPanels';
 import { LANGUAGE_REVISION_KEY, STATUS_BAR_HEIGHT_KEY, nextFloatingToolbarOffset, runDetailBackHandler, setActiveBackHandler } from '../shared/EhShared';
@@ -277,6 +279,9 @@ export struct DownloadScene {
   @State statusFilterDraft: string[] = DOWNLOAD_STATUS_FILTER_OPTIONS.slice();
   @State statusFilterPanelVisible: boolean = false;
   @State sortMode: string = 'Default';
+  @State dragSortEnabled: boolean = false;
+  @State draggingDownloadGid: number = 0;
+  private downloadReorder: DownloadReorderController = new DownloadReorderController();
   @State sortPanelVisible: boolean = false;
   @State categoryFilter: string = 'All';
   @State statusText: string = 'Downloads: idle';
@@ -368,6 +373,8 @@ export struct DownloadScene {
     markCurrentRouteRightPane(this.useSplitLayout());
     setActiveBackHandler(() => this.handleSystemBack());
     this.unsubscribeStore = ehDownloadStore.subscribe((items: DownloadInfo[], labels: DownloadLabel[]) => {
+      this.downloadReorder.cancel(false);
+      this.draggingDownloadGid = 0;
       this.items = items;
       this.labels = labels;
       this.downloadProjection.clearKeys();
@@ -386,6 +393,8 @@ export struct DownloadScene {
     if (context !== undefined) {
       ehSettingsStore.ensureLoaded(context).then(() => {
         this.sortMode = normalizeDownloadSortMode(ehSettingsStore.getValue(DOWNLOAD_SORT_SETTING_KEY, 'Default'));
+        this.dragSortEnabled = this.sortMode === 'Manual' &&
+          ehSettingsStore.getValue(DOWNLOAD_DRAG_SORT_SETTING_KEY, 'Off') === 'On';
         this.refreshDownloadRows();
       }).catch(() => {});
       ehSearchHistoryStore.load(context).then(() => {
@@ -946,11 +955,71 @@ export struct DownloadScene {
       const candidates = filterDownloadItems(chunk, '', statusFilters, label, mode,
         category, false);
       return candidates.filter((item: DownloadInfo): boolean => galleryMatchesLocalSearch(item, query, options));
-    });
+    }, mode === 'Manual' ? ehDownloadStore.getManualOrder() : []);
+  }
+
+  private toggleDownloadDragSort(): void {
+    this.dragSortEnabled = !this.dragSortEnabled;
+    this.draggingDownloadGid = 0;
+    this.downloadActionsExpanded = false;
+    this.clearDownloadSelection();
+    if (this.dragSortEnabled) {
+      ehDownloadStore.seedManualOrder(this.visibleItems.map((item: DownloadInfo): number => item.gid));
+      this.sortMode = 'Manual';
+      this.downloadProjection.clearKeys();
+      this.refreshDownloadRows();
+      this.persistDownloads();
+    }
+    this.saveDownloadSortSettings();
+  }
+
+  private startDownloadDrag(item: DownloadInfo, event: DragEvent): DragItemInfo {
+    if (!this.dragSortEnabled || this.sortMode !== 'Manual') {
+      event.setResult(DragResult.DRAG_CANCELED);
+      return {};
+    }
+    this.draggingDownloadGid = item.gid;
+    this.downloadProjection.invalidate();
+    this.downloadReorder.start(this.visibleItems, item.gid, event, this.getUIContext(),
+      (items: DownloadInfo[]) => { this.visibleItems = items; },
+      (dy: number) => { this.downloadScroller.scrollBy(0, dy); });
+    const record = new unifiedDataChannel.PlainText();
+    record.textContent = 'ehviewer-download-reorder';
+    event.setData(new unifiedDataChannel.UnifiedData(record));
+    return { extraInfo: 'ehviewer-download-reorder' };
+  }
+
+  private dropDownloadDrag(event: DragEvent): void {
+    this.draggingDownloadGid = 0;
+    if (!this.dragSortEnabled || this.sortMode !== 'Manual') {
+      this.downloadReorder.cancel();
+      event.setResult(DragResult.DRAG_FAILED);
+      return;
+    }
+    const order = this.downloadReorder.finish(event);
+    if (order !== undefined && ehDownloadStore.commitVisibleManualOrder(order)) {
+      this.persistDownloads();
+    }
+  }
+
+  private saveDownloadSortSettings(): void {
+    ehSettingsStore.setValue(DOWNLOAD_SORT_SETTING_KEY, this.sortMode);
+    ehSettingsStore.setValue(DOWNLOAD_DRAG_SORT_SETTING_KEY, this.dragSortEnabled ? 'On' : 'Off');
+    const context = getAbilityContext();
+    if (context !== undefined) {
+      ehSettingsStore.save(context).catch(() => {});
+    }
   }
 
   private applyDownloadSort(value: string): void {
     this.sortMode = normalizeDownloadSortMode(value);
+    this.draggingDownloadGid = 0;
+    if (this.sortMode === 'Manual') {
+      ehDownloadStore.seedManualOrder(this.visibleItems.map((item: DownloadInfo): number => item.gid));
+      this.persistDownloads();
+    } else {
+      this.dragSortEnabled = false;
+    }
     this.sortPanelVisible = false;
     this.downloadJumpPageIndex = 0;
     this.downloadScrollOffset = 0;
@@ -965,11 +1034,7 @@ export struct DownloadScene {
       } catch (_error) {
       }
     }, 0);
-    ehSettingsStore.setValue(DOWNLOAD_SORT_SETTING_KEY, this.sortMode);
-    const context = getAbilityContext();
-    if (context !== undefined) {
-      ehSettingsStore.save(context).catch(() => {});
-    }
+    this.saveDownloadSortSettings();
   }
 
   private downloadSearchOptions(): LocalGallerySearchOptions {
@@ -1417,6 +1482,8 @@ export struct DownloadScene {
   }
 
   private stopDownloadListWork(): void {
+    this.downloadReorder.cancel(false);
+    this.draggingDownloadGid = 0;
     this.downloadSceneActive = false;
     this.downloadProjection.dispose();
   }
@@ -2008,8 +2075,9 @@ export struct DownloadScene {
           selected: this.isDownloadSelected(item.gid),
           translateTitle: this.translationEnabled,
           translationPriority: this.translationPriorityFor(index),
+          dragSortEnabled: this.dragSortEnabled,
           onLongPress: (pressed: GalleryInfo) => {
-            this.toggleDownloadSelection(pressed.gid);
+            if (!this.dragSortEnabled) this.toggleDownloadSelection(pressed.gid);
           }
         })
           .width('100%')
@@ -2027,8 +2095,9 @@ export struct DownloadScene {
           selected: this.isDownloadSelected(item.gid),
           translateTitle: this.translationEnabled,
           translationPriority: this.translationPriorityFor(index),
+          dragSortEnabled: this.dragSortEnabled,
           onLongPress: (pressed: GalleryInfo) => {
-            this.toggleDownloadSelection(pressed.gid);
+            if (!this.dragSortEnabled) this.toggleDownloadSelection(pressed.gid);
           }
         })
           .width('100%')
@@ -2060,6 +2129,13 @@ export struct DownloadScene {
       }
     }
     .width('100%')
+    .id('download-reorder-' + item.gid.toString())
+    .draggable(this.dragSortEnabled)
+    .opacity(this.draggingDownloadGid === item.gid ? 0.2 : 1)
+    .onDragStart((event: DragEvent) => this.startDownloadDrag(item, event))
+    .onDragMove((event: DragEvent) => { this.downloadReorder.move(event); })
+    .onDrop((event: DragEvent) => { this.dropDownloadDrag(event); })
+    .onDragEnd(() => { this.downloadReorder.cancel(); this.draggingDownloadGid = 0; })
     .animation({ duration: 220, curve: Curve.EaseOut })
   }
 
@@ -2089,6 +2165,7 @@ export struct DownloadScene {
           .margin({ bottom: this.downloadCardGap() })
           .reuseId('download-card-item')
           .onVisibleAreaChange([0.0, 0.01], (visible: boolean, _ratio: number) => {
+            this.downloadReorder.markVisible(item.gid, visible);
             this.updateVisibleTranslationItem(index, visible);
           })
           .animation({ duration: 220, curve: Curve.EaseOut })
@@ -2098,6 +2175,9 @@ export struct DownloadScene {
     }
     .width('100%')
     .height('100%')
+    .id('download-reorder-viewport')
+    .onDragMove((event: DragEvent) => { this.downloadReorder.move(event); })
+    .onDrop((event: DragEvent) => { this.dropDownloadDrag(event); })
     .lanes(this.downloadColumnCount(), this.downloadCardGap())
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
     .cachedCount(10)
@@ -2138,6 +2218,7 @@ export struct DownloadScene {
         .margin({ top: index < this.downloadColumnCount() ? this.downloadContentStartOffset() : 0 })
         .reuseId('download-thumb-flow-item')
         .onVisibleAreaChange([0.0, 0.01], (visible: boolean, _ratio: number) => {
+          this.downloadReorder.markVisible(item.gid, visible);
           this.updateVisibleTranslationItem(index, visible);
         })
         .animation({ duration: 220, curve: Curve.EaseOut })
@@ -2145,6 +2226,9 @@ export struct DownloadScene {
       }, (item: DownloadInfo) => item.gid.toString())
     }
     .columnsTemplate(this.downloadWaterFlowColumnsTemplate())
+    .id('download-reorder-viewport')
+    .onDragMove((event: DragEvent) => { this.downloadReorder.move(event); })
+    .onDrop((event: DragEvent) => { this.dropDownloadDrag(event); })
     .columnsGap(this.downloadCardGap())
     .rowsGap(this.downloadCardGap())
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true, effectEdge: EffectEdge.START | EffectEdge.END })
@@ -2454,6 +2538,7 @@ export struct DownloadScene {
             maxExpandedHeight: this.downloadToolActionsMaxHeight(),
             showTranslationButton: this.translationButtonsVisible,
             translationEnabled: this.translationEnabled,
+            dragSortEnabled: this.dragSortEnabled,
             side: this.floatingActionSide,
             onToggle: () => {
               this.downloadActionsExpanded = !this.downloadActionsExpanded;
@@ -2465,6 +2550,7 @@ export struct DownloadScene {
               this.downloadActionsExpanded = false;
               this.sortPanelVisible = true;
             },
+            onDragSort: () => { this.toggleDownloadDragSort(); },
             onJump: () => {
               this.openDownloadJumpPanel();
             },

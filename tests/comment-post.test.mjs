@@ -14,7 +14,7 @@ function erase(source) {
     .replace(/\bexport |\bprivate /g, '')
     .replace(/: Promise<[^>]+>/g, '')
     .replace(/: Set<[^>]+>/g, '')
-    .replace(/: (?:GalleryDetailParseResult|GalleryTagGroup|GalleryTagInfo|GalleryPreview|GalleryComment|GalleryDetail|GallerySite|CommentPostResult|CommentAnchor|StyleOffset|FormField|RegExpExecArray|RegExp|string|number|boolean|void)\b(?:\[\])?(?: \| (?:null|undefined))?/g, '')
+    .replace(/: (?:GalleryDetailParseResult|GalleryTagGroup|GalleryTagInfo|GalleryPreview|GalleryComment|GalleryDetail|GalleryVersion|GallerySite|CommentPostResult|CommentAnchor|StyleOffset|FormField|RegExpExecArray|RegExp|string|number|boolean|void)\b(?:\[\])?(?: \| (?:null|undefined))?/g, '')
     .replace(/new Set<(?:string|number)>/g, 'new Set');
 }
 function functionSource(source, name) {
@@ -30,8 +30,10 @@ function methodSource(source, name) {
   return erase(source.slice(start, end + 4));
 }
 const decodeHtmlEntities = Function(erase(read('shared/HtmlEntitySupport.ets')) + '\nreturn decodeHtmlEntities;')();
-const parseGalleryDetail = Function('decodeHtmlEntities', 'GalleryCategory',
-  erase(read('services/GalleryDetailParser.ets')) + '\nreturn parseGalleryDetail;')(decodeHtmlEntities, { Unknown: 0 });
+const parseDetailRated = Function(erase(read('services/GalleryRatingSupport.ets')) + '\nreturn parseDetailRated;')();
+const parseGalleryDetail = Function('decodeHtmlEntities', 'GalleryCategory', 'parseDetailRated',
+  erase(read('services/GalleryDetailParser.ets')) + '\nreturn parseGalleryDetail;')(
+    decodeHtmlEntities, { Unknown: 0 }, parseDetailRated);
 const { parseCommentPostResponse, COMMENT_POST_UNCONFIRMED } = Function('decodeHtmlEntities', 'parseGalleryDetail',
   erase(read('services/GalleryCommentSubmission.ets')) + '\nreturn {parseCommentPostResponse, COMMENT_POST_UNCONFIRMED};'
 )(decodeHtmlEntities, parseGalleryDetail);
@@ -211,7 +213,8 @@ test('zero-comment galleries have a composer, which uses the shared input and ci
   assert.doesNotMatch(methodSource(hostSource, 'openComments'), /comments\.length/);
   assert.match(read('components/detail/DetailComments.ets'), /Button\(uiText\('Write comment'\)/);
   const composer = read('components/detail/CommentComposer.ets');
-  assert.match(composer, /backgroundColor\(themeFieldBackground\(\)\)/);
+  assert.match(composer, /backgroundColor\(uiBlurredFieldBackground\(\)\)/);
+  assert.match(composer, /backgroundEffect\(uiBlurredFieldBackgroundEffect\(\)\)/);
   assert.match(composer, /uiCapsuleButtonBackground\(true\)/);
   assert.match(composer, /\.height\('auto'\)/);
   assert.match(composer, /\.minLines\(1\)/);
@@ -224,8 +227,8 @@ test('zero-comment galleries have a composer, which uses the shared input and ci
   assert.match(composer, /Button\(\{ type: ButtonType\.Circle, stateEffect: true \}\)/);
   assert.match(composer, /\.width\(uiSearchFieldHeight\(\)\)/);
   assert.match(composer, /\.height\(uiSearchFieldHeight\(\)\)/);
-  assert.match(composer, /backgroundColor\(themeTransparentColor\(\)\)/);
-  assert.match(composer, /backgroundEffect\(uiTitleBarBackgroundEffect\(\)\)/);
+  assert.match(composer, /backgroundColor\(Color\.Transparent\)/);
+  assert.doesNotMatch(composer, /uiTitleBarBackgroundEffect|themeTransparentColor/);
   assert.doesNotMatch(composer, /\.height\(88\)/);
   assert.match(composer, /enabled\(!this.posting && this.draft.trim\(\).length > 0\)/);
   assert.doesNotMatch(composer, /onSubmit/); // Enter inserts a newline; only the explicit button publishes.
@@ -233,5 +236,5 @@ test('zero-comment galleries have a composer, which uses the shared input and ci
   assert.match(scene, /CommentComposer\(\{/);
   assert.match(scene, /KeyboardAvoidMode\.RESIZE_WITH_CARET/);
   assert.match(scene, /setKeyboardAvoidMode\(this.previousKeyboardAvoidMode\)/);
-  assert.match(hostSource, /aboutToDisappear\(\): void \{\s*this.commentPostGate.begin\(\)/);
+  assert.match(methodSource(hostSource, 'aboutToDisappear'), /this.commentPostGate.begin\(\)/);
 });

@@ -4,12 +4,16 @@ import { preferences } from '@kit.ArkData';
 import { GalleryCategory, GalleryDetail, GalleryInfo, GalleryTagGroup } from '../model/GalleryModels';
 
 import { syncTombstoneStore } from './SyncTombstoneStore';
+import { completeDownloadManualOrder, moveDownloadInOrder, DownloadManualOrderBackup,
+  normalizeDownloadOrderBackup, newerDownloadOrder } from './DownloadManualOrder';
 
 const PREFERENCES_NAME: string = 'ehviewer_downloads';
 const SYNC_SECTION_DOWNLOAD_LABELS: string = 'downloadLabels';
 export const SYNC_SECTION_DOWNLOADS: string = 'downloads';
 const VALUES_KEY: string = 'items';
 const LABELS_KEY: string = 'labels';
+const MANUAL_ORDER_KEY: string = 'manual_order';
+const MANUAL_ORDER_TIME_KEY: string = 'manual_order_time';
 const DOWNLOAD_NOTIFY_DEBOUNCE_MS: number = 50;
 const DOWNLOAD_SAVE_DEBOUNCE_MS: number = 500;
 
@@ -24,6 +28,7 @@ export enum DownloadState {
 }
 
 export interface DownloadInfo extends GalleryInfo {
+  updateSourceGid?: number;
   state: DownloadState;
   legacy: number;
   time: number;
@@ -63,6 +68,7 @@ interface DownloadStoreSubscription {
 }
 
 interface StoredDownloadInfo {
+  updateSourceGid?: number;
   gid?: number;
   token?: string;
   title?: string;
@@ -110,6 +116,8 @@ export class EhDownloadStore {
   private context: common.UIAbilityContext | undefined = undefined;
   private items: DownloadInfo[] = [];
   private labels: DownloadLabel[] = [];
+  private manualOrder: number[] = [];
+  private manualOrderTime: number = 0;
   private loaded: boolean = false;
   private loadPromise: Promise<void> | null = null;
   private listeners: DownloadStoreSubscription[] = [];
@@ -142,12 +150,131 @@ export class EhDownloadStore {
     return this.items.map((item: DownloadInfo) => item.gid);
   }
 
+  getUpdatingGalleryIds(): number[] {
+    return this.items.filter((item: DownloadInfo): boolean => item.updateSourceGid !== undefined)
+      .map((item: DownloadInfo): number => item.gid);
+  }
+
+  getManualOrder(): number[] {
+    return completeDownloadManualOrder(this.manualOrder, this.getGalleryIds());
+  }
+
+  getManualOrderBackup(): DownloadManualOrderBackup {
+    return { updatedAt: this.manualOrderTime,
+      gids: completeDownloadManualOrder(this.manualOrder, this.manualOrder.concat(this.getGalleryIds())) };
+  }
+
+  manualOrderRevision(): number {
+    return this.manualOrderTime;
+  }
+
+  mergeManualOrderBackup(value: DownloadManualOrderBackup): boolean {
+    const incoming = normalizeDownloadOrderBackup(value);
+    if (incoming === null || !newerDownloadOrder(this.getManualOrderBackup(), incoming)) {
+      return false;
+    }
+    this.manualOrder = incoming.gids;
+    this.manualOrderTime = incoming.updatedAt;
+    this.notifyChanged();
+    return true;
+  }
+
+  seedManualOrder(visibleGids: number[]): void {
+    if (this.manualOrder.length === 0) {
+      this.manualOrder = completeDownloadManualOrder(visibleGids, this.getGalleryIds());
+      this.manualOrderTime = Math.max(Date.now(), this.manualOrderTime + 1);
+    }
+  }
+
+  moveInManualOrder(sourceGid: number, targetGid: number): boolean {
+    const order = this.getManualOrder();
+    if (!moveDownloadInOrder(order, sourceGid, targetGid)) {
+      return false;
+    }
+    this.manualOrder = order;
+    this.manualOrderTime = Math.max(Date.now(), this.manualOrderTime + 1);
+    this.notifyChanged();
+    return true;
+  }
+
+  commitVisibleManualOrder(visibleGids: number[]): boolean {
+    const order = this.getManualOrder();
+    const available = new Set<number>(order);
+    const visible = new Set<number>(visibleGids);
+    if (visible.size !== visibleGids.length || visibleGids.some((gid: number): boolean => !available.has(gid))) {
+      return false;
+    }
+    let index = 0;
+    const next = order.map((gid: number): number => visible.has(gid) ? visibleGids[index++] : gid);
+    if (next.every((gid: number, position: number): boolean => gid === order[position])) return false;
+    this.manualOrder = next;
+    this.manualOrderTime = Math.max(Date.now(), this.manualOrderTime + 1);
+    this.notifyChanged();
+    return true;
+  }
+
   getLabels(): DownloadLabel[] {
     return cloneDownloadLabels(this.labels);
   }
 
   contains(gid: number): boolean {
     return this.findIndex(gid) >= 0;
+  }
+
+  getItem(gid: number): DownloadInfo | null {
+    const index = this.findIndex(gid);
+    return index < 0 ? null : cloneDownloadInfo(this.items[index]);
+  }
+
+  queueGalleryUpdate(sourceGid: number, gallery: GalleryDetail): DownloadInfo | null {
+    const source = this.getItem(sourceGid);
+    if (source === null || source.gid === gallery.gid || source.state !== DownloadState.Finish) return null;
+    const pending = this.items.find((item: DownloadInfo): boolean => item.updateSourceGid === sourceGid);
+    if (pending !== undefined && pending.gid !== gallery.gid) {
+      if (pending.state !== DownloadState.Downloading) pending.state = DownloadState.Wait;
+      this.notifyChanged();
+      return cloneDownloadInfo(pending);
+    }
+    let index = this.findIndex(gallery.gid);
+    if (index < 0) {
+      const item = galleryToDownloadInfo(gallery, source.label);
+      item.time = source.time;
+      this.items.unshift(item);
+      index = 0;
+    }
+    const item = this.items[index];
+    if (item.updateSourceGid !== undefined && item.updateSourceGid !== sourceGid) return null;
+    item.label = source.label;
+    item.time = source.time;
+    item.updateSourceGid = sourceGid;
+    if (item.state !== DownloadState.Downloading) item.state = DownloadState.Wait;
+    this.notifyChanged();
+    return cloneDownloadInfo(item);
+  }
+
+  completeGalleryUpdate(gid: number): DownloadInfo | null {
+    const index = this.findIndex(gid);
+    if (index < 0 || this.items[index].state !== DownloadState.Finish) return null;
+    const updated = this.items[index];
+    const source = this.getItem(updated.updateSourceGid ?? 0);
+    updated.updateSourceGid = undefined;
+    if (source === null || source.state !== DownloadState.Finish) return null;
+    const order = this.getManualOrder().filter((value: number) => value !== gid);
+    this.manualOrder = order.map((value: number): number => value === source.gid ? gid : value);
+    this.manualOrderTime = Math.max(Date.now(), this.manualOrderTime + 1);
+    this.items = this.items.filter((item: DownloadInfo): boolean => item.gid !== source.gid);
+    this.notifyChanged();
+    return source;
+  }
+
+  restoreGalleryUpdate(source: DownloadInfo, targetGid: number): void {
+    if (!this.contains(source.gid)) this.items.push(cloneDownloadInfo(source));
+    const index = this.findIndex(targetGid);
+    if (index >= 0) this.items[index].updateSourceGid = source.gid;
+    this.manualOrder = this.getManualOrder().filter((gid: number): boolean => gid !== source.gid)
+      .map((gid: number): number => gid === targetGid ? source.gid : gid);
+    this.manualOrderTime = Math.max(Date.now(), this.manualOrderTime + 1);
+    this.notifyChanged();
   }
 
   addGallery(gallery: GalleryInfo, label: string = '', time: number = 0): DownloadInfo | null {
@@ -159,6 +286,7 @@ export class EhDownloadStore {
     if (index >= 0) {
       const updated = galleryToDownloadInfo(gallery, this.items[index].label);
       updated.state = this.items[index].state;
+      updated.updateSourceGid = this.items[index].updateSourceGid;
       updated.legacy = this.items[index].legacy;
       updated.time = time > 0 ? time : this.items[index].time;
       updated.archiveUri = this.items[index].archiveUri;
@@ -211,12 +339,18 @@ export class EhDownloadStore {
 
   // 下载列表同步：去掉速度、剩余时间、本地归档路径等只在本机有意义的数据。
   getSyncItems(): DownloadInfo[] {
-    const items = this.getItems();
+    // An update is one logical download. Other devices keep the complete old
+    // version until the replacement is committed and its source link is cleared.
+    const all = this.getItems();
+    const gids = new Set<number>(all.map((item: DownloadInfo): number => item.gid));
+    const items = all.filter((item: DownloadInfo): boolean =>
+      item.updateSourceGid === undefined || !gids.has(item.updateSourceGid));
     for (let i = 0; i < items.length; i++) {
       items[i].speed = 0;
       items[i].remaining = 0;
       items[i].archiveUri = '';
       items[i].legacy = 0;
+      items[i].updateSourceGid = undefined;
     }
     return items;
   }
@@ -238,6 +372,7 @@ export class EhDownloadStore {
       incoming.remaining = 0;
       incoming.archiveUri = '';
       incoming.legacy = 0;
+      incoming.updateSourceGid = undefined;
       if (typeof incoming.time !== 'number' || incoming.time <= 0) {
         incoming.time = 0;
       }
@@ -258,6 +393,7 @@ export class EhDownloadStore {
       const localFinished = local.state === DownloadState.Finish;
       if (incoming.time > local.time || (incomingFinished && !localFinished && incoming.time >= local.time)) {
         incoming.state = local.state;
+        incoming.updateSourceGid = local.updateSourceGid;
         incoming.speed = local.speed;
         incoming.remaining = local.remaining;
         incoming.finished = local.finished;
@@ -291,6 +427,7 @@ export class EhDownloadStore {
     const previous = this.items[index];
     const updated = galleryToDownloadInfo(gallery, previous.label);
     updated.state = previous.state;
+    updated.updateSourceGid = previous.updateSourceGid;
     updated.legacy = previous.legacy;
     updated.time = previous.time;
     updated.archiveUri = previous.archiveUri;
@@ -571,6 +708,19 @@ export class EhDownloadStore {
       const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
       const raw = await prefs.get(VALUES_KEY, '');
       const rawLabels = await prefs.get(LABELS_KEY, '');
+      const rawOrder = await prefs.get(MANUAL_ORDER_KEY, '[]');
+      const rawOrderTime = await prefs.get(MANUAL_ORDER_TIME_KEY, 0);
+      this.manualOrderTime = typeof rawOrderTime === 'number' && Number.isSafeInteger(rawOrderTime) ? rawOrderTime : 0;
+      this.manualOrder = [];
+      try {
+        const order = JSON.parse(typeof rawOrder === 'string' ? rawOrder : '[]') as number[];
+        if (Array.isArray(order)) {
+          this.manualOrder = order.filter((gid: number): boolean => Number.isSafeInteger(gid) && gid > 0);
+          if (this.manualOrder.length > 0 && this.manualOrderTime <= 0) this.manualOrderTime = Date.now();
+        }
+      } catch (_error) {
+        // A malformed optional order must not prevent loading the downloads.
+      }
       this.items = [];
       this.labels = [];
       if (typeof raw !== 'string' || raw.length === 0) {
@@ -620,10 +770,14 @@ export class EhDownloadStore {
       const targetRevision = this.saveRevision;
       const values = JSON.stringify(this.items);
       const labels = JSON.stringify(this.labels);
+      const manualOrder = JSON.stringify(this.manualOrder);
+      const manualOrderTime = this.manualOrderTime;
       try {
         const prefs = await preferences.getPreferences(context, { name: PREFERENCES_NAME });
         await prefs.put(VALUES_KEY, values);
         await prefs.put(LABELS_KEY, labels);
+        await prefs.put(MANUAL_ORDER_KEY, manualOrder);
+        await prefs.put(MANUAL_ORDER_TIME_KEY, manualOrderTime);
         await prefs.flush();
       } catch (error) {
         throw new Error(String(error));
@@ -762,6 +916,8 @@ function galleryToDownloadInfo(gallery: GalleryInfo, label: string): DownloadInf
 
 function storedToDownloadInfo(item: StoredDownloadInfo): DownloadInfo {
   return {
+    updateSourceGid: typeof item.updateSourceGid === 'number' && Number.isSafeInteger(item.updateSourceGid) &&
+      item.updateSourceGid > 0 ? item.updateSourceGid : undefined,
     gid: typeof item.gid === 'number' ? item.gid : 0,
     token: typeof item.token === 'string' ? item.token : '',
     title: typeof item.title === 'string' ? item.title : '',
@@ -831,6 +987,7 @@ function cloneDownloadInfo(item: DownloadInfo): DownloadInfo {
   const tags = galleryDetailTags(item);
   const language = galleryDetailLanguage(item);
   return {
+    updateSourceGid: item.updateSourceGid,
     gid: item.gid,
     token: item.token,
     title: item.title,

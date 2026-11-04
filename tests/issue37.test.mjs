@@ -73,7 +73,8 @@ test('sorting is exposed once with and without selections and optional translati
   }
   assert.match(downloads, /SettingsOptionPanel\(\{\s*title: 'Sort'/);
   assert.match(downloads, /onSort: \(\) =>/);
-  assert.match(method(downloads, 'applyDownloadSort'), /ehSettingsStore\.setValue\(DOWNLOAD_SORT_SETTING_KEY/);
+  assert.match(method(downloads, 'applyDownloadSort'), /this\.saveDownloadSortSettings\(\)/);
+  assert.match(method(downloads, 'saveDownloadSortSettings'), /ehSettingsStore\.setValue\(DOWNLOAD_SORT_SETTING_KEY/);
   assert.match(downloads, /normalizeDownloadSortMode\(ehSettingsStore.getValue\(DOWNLOAD_SORT_SETTING_KEY/);
   for (const option of options) assert.equal(normalizeDownloadSortMode(option), option);
   assert.equal(normalizeDownloadSortMode('obsolete'), 'Default');

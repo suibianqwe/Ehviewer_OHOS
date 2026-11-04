@@ -221,11 +221,13 @@ export struct DownloadToolColumn {
   @Prop maxExpandedHeight: number = 360;
   @Prop showTranslationButton: boolean = true;
   @Prop translationEnabled: boolean = false;
+  @Prop dragSortEnabled: boolean = false;
   @Prop side: string = FLOATING_ACTION_SIDE_RIGHT;
   @State activeActionIndex: number = -1;
   onToggle: () => void = () => {};
   onStatus: () => void = () => {};
   onSort: () => void = () => {};
+  onDragSort: () => void = () => {};
   onJump: () => void = () => {};
   onStart: () => void = () => {};
   onStop: () => void = () => {};
@@ -256,9 +258,9 @@ export struct DownloadToolColumn {
       return 0;
     }
     if (this.hasSelection) {
-      return this.showTranslationButton ? 9 : 8;
+      return this.showTranslationButton ? 10 : 9;
     }
-    return this.showTranslationButton ? 8 : 7;
+    return this.showTranslationButton ? 9 : 8;
   }
 
   private primaryIndex(): number {
@@ -286,6 +288,7 @@ export struct DownloadToolColumn {
   }
 
   private actionKind(index: number): string {
+    if (index === this.actionCount() - 1) return 'dragSort';
     if (this.hasSelection) {
       if (index === 0) return 'select';
       if (index === 1) return 'label';
@@ -317,6 +320,7 @@ export struct DownloadToolColumn {
     if (kind === 'delete') return uiText('Delete');
     if (kind === 'status') return uiText('Status');
     if (kind === 'sort') return uiText('Sort');
+    if (kind === 'dragSort') return uiText(this.dragSortEnabled ? 'Finish sorting' : 'Drag to sort');
     if (kind === 'jump') return uiText('Jump');
     if (kind === 'start') return this.hasSelection ? uiText('Start selected') : uiText('Start filtered');
     if (kind === 'stop') return this.hasSelection ? uiText('Stop selected') : uiText('Stop filtered');
@@ -336,6 +340,8 @@ export struct DownloadToolColumn {
     if (kind === 'delete') return $r('sys.symbol.trash');
     if (kind === 'status') return $r('sys.symbol.funnel');
     if (kind === 'sort') return $r('sys.symbol.list_number');
+    if (kind === 'dragSort') return this.dragSortEnabled ?
+      $r('sys.symbol.checkmark_circle_fill') : $r('sys.symbol.arrow_up_circle');
     if (kind === 'jump') return $r('sys.symbol.chevron_forward');
     if (kind === 'start') return $r('sys.symbol.play_fill');
     if (kind === 'stop') return $r('sys.symbol.pause_fill');
@@ -413,6 +419,8 @@ export struct DownloadToolColumn {
       this.onStatus();
     } else if (kind === 'sort') {
       this.onSort();
+    } else if (kind === 'dragSort') {
+      this.onDragSort();
     } else if (kind === 'jump' && this.canJump) {
       this.onJump();
     } else if (kind === 'start' && this.canOperate) {
@@ -471,7 +479,8 @@ export struct DownloadToolColumn {
       label: this.actionLabel(index),
       symbolIcon: this.actionIcon(index),
       isEnabled: this.actionEnabled(index),
-      checked: this.actionKind(index) === 'translate' && this.translationEnabled,
+      checked: (this.actionKind(index) === 'translate' && this.translationEnabled) ||
+        (this.actionKind(index) === 'dragSort' && this.dragSortEnabled),
       active: this.activeActionIndex === index,
       side: this.side,
       directTap: false

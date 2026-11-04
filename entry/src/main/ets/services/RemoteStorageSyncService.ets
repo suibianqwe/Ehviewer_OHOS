@@ -47,6 +47,7 @@ import {
 } from './TranslationSupport';
 import { ehDownloadFileStore } from './EhDownloadFileStore';
 import { DownloadInfo, DownloadState, SYNC_SECTION_DOWNLOADS, ehDownloadStore } from './EhDownloadStore';
+import { DownloadManualOrderBackup } from './DownloadManualOrder';
 import { remoteStorageDownloadDeletionService } from './RemoteStorageDownloadDeletionService';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { GalleryInfo } from '../model/GalleryModels';
@@ -97,6 +98,7 @@ const SYNC_SECTION_FILTERS: string = 'filters';
 const SYNC_SECTION_SEARCH_HISTORY: string = 'searchHistory';
 const SYNC_SECTION_READING_PROGRESS: string = 'readingProgress';
 const SYNC_SECTION_DOWNLOAD_LABELS: string = 'downloadLabels';
+const SYNC_SECTION_DOWNLOAD_ORDER: string = 'downloadOrder';
 const SYNC_SECTION_REMOTE_STORAGE: string = 'remoteStorage';
 const SYNC_SECTION_READER_PRESETS: string = 'readerPresets';
 const SYNC_SECTION_TRANSLATION_PROMPTS: string = 'translationPrompts';
@@ -286,7 +288,7 @@ export class RemoteStorageSyncService {
       return;
     }
     this.downloadStoreUnsubscribe = ehDownloadStore.subscribe((items: DownloadInfo[]) => {
-      const signature = downloadStoreSignature(items);
+      const signature = downloadStoreSignature(items) + '|order:' + ehDownloadStore.manualOrderRevision().toString();
       if (signature === this.downloadSignature) {
         return;
       }
@@ -903,7 +905,7 @@ export class RemoteStorageSyncService {
       ehBrowsePositionStore.ensureLoaded(context),
       ehHistoryStore.ensureLoaded(context),
       ehLocalFavoritesStore.ensureLoaded(context),
-      ehDownloadStore.load(context)
+      ehDownloadStore.ensureLoaded(context)
     ]);
     const history: GalleryInfo[] = ehHistoryStore.getItems();
     const historySlice = history.length > MAX_SYNC_HISTORY_ITEMS ?
@@ -918,6 +920,7 @@ export class RemoteStorageSyncService {
       { name: 'browsePositions', data: JSON.stringify(ehBrowsePositionStore.getBackupInfo()) },
       { name: 'readingProgress', data: JSON.stringify(ehHistoryStore.getReadingProgressBackupItems()) },
       this.sectionFromPayload(SYNC_SECTION_DOWNLOADS, ehDownloadStore.getSyncItems()),
+      this.sectionFromPayload(SYNC_SECTION_DOWNLOAD_ORDER, ehDownloadStore.getManualOrderBackup()),
       { name: 'downloadLabels', data: JSON.stringify(ehDownloadStore.getLabels()) },
       { name: 'remoteStorage', data: JSON.stringify(profilesWithoutPasswords(remoteStorageProfileStore.getProfiles())) },
       {
@@ -1129,9 +1132,14 @@ export class RemoteStorageSyncService {
         logRemoteStorageInfo('history apply ' + name + ' items=' + items.length.toString() +
           ' timed=' + timed.toString() + ' changed=' + changed.toString());
         await ehHistoryStore.save(context);
+      } else if (name === SYNC_SECTION_DOWNLOAD_ORDER) {
+        await ehDownloadStore.ensureLoaded(context);
+        if (ehDownloadStore.mergeManualOrderBackup(JSON.parse(content) as DownloadManualOrderBackup)) {
+          await ehDownloadStore.save(context);
+        }
       } else if (name === SYNC_SECTION_DOWNLOADS) {
         const items = JSON.parse(content) as DownloadInfo[];
-        await ehDownloadStore.load(context);
+        await ehDownloadStore.ensureLoaded(context);
         ehDownloadStore.mergeSyncItems(items);
         await ehDownloadStore.save(context);
       }
@@ -1478,12 +1486,14 @@ export class RemoteStorageSyncService {
     const galleryComplete: boolean[] = [];
     let totalFiles = 0;
     let totalBytes = 0;
+    const updatingGids = new Set<number>(ehDownloadStore.getUpdatingGalleryIds());
     for (let i = 0; i < galleryNames.length; i++) {
       if (plan.length >= MAX_MIRROR_GALLERIES_PER_CYCLE || totalFiles >= MAX_MIRROR_FILES_PER_CYCLE ||
         Date.now() - startedAt >= MIRROR_TIME_BUDGET_MS) {
         break;
       }
       const galleryName = galleryNames[i];
+      if (updatingGids.has(Number.parseInt(galleryName, 10))) continue;
       const localDir = root + '/' + galleryName;
       let directory = false;
       let dirMtime = 0;
@@ -2117,6 +2127,7 @@ export class RemoteStorageSyncService {
       ehCommentBlacklistStore.getBackupItems().length.toString(),
       ehSearchHistoryStore.getKeywords().length.toString(),
       historyLength.toString(),
+      ehDownloadStore.manualOrderRevision().toString(),
       remoteStorageProfileStore.getProfiles().length.toString()
     ];
     return parts.join(':');

@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { GalleryVersion } from '../model/GalleryModels';
 import { fileIo as fs, fileUri } from '@kit.CoreFileKit';
 import { GalleryCategory, GalleryComment, GalleryDetail, GalleryInfo, GalleryPage, GalleryPreview, GalleryRoute, GallerySite, GalleryTagGroup, GalleryTagInfo, TopListBucket, TopListDetail, TopListInfo, TopListItem, TopListKind } from '../model/GalleryModels';
 import { ehDownloadFileStore } from '../services/EhDownloadFileStore';
@@ -671,6 +672,9 @@ export function cloneGalleryDetail(detail: GalleryDetail): GalleryDetail {
     torrentUrl: detail.torrentUrl,
     archiveUrl: detail.archiveUrl,
     parent: detail.parent,
+    newerVersions: (detail.newerVersions ?? []).map((version: GalleryVersion): GalleryVersion => ({
+      gid: version.gid, token: version.token, title: version.title, url: version.url
+    })),
     visible: detail.visible,
     language: detail.language,
     size: detail.size,

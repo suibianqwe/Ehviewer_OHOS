@@ -39,8 +39,8 @@ test('release metadata stays synchronized', () => {
   assert.equal(json5Value('oh-package.json5', 'version'), version);
   assert.equal(json5Value('entry/oh-package.json5', 'version'), version);
   assert.equal(JSON.parse(read('package.json')).version, version);
-  assert.ok(read('README.md').includes('当前版本：`' + version + '`'));
-  assert.ok(read('README_EN.md').includes('Current version: `' + version + '`'));
+  assert.ok(read('README.md').includes('当前版本 `' + version + '`'));
+  assert.ok(read('README_EN.md').includes('Current version `' + version + '`'));
 });
 
 test('API 26 system material follows the documented direct-call compatibility path', () => {
@@ -88,7 +88,9 @@ test('large ArkTS units cannot grow without an explicit budget review', () => {
     ['entry/src/main/ets/components/GalleryOverlayComponents.ets', 550],
     // Projection/filter/key caching and task lifecycle live in DownloadListProjection;
     // allow only the small amount of scene wiring, not the processing implementation.
-    ['entry/src/main/ets/components/DownloadScene.ets', 2930],
+    // Reviewed for #41: native drag events, menu state and sort persistence wiring.
+    // Ordering and asynchronous projection stay in their existing service layer.
+    ['entry/src/main/ets/components/DownloadScene.ets', 3000],
     ['entry/src/main/ets/components/DownloadComponents.ets', 750],
     ['entry/src/main/ets/shared/EhShared.ets', 2600],
     ['entry/src/main/ets/shared/EhTranslations.ets', 2100],
@@ -199,8 +201,8 @@ test('Harmony materials keep visible low-tier fallbacks', () => {
 
   const readerScenes = read('entry/src/main/ets/components/ReaderScenes.ets');
   assert.match(readerScenes,
-    /backgroundEffect\(uiFloatingButtonBackgroundEffect\(this\.comicTranslationActive \? '#167A9A' : '#34454D'\)\)[\s\S]*systemMaterial\(uiTintedButtonMaterial/,
-    'the reader translation action must retain its tinted Gaussian blur');
+    /backgroundColor\(uiReaderTranslationButtonBackground\(this\.comicTranslationActive\)\)[\s\S]*backgroundEffect\(uiReaderTranslationButtonBackgroundEffect\(this\.comicTranslationActive\)\)/,
+    'the reader translation action must retain a contrasting tinted Gaussian blur and translucent fallback');
 
   const readerButtons = read('entry/src/main/ets/components/reader/controls/ReaderButtons.ets');
   assert.match(readerButtons,

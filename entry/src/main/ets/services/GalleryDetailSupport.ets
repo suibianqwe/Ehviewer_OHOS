@@ -324,11 +324,12 @@ export function isDetailCloudOnlyDownload(gid: number): boolean {
   return !remoteStorageDownloadDeletionService.hasLocalCopy(context, gid);
 }
 
-export function detailDownloadButtonText(gid: number): string {
+export function detailDownloadButtonText(gid: number, newerVersion: boolean = false): string {
   const item = findDetailDownloadItem(gid);
   if (item === null) {
     return 'Download';
   }
+  if (item.state === DownloadState.Finish) return newerVersion ? 'Update' : 'Delete';
   if (isDetailCloudOnlyDownload(gid)) {
     return 'Download to local';
   }
@@ -377,13 +378,22 @@ export function toggleDetailDownloadTask(gallery: GalleryInfo, label: string = '
     };
   }
 
+  if (current.state === DownloadState.Finish) {
+    return {
+      item: current,
+      buttonText: detailDownloadButtonText(current.gid),
+      statusText: 'Downloaded',
+      shouldStartQueue: false
+    };
+  }
+
   ehDownloadStore.updateGallery(gallery);
   ehDownloadManager.resumeGallery(current.gid);
   saveDownloadsQuietly();
   return {
     item: findDetailDownloadItem(current.gid),
     buttonText: detailDownloadButtonText(current.gid),
-    statusText: current.state === DownloadState.Finish ? 'Download queued for update' : 'Download queued',
+    statusText: 'Download queued',
     shouldStartQueue: true
   };
 }

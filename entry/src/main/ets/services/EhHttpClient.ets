@@ -714,9 +714,9 @@ export class EhHttpClient {
       }
       const parsed = parseRateGalleryResponse(response.body, clampedRating);
       return {
-        ok: true,
+        ok: parsed.ok,
         statusCode: response.statusCode,
-        message: 'Rating submitted: ' + clampedRating.toString() + ' stars',
+        message: parsed.ok ? 'Rating submitted: ' + clampedRating.toString() + ' stars' : parsed.message,
         rating: parsed.rating,
         ratingCount: parsed.ratingCount
       };
@@ -728,6 +728,14 @@ export class EhHttpClient {
         rating: clampedRating,
         ratingCount: 0
       };
+    } finally {
+      // A completed or ambiguous rating must not restore pre-vote detail HTML.
+      const prefix = 'GET\n' + EhUrl.getGalleryDetailUrl(gid, token, 0, false, site);
+      for (let i = SHARED_RESPONSE_CACHE.length - 1; i >= 0; i--) {
+        if (SHARED_RESPONSE_CACHE[i].key.indexOf(prefix) === 0) {
+          SHARED_RESPONSE_CACHE.splice(i, 1);
+        }
+      }
     }
   }
 
@@ -847,10 +855,11 @@ export class EhHttpClient {
   }
 
   async loadGalleryDetail(gid: number, token: string, pageIndex: number = 0,
-    site: GallerySite = GallerySite.E, referer: string = EhUrl.getReferer(site)): Promise<GalleryDetailLoadResult> {
+    site: GallerySite = GallerySite.E, referer: string = EhUrl.getReferer(site),
+    forceReload: boolean = false): Promise<GalleryDetailLoadResult> {
     const url = EhUrl.getGalleryDetailUrl(gid, token, pageIndex, false, site);
     try {
-      const response = await this.getText(url, referer, 120000);
+      const response = await this.getText(url, referer, forceReload ? 0 : 120000);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return {
           ok: false,
@@ -2263,6 +2272,8 @@ function parseSignIn(body: string): ParsedSignIn {
 }
 
 interface RateGalleryParsed {
+  ok: boolean;
+  message: string;
   rating: number;
   ratingCount: number;
 }
@@ -2282,13 +2293,33 @@ interface VoteTagParsed {
 }
 
 function parseRateGalleryResponse(body: string, fallbackRating: number): RateGalleryParsed {
+  const failed: RateGalleryParsed = { ok: false, message: 'Invalid rating response',
+    rating: fallbackRating, ratingCount: 0 };
   try {
     const obj = JSON.parse(body) as Record<string, Object>;
-    const avg = typeof obj['avg_rating'] === 'number' ? obj['avg_rating'] as number : fallbackRating;
-    const count = typeof obj['rating_count'] === 'number' ? obj['rating_count'] as number : 0;
-    return { rating: avg, ratingCount: count };
+    if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+      return failed;
+    }
+    if (typeof obj['error'] === 'string' && (obj['error'] as string).length > 0) {
+      failed.message = obj['error'] as string;
+      return failed;
+    }
+    // The website API returns rating_avg/rating_cnt, not avg_rating/rating_count.
+    const rawAverage = obj['rating_avg'] ?? obj['avg_rating'];
+    const rawCount = obj['rating_cnt'] ?? obj['rating_count'];
+    if ((typeof rawAverage !== 'number' && typeof rawAverage !== 'string') ||
+      (typeof rawCount !== 'number' && typeof rawCount !== 'string') ||
+      rawAverage.toString().trim().length === 0 || rawCount.toString().trim().length === 0) {
+      return failed;
+    }
+    const avg = Number(rawAverage);
+    const count = Number(rawCount);
+    if (!Number.isFinite(avg) || avg < 0 || avg > 5 || !Number.isInteger(count) || count < 0) {
+      return failed;
+    }
+    return { ok: true, message: '', rating: avg, ratingCount: count };
   } catch (error) {
-    return { rating: fallbackRating, ratingCount: 0 };
+    return failed;
   }
 }
 

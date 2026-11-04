@@ -86,6 +86,7 @@ export struct GalleryDetailOverlayScene {
   onCloseComments: () => void = () => {};
   onSelectTorrent: (torrent: TorrentInfo) => void = (_torrent: TorrentInfo) => {};
   onDownload: () => void = () => {};
+  onDeleteDownload: () => void = () => {};
   onRead: () => void = () => {};
   onUploaderSearch: () => void = () => {};
   onCategorySearch: () => void = () => {};
@@ -143,6 +144,7 @@ export struct GalleryDetailOverlayScene {
         onShowInfo: this.onShowInfo,
         onCloseInfo: this.onCloseInfo,
         onDownload: this.onDownload,
+        onDeleteDownload: this.onDeleteDownload,
         onRead: this.onRead,
         onUploaderSearch: this.onUploaderSearch,
         onCategorySearch: this.onCategorySearch,
@@ -237,6 +239,7 @@ export struct GalleryDetailScene {
   onShowInfo: () => void = () => {};
   onCloseInfo: () => void = () => {};
   onDownload: () => void = () => {};
+  onDeleteDownload: () => void = () => {};
   onRead: () => void = () => {};
   onUploaderSearch: () => void = () => {};
   onCategorySearch: () => void = () => {};
@@ -488,6 +491,7 @@ export struct GalleryDetailScene {
                 downloadText: this.downloadText,
                 translateTitle: this.translationEnabled,
                 onDownload: this.onDownload,
+                onDeleteDownload: this.onDeleteDownload,
                 onRead: this.onRead,
                 onUploaderSearch: this.onUploaderSearch,
                 onCategorySearch: this.onCategorySearch

@@ -10,10 +10,11 @@ function erase(text) {
   return text.replace(/^import .*;\n/gm, '').replace(/\b(?:private|export) /g, '')
     .replace(/: \(\) => void/g, '')
     .replace(/: Promise<[^>]+>/g, '')
-    .replace(/: Map<number, (?:DownloadInfo|DownloadSortKey|string)>/g, '')
+    .replace(/: Map<number, (?:DownloadInfo|DownloadSortKey|string|number)>/g, '')
+    .replace(/: Set<number>/g, '')
     .replace(/: (?:DownloadInfo|DownloadLabel|DownloadProgress|DownloadStoreListener|DownloadProgressListener|DownloadStoreSubscription|DownloadSortKey|DownloadChunkFilter|DownloadProgressUpdater|taskpool.Task|number|string|boolean|void|Error)\b(?:\[\])?(?: \| undefined)?/g, '')
     .replace(/\b(onProgress)\?(?=[,)])/g, '$1')
-    .replace(/new (Map|Array)<[^>]+>/g, 'new $1')
+    .replace(/new (Map|Array|Set)<[^>]+>/g, 'new $1')
     .replace(/new Promise<void>/g, 'new Promise')
     .replace(/ as number(?:\[\])?/g, '');
 }
@@ -115,12 +116,48 @@ function projection(execute, yieldWork = async () => {}, makeKey = downloadSortK
   const source = projectionSource;
   const start = source.indexOf('export class DownloadListProjection');
   const Type = Function('taskpool', 'sortDownloadKeysTask', 'sortDownloadKeys', 'compareDownloadSortKeys',
-    'yieldDownloadListWork', 'downloadSortKey', 'setTimeout', 'clearTimeout',
+    'yieldDownloadListWork', 'downloadSortKey', 'setTimeout', 'clearTimeout', 'DownloadState',
     erase(source.slice(start)) + ';return DownloadListProjection;')(
       taskpool, sortDownloadKeys, sortDownloadKeys, compareDownloadSortKeys, yieldWork, makeKey,
-      timers.setTimeout ?? setTimeout, timers.clearTimeout ?? clearTimeout);
+      timers.setTimeout ?? setTimeout, timers.clearTimeout ?? clearTimeout, { Finish: 'finish' });
   return { instance: new Type(), tasks, cancelled };
 }
+
+test('manual projection follows persisted order through filtering and invalidated snapshots', async () => {
+  const p = projection(task => task.fn(...task.args)).instance;
+  const items = [item(1), item(2), item(3), item(4)];
+  const project = order => {
+    p.clearKeys();
+    return p.project(items, 'Manual', p.invalidate(), chunk => chunk.filter(i => i.gid !== 2), order);
+  };
+  assert.deepEqual((await project([4, 2, 1, 3])).map(i => i.gid), [4, 1, 3]);
+  assert.deepEqual((await project([3, 4, 2, 1])).map(i => i.gid), [3, 4, 1]);
+  assert.deepEqual(items.map(i => i.gid), [1, 2, 3, 4]);
+});
+
+test('an updating gallery has one row with the replacement progress and the original manual position', async () => {
+  const p = projection(task => task.fn(...task.args)).instance;
+  const old = item(1, { state: 'finish', finished: 100, total: 100 });
+  const updated = item(20, { updateSourceGid: 1, state: 'downloading', finished: 3, total: 120 });
+  const other = item(3);
+  const project = (items, filter = chunk => chunk) => {
+    p.clearKeys();
+    return p.project(items, 'Manual', p.invalidate(), filter, [3, 1, 20]);
+  };
+  let shown = await project([updated, old, other]);
+  assert.deepEqual(shown.map(i => i.gid), [3, 20]);
+  assert.equal(shown[1], updated);
+  assert.equal(shown[1].finished, 3);
+  for (const state of ['wait', 'none', 'failed', 'finish']) {
+    updated.state = state;
+    shown = await project([updated, old, other]);
+    assert.deepEqual(shown.map(i => i.gid), [3, 20], state);
+  }
+  assert.deepEqual((await project([updated, old], chunk => chunk.filter(i => i.state === 'finish'))).map(i => i.gid), [20]);
+  updated.updateSourceGid = undefined;
+  assert.deepEqual((await project([updated, other])).map(i => i.gid), [3, 20]);
+  assert.equal(old.finished, 100, 'the complete old copy stays intact in the store');
+});
 
 test('large requests use the worker; small requests stay local and obsolete results cannot publish', async () => {
   const work = deferred(); const p = projection(() => work.promise);

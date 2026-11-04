@@ -1,4 +1,5 @@
 ﻿import { GalleryDetail } from '../../model/GalleryModels';
+import { galleryRatingColor } from '../../services/GalleryRatingSupport';
 import {
   createEmptyDetail,
   uiText
@@ -55,10 +56,11 @@ export struct DetailActions {
             onTap: this.onFavorite
           })
           DetailActionItem({
-            symbolIcon: $r('sys.symbol.star'),
+            symbolIcon: this.detail.rated ? $r('sys.symbol.star_fill') : $r('sys.symbol.star'),
             label: uiText('Rate'),
             isActive: this.isDetailLoaded && this.detail.apiUid >= 0 && this.detail.apiKey.length > 0,
             isFilled: this.detail.rated,
+            filledColor: galleryRatingColor(true),
             onTap: this.onRate
           })
           DetailActionItem({
@@ -108,6 +110,7 @@ export struct DetailActions {
 
       RatingSummary({
         rating: this.detail.rating,
+        rated: this.detail.rated,
         ratingCount: this.detail.ratingCount,
         isDetailLoaded: this.isDetailLoaded
       })
@@ -122,6 +125,7 @@ export struct DetailActions {
 @Component
 export struct RatingSummary {
   @Prop rating: number = -1;
+  @Prop rated: boolean = false;
   @Prop ratingCount: number = 0;
   @Prop isDetailLoaded: boolean = false;
 
@@ -141,7 +145,7 @@ export struct RatingSummary {
         ForEach([0, 1, 2, 3, 4], (index: number) => {
           SymbolGlyph($r('sys.symbol.star_fill'))
             .fontSize(16)
-            .fontColor([this.rating >= index + 1 ? '#F7C948' : '#D0D5DD'])
+            .fontColor([this.rating >= index + 1 ? galleryRatingColor(this.rated) : '#D0D5DD'])
         }, (index: number) => index.toString())
       }
       .margin({ top: 4 })
@@ -230,6 +234,7 @@ export struct DetailActionItem {
   @Prop label: string = '';
   @Prop isActive: boolean = true;
   @Prop isFilled: boolean = false;
+  @Prop filledColor: string = '';
   onTap: () => void = () => {};
   @State pressed: boolean = false;
 
@@ -237,8 +242,9 @@ export struct DetailActionItem {
     Column({ space: 6 }) {
       SymbolGlyph(this.symbolIcon)
         .fontSize(26)
-        .fontColor([this.isActive ? uiMaterialForegroundColor(this.isFilled ? themeFavoriteText() :
-          themeDetailActionColor()) : themeInactiveActionText()])
+        .fontColor([this.isActive ? (this.isFilled ?
+          (this.filledColor.length > 0 ? this.filledColor : themeFavoriteText()) :
+          uiMaterialForegroundColor(themeDetailActionColor())) : themeInactiveActionText()])
       Text(this.label)
         .fontSize(11)
         .fontColor(this.isActive ? uiMaterialForegroundColor(themeDetailActionColor()) : themeInactiveActionText())

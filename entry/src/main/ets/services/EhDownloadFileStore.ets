@@ -8,6 +8,7 @@ import {
   cloneReaderPageTranslations
 } from '../model/ReaderTranslationModels';
 import { parseGalleryPageUrl } from './GalleryPageParser';
+import { planDownloadPageReuse, spiderPreviewIdentities } from './DownloadPageReuse';
 import { ehSettingsStore } from './EhSettingsStore';
 
 interface GalleryMetadata {
@@ -355,13 +356,64 @@ export class EhDownloadFileStore {
   rewriteGalleryMetadataForDirectory(directory: string, gallery: GalleryInfo): void {
     const previous = readMetadata(directory + '/' + OHOS_METADATA_FILENAME);
     const metadata = createMetadata(gallery, previous === null ? undefined : previous.readerTranslations);
-    writeTextFile(directory + '/' + OHOS_METADATA_FILENAME, JSON.stringify(metadata));
-    const detail = gallery as GalleryDetail;
-    if (detail.previewSet !== undefined && Array.isArray(detail.previewSet)) {
-      writeTextFile(directory + '/' + ANDROID_SPIDER_INFO_FILENAME, createAndroidSpiderInfo(detail));
-    } else {
-      writeTextFile(directory + '/' + ANDROID_SPIDER_INFO_FILENAME, createAndroidSpiderInfoFromMetadata(metadata));
+    if (metadata.pages <= 0 && previous !== null) metadata.pages = previous.pages;
+    if (metadata.previewPages <= 0 && previous !== null) metadata.previewPages = previous.previewPages;
+    const previews = new Map<number, GalleryPreview>();
+    for (const preview of (previous?.previewSet ?? []).concat(metadata.previewSet ?? [])) {
+      if (metadata.pages <= 0 || preview.index < metadata.pages) previews.set(preview.index, preview);
     }
+    metadata.previewSet = Array.from(previews.values()).sort((a: GalleryPreview, b: GalleryPreview) => a.index - b.index);
+    writeTextFile(directory + '/' + OHOS_METADATA_FILENAME, JSON.stringify(metadata));
+    writeTextFile(directory + '/' + ANDROID_SPIDER_INFO_FILENAME, createAndroidSpiderInfoFromMetadata(metadata));
+  }
+
+  async savedGalleryPreviews(directory: string, gid: number): Promise<GalleryPreview[]> {
+    try {
+      const metadata = parseMetadata(await fs.readText(directory + '/' + OHOS_METADATA_FILENAME));
+      if (metadata !== null && (metadata.previewSet?.length ?? 0) > 0) return metadata.previewSet ?? [];
+    } catch (_error) {}
+    try {
+      return spiderPreviewIdentities(await fs.readText(directory + '/' + ANDROID_SPIDER_INFO_FILENAME), gid);
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  async reuseGalleryPages(sourceDirectory: string, sourcePreviews: GalleryPreview[],
+    targetDirectory: string, targetPreviews: GalleryPreview[], stopped: () => boolean): Promise<number> {
+    const files = new Map<number, string>();
+    let sourceNames: string[] = [];
+    try { sourceNames = await fs.listFile(sourceDirectory); } catch (_error) { return 0; }
+    for (const name of sourceNames) {
+      const match = /^(\d+)\.(jpg|jpeg|png|webp|gif)$/i.exec(name);
+      if (match !== null) files.set(Number(match[1]) - 1, name);
+    }
+    const existing = new Set<number>();
+    for (const name of await fs.listFile(targetDirectory)) {
+      const match = /^(\d+)\.(jpg|jpeg|png|webp|gif)$/i.exec(name);
+      if (match !== null) existing.add(Number(match[1]) - 1);
+    }
+    let reused = 0;
+    for (const copy of planDownloadPageReuse(sourcePreviews, targetPreviews)) {
+      if (stopped()) break;
+      const name = files.get(copy.sourceIndex);
+      if (name === undefined || existing.has(copy.targetIndex)) continue;
+      const source = sourceDirectory + '/' + name;
+      const extension = name.substring(name.lastIndexOf('.')).toLowerCase();
+      const destination = targetDirectory + '/' + pageFileName(copy.targetIndex, extension);
+      const temporary = destination + '.reuse';
+      try {
+        if ((await fs.stat(source)).size <= 0) continue;
+        await fs.copyFile(source, temporary);
+        await fs.rename(temporary, destination);
+        existing.add(copy.targetIndex);
+        reused++;
+      } catch (_error) {
+        try { await fs.unlink(temporary); } catch (_cleanupError) {}
+        // A missing or unreadable old page is downloaded normally by the queue.
+      }
+    }
+    return reused;
   }
 
   getReaderTranslation(context: common.UIAbilityContext, gallery: GalleryInfo,
@@ -556,6 +608,15 @@ export class EhDownloadFileStore {
 
   removeGalleryDirectory(context: common.UIAbilityContext, gallery: GalleryInfo): DownloadDirectoryScanResult {
     return removeDirectoryTree(this.downloadedGalleryDirectory(context, gallery));
+  }
+
+  async removeGalleryDirectoryAsync(context: common.UIAbilityContext,
+    gallery: GalleryInfo): Promise<DownloadDirectoryScanResult> {
+    const directory = this.downloadedGalleryDirectory(context, gallery);
+    if (!await fs.access(directory)) {
+      return { directories: 0, files: 0, bytes: 0 };
+    }
+    return await removeDirectoryTreeAsync(directory);
   }
 
   scanRedundantDirectories(context: common.UIAbilityContext, keepGids: number[]): DownloadDirectoryScanResult {
@@ -873,35 +934,6 @@ function createMetadata(gallery: GalleryInfo,
   };
 }
 
-function createAndroidSpiderInfo(detail: GalleryDetail): string {
-  const lines: string[] = [];
-  lines.push('VERSION2');
-  lines.push('00000000');
-  lines.push(detail.gid.toString());
-  lines.push(detail.token);
-  lines.push('1');
-  lines.push(Math.max(0, detail.previewPages).toString());
-  lines.push(previewPerPage(detail).toString());
-  lines.push(Math.max(0, detail.pages).toString());
-  for (let i = 0; i < detail.previewSet.length; i++) {
-    const parsed = parseGalleryPageUrl(detail.previewSet[i].pageUrl);
-    if (parsed !== null && parsed.pageToken.length > 0) {
-      lines.push(parsed.pageIndex.toString() + ' ' + parsed.pageToken);
-    }
-  }
-  return lines.join('\n') + '\n';
-}
-
-function previewPerPage(detail: GalleryDetail): number {
-  if (detail.previewSet.length <= 0) {
-    return 0;
-  }
-  if (detail.previewPages <= 1) {
-    return detail.previewSet.length;
-  }
-  return Math.max(1, Math.ceil(detail.previewSet.length / detail.previewPages));
-}
-
 function readRestoredGallery(directory: string, directoryName: string): RestoredGalleryData | null {
   const metadata = readMetadata(directory + '/' + OHOS_METADATA_FILENAME);
   if (metadata !== null) {
@@ -961,8 +993,12 @@ function createAndroidSpiderInfoFromMetadata(metadata: GalleryMetadata): string 
   lines.push(metadata.token);
   lines.push('1');
   lines.push(Math.max(0, metadata.previewPages).toString());
-  lines.push('0');
+  lines.push(Math.ceil((metadata.previewSet?.length ?? 0) / Math.max(1, metadata.previewPages)).toString());
   lines.push(Math.max(0, metadata.pages).toString());
+  for (const preview of metadata.previewSet ?? []) {
+    const page = parseGalleryPageUrl(preview.pageUrl);
+    if (page !== null) lines.push(preview.index.toString() + ' ' + page.pageToken);
+  }
   return lines.join('\n') + '\n';
 }
 

@@ -1,7 +1,7 @@
 import { uiStatusText, uiText } from '../../shared/EhShared';
-import { themeAccentTextColor, themeFieldBackground, themePrimaryText, themeSecondaryText,
-  themeTransparentColor } from '../../shared/EhTheme';
-import { uiCapsuleButtonBackground, uiRadius, uiSearchFieldHeight, uiTitleBarBackgroundEffect } from '../../shared/EhUiStyle';
+import { themeAccentTextColor, themePrimaryText, themeSecondaryText } from '../../shared/EhTheme';
+import { uiBlurredFieldBackground, uiBlurredFieldBackgroundEffect, uiCapsuleButtonBackground,
+  uiRadius, uiSearchFieldHeight } from '../../shared/EhUiStyle';
 
 @Component
 export struct CommentComposer {
@@ -33,7 +33,8 @@ export struct CommentComposer {
           .fontSize(15)
           .fontColor(themePrimaryText())
           .placeholderColor(themeSecondaryText())
-          .backgroundColor(themeFieldBackground())
+          .backgroundColor(uiBlurredFieldBackground())
+          .backgroundEffect(uiBlurredFieldBackgroundEffect())
           .borderRadius(uiRadius(uiSearchFieldHeight() / 2))
           .padding({ left: 12, right: 12, top: 8, bottom: 8 })
           .enabled(!this.posting)
@@ -61,7 +62,6 @@ export struct CommentComposer {
     }
     .width('100%')
     .padding({ left: 16, right: 16, top: 8, bottom: 10 })
-    .backgroundColor(themeTransparentColor())
-    .backgroundEffect(uiTitleBarBackgroundEffect())
+    .backgroundColor(Color.Transparent)
   }
 }

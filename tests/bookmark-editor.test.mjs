@@ -174,7 +174,7 @@ test('mounted bookmark drawer forwards current data through a reactive row prope
   assert.match(bookmarkScenes, /export struct SearchBookmarkDrawerRow \{\s*@Prop item: SearchBookmarkInfo/);
 });
 
-test('all text inputs have the shared search background, never transparent system material', () => {
+test('text inputs use the shared fill or the comment field blur, never transparent system material', () => {
   const base = new URL('../entry/src/main/ets/components/', import.meta.url);
   let count = 0;
   for (const file of readdirSync(base, { recursive: true }).filter((file) => file.endsWith('.ets'))) {
@@ -186,6 +186,11 @@ test('all text inputs have the shared search background, never transparent syste
         // Selected tag chips and editor share a single capsule supplied by the parent Row.
         const searchRow = bodyOf(source, 'private searchKeywordEditor()');
         assert.match(searchRow, /\.backgroundColor\(themeFieldBackground\(\)\)/);
+      } else if (match[0].includes(".id('comment-draft')")) {
+        // The floating composer deliberately blurs list content; its helper
+        // retains the shared field fill when background effects are unavailable.
+        assert.match(match[0], /\.backgroundColor\(uiBlurredFieldBackground\(\)\)/);
+        assert.match(match[0], /\.backgroundEffect\(uiBlurredFieldBackgroundEffect\(\)\)/);
       } else {
         assert.match(match[0], /\.backgroundColor\(themeFieldBackground\(\)\)/, file);
       }

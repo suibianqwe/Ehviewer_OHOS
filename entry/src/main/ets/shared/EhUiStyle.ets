@@ -160,6 +160,23 @@ export function uiInputFieldBorder(hasError: boolean = false): BorderOptions {
   };
 }
 
+export function uiBlurredFieldBackground(): ResourceColor {
+  return supportsBackgroundEffect() ? Color.Transparent : themeFieldBackground();
+}
+
+export function uiBlurredFieldBackgroundEffect(): BackgroundEffectOptions | undefined {
+  if (!supportsBackgroundEffect()) {
+    return undefined;
+  }
+  return {
+    radius: 24,
+    saturation: 1.08,
+    brightness: 1,
+    color: isDarkTheme() ? 'rgba(16,22,30,0.58)' : 'rgba(255,255,255,0.72)',
+    adaptiveColor: AdaptiveColor.DEFAULT
+  };
+}
+
 export function uiSegmentMaterial(): uiMaterial.Material | undefined {
   if (!isHarmonyUiStyle()) {
     return undefined;
@@ -424,6 +441,33 @@ export function uiFloatingButtonBackgroundEffect(tintColor: string = ''): Backgr
     saturation: 1.12,
     brightness: isDarkTheme() ? 0.9 : 1.04,
     color: materialColorWithAlpha(tintColor, '34'),
+    adaptiveColor: AdaptiveColor.DEFAULT
+  };
+}
+
+// Reader content can be black or white independently of the app theme. Keep
+// this surface paired with a white icon instead of inheriting theme text colors.
+export function uiReaderTranslationButtonBackground(active: boolean): string {
+  if (isHarmonyUiStyle() && supportsBackgroundEffect()) {
+    return 'rgba(0,0,0,0)';
+  }
+  return readerTranslationButtonTint(active);
+}
+
+function readerTranslationButtonTint(active: boolean): string {
+  // 50% opacity (50% transparency) in both app color modes; keep the icon opaque.
+  return materialColorWithAlpha(active ? '#06465B' : '#182830', '80');
+}
+
+export function uiReaderTranslationButtonBackgroundEffect(active: boolean): BackgroundEffectOptions | undefined {
+  if (!isHarmonyUiStyle() || !supportsBackgroundEffect()) {
+    return undefined;
+  }
+  return {
+    radius: 12,
+    saturation: 1.12,
+    brightness: 1,
+    color: readerTranslationButtonTint(active),
     adaptiveColor: AdaptiveColor.DEFAULT
   };
 }

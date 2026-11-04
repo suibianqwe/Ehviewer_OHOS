@@ -31,6 +31,7 @@ export interface GalleryDetail extends GalleryInfo {
   torrentUrl: string;
   archiveUrl: string;
   parent: string;
+  newerVersions?: GalleryVersion[];
   visible: string;
   language: string;
   size: string;
@@ -39,6 +40,13 @@ export interface GalleryDetail extends GalleryInfo {
   ratingCount: number;
   previewPages: number;
   previewSet: GalleryPreview[];
+}
+
+export interface GalleryVersion {
+  gid: number;
+  token: string;
+  title: string;
+  url: string;
 }
 
 // Immutable request data: preparing a cover must not retain a mutable detail-page component.
