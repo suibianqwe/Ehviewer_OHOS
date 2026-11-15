@@ -1,5 +1,5 @@
 import { common } from '@kit.AbilityKit';
-import { fileIo as fs } from '@kit.CoreFileKit';
+import { DiagnosticLogFile } from './DiagnosticLogFile';
 import { ReaderPageTranslation } from '../model/ReaderTranslationModels';
 import { ehSettingsStore } from './EhSettingsStore';
 
@@ -26,19 +26,16 @@ export interface ReaderOcrOverlayDebugItem {
 
 const LOG_FILE_NAME: string = 'ehviewer_reader_ocr_debug.log';
 const MAX_LOG_BYTES: number = 8 * 1024 * 1024;
-const RETAINED_LOG_CHARACTERS: number = 2 * 1024 * 1024;
 
 export class ReaderOcrDebugLog {
-  private pendingBlocks: string[] = [];
+  private file: DiagnosticLogFile = new DiagnosticLogFile(LOG_FILE_NAME, MAX_LOG_BYTES);
   private overlaySnapshotKeys: string[] = [];
-  private flushScheduled: boolean = false;
   private context: common.UIAbilityContext | undefined = undefined;
 
   recordRecognition(context: common.UIAbilityContext, gid: number, pageIndex: number, content: string): void {
     if (!this.isEnabled()) {
       return;
     }
-    this.context = context;
     this.enqueue('\n================================================================================\n' +
       '类型：OCR识别与分组\n' +
       '时间：' + new Date().toISOString() + '\n' +
@@ -86,96 +83,25 @@ export class ReaderOcrDebugLog {
     this.enqueue(lines.join('\n') + '\n');
   }
 
-  read(context: common.UIAbilityContext): string {
+  async read(context: common.UIAbilityContext): Promise<string> {
     if (!this.isEnabled()) {
-      this.clear(context);
+      await this.clear(context);
       return '';
     }
-    this.flush(context);
-    try {
-      return fs.readTextSync(this.logPath(context));
-    } catch (error) {
-      return '';
-    }
+    return this.file.read(context.filesDir);
   }
 
-  clear(context?: common.UIAbilityContext): void {
-    this.pendingBlocks.splice(0, this.pendingBlocks.length);
+  clear(context?: common.UIAbilityContext): Promise<void> {
     this.overlaySnapshotKeys.splice(0, this.overlaySnapshotKeys.length);
-    this.flushScheduled = false;
     const targetContext = context === undefined ? AppStorage.get<common.UIAbilityContext>('abilityContext') : context;
-    const activeContext = targetContext === undefined ? this.context : targetContext;
-    if (activeContext === undefined) {
-      return;
-    }
-    try {
-      fs.unlinkSync(this.logPath(activeContext));
-    } catch (error) {
-    }
+    const activeContext = targetContext ?? this.context;
+    return activeContext === undefined ? Promise.resolve() : this.file.clear(activeContext.filesDir);
   }
 
   private enqueue(block: string, context?: common.UIAbilityContext): void {
-    this.pendingBlocks.push(block);
-    if (this.flushScheduled) {
-      return;
-    }
-    this.flushScheduled = true;
-    setTimeout(() => {
-      this.flushScheduled = false;
-      this.flush(context);
-    }, 0);
-  }
-
-  private flush(context?: common.UIAbilityContext): void {
-    if (this.pendingBlocks.length === 0) {
-      return;
-    }
-    const storedContext = context === undefined ? AppStorage.get<common.UIAbilityContext>('abilityContext') : context;
-    const targetContext = storedContext === undefined ? this.context : storedContext;
-    if (targetContext === undefined) {
-      return;
-    }
-    const content = this.pendingBlocks.join('');
-    if (this.append(targetContext, content)) {
-      this.pendingBlocks.splice(0, this.pendingBlocks.length);
-    }
-  }
-
-  private append(context: common.UIAbilityContext, content: string): boolean {
-    const path = this.logPath(context);
-    let fd = -1;
-    try {
-      let replacement = '';
-      try {
-        const stat = fs.statSync(path);
-        if (stat.size + content.length > MAX_LOG_BYTES) {
-          const existing = fs.readTextSync(path);
-          const start = Math.max(0, existing.length - RETAINED_LOG_CHARACTERS);
-          replacement = '[较早的OCR调试记录已因日志大小限制被移除]\n' + existing.substring(start) + content;
-        }
-      } catch (error) {
-      }
-      const mode = replacement.length > 0 ?
-        fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE :
-        fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.APPEND;
-      const file = fs.openSync(path, mode);
-      fd = file.fd;
-      fs.writeSync(fd, replacement.length > 0 ? replacement : content);
-      return true;
-    } catch (error) {
-      return false;
-    } finally {
-      if (fd >= 0) {
-        try {
-          fs.closeSync(fd);
-        } catch (error) {
-        }
-      }
-    }
-  }
-
-  private logPath(context: common.UIAbilityContext): string {
-    return context.filesDir + '/' + LOG_FILE_NAME;
+    const targetContext = context === undefined ? AppStorage.get<common.UIAbilityContext>('abilityContext') : context;
+    this.context = targetContext ?? this.context;
+    if (this.context !== undefined) this.file.append(this.context.filesDir, block);
   }
 
   private isEnabled(): boolean {

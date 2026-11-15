@@ -1,9 +1,12 @@
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
+import { BusinessError } from '@kit.BasicServicesKit';
+import { taskpool } from '@kit.ArkTS';
 import { ehSettingsStore } from './EhSettingsStore';
 import { ehAppLog } from './EhAppLog';
+import { writeDiagnosticFile } from './DiagnosticLogFile';
+import { redactDiagnosticExportTask } from './DiagnosticExportTask';
 
-const PARSE_ERROR_DIR: string = 'parse_error_bodies';
 const MAX_PARSE_ERROR_FILES: number = 20;
 const MAX_PARSE_ERROR_BYTES: number = 10 * 1024 * 1024;
 
@@ -15,167 +18,74 @@ export interface ParseErrorBodyEntry {
 }
 
 export class EhParseErrorBodyStore {
-  save(source: string, url: string, statusCode: number, message: string, body: string): string {
+  private pending: Promise<void> = Promise.resolve();
+  private sequence: number = 0;
+
+  save(source: string, url: string, statusCode: number, message: string, body: string): void {
     const context = AppStorage.get<common.UIAbilityContext>('abilityContext');
-    if (context === undefined || ehSettingsStore.getValue('save_parse_error_body', 'Off') !== 'On') {
-      return '';
-    }
-    const directory = this.directoryPath(context);
-    try {
-      ensureDirectory(directory);
-      const fileName = diagnosticTimestamp(new Date()) + '_' + sanitizeFileName(source) + '.html';
-      const path = directory + '/' + fileName;
-      const content = this.bodyFileContent(source, url, statusCode, message, body);
-      writeTextFile(path, content);
-      this.trim(directory);
-      ehAppLog.warn(context, 'ParseErrorBody', 'Saved ' + source + ' parse body: ' + path);
-      return path;
-    } catch (error) {
-      ehAppLog.error(context, 'ParseErrorBody', 'Save failed: ' + String(error));
-      return '';
-    }
+    if (context === undefined || ehSettingsStore.getValue('save_parse_error_body', 'Off') !== 'On') return;
+    const time = Date.now();
+    this.sequence++;
+    const name = time.toString() + '_' + this.sequence.toString() + '_' +
+      source.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48) + '.html';
+    this.pending = this.pending.then(async () => {
+      const directory = this.directoryPath(context);
+      try { await fs.mkdir(directory); } catch (error) {
+        if ((error as BusinessError).code !== 13900015) throw new Error(String(error));
+      }
+      const path = directory + '/' + name;
+      const limitedBody = body.length > 1024 * 1024 ? body.slice(0, 1024 * 1024) + '\n[Body truncated]' : body;
+      const content = '<!--\nTime ' + new Date(time).toISOString() + '\nSource ' + source + '\nURL ' + url +
+        '\nStatus ' + statusCode.toString() + '\nMessage ' + message.replace(/-->/g, '-- >') + '\n-->\n' + limitedBody;
+      const safe = await taskpool.execute(redactDiagnosticExportTask, content) as string;
+      await writeDiagnosticFile(path + '.tmp', safe);
+      await fs.rename(path + '.tmp', path);
+      const entries = await this.listFiles(context);
+      let bytes = entries.reduce((total: number, entry: ParseErrorBodyEntry) => total + entry.size, 0);
+      while (entries.length > MAX_PARSE_ERROR_FILES || bytes > MAX_PARSE_ERROR_BYTES) {
+        const oldest = entries.pop();
+        if (oldest === undefined) break;
+        await fs.unlink(oldest.path);
+        bytes -= oldest.size;
+      }
+      ehAppLog.warn(context, 'ParseErrorBody', 'Saved ' + source + ' parse body ' + name);
+    }).catch((error: Error) => { ehAppLog.error(context, 'ParseErrorBody', 'Save failed ' + String(error)); });
   }
 
-  list(context: common.UIAbilityContext): ParseErrorBodyEntry[] {
-    const directory = this.directoryPath(context);
-    try {
-      const names = fs.listFileSync(directory);
-      const entries: ParseErrorBodyEntry[] = [];
-      for (let i = 0; i < names.length; i++) {
-        const name = names[i];
-        const path = directory + '/' + name;
-        try {
-          const stat = fs.statSync(path);
-          if (!stat.isDirectory()) {
-            entries.push({
-              name: name,
-              path: path,
-              size: stat.size,
-              modifiedTime: stat.mtime
-            });
-          }
-        } catch (error) {
-        }
-      }
-      entries.sort((a: ParseErrorBodyEntry, b: ParseErrorBodyEntry) => b.modifiedTime - a.modifiedTime);
-      return entries;
-    } catch (error) {
-      return [];
-    }
+  list(context: common.UIAbilityContext): Promise<ParseErrorBodyEntry[]> {
+    const result = this.pending.then(() => this.listFiles(context));
+    this.pending = result.then(() => {}).catch(() => {});
+    return result;
   }
 
-  clear(context: common.UIAbilityContext): void {
-    const entries = this.list(context);
-    for (let i = 0; i < entries.length; i++) {
-      try {
-        fs.unlinkSync(entries[i].path);
-      } catch (error) {
-      }
-    }
+  clear(context: common.UIAbilityContext): Promise<void> {
+    const result = this.pending.then(async () => {
+      for (const entry of await this.listFiles(context)) await fs.unlink(entry.path);
+    });
+    this.pending = result.catch(() => {});
+    return result;
   }
 
   directoryPath(context: common.UIAbilityContext): string {
-    return context.filesDir + '/' + PARSE_ERROR_DIR;
+    return context.filesDir + '/parse_error_bodies';
   }
 
-  private bodyFileContent(source: string, url: string, statusCode: number, message: string, body: string): string {
-    const lines: string[] = [];
-    lines.push('<!--');
-    lines.push('EhViewer OHOS parse error body');
-    lines.push('Time: ' + new Date().toISOString());
-    lines.push('Source: ' + source);
-    lines.push('URL: ' + url);
-    lines.push('Status: ' + statusCode.toString());
-    lines.push('Message: ' + message.replace(/-->/g, '-- >'));
-    lines.push('Body bytes: ' + body.length.toString());
-    lines.push('-->');
-    lines.push(body);
-    return lines.join('\n');
-  }
-
-  private trim(directory: string): void {
-    const entries = this.entriesForDirectory(directory);
-    let total = 0;
-    for (let i = 0; i < entries.length; i++) {
-      total += entries[i].size;
+  private async listFiles(context: common.UIAbilityContext): Promise<ParseErrorBodyEntry[]> {
+    let names: string[];
+    const directory = this.directoryPath(context);
+    try { names = await fs.listFile(directory); } catch (error) {
+      if ((error as BusinessError).code === 13900002) return [];
+      throw new Error(String(error));
     }
-    for (let i = entries.length - 1; i >= 0; i--) {
-      if (entries.length <= MAX_PARSE_ERROR_FILES && total <= MAX_PARSE_ERROR_BYTES) {
-        return;
-      }
-      try {
-        fs.unlinkSync(entries[i].path);
-        total -= entries[i].size;
-        entries.splice(i, 1);
-      } catch (error) {
-      }
+    const entries: ParseErrorBodyEntry[] = [];
+    for (const name of names) {
+      if (!name.endsWith('.html')) continue;
+      const path = directory + '/' + name;
+      const stat = await fs.stat(path);
+      if (!stat.isDirectory()) entries.push({ name: name, path: path, size: stat.size, modifiedTime: stat.mtime });
     }
-  }
-
-  private entriesForDirectory(directory: string): ParseErrorBodyEntry[] {
-    try {
-      const names = fs.listFileSync(directory);
-      const entries: ParseErrorBodyEntry[] = [];
-      for (let i = 0; i < names.length; i++) {
-        const path = directory + '/' + names[i];
-        try {
-          const stat = fs.statSync(path);
-          if (!stat.isDirectory()) {
-            entries.push({ name: names[i], path: path, size: stat.size, modifiedTime: stat.mtime });
-          }
-        } catch (error) {
-        }
-      }
-      entries.sort((a: ParseErrorBodyEntry, b: ParseErrorBodyEntry) => b.modifiedTime - a.modifiedTime);
-      return entries;
-    } catch (error) {
-      return [];
-    }
-  }
-}
-
-function diagnosticTimestamp(now: Date): string {
-  return now.getFullYear().toString() + padTwo(now.getMonth() + 1) + padTwo(now.getDate()) + '_' +
-    padTwo(now.getHours()) + padTwo(now.getMinutes()) + padTwo(now.getSeconds());
-}
-
-function padTwo(value: number): string {
-  return value < 10 ? '0' + value.toString() : value.toString();
-}
-
-function sanitizeFileName(value: string): string {
-  const normalized = value.trim().length > 0 ? value.trim() : 'parse';
-  return normalized.replace(/[\\/:*?"<>|\s]+/g, '_').replace(/^_+|_+$/g, '').substring(0, 48);
-}
-
-function ensureDirectory(path: string): void {
-  try {
-    if (!fs.accessSync(path)) {
-      fs.mkdirSync(path);
-    }
-  } catch (error) {
-    try {
-      fs.mkdirSync(path);
-    } catch (innerError) {
-    }
-  }
-}
-
-function writeTextFile(path: string, value: string): void {
-  let fd = -1;
-  try {
-    const file = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
-    fd = file.fd;
-    fs.writeSync(fd, value);
-  } catch (error) {
-    throw new Error(String(error));
-  } finally {
-    if (fd >= 0) {
-      try {
-        fs.closeSync(fd);
-      } catch (error) {
-      }
-    }
+    entries.sort((a: ParseErrorBodyEntry, b: ParseErrorBodyEntry) => b.modifiedTime - a.modifiedTime);
+    return entries;
   }
 }
 

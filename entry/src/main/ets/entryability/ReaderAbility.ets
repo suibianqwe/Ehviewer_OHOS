@@ -9,6 +9,7 @@ import {
   restoreAppWindowState
 } from '../services/EhWindowImmersive';
 import { ehAppLog } from '../services/EhAppLog';
+import { ehFaultLogStore } from '../services/EhFaultLogStore';
 import { ehSettingsStore } from '../services/EhSettingsStore';
 import { refreshEhConnectionsAfterForeground } from '../services/EhNetworkConfig';
 import { cancelQueuedReaderImageRequests } from '../services/ReaderImageCache';
@@ -31,7 +32,8 @@ export default class ReaderAbility extends UIAbility {
   private appWasBackground: boolean = false;
   private windowStateRestoreStarted: boolean = false;
 
-  onCreate(want: Want): void {
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    ehFaultLogStore.initialize(this.context, launchParam);
     this.restoreContinuationSession(want);
   }
 

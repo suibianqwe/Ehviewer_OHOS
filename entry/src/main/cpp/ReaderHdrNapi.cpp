@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -25,6 +26,7 @@ constexpr int32_t CONVERSION_SUCCESS = 0;
 constexpr int32_t CONVERSION_FAILED = 29200005;
 constexpr size_t SDR_LUT_SIZE = 256;
 constexpr size_t HLG_LUT_SIZE = 4096;
+using NativeBufferReference = std::unique_ptr<OH_NativeBuffer, decltype(&OH_NativeBuffer_Unreference)>;
 std::once_flag g_transferLutOnce;
 std::array<float, SDR_LUT_SIZE> g_srgbToLinear {};
 std::array<uint16_t, HLG_LUT_SIZE> g_linearToHlg10 {};
@@ -38,6 +40,16 @@ struct ConversionWork {
     OH_PixelmapNative *source = nullptr;
     OH_PixelmapNative *destination = nullptr;
     int32_t result = CONVERSION_FAILED;
+
+    ~ConversionWork()
+    {
+        if (source != nullptr) {
+            OH_PixelmapNative_Release(source);
+        }
+        if (destination != nullptr) {
+            OH_PixelmapNative_Release(destination);
+        }
+    }
 };
 
 struct AdjustmentWork {
@@ -314,9 +326,15 @@ bool ConvertSdrBufferToHlg(OH_PixelmapNative *source, OH_PixelmapNative *destina
 {
     OH_NativeBuffer *sourceBuffer = nullptr;
     OH_NativeBuffer *destinationBuffer = nullptr;
-    if (OH_PixelmapNative_GetNativeBuffer(source, &sourceBuffer) != IMAGE_SUCCESS || sourceBuffer == nullptr ||
-        OH_PixelmapNative_GetNativeBuffer(destination, &destinationBuffer) != IMAGE_SUCCESS ||
-        destinationBuffer == nullptr) {
+    // GetNativeBuffer acquires an additional reference, including when the
+    // buffer is only queried for diagnostics. Release every successful acquire.
+    const auto sourceResult = OH_PixelmapNative_GetNativeBuffer(source, &sourceBuffer);
+    NativeBufferReference sourceReference(sourceResult == IMAGE_SUCCESS ? sourceBuffer : nullptr,
+        OH_NativeBuffer_Unreference);
+    const auto destinationResult = OH_PixelmapNative_GetNativeBuffer(destination, &destinationBuffer);
+    NativeBufferReference destinationReference(destinationResult == IMAGE_SUCCESS ? destinationBuffer : nullptr,
+        OH_NativeBuffer_Unreference);
+    if (!sourceReference || !destinationReference) {
         OH_LOG_ERROR(LOG_APP, "SDR to HLG conversion cannot access NativeBuffer");
         return false;
     }
@@ -406,6 +424,8 @@ napi_value ConvertNativePixelMapToNapi(napi_env env, OH_PixelmapNative *pixelMap
     }
     OH_NativeBuffer *nativeBuffer = nullptr;
     const Image_ErrorCode bufferResult = OH_PixelmapNative_GetNativeBuffer(pixelMap, &nativeBuffer);
+    NativeBufferReference bufferReference(bufferResult == IMAGE_SUCCESS ? nativeBuffer : nullptr,
+        OH_NativeBuffer_Unreference);
     OH_Pixelmap_ImageInfo *imageInfo = nullptr;
     uint32_t width = 0;
     uint32_t height = 0;

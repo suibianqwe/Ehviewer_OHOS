@@ -103,7 +103,7 @@ import {
 import { applyWindowPrivacyMode } from '../services/EhWindowPrivacy';
 import { ehAppLog } from '../services/EhAppLog';
 import { applyMissionContinuationSetting } from '../services/DistributedContinuationService';
-import { ehParseErrorBodyStore, ParseErrorBodyEntry } from '../services/EhParseErrorBodyStore';
+import { ehDiagnosticExport } from '../services/EhDiagnosticExport';
 import {
   AndroidDataImportSummary,
   importAndroidDatabaseBackup,
@@ -228,6 +228,7 @@ const settingsDetailScrollOffsets: Map<string, number> = new Map<string, number>
 
 @Component
 export struct SettingsScene {
+  private diagnosticExportPending: boolean = false;
   @State panel: SettingsPanel = SettingsPanel.Main;
   @State panelStack: SettingsPanel[] = [SettingsPanel.Main];
   @State signedIn: boolean = ehCookieStore.hasCookies();
@@ -1459,28 +1460,29 @@ export struct SettingsScene {
   }
 
   private exportAppLog(): void {
+    this.exportDiagnosticLog('all');
+  }
+
+  private exportDiagnosticLog(kind: string): void {
     const context = getAbilityContext();
     if (context === undefined) {
       this.showFloatingStatus('Export log needs an ability context');
       return;
     }
-    const now = new Date();
-    const stamp = now.getFullYear().toString() +
-      padTwo(now.getMonth() + 1) + padTwo(now.getDate()) + '_' +
-      padTwo(now.getHours()) + padTwo(now.getMinutes()) + padTwo(now.getSeconds());
-    const fileName = 'ehviewer_log_' + stamp + '.txt';
-    const content = this.createAppLogExport(context);
-    if (content.trim().length === 0) {
-      this.showFloatingStatus('No saved log yet');
-      return;
-    }
-    this.writeTextToDownloads(context, fileName, content).then((path: string) => {
+    if (this.diagnosticExportPending) return;
+    this.diagnosticExportPending = true;
+    this.showFloatingStatus('Exporting logs...');
+    const fileName = 'ehviewer_diagnostic_' + diagnosticTimestamp(new Date()) + '.txt';
+    ehDiagnosticExport.create(context, kind).then((content: string) => {
+      return this.writeTextToDownloads(context, fileName, content);
+    }).then((path: string) => {
       this.statusText = 'Log exported: ' + path;
       this.showToast('Log exported');
     }).catch((error: Error) => {
-      this.showFloatingStatus('Log export failed: ' + error.message);
+      this.showFloatingStatus(error.message === 'Export cancelled' ? 'Export cancelled' :
+        'Log export failed: ' + error.message);
       ehAppLog.error(context, DIAGNOSTIC_LOG_TAG, 'Log export failed: ' + error.message);
-    });
+    }).finally(() => { this.diagnosticExportPending = false; });
   }
 
   private async writeTextToDownloads(context: common.UIAbilityContext, fileName: string, content: string): Promise<string> {
@@ -1545,12 +1547,15 @@ export struct SettingsScene {
   private clearAppLog(): void {
     const context = getAbilityContext();
     if (context === undefined) {
-      this.statusText = 'Clear log needs an ability context';
+      this.showFloatingStatus('Clear log needs an ability context');
       return;
     }
-    ehAppLog.clear(context);
-    ehParseErrorBodyStore.clear(context);
-    this.statusText = 'Saved log cleared';
+    if (this.diagnosticExportPending) return;
+    ehDiagnosticExport.clear(context).then(() => {
+      this.showFloatingStatus('Saved log cleared');
+    }).catch((error: Error) => {
+      this.showFloatingStatus('Clear log failed: ' + error.message);
+    });
   }
 
   private importData(): void {
@@ -1813,43 +1818,11 @@ export struct SettingsScene {
   }
 
   private exportAiTranslationRecords(): void {
-    const context = getAbilityContext();
-    if (context === undefined) {
-      this.showFloatingStatus('AI translation record export needs an ability context');
-      return;
-    }
-    const content = aiTranslationConversationLog.read(context);
-    if (content.trim().length === 0) {
-      this.showFloatingStatus('No AI translation records yet');
-      return;
-    }
-    const fileName = 'ehviewer_ai_translation_' + diagnosticTimestamp(new Date()) + '.txt';
-    this.writeTextToDownloads(context, fileName, content).then((path: string) => {
-      this.statusText = uiText('AI translation records exported') + ': ' + path;
-      this.showToast('AI translation records exported');
-    }).catch((error: Error) => {
-      this.showFloatingStatus(uiText('AI translation record export failed') + ': ' + error.message);
-    });
+    this.exportDiagnosticLog('ai');
   }
 
   private exportReaderOcrDebugRecords(): void {
-    const context = getAbilityContext();
-    if (context === undefined) {
-      this.showFloatingStatus('Comic OCR debug export needs an ability context');
-      return;
-    }
-    const content = readerOcrDebugLog.read(context);
-    if (content.trim().length === 0) {
-      this.showFloatingStatus('No comic OCR debug records yet');
-      return;
-    }
-    const fileName = 'ehviewer_reader_ocr_debug_' + diagnosticTimestamp(new Date()) + '.txt';
-    this.writeTextToDownloads(context, fileName, content).then((path: string) => {
-      this.statusText = uiText('Comic OCR debug data exported') + ': ' + path;
-      this.showToast('Comic OCR debug data exported');
-    }).catch((error: Error) => {
-      this.showFloatingStatus(uiText('Comic OCR debug export failed') + ': ' + error.message);
-    });
+    this.exportDiagnosticLog('ocr');
   }
 
   private updateTagTranslationDatabase(): void {
@@ -1954,38 +1927,6 @@ export struct SettingsScene {
     }).catch(() => {});
   }
 
-  private createAppLogExport(context: common.UIAbilityContext): string {
-    const appLog = ehAppLog.read(context);
-    const parseBodies = ehParseErrorBodyStore.list(context);
-    if (appLog.trim().length === 0 && parseBodies.length === 0) {
-      return '';
-    }
-    const lines: string[] = [];
-    lines.push('EhViewer OHOS Diagnostic Log');
-    lines.push('ExportedAt: ' + new Date().toISOString());
-    lines.push('Version: ' + EH_APP_VERSION_NAME + ' (' + EH_APP_VERSION_CODE.toString() + ')');
-    lines.push('Target: ' + EH_TARGET_PLATFORM);
-    lines.push('SaveCrashLog: ' + ehSettingsStore.getValue('save_crash_log', 'Off'));
-    lines.push('SaveParseErrorBody: ' + ehSettingsStore.getValue('save_parse_error_body', 'Off'));
-    lines.push('');
-    lines.push('[App Log]');
-    lines.push(appLog.trim().length > 0 ? appLog : '(empty)');
-    lines.push('');
-    lines.push('[Parse Error Bodies]');
-    if (parseBodies.length === 0) {
-      lines.push('(none)');
-    } else {
-      for (let i = 0; i < parseBodies.length; i++) {
-        const entry: ParseErrorBodyEntry = parseBodies[i];
-        lines.push((i + 1).toString() + '. ' + entry.name);
-        lines.push('   Path: ' + entry.path);
-        lines.push('   Size: ' + downloadSizeText(entry.size));
-        lines.push('   Modified: ' + new Date(entry.modifiedTime).toISOString());
-      }
-    }
-    return lines.join('\n');
-  }
-
   private cleanDownloadRedundancy(): void {
     const context = getAbilityContext();
     if (context === undefined) {
@@ -2065,10 +2006,8 @@ export struct SettingsScene {
         return;
       }
       const content = this.createNetworkDiagnosticLog(results, summary);
-      const fileName = 'ehviewer_network_' + diagnosticTimestamp(new Date()) + '.txt';
-      this.writeTextToDownloads(context, fileName, content).then((path: string) => {
-        this.statusText = 'Network diagnostics exported: ' + path;
-        this.showToast('Network diagnostics exported');
+      ehDiagnosticExport.rememberNetwork(context, content).then(() => {
+        this.exportDiagnosticLog('network');
       }).catch((error: Error) => {
         this.showFloatingStatus('Network diagnostics export failed: ' + error.message);
         ehAppLog.error(context, DIAGNOSTIC_LOG_TAG, 'Network diagnostics export failed: ' + error.message);

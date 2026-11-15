@@ -24,6 +24,7 @@ import {
   readerOrientationFromSetting,
   readerScreenRotationSetting,
   setEmbeddedReaderActive,
+  setReaderAutoPlaybackActive,
   setReaderTransientStatusBarVisible,
 } from '../services/EhWindowImmersive';
 import { READER_TRANSLATION_BUTTON_VISIBLE_KEY, ehSettingsStore } from '../services/EhSettingsStore';
@@ -194,7 +195,7 @@ export struct ReaderScene {
   @State readerSafeTopPx: number = 0;
   @State readerSafeRightPx: number = 0;
   @State readerSafeBottomPx: number = 0;
-  @State autoTransferPlaying: boolean = false;
+  @State @Watch('onAutoTransferPlayingChange') autoTransferPlaying: boolean = false;
   @State currentIndex: number = 0;
   @State isDisableSwipe: boolean = false;
   @State zoomPercent: number = 100;
@@ -416,6 +417,9 @@ export struct ReaderScene {
 
   private cleanupReaderScene(): void {
     this.readerWindowActive = false;
+    this.autoTransferPlaying = false;
+    const win = this.hostReaderWindow ?? this.readerAvoidAreaWindow;
+    if (win !== undefined) setReaderAutoPlaybackActive(win, false);
     this.uninstallReaderBackHandler();
     this.imageProcessingPrefetchScope.clear();
     setReaderTransientStatusBarVisible(false);
@@ -618,7 +622,7 @@ export struct ReaderScene {
 
   private async applyReaderWindowSettingsOnce(keepOn: boolean, orientation: string, fullscreen: boolean): Promise<void> {
     const win = await this.obtainReaderWindow();
-    if (win === undefined) {
+    if (win === undefined || !this.readerWindowActive) {
       return;
     }
     if (this.restoreAppChromeOnExit && !isEmbeddedReaderActive()) {
@@ -627,6 +631,7 @@ export struct ReaderScene {
     if (this.restoreAppChromeOnExit) {
       setEmbeddedReaderActive(true);
     }
+    setReaderAutoPlaybackActive(win, this.autoTransferPlaying);
     await applyReaderWindowState(win, keepOn, this.readerOrientationForSetting(win, orientation), fullscreen);
   }
 
@@ -1852,6 +1857,10 @@ export struct ReaderScene {
     return seconds * 1000;
   }
 
+  onAutoTransferPlayingChange(): void {
+    this.applyReaderWindowSettings();
+  }
+
   private scheduleAutoTransfer(): void {
     this.clearAutoTransferTimer();
     if (!this.readerWindowActive || !this.autoTransferPlaying) {
@@ -1863,6 +1872,7 @@ export struct ReaderScene {
     }
     const delay = this.autoTransferDelayMs();
     if (delay <= 0) {
+      this.stopAutoTransferPlayback();
       return;
     }
     this.autoTransferTimer = setTimeout(() => {

@@ -5,6 +5,19 @@ import test from 'node:test';
 const source = readFileSync(new URL('../entry/src/main/ets/services/ReaderSuperResolutionService.ets',
   import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 
+test('native DMA buffer queries own their extra references and HDR wrappers release on every exit', () => {
+  const native = readFileSync(new URL('../entry/src/main/cpp/ReaderHdrNapi.cpp', import.meta.url), 'utf8');
+  assert.match(native, /using NativeBufferReference = std::unique_ptr<OH_NativeBuffer, decltype\(&OH_NativeBuffer_Unreference\)>/);
+  assert.equal((native.match(/OH_PixelmapNative_GetNativeBuffer\(/g) ?? []).length, 3);
+  for (const [name, result, buffer] of [['sourceReference', 'sourceResult', 'sourceBuffer'],
+    ['destinationReference', 'destinationResult', 'destinationBuffer'], ['bufferReference', 'bufferResult', 'nativeBuffer']]) {
+    assert.ok(native.includes(`NativeBufferReference ${name}(${result} == IMAGE_SUCCESS ? ${buffer} : nullptr,`));
+  }
+  const destructor = native.match(/~ConversionWork\(\)[\s\S]*?\n    }/)[0];
+  assert.match(destructor, /OH_PixelmapNative_Release\(source\)/);
+  assert.match(destructor, /OH_PixelmapNative_Release\(destination\)/);
+});
+
 // Execute production lifecycle/queue methods, mocking only native copy and enhancement work.
 function method(name) {
   const start = source.search(new RegExp('^  (?:private )?(?:async )?' + name + '\\(', 'm'));

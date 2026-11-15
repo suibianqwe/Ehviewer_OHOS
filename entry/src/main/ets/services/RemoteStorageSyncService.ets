@@ -140,6 +140,11 @@ interface MirrorGalleryPlan {
   mtime: number;
 }
 
+interface MirrorFileSnapshot {
+  data: ArrayBuffer;
+  mtime: number;
+}
+
 interface MirrorCheckRecord {
   name: string;
   mtime: number;
@@ -1430,7 +1435,7 @@ export class RemoteStorageSyncService {
     const root = ehDownloadFileStore.appDownloadRoot(context);
     let galleryNames: string[] = [];
     try {
-      galleryNames = fs.listFileSync(root);
+      galleryNames = await fs.listFile(root);
     } catch (error) {
       return;
     }
@@ -1498,7 +1503,7 @@ export class RemoteStorageSyncService {
       let directory = false;
       let dirMtime = 0;
       try {
-        const dirStat = fs.statSync(localDir);
+        const dirStat = await fs.stat(localDir);
         directory = dirStat.isDirectory();
         dirMtime = dirStat.mtime;
       } catch (error) {
@@ -1511,7 +1516,7 @@ export class RemoteStorageSyncService {
       const remoteDir = DOWNLOADS_FOLDER + '/' + galleryName;
       let fileNames: string[] = [];
       try {
-        fileNames = fs.listFileSync(localDir);
+        fileNames = await fs.listFile(localDir);
       } catch (error) {
         continue;
       }
@@ -1527,7 +1532,7 @@ export class RemoteStorageSyncService {
         let mtime = 0;
         let isFile = false;
         try {
-          const fileStat = fs.statSync(localPath);
+          const fileStat = await fs.stat(localPath);
           isFile = fileStat.isFile();
           size = fileStat.size;
           mtime = Math.round(fileStat.mtime * 1000);
@@ -1577,26 +1582,22 @@ export class RemoteStorageSyncService {
           break;
         }
         const batch: string[] = gallery.files.slice(j, j + MIRROR_CONCURRENCY);
-        const results = await Promise.all(batch.map((fileName: string): Promise<number> => {
-          const data = readFileBuffer(gallery.localDir + '/' + fileName);
-          if (data === null) {
-            return Promise.resolve(-1);
+        const results = await Promise.all(batch.map(async (fileName: string): Promise<DownloadManifestEntry | null> => {
+          const snapshot = await readMirrorFileSnapshot(gallery.localDir + '/' + fileName);
+          if (snapshot === null) {
+            return null;
           }
-          const byteLength = data.byteLength;
-          return client.putBinaryResumable(gallery.remoteDir + '/' + fileName, data)
-            .then((result: RemoteStorageResult): number => result.ok ? byteLength : -1);
+          const result = await client.putBinaryResumable(gallery.remoteDir + '/' + fileName, snapshot.data);
+          return result.ok ? { path: gallery.name + '/' + fileName, size: snapshot.data.byteLength,
+            mtime: snapshot.mtime } : null;
         }));
         for (let k = 0; k < results.length; k++) {
-          if (results[k] >= 0) {
+          const uploaded = results[k];
+          if (uploaded !== null) {
             uploadedFiles++;
             uploadedHere++;
-            uploadedBytes += results[k];
-            const uploadedName = batch[k];
-            uploadedUpdates.push({
-              path: gallery.name + '/' + uploadedName,
-              size: results[k],
-              mtime: fileMtimeMsOrZero(gallery.localDir + '/' + uploadedName)
-            });
+            uploadedBytes += uploaded.size;
+            uploadedUpdates.push(uploaded);
           }
         }
         const now = Date.now();
@@ -1616,6 +1617,11 @@ export class RemoteStorageSyncService {
         });
       }
       galleryComplete.push(uploadedHere >= gallery.files.length);
+      if (uploadedHere < gallery.files.length) {
+        // A changing/temporarily unreadable file or a failed upload must be
+        // reconsidered even when the remote index remains unchanged.
+        this.downloadsDirty = true;
+      }
     }
     if (uploadedFiles > 0) {
       logRemoteStorageInfo('download mirror uploaded files=' + uploadedFiles.toString() +
@@ -2403,24 +2409,6 @@ function profilesWithoutPasswords(profiles: RemoteStorageProfile[]): RemoteStora
   return result;
 }
 
-function fileMtimeMsOrZero(path: string): number {
-  try {
-    const mtime = fs.statSync(path).mtime;
-    return mtime > 0 ? Math.round(mtime * 1000) : 0;
-  } catch (error) {
-    return 0;
-  }
-}
-
-function fileSizeOrZero(path: string): number {
-  try {
-    const size = fs.statSync(path).size;
-    return size > 0 ? size : 0;
-  } catch (error) {
-    return 0;
-  }
-}
-
 function formatTransferBytes(bytes: number): string {
   if (bytes >= 1024 * 1024 * 1024) {
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
@@ -2441,23 +2429,36 @@ function formatTransferRate(bytesPerSecond: number): string {
   return formatTransferBytes(bytesPerSecond) + '/s';
 }
 
-function readFileBuffer(path: string): ArrayBuffer | null {
+async function readMirrorFileSnapshot(path: string): Promise<MirrorFileSnapshot | null> {
   let fd = -1;
   try {
-    const size = fs.statSync(path).size;
-    if (size <= 0) {
+    fd = (await fs.open(path, fs.OpenMode.READ_ONLY)).fd;
+    const before = await fs.stat(fd);
+    const size = before.size;
+    if (!before.isFile() || !Number.isSafeInteger(size) || size <= 0) {
       return null;
     }
     const buffer = new ArrayBuffer(size);
-    fd = fs.openSync(path, fs.OpenMode.READ_ONLY).fd;
-    fs.readSync(fd, buffer);
-    return buffer;
+    const output = new Uint8Array(buffer);
+    const chunk = new ArrayBuffer(Math.min(size, 512 * 1024));
+    let read = 0;
+    while (read < size) {
+      const count = await fs.read(fd, chunk, { length: Math.min(chunk.byteLength, size - read) });
+      if (count <= 0) return null;
+      output.set(new Uint8Array(chunk, 0, count), read);
+      read += count;
+    }
+    const after = await fs.stat(path);
+    if (after.ino !== before.ino || after.size !== size || after.mtime !== before.mtime) return null;
+    // Keep the timestamp of the uploaded bytes even if the file changes while
+    // the network request is in flight.
+    return { data: buffer, mtime: before.mtime > 0 ? Math.round(before.mtime * 1000) : 0 };
   } catch (error) {
     return null;
   } finally {
     if (fd >= 0) {
       try {
-        fs.closeSync(fd);
+        await fs.close(fd);
       } catch (error) {
       }
     }

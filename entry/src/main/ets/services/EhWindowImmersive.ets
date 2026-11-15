@@ -22,6 +22,7 @@ const VISIBLE_SYSTEM_BARS: SystemBarName[] = ['status'];
 const HIDDEN_SYSTEM_BARS: SystemBarName[] = [];
 const READER_STATUS_BAR_VISIBLE_SYSTEM_BARS: SystemBarName[] = ['status'];
 const savedReaderPreferredOrientations: Map<number, window.Orientation> = new Map();
+const readerAutoPlaybackWindows: Set<number> = new Set<number>();
 let readerChromeGeneration: number = 0;
 let appChromeGeneration: number = 0;
 let mainWindowReference: window.Window | undefined;
@@ -257,10 +258,21 @@ function scheduleAppSystemBarThemeRefresh(target: window.Window, generation: num
   }, delayMs);
 }
 
+export function setReaderAutoPlaybackActive(target: window.Window, active: boolean): void {
+  try {
+    const id = target.getWindowProperties().id;
+    if (active) readerAutoPlaybackWindows.add(id);
+    else readerAutoPlaybackWindows.delete(id);
+  } catch (error) {
+    logWindowError('update reader auto playback state', error);
+  }
+}
+
 export async function applyReaderWindowState(target: window.Window, keepScreenOn: boolean,
   orientation: window.Orientation | undefined, fullscreen: boolean = true): Promise<void> {
   rememberWindowPreferredOrientation(target);
-  await setWindowKeepScreenOnQuietly(target, keepScreenOn, 'set reader keep screen on');
+  const autoPlaying = readerAutoPlaybackWindows.has(target.getWindowProperties().id);
+  await setWindowKeepScreenOnQuietly(target, keepScreenOn || autoPlaying, 'set reader keep screen on');
   if (orientation !== undefined) {
     await setPreferredOrientationQuietly(target, orientation, 'set reader orientation');
   }
@@ -371,6 +383,7 @@ export function normalizeReaderScreenRotationSetting(value: string): string {
 }
 
 export async function restoreAppWindowState(target: window.Window): Promise<void> {
+  setReaderAutoPlaybackActive(target, false);
   await setWindowKeepScreenOnQuietly(target, false, 'restore app keep screen on');
   await restoreWindowPreferredOrientation(target);
   await restoreAppWindowChrome(target);

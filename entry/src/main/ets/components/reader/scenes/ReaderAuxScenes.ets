@@ -46,6 +46,8 @@ export struct CommentsScene {
   @State visibleCommentItems: GalleryComment[] = [];
   @State toolbarOffsetY: number = 0;
   @State composerHeight: number = uiSearchFieldHeight() + 18;
+  @State translationVisibleStart: number = 0;
+  @State translationVisibleEnd: number = 0;
   @StorageProp(MAIN_CONTENT_WIDTH_VP_KEY) contentWidth: number = 360;
   private commentsScroller: Scroller = new Scroller();
   private commentItems: CommentListItem[] = [];
@@ -94,6 +96,11 @@ export struct CommentsScene {
   }
 
   private handleScrollFrame(scrollOffset: number): number {
+    // Once hidden, forward scrolling cannot move the toolbar any further.
+    // Avoid crossing into the native Scroller for every subsequent frame.
+    if (scrollOffset > 0 && this.toolbarOffsetY <= -this.totalBarHeight()) {
+      return scrollOffset;
+    }
     const yOffset = Math.max(0, this.commentsScroller.currentOffset().yOffset);
     if (yOffset <= 4) {
       this.toolbarRestoring = false;
@@ -141,6 +148,19 @@ export struct CommentsScene {
     }
   }
 
+  private updateVisibleCommentRange(first: number, last: number): void {
+    // The summary occupies List index 0. Update priorities only when a row
+    // crosses the viewport, without registering a visibility observer per row.
+    const start = Math.max(0, first - 1);
+    const end = last - 1;
+    if (start !== this.translationVisibleStart) {
+      this.translationVisibleStart = start;
+    }
+    if (end !== this.translationVisibleEnd) {
+      this.translationVisibleEnd = end;
+    }
+  }
+
   @Builder
   private commentsContent() {
     Stack({ alignContent: Alignment.TopStart }) {
@@ -178,7 +198,7 @@ export struct CommentsScene {
           }
           .reuseId('comments-summary')
 
-          LazyForEach(this.commentsSource, (item: CommentListItem) => {
+          LazyForEach(this.commentsSource, (item: CommentListItem, index: number) => {
             ListItem() {
               GalleryCommentRow({
                 comment: item.comment,
@@ -186,13 +206,14 @@ export struct CommentsScene {
                 compact: false,
                 openGalleryLinksInApp: true,
                 translateComment: this.translationEnabled,
-                prioritizeVisibleTranslation: true,
+                translationPriority: index >= this.translationVisibleStart && index <= this.translationVisibleEnd ? 2 : 1,
                 onVoteComment: this.onVoteComment,
                 onOpenGalleryLink: this.onOpenGalleryLink,
                 onBlockUser: () => {
                   this.refreshVisibleComments();
                 }
               })
+              .reuseId('full-comment-row')
             }
             .reuseId('comment-row')
           }, (item: CommentListItem) => item.key)
@@ -210,6 +231,9 @@ export struct CommentsScene {
         .contentEndOffset(this.composerHeight)
         .scrollBar(BarState.Auto)
         .cachedCount(4)
+        .onScrollIndex((first: number, last: number) => {
+          this.updateVisibleCommentRange(first, last);
+        })
         .onScrollFrameBegin((offset: number, _state: ScrollState) => {
           return { offsetRemain: this.handleScrollFrame(offset) };
         })
@@ -245,8 +269,8 @@ export struct CommentsScene {
         onDraftChange: this.onCommentDraftChange,
         onPost: this.onPostComment
       })
-      .onAreaChange((_oldArea: Area, newArea: Area) => {
-        this.updateComposerHeight(Number.parseFloat(newArea.height.toString()));
+      .onSizeChange((_oldSize: SizeOptions, newSize: SizeOptions) => {
+        this.updateComposerHeight(Number(newSize.height));
       })
     }
     .width('100%')

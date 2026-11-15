@@ -1,4 +1,4 @@
-import { AbilityConstant, Configuration, ConfigurationConstant, errorManager, UIAbility, Want } from '@kit.AbilityKit';
+import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { preferences } from '@kit.ArkData';
 import { fileUri } from '@kit.CoreFileKit';
@@ -22,6 +22,7 @@ import {
   ehCommentBlacklistStore
 } from '../services/EhCommentBlacklistStore';
 import { ehAppLog } from '../services/EhAppLog';
+import { ehFaultLogStore } from '../services/EhFaultLogStore';
 import { DOWNLOAD_NOTIFICATION_OPEN_DIRECTORY_KEY } from '../services/DownloadNotificationSupport';
 import {
   pauseBackgroundImageRequests,
@@ -97,25 +98,10 @@ export default class EntryAbility extends UIAbility {
   private maxBottomAvoidPx: number = 0;
   private lastTopAvoidPx: number = 0;
 
-  onCreate(want: Want): void {
-    this.registerCrashObserver();
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    ehFaultLogStore.initialize(this.context, launchParam);
     this.captureDownloadDirectory(want);
     this.captureContinuation(want);
-  }
-
-  private registerCrashObserver(): void {
-    if (ehSettingsStore.getValue('save_crash_log', 'Off') !== 'On') {
-      return;
-    }
-    try {
-      const observer: errorManager.ErrorObserver = {
-        onUnhandledException: (errMsg: string): void => {
-          ehAppLog.error(this.context, 'AppCrash', errMsg);
-        }
-      };
-      errorManager.on('error', observer);
-    } catch (error) {
-    }
   }
 
   onNewWant(want: Want): void {

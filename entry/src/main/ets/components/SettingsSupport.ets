@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { fileUri, picker } from '@kit.CoreFileKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
+import { writeDiagnosticFile } from '../services/DiagnosticLogFile';
 import {
   DOWNLOAD_LOCATION_APP_FILES,
   DOWNLOAD_LOCATION_DOWNLOADS,
@@ -17,7 +18,6 @@ import {
 import { SettingsRowItem, uiText, uiValue, padTwo, normalizeProxyOption, normalizeAutoTransferTimeOption, normalizeBrightnessLevelOption } from '../shared/EhShared';
 
 export const DIAGNOSTIC_LOG_TAG: string = 'SettingsScene';
-export const LOG_EXPORT_CHUNK_BYTES: number = 64 * 1024;
 export const EH_LICENSE_URL: string = 'https://github.com/suibianqwe/Ehviewer_OHOS/blob/main/LICENSE';
 export function settingsRowActionText(row: SettingsRowItem): string {
   if (row.value.length > 0) {
@@ -108,24 +108,11 @@ export function sanitizeExportFileName(fileName: string): string {
 }
 
 export async function writeTextFileChunked(path: string, content: string): Promise<void> {
-  let fd = -1;
   try {
-    const file = fs.openSync(path, fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE);
-    fd = file.fd;
-    for (let start = 0; start < content.length; start += LOG_EXPORT_CHUNK_BYTES) {
-      fs.writeSync(fd, content.substring(start, Math.min(content.length, start + LOG_EXPORT_CHUNK_BYTES)));
-      await yieldToUi();
-    }
+    await writeDiagnosticFile(path, content);
   } catch (error) {
-    removeFileQuietly(path);
+    try { await fs.unlink(path); } catch (_error) {}
     throw new Error(String(error));
-  } finally {
-    if (fd >= 0) {
-      try {
-        fs.closeSync(fd);
-      } catch (error) {
-      }
-    }
   }
 }
 

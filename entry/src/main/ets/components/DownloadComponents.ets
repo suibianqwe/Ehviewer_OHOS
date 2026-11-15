@@ -341,7 +341,7 @@ export struct DownloadToolColumn {
     if (kind === 'status') return $r('sys.symbol.funnel');
     if (kind === 'sort') return $r('sys.symbol.list_number');
     if (kind === 'dragSort') return this.dragSortEnabled ?
-      $r('sys.symbol.checkmark_circle_fill') : $r('sys.symbol.arrow_up_circle');
+      $r('sys.symbol.checkmark_circle_fill') : $r('sys.symbol.text_and_arrow_up_and_down');
     if (kind === 'jump') return $r('sys.symbol.chevron_forward');
     if (kind === 'start') return $r('sys.symbol.play_fill');
     if (kind === 'stop') return $r('sys.symbol.pause_fill');

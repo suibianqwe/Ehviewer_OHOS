@@ -1381,7 +1381,7 @@ export function settingsRowsForPanel(panel: SettingsPanel, themeName: string, en
         entries, identityAuthenticationOptions()),
       optionSettingsRow('enable_secure', 'Privacy mode', 'Prevent screenshots and insecure previews', entries, ON_OFF_OPTIONS),
       optionSettingsRow('save_parse_error_body', 'Save parse error body', 'Persist parser failures for debugging', entries, ON_OFF_OPTIONS),
-      optionSettingsRow('save_crash_log', 'Save crash log', 'Persist app errors and debug messages locally', entries, ON_OFF_OPTIONS),
+      optionSettingsRow('save_crash_log', 'Save runtime log', 'Persist app errors and debug messages locally', entries, ON_OFF_OPTIONS),
       staticSettingsRow('clear_app_log', 'Clear saved log', 'Delete the local app log file', 'Clear', 'action')
     ];
   }

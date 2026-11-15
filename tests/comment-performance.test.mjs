@@ -85,7 +85,7 @@ function textModel(translator = { translateComment: async () => 'translated' }) 
   const counts = { parse: 0, split: 0 };
   const Model = Function('commentPlainTextFromHtml', 'commentTextSegments', 'ehTranslationService',
     'return class {' + ['refreshSourceText', 'displaySegments', 'resetTranslation', 'requestTranslationIfNeeded',
-      'aboutToDisappear'].map(name => method(component, name)).join('\n') + '\n}')(
+      'aboutToDisappear', 'aboutToRecycle', 'aboutToReuse'].map(name => method(component, name)).join('\n') + '\n}')(
     html => { counts.parse++; return parse(html); },
     text => { counts.split++; return segments(text); }, translator);
   const model = Object.assign(new Model(), { html: '', cachedHtml: undefined, sourceText: '', sourceSegments: [],
@@ -148,10 +148,37 @@ test('toolbar animation preserves scroll delta and cannot change list viewport p
     visibleBarHeight() { return 80 + this.toolbarOffsetY; }, totalBarHeight: () => 80,
     restoreToolbarOnReverseScroll() { this.toolbarOffsetY = 0; } };
   for (const delta of [5, 30, 90, 10, -10, -40, 20]) assert.equal(frame.call(model, delta), delta);
-  assert.doesNotMatch(scene, /onScrollIndex|translationVisibleStart|translationVisibleEnd/);
-  assert.match(scene, /prioritizeVisibleTranslation: true/);
-  assert.match(component, /onVisibleAreaChange\(\[0\.0\]/);
-  assert.match(component, /this\.commentInViewport \? 2 : 1/);
+  assert.doesNotMatch(component, /onVisibleAreaChange/);
+});
+
+test('recycled comment text rejects old translations and refreshes its content before reuse', async () => {
+  const pending = [];
+  const { model } = textModel({ translateComment: text => new Promise(resolve => pending.push({ text, resolve })) });
+  model.html = 'first https://example.org/first';
+  model.translateComment = true;
+  model.resetTranslation();
+  model.aboutToRecycle();
+  pending[0].resolve('stale first translation');
+  await Promise.resolve();
+  assert.equal(model.translatedText, '');
+  model.html = 'second https://example.org/second';
+  model.aboutToReuse();
+  assert.equal(pending[1].text, model.html);
+  assert.equal(model.displaySegments().find(segment => segment.url).url, 'https://example.org/second');
+  pending[1].resolve('second translation');
+  await Promise.resolve();
+  assert.equal(model.translatedText, 'second translation');
+});
+
+test('comment viewport priorities account for the summary row without reloading comment data', () => {
+  const update = Function('return {' + method(scene, 'updateVisibleCommentRange') + '};')().updateVisibleCommentRange;
+  const model = { translationVisibleStart: 0, translationVisibleEnd: 0 };
+  for (const [first, last, start, end] of [[0, 0, 0, -1], [0, 5, 0, 4], [4, 9, 3, 8], [4, 9, 3, 8]]) {
+    update.call(model, first, last);
+    assert.equal(model.translationVisibleStart, start);
+    assert.equal(model.translationVisibleEnd, end);
+  }
+  assert.doesNotMatch(method(scene, 'updateVisibleCommentRange'), /commentsSource|setItems|refreshVisibleComments/);
 });
 
 test('composer overlays comments with field-only blur and reserves its measured height at the end', () => {

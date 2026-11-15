@@ -1706,6 +1706,7 @@ export function zhText(text: string): string {
     case 'Save parse error body': return '保存解析错误正文';
     case 'Persist parser failures for debugging': return '保存解析失败的网页正文用于调试';
     case 'Save crash log': return '保存日志';
+    case 'Save runtime log': return '保存运行日志';
     case 'Persist crash logs locally': return '在本地保存崩溃日志';
     case 'Persist app errors and debug messages locally': return '在本地保存应用错误和调试信息';
     case 'Dump logcat': return '导出 logcat';
@@ -1993,6 +1994,7 @@ export function zhText(text: string): string {
     case 'Clear log needs an ability context': return '清理日志需要 Ability 上下文';
     case 'Saved log cleared': return '已清空保存的日志';
     case 'Log exported': return '日志已导出';
+    case 'Exporting logs...': return '正在导出诊断日志…';
     case 'Network diagnostics exported': return '网络诊断已导出';
     case 'Open link failed: Ability context is not ready': return '打开链接失败：Ability 上下文尚未就绪';
     case 'Share failed: Ability context is not ready': return '分享失败：Ability 上下文尚未就绪';

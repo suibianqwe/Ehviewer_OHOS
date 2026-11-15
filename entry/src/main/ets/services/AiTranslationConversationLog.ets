@@ -1,17 +1,15 @@
 import { common } from '@kit.AbilityKit';
-import { fileIo as fs } from '@kit.CoreFileKit';
+import { DiagnosticLogFile } from './DiagnosticLogFile';
 import { ehSettingsStore } from './EhSettingsStore';
 
 export const AI_TRANSLATION_CONVERSATION_LOG_SETTING_KEY: string = 'translation_ai_conversation_log';
 
 const LOG_FILE_NAME: string = 'ehviewer_ai_translation.log';
 const MAX_LOG_BYTES: number = 16 * 1024 * 1024;
-const RETAINED_LOG_CHARACTERS: number = 4 * 1024 * 1024;
 
 export class AiTranslationConversationLog {
-  private pendingBlocks: string[] = [];
+  private file: DiagnosticLogFile = new DiagnosticLogFile(LOG_FILE_NAME, MAX_LOG_BYTES);
   private activeConversationIds: string[] = [];
-  private flushScheduled: boolean = false;
   private sequence: number = 0;
 
   recordRequest(provider: string, model: string, endpoint: string, requestBody: string): string {
@@ -52,100 +50,24 @@ export class AiTranslationConversationLog {
       '[请求错误]\n' + error + '\n');
   }
 
-  read(context: common.UIAbilityContext): string {
+  async read(context: common.UIAbilityContext): Promise<string> {
     if (!this.isEnabled()) {
-      this.clear(context);
+      await this.clear(context);
       return '';
     }
-    this.flush(context);
-    try {
-      return fs.readTextSync(this.logPath(context));
-    } catch (error) {
-      return '';
-    }
+    return this.file.read(context.filesDir);
   }
 
-  clear(context?: common.UIAbilityContext): void {
-    this.pendingBlocks.splice(0, this.pendingBlocks.length);
+  clear(context?: common.UIAbilityContext): Promise<void> {
     this.activeConversationIds.splice(0, this.activeConversationIds.length);
-    this.flushScheduled = false;
     this.sequence = 0;
     const targetContext = context === undefined ? AppStorage.get<common.UIAbilityContext>('abilityContext') : context;
-    if (targetContext === undefined) {
-      return;
-    }
-    try {
-      fs.unlinkSync(this.logPath(targetContext));
-    } catch (error) {
-    }
+    return targetContext === undefined ? Promise.resolve() : this.file.clear(targetContext.filesDir);
   }
 
-  private enqueue(block: string): void {
-    this.pendingBlocks.push(block);
-    if (this.flushScheduled) {
-      return;
-    }
-    this.flushScheduled = true;
-    setTimeout(() => {
-      this.flushScheduled = false;
-      this.flush();
-    }, 0);
-  }
-
-  private flush(context?: common.UIAbilityContext): void {
-    if (this.pendingBlocks.length === 0) {
-      return;
-    }
+  private enqueue(block: string, context?: common.UIAbilityContext): void {
     const targetContext = context === undefined ? AppStorage.get<common.UIAbilityContext>('abilityContext') : context;
-    if (targetContext === undefined) {
-      return;
-    }
-    const content = this.pendingBlocks.join('');
-    if (this.append(targetContext, content)) {
-      this.pendingBlocks.splice(0, this.pendingBlocks.length);
-    }
-  }
-
-  private append(context: common.UIAbilityContext, content: string): boolean {
-    const path = this.logPath(context);
-    let fd = -1;
-    try {
-      let replacement = '';
-      try {
-        const stat = fs.statSync(path);
-        if (stat.size + content.length > MAX_LOG_BYTES) {
-          const existing = fs.readTextSync(path);
-          let retained = existing.length > RETAINED_LOG_CHARACTERS ?
-            existing.substring(existing.length - RETAINED_LOG_CHARACTERS) : existing;
-          const entryStart = retained.indexOf('\n================================================================================\n');
-          if (entryStart >= 0) {
-            retained = retained.substring(entryStart);
-          }
-          replacement = '[较早的 AI 翻译记录已因日志大小限制被移除]\n' + retained + content;
-        }
-      } catch (error) {
-      }
-      const mode = replacement.length > 0 ?
-        fs.OpenMode.CREATE | fs.OpenMode.TRUNC | fs.OpenMode.READ_WRITE :
-        fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE | fs.OpenMode.APPEND;
-      const file = fs.openSync(path, mode);
-      fd = file.fd;
-      fs.writeSync(fd, replacement.length > 0 ? replacement : content);
-      return true;
-    } catch (error) {
-      return false;
-    } finally {
-      if (fd >= 0) {
-        try {
-          fs.closeSync(fd);
-        } catch (error) {
-        }
-      }
-    }
-  }
-
-  private logPath(context: common.UIAbilityContext): string {
-    return context.filesDir + '/' + LOG_FILE_NAME;
+    if (targetContext !== undefined) this.file.append(targetContext.filesDir, block);
   }
 
   private isEnabled(): boolean {

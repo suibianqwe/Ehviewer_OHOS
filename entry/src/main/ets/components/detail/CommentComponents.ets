@@ -167,6 +167,14 @@ export struct CommentLinkedText {
     this.translationRequestVersion++;
   }
 
+  aboutToRecycle(): void {
+    this.translationRequestVersion++;
+  }
+
+  aboutToReuse(): void {
+    this.resetTranslation();
+  }
+
   onContentChanged(): void {
     this.resetTranslation();
   }
@@ -314,6 +322,7 @@ export struct CommentVoteButton {
   }
 }
 
+@Reusable
 @Component
 export struct GalleryCommentRow {
   @Prop comment: GalleryComment = {
@@ -330,13 +339,17 @@ export struct GalleryCommentRow {
   rowClickable: boolean = false;
   @Prop translateComment: boolean = false;
   @Prop translationPriority: number = 2;
-  @Prop prioritizeVisibleTranslation: boolean = false;
-  @State commentInViewport: boolean = false;
   @StorageProp(LANGUAGE_REVISION_KEY) languageRevision: number = 0;
   onVoteComment: (comment: GalleryComment, vote: number) => void = (_comment: GalleryComment, _vote: number) => {};
   onOpenGalleryLink: (url: string) => void = (_url: string) => {};
   onTapRow: () => void = () => {};
   onBlockUser: () => void = () => {};
+
+  aboutToReuse(params: Record<string, Object>): void {
+    this.comment = params.comment as GalleryComment;
+    this.translateComment = (params.translateComment as boolean | undefined) ?? false;
+    this.translationPriority = (params.translationPriority as number | undefined) ?? 2;
+  }
 
   private canVoteUp(): boolean {
     return this.comment.id !== '0' && this.comment.voteUpAble === true;
@@ -433,8 +446,7 @@ export struct GalleryCommentRow {
         openGalleryLinksInApp: this.openGalleryLinksInApp,
         selectable: this.selectableText,
         translateComment: this.translateComment,
-        translationPriority: this.prioritizeVisibleTranslation ? (this.commentInViewport ? 2 : 1) :
-          this.translationPriority,
+        translationPriority: this.translationPriority,
         onOpenGalleryLink: this.onOpenGalleryLink,
         onTapText: this.onTapRow
       })
@@ -452,11 +464,6 @@ export struct GalleryCommentRow {
     .padding(this.compact ? 10 : { left: 16, right: 16, top: 14, bottom: 14 })
     .backgroundColor(this.compact ? themeSurfaceVariant() : themeSurface())
     .borderRadius(this.compact ? uiRadius(6) : 0)
-    .onVisibleAreaChange([0.0], (visible: boolean, ratio: number) => {
-      if (this.prioritizeVisibleTranslation) {
-        this.commentInViewport = visible && ratio > 0;
-      }
-    })
     .onClick(() => {
       if (this.rowClickable) {
         this.onTapRow();
