@@ -80,17 +80,16 @@ class ReaderTransferSink implements rcp.WriteFile {
 }
 
 class ReaderCancellableImageTransfer {
-  private session: rcp.Session | undefined = undefined;
-
   async download(url: string, options: http.HttpRequestOptions, temporary: string, demand: ReaderImageDemand,
     maxBytes: number, onProgress: (received: number, total: number) => void): Promise<ReaderTransferResult> {
     if (demand.cancelled) {
       throw new Error('Reader image request cancelled');
     }
-    if (this.session === undefined) {
-      this.session = rcp.createSession();
-    }
-    const session = this.session;
+    // A session keeps native workers and connection state alive until close().
+    // Reader pages often use different H@H hosts, so sharing one session for the
+    // entire application lifetime provides little reuse and can exhaust workers
+    // after many completed or cancelled transfers.
+    const session = rcp.createSession();
     const request = new rcp.Request(url, 'GET', options.header as Record<string, string>);
     let file: fs.File | undefined = undefined;
     let sink: ReaderTransferSink | undefined = undefined;
@@ -164,6 +163,12 @@ class ReaderCancellableImageTransfer {
       await sink?.drain();
       if (file !== undefined) {
         await fs.close(file);
+      }
+      // RCP requires callers to close sessions after use. Do this after the
+      // destination has drained so no late writer owns the file descriptor.
+      try {
+        session.close();
+      } catch (_error) {
       }
     }
   }

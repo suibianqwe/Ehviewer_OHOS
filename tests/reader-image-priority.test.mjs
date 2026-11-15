@@ -81,11 +81,12 @@ test('shared preview references stay alive for a visible consumer; explicit save
 
 const adapterSource = read('services/ReaderCancellableImageTransfer.ets');
 function adapter() {
-  const active = new Map(), requests = [], cancellations = [], writes = [], closed = [];
+  const active = new Map(), requests = [], cancellations = [], writes = [], closed = [], closedSessions = [];
   class Request { constructor(url, method, headers) { Object.assign(this, { url, method, headers }); } }
   const session = {
     fetch(request) { requests.push(request); const result = deferred(); active.set(request, result); return result.promise; },
-    cancel(request) { cancellations.push(request); active.get(request)?.reject({ code: 1007900992 }); }
+    cancel(request) { cancellations.push(request); active.get(request)?.reject({ code: 1007900992 }); },
+    close() { closedSessions.push(requests.length); }
   };
   const fs = {
     OpenMode: { CREATE: 1, READ_WRITE: 2, TRUNC: 4 },
@@ -96,7 +97,7 @@ function adapter() {
   const result = Function('rcp', 'deviceInfo', 'canIUse', 'fs', erase(adapterSource) +
     '\nreturn { transfer: readerCancellableImageTransfer, supports: supportsCancellableReaderTransfer };')(
     { Request, createSession: () => session }, { apiAvailable: () => true }, () => true, fs);
-  return { ...result, active, requests, cancellations, writes, closed, fs,
+  return { ...result, active, requests, cancellations, writes, closed, closedSessions, fs,
     async ready() { for (let i = 0; i < 6; i++) await Promise.resolve(); },
     async body(index, size) {
       const request = requests[index];
@@ -131,6 +132,7 @@ test('ordinary reader requests stop at the next body write without external nati
   assert.deepEqual(model.cancellations, []);
   assert.equal(model.writes.length, 1);
   assert.deepEqual(model.closed, ['/image.part']);
+  assert.equal(model.closedSessions.length, 1);
   assert.equal(demand.abort(), undefined);
 });
 
@@ -199,9 +201,11 @@ test('stream writes are ordered, handle short file writes and close only after p
   other.active.get(other.requests[0]).reject({ code: 1007900028 });
   await other.ready();
   assert.deepEqual(other.closed, [], 'timeout must not close a file still being written');
+  assert.deepEqual(other.closedSessions, [], 'session must stay alive while its destination is writing');
   write.resolve(8);
   await chunk; await rejected;
   assert.deepEqual(other.closed, ['/pending.part']);
+  assert.equal(other.closedSessions.length, 1);
   assert.deepEqual(other.cancellations, []);
 });
 
@@ -223,7 +227,9 @@ test('timeout and DNS errors preserve retry categories; cancellation while openi
   await assert.rejects(pending, /cancelled/);
   assert.equal(model.requests.length, 0);
   assert.deepEqual(model.closed, ['/opening.part']);
-  assert.doesNotMatch(adapterSource, /session\.cancel\(|session\.close\(/);
+  assert.equal(model.closedSessions.length, 1);
+  assert.doesNotMatch(adapterSource, /session\.cancel\(/);
+  assert.match(adapterSource, /session\.close\(\)/);
 });
 
 function cacheFunction(name) {
@@ -232,11 +238,11 @@ function cacheFunction(name) {
   return erase(source.slice(start, source.indexOf('\n}', start) + 2)).replace(/: WaitingImageSlot/g, '');
 }
 
-test('foreground reserve is bounded and unavailable to prefetch/download/background work', () => {
+test('foreground reserve is bounded and H@H streaming leaves one worker for the visible page', () => {
   const canDispatch = Function('activeImageDownloads', 'activeHathImageDownloads', 'READER_VISIBLE_IMAGE_PRIORITY',
     'MAX_DOH_HATH_IMAGE_DOWNLOADS', 'backgroundImageDispatchPaused', 'backgroundImageSettleUntil',
     'activeBackgroundImageDownloads', 'MAX_BACKGROUND_IMAGE_DOWNLOADS', cacheFunction('canDispatchImageSlot') +
-    '\nreturn canDispatchImageSlot;')(3, 3, visiblePriority, 4, false, 0, 0, 8);
+    '\nreturn canDispatchImageSlot;')(3, 2, visiblePriority, 2, false, 0, 0, 8);
   assert.equal(canDispatch({ priority: visiblePriority, hath: true, background: false }, 3), true);
   assert.equal(canDispatch({ priority: prefetchPriority, hath: true, background: false }, 3), false);
   assert.equal(canDispatch({ priority: 10, hath: false, background: false }, 3), false);

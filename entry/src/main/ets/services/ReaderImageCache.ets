@@ -65,7 +65,10 @@ const DEFAULT_IMAGE_RETRY_LIMIT: number = 5;
 // 后台请求保持原有吞吐量，只在一批请求完成后给系统网络栈留出一个事件循环的收尾窗口。
 // 阅读器和正式下载不受该窗口影响，仍可立即抢占空闲槽位。
 const MAX_BACKGROUND_IMAGE_DOWNLOADS: number = 8;
-const MAX_DOH_HATH_IMAGE_DOWNLOADS: number = 4;
+// RCP stream destinations dispatch ArkTS write callbacks through EAWorkers.
+// Keep H@H+DoH streams below the device worker ceiling; one additional slot is
+// reserved below for the visible page so prefetch cannot hold up navigation.
+const MAX_DOH_HATH_IMAGE_DOWNLOADS: number = 2;
 const BACKGROUND_IMAGE_SETTLE_DELAY_MS: number = 32;
 const BACKGROUND_IMAGE_RESUME_DELAY_MS: number = 750;
 let activeImageDownloads: number = 0;
@@ -1356,7 +1359,7 @@ function canDispatchImageSlot(slot: WaitingImageSlot, totalLimit: number): boole
     return false;
   }
   const hathLimit = Math.min(totalLimit, MAX_DOH_HATH_IMAGE_DOWNLOADS) +
-    (slot.priority >= READER_VISIBLE_IMAGE_PRIORITY ? 2 : 0);
+    (slot.priority >= READER_VISIBLE_IMAGE_PRIORITY ? 1 : 0);
   if (slot.hath && activeHathImageDownloads >= hathLimit) {
     return false;
   }
