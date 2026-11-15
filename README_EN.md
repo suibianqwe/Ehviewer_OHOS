@@ -12,8 +12,8 @@ EhViewer HarmonyOS is a HarmonyOS port of [Ehviewer_CN_SXJ](https://github.com/x
 
 Download the latest unsigned HAP from [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases). It can be installed with tools such as [Auto Installer](https://github.com/likuai2010/auto-installer).
 
-- Current version `0.7.5`
-- Package [`EhViewer_OHOS_0.7.5.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.5/EhViewer_OHOS_0.7.5.hap)
+- Current version `0.7.6`
+- Package [`EhViewer_OHOS_0.7.6.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.6/EhViewer_OHOS_0.7.6.hap)
 - Target API: `26.0.0`
 - Compatible API: `6.0.0(20)`
 
@@ -37,6 +37,15 @@ See the [complete English user guide](docs/USER_GUIDE_EN.md) for first launch, l
 - Wide screens: resizable split panes with independent routes and focus-aware Back behavior.
 - Migration: JSON/Android database import, legacy EhViewer download recovery, and selectable Wi-Fi Direct transfer of reading progress, app settings, login cookies, bookmarks, favorites, blocklists, download metadata, and images. Local `igneous` is never exported or overwritten by incoming data.
 - Personalization and network: multiple languages/themes, translated tags, filters, privacy controls, HTTP/SOCKS5 proxy, DoH, hosts, SNI fronting, direct-connect detection, and diagnostics.
+
+## 0.7.6 updates
+
+- Unified exports for runtime logs, network diagnostics, failed response bodies, and AI/OCR debug records, including device information and relevant settings. Improved redaction and log capacity management.
+- Added collection of the most recent system crash or freeze. Reopening the app allows exports to include available system attachments, thread stacks, and memory information.
+- Improved long comment-list scrolling and translated-row reuse, reducing repeated layout work and visibility callbacks.
+- Fixed unreleased image buffer references in upscaling and HDR processing that caused memory usage to grow.
+- Download mirroring now scans directories and reads files asynchronously in chunks, reducing interference with foreground operations and improving file-change checks and retries.
+- Autoplay keeps the screen awake in both embedded and independent readers. Pausing or reaching the end restores the configured keep-screen-on behavior.
 
 ## 0.7.5 updates
 

@@ -2,7 +2,7 @@
 
 English · [简体中文](USER_GUIDE.md)
 
-This guide applies to EhViewer HarmonyOS `0.7.5`. Button positions may vary with the device, system version, window size, and permissions, but the entry points and behavior are the same. Portrait screenshots show the phone layout; landscape screenshots use the unfolded foldable to demonstrate the tablet layout. Every reader screenshot in this guide was reached through `Subscriptions → Gallery details → Read`.
+This guide applies to EhViewer HarmonyOS `0.7.6`. Button positions may vary with the device, system version, window size, and permissions, but the entry points and behavior are the same. Portrait screenshots show the phone layout; landscape screenshots use the unfolded foldable to demonstrate the tablet layout. Every reader screenshot in this guide was reached through `Subscriptions → Gallery details → Read`.
 
 > Tip: the app follows the system proxy and language by default. On a working network, advanced options such as custom hosts, SNI fronting, and DoH are normally unnecessary.
 
@@ -237,6 +237,8 @@ Visible pages take loading priority, and requests outside the preload range stop
   <img src="images/reader-phone.jpg" width="300" alt="Phone reader opened from Subscriptions" />
   <img src="images/reader-layout-phone.jpg" width="300" alt="Reader layout tab" />
 </p>
+
+Autoplay keeps the screen awake in both embedded and independent readers. Pausing, opening reader settings, or reaching the last page restores the configured Keep screen on behavior. Exiting the reader clears the autoplay override.
 
 ### 7.1 Direction, scaling, and display
 
@@ -478,13 +480,23 @@ Use Test translation under Translation settings. For web-service 403/rate limits
 
 ### 15.5 Exporting diagnostic information
 
+`Settings → Advanced → Export logs` produces a unified diagnostic text file with device and system versions, relevant reader and network settings, runtime logs, the latest network diagnostics, saved parse-error response bodies, and enabled AI conversation/OCR records. The dedicated AI, OCR, and network diagnostic entry points use the same format with their corresponding records.
+
+The app locally retains the most recent system crash or freeze independently of Save runtime log. Reopen the app after a fault and export to include the available fault type, threads, stack, memory information, and system attachment. Clear logs removes the saved diagnostic records together.
+
+System attachments require subscription before the fault. When an earlier fault was never captured or its attachment is unavailable, the export reports the missing data and includes available event metadata and the previous exit reason. System reports can arrive later, so export checks for attachments again. After a recent fault, reopen the app and try exporting again after about two minutes. Reports include the subscription start time and the time saved faults were cleared. An active subscription confirms registration.
+
+Remote storage details have a separate 128 KiB log budget, while other runtime records retain 512 KiB. Per-file sync traffic therefore has its own capacity. Exports also separate legacy mixed logs and mark truncated content and incomplete legacy records.
+
+Exports redact credentials, API keys, signed URL values, custom server URL hosts and paths, and profile names and directories in remote storage records. Common public service hosts, HTTP status codes, timings, native fault addresses, and stacks remain available for diagnosis. AI conversations, OCR records, and response bodies may still contain user content.
+
 When reporting an issue, include:
 
 - the page and exact reproduction steps;
 - app version, device model, system version, and selected site;
 - a screenshot or recording;
 - `Settings → Advanced → Export logs`, with all private data removed;
-- OCR debug export for manga translation issues when relevant.
+- enabled OCR debug records collected while reproducing manga translation issues, when relevant.
 
 Never publish account cookies, API keys, or other private information.
 

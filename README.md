@@ -12,8 +12,8 @@
 
 请在 [GitHub Releases](https://github.com/suibianqwe/Ehviewer_OHOS/releases) 下载最新的未签名 HAP，可使用 [小白调试助手](https://github.com/likuai2010/auto-installer) 安装。
 
-- 当前版本 `0.7.5`
-- 安装包 [`EhViewer_OHOS_0.7.5.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.5/EhViewer_OHOS_0.7.5.hap)
+- 当前版本 `0.7.6`
+- 安装包 [`EhViewer_OHOS_0.7.6.hap`](https://github.com/suibianqwe/Ehviewer_OHOS/releases/download/v0.7.6/EhViewer_OHOS_0.7.6.hap)
 - 目标 API：`26.0.0`
 - 兼容 API：`6.0.0(20)`
 
@@ -42,6 +42,15 @@ API 20 起可安装；低于 API 23 的设备会自动跳过不兼容的 SNI 域
 - 迁移：支持 JSON/安卓数据库导入、原 EhViewer 下载目录恢复，以及阅读进度、应用设置、登录 Cookie、收藏、书签、图片文件和评论黑名单的 Wi-Fi 直连多选传输；本机 `igneous` 不会导出或被传入值覆盖。
 - 个性化：支持简体中文、繁体中文、明暗主题、多种主题色、标签翻译、过滤规则、评论黑名单和隐私保护。
 - 网络：支持系统/HTTP/SOCKS5 代理、DoH、内置 Hosts、SNI 域名前置、直连检测和网络诊断。
+
+## 0.7.6 更新
+
+- 统一运行、网络诊断、解析失败正文及 AI/OCR 调试记录的导出，附带设备和关键配置，完善敏感信息脱敏及日志容量管理。
+- 新增最近一次系统崩溃、冻屏日志采集，重新打开应用后可导出可用的故障附件、线程堆栈和内存信息。
+- 优化评论页长列表滚动和译文组件复用，减少重复布局及可见性回调。
+- 修复超分及 HDR 图像缓冲引用未释放导致内存持续增长的问题。
+- 下载镜像的目录扫描和文件读取改为异步分块处理，减少同步过程对前台操作的阻塞，完善文件变化校验与失败重试。
+- 内嵌及独立阅读器自动播放时保持屏幕常亮，暂停或播放结束后恢复原常亮设置。
 
 ## 0.7.5 更新
 
